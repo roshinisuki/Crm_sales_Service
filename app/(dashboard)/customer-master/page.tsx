@@ -67,7 +67,7 @@ export default function CustomerMasterPage() {
 
       const res = await getCustomersAction(params);
       if (res.success && res.data) {
-        setCustomers(res.data);
+        setCustomers(res.data as any);
       }
     } catch (err) {
       console.error(err);
@@ -80,7 +80,7 @@ export default function CustomerMasterPage() {
     if (user?.role === "Admin" || user?.role === "MarketingLead") {
       const res = await getUsersAction();
       if (res.success && res.data) {
-        setExecutives(res.data.filter(u => u.role === "MarketingExecutive"));
+        setExecutives(res.data.filter((u: any) => u.role === "MarketingExecutive") as any);
       }
     }
   };

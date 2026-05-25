@@ -62,7 +62,7 @@ export default function AuditLogsPage() {
 
       const res = await getAuditLogsAction(params);
       if (res.success && res.data) {
-        setLogs(res.data);
+        setLogs(res.data as any);
       } else {
         setErrorMsg(res.message || "Failed to load audit logs.");
       }

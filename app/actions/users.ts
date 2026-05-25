@@ -19,6 +19,7 @@ export async function getUsersAction() {
         name: true,
         role: true,
         isActive: true,
+        isFirstLogin: true,
         createdAt: true,
       },
     });
@@ -30,61 +31,7 @@ export async function getUsersAction() {
   }
 }
 
-export async function createUserAction(data: any) {
-  try {
-    const userPayload = await verifyAuth();
-    if (!userPayload || userPayload.role !== "Admin") {
-      return { success: false, message: "Unauthorized: Only Admin can create users" };
-    }
 
-    const { email, name, role, password } = data;
-
-    if (!email || !name || !role || !password) {
-      return { success: false, message: "Missing required fields" };
-    }
-
-    if (!email.toLowerCase().endsWith("@sukisoftware.com")) {
-      return { success: false, message: "Email must end with @sukisoftware.com" };
-    }
-
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      return { success: false, message: "Company email must be unique" };
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    const newUser = await prisma.user.create({
-      data: {
-        email,
-        name,
-        role,
-        passwordHash,
-        isActive: true,
-      },
-    });
-
-    await logAudit(userPayload.id, "User Master", "Create", `Created user ${email}`);
-
-    return {
-      success: true,
-      message: "User created successfully",
-      data: {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role,
-        isActive: newUser.isActive,
-      }
-    };
-  } catch (error) {
-    console.error("POST User Error:", error);
-    return { success: false, message: "Failed to create user" };
-  }
-}
 
 export async function updateUserAction(id: string, data: any) {
   try {
@@ -159,3 +106,84 @@ export async function deleteUserAction(id: string) {
     return { success: false, message: "Failed to delete user" };
   }
 }
+
+// ─── Approve Pending Registration ─────────────────────────────────────────────
+export async function approveUserAction(id: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || userPayload.role !== "Admin") {
+      return { success: false, message: "Unauthorized: Only Admin can approve users" };
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return { success: false, message: "User not found" };
+    if (user.isActive) return { success: false, message: "User is already active" };
+
+    // Activate the user
+    await prisma.user.update({
+      where: { id },
+      data: { isActive: true, isFirstLogin: true },
+    });
+
+    // Send first-login OTP so they can set their password
+    const crypto = await import("crypto");
+    const { sendEmail, buildOtpEmail } = await import("@/lib/email");
+
+    const otp = crypto.randomInt(100000, 999999).toString();
+    await prisma.user.update({
+      where: { id },
+      data: {
+        otpCode: otp,
+        otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
+        otpAttempts: 0,
+      },
+    });
+
+    await sendEmail(
+      user.email,
+      "Your Suki CRM account has been approved!",
+      buildOtpEmail(user.name, otp)
+    );
+
+    await logAudit(
+      userPayload.id,
+      "User Master",
+      "Approve",
+      `Approved registration for ${user.email}`
+    );
+
+    return { success: true, message: `Account approved and activation code sent to ${user.email}` };
+  } catch (error) {
+    console.error("approveUserAction error:", error);
+    return { success: false, message: "Failed to approve user" };
+  }
+}
+
+// ─── Reject / Delete Pending Registration ────────────────────────────────────
+export async function rejectUserAction(id: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || userPayload.role !== "Admin") {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return { success: false, message: "User not found" };
+    if (user.isActive) return { success: false, message: "Cannot reject an already active user." };
+
+    await prisma.user.delete({ where: { id } });
+
+    await logAudit(
+      userPayload.id,
+      "User Master",
+      "Reject",
+      `Rejected registration for ${user.email}`
+    );
+
+    return { success: true, message: "Registration request rejected and removed." };
+  } catch (error) {
+    console.error("rejectUserAction error:", error);
+    return { success: false, message: "Failed to reject user" };
+  }
+}
+

@@ -49,9 +49,21 @@ model User {
   name         String
   passwordHash String
   role         Role     @default(MarketingExecutive)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive           Boolean   @default(true)
+  isFirstLogin       Boolean   @default(true)
+  otpCode            String?
+  otpExpiry          DateTime?
+  otpAttempts        Int       @default(0)
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+  loginAttempts      Int       @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  invitedBy          String?
+  invitedAt          DateTime?
+  passwordSetAt      DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   marketingVisits     MarketingVisit[]
   hostedVisitors      Visitor[]

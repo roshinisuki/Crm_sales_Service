@@ -45,8 +45,8 @@ export default function FollowUpsPage() {
         getFollowUpsAction({ status: statusFilter === "All" ? undefined : statusFilter }),
         getCustomersAction(),
       ]);
-      if (followUpRes.success) setFollowUps(followUpRes.data || []);
-      if (custRes.success) setCustomers(custRes.data || []);
+      if (followUpRes.success) setFollowUps(followUpRes.data as any || []);
+      if (custRes.success) setCustomers(custRes.data as any || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -108,7 +108,7 @@ export default function FollowUpsPage() {
   };
 
   const filtered = followUps.filter((f) => {
-    const custName = f.customer?.name.toLowerCase() || "";
+    const custName = f.customer?.name?.toLowerCase() || "";
     const notes = f.notes?.toLowerCase() || "";
     const matchesSearch = custName.includes(search.toLowerCase()) || notes.includes(search.toLowerCase());
     const matchesStatus = statusFilter === "All" ? true : f.status === statusFilter;

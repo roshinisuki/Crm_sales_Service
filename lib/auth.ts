@@ -21,8 +21,11 @@ export async function verifyAuth(): Promise<TokenPayload | null> {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
-    return decoded;
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded.userId && !decoded.id) {
+      decoded.id = decoded.userId;
+    }
+    return decoded as TokenPayload;
   } catch (error) {
     console.error("JWT Verification Error:", error);
     return null;

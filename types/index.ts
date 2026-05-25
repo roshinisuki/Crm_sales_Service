@@ -6,6 +6,7 @@ export interface User {
   name: string;
   role: Role;
   isActive: boolean;
+  isFirstLogin?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
