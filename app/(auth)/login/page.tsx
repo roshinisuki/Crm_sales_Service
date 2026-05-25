@@ -1,330 +1,245 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
-import { 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  ShieldCheck, 
-  ArrowRight,
-  ShieldAlert
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 
-// ── EXACT IMAGE LOGO FROM UPLOAD ──
-function SukiWhiteLogo({ className = "w-20 h-20" }: { className?: string }) {
+// ── Icons ────────────────────────────────────────────────────────────────────
+function MailIcon() {
   return (
-    <div className={cn("relative overflow-hidden rounded-xl shadow-md", className)}>
-      <Image
-        src="/images/suki-logo.jpg"
-        alt="Suki CRM Logo"
-        fill
-        className="object-cover"
-        priority
-      />
-    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
+      <rect width="20" height="16" x="2" y="4" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </svg>
+  );
+}
+function LockIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  );
+}
+function UserIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+function EyeIcon({ visible }: { visible: boolean }) {
+  return visible ? (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
+      <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
+      <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+      <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+      <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+      <line x1="2" x2="22" y1="2" y2="22" />
+    </svg>
   );
 }
 
-// ── HORIZONTAL HEADER BRAND BLOCK ──
-function SukiBrandHeader({ theme = "light" }: { theme?: "light" | "dark" }) {
+// ── Left Panel ────────────────────────────────────────────────────────────────
+function LeftPanel() {
   return (
-    <div className="flex items-center gap-4">
-      <SukiWhiteLogo className={cn(
-        "w-12 h-12 drop-shadow-sm",
-        theme === "dark" ? "text-white" : "text-brand-primary-container"
-      )} />
-      <div className="flex flex-col items-start leading-none">
-        <div className="flex items-center">
-          <span className={cn(
-            "text-2xl font-black tracking-tight",
-            theme === "dark" ? "text-white" : "text-brand-primary-container"
-          )}>
-            SUKI
-          </span>
-          <span className="text-[10px] font-bold text-blue-500 align-super ml-0.5">®</span>
+    <div className="hidden lg:flex w-1/2 bg-[#0b1f3a] flex-col justify-center items-center p-12 text-center relative overflow-hidden">
+      {/* Background radial gradient for depth */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_50%,rgba(255,255,255,0.03)_0%,transparent_80%)]" />
+
+      <div className="relative z-10 max-w-md flex flex-col items-center">
+        {/* Brand Logo */}
+        <img src="/logo.png" alt="Suki CRM Logo" className="w-[88px] h-[88px] object-contain mb-10" />
+
+        <h1 className="text-[40px] font-semibold text-white mb-6 leading-[1.15] tracking-tight font-sans">
+          Welcome to<br />Suki CRM
+        </h1>
+        <p className="text-[#7587a7] text-base leading-[24px] mb-12 font-medium">
+          Secure access to your customer ecosystem. Manage relationships,
+          analyze data, and grow your brand with enterprise-grade precision.
+        </p>
+
+        <div className="flex items-center gap-3 px-5 py-2.5 rounded-full border border-white/10 bg-white/[0.03] backdrop-blur-sm">
+          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-[13px] font-semibold text-white/90">Sign in with your official company email.</span>
         </div>
-        <span className={cn(
-          "text-[9.5px] font-bold tracking-widest mt-1",
-          theme === "dark" ? "text-slate-400" : "text-slate-500"
-        )}>
-          SOFTWARE SOLUTIONS
-        </span>
       </div>
     </div>
   );
 }
 
-export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [keepSignedIn, setKeepSignedIn] = useState(false);
+// ── Auth Page ────────────────────────────────────────────────────────────────
+export default function AuthPage() {
+  const router = useRouter();
   
-  // Interactive UI states
+  const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "MarketingExecutive",
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(false);
+    setLoading(true);
+    setErrorMsg("");
 
-    // Business Rule Check: Only approved company domain users allowed
-    const approvedDomain = "@sukisoftware.com";
-    if (!email.toLowerCase().endsWith(approvedDomain)) {
-      setError(`Access restricted. Please use your official domain ${approvedDomain}`);
-      return;
-    }
-
-    setIsLoading(true);
-    
     try {
-      // Simulate backend authentication request
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      setSuccess(true);
+      const endpoint = isLogin ? "/user/login" : "/user/register";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+      if (!data.success) {
+        setErrorMsg(data.message || "Authentication failed");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
+      setErrorMsg("A network error occurred. Please try again.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen w-full flex bg-brand-surface font-sans antialiased selection:bg-brand-secondary-container selection:text-brand-on-secondary-container">
-      
-      {/* ── LEFT PANEL: DEEP CORPORATE NAVY PANEL (50% WIDTH) ── */}
-      <section className="hidden lg:flex lg:w-[50%] bg-[#1e3a5f] text-brand-on-primary flex-col items-center justify-center p-12 xl:p-16 relative overflow-hidden">
-        {/* Soft elegant radial overlays matching texture */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(69,95,135,0.4)_0%,transparent_75%)] pointer-events-none" />
+    <main className="min-h-screen flex bg-[#f7f9fb] font-sans">
+      <LeftPanel />
 
-        {/* Content Container (Center aligned) */}
-        <div className="relative z-10 flex flex-col items-center text-center max-w-md mx-auto space-y-6">
+      <div className="flex flex-1 items-center justify-center p-6 lg:p-12 relative">
+        <div className="w-full max-w-[460px] flex flex-col items-center">
           
-          {/* Hexagonal S Logo centered (Mathematically perfect solid white with gaps) */}
-          <SukiWhiteLogo className="w-24 h-24 text-white drop-shadow-[0_4px_12px_rgba(255,255,255,0.06)] mb-2" />
-
-          {/* Heading (Display Large weight and typography rules) */}
-          <div className="space-y-1">
-            <h1 className="text-[36px] font-light leading-[44px] tracking-[-0.02em] text-white">
-              Welcome to
-            </h1>
-            <h2 className="text-[44px] xl:text-[48px] font-bold leading-[52px] tracking-[-0.02em] text-white">
-              Suki CRM
+          {/* Card */}
+          <div className="w-full bg-white rounded-[16px] border border-[#e2e8f0] shadow-[0px_2px_8px_rgba(11,31,58,0.04)] px-8 py-10 sm:px-12 sm:py-12 mb-8">
+            <h2 className="text-[24px] font-semibold text-[#191c1e] mb-2 tracking-[-0.01em]">
+              {isLogin ? "Internal Portal Login" : "Create Account"}
             </h2>
-          </div>
+            <p className="text-[14px] text-[#44474d] mb-8 leading-[20px]">
+              {isLogin ? "Enter your credentials to continue." : "Set up your workspace to get started."}
+            </p>
 
-          {/* Tagline Paragraph (Body Large rule) */}
-          <p className="text-slate-300 text-[16px] leading-[24px] max-w-sm font-normal">
-            Secure access to your customer ecosystem. Manage relationships, analyze data, and grow your brand with enterprise-grade precision.
-          </p>
-
-          {/* Security Pill Badge (Fully rounded badge tint) */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[12px] leading-[16px] text-brand-on-primary font-medium tracking-[0.05em] uppercase shadow-sm">
-            <ShieldCheck className="w-4 h-4 text-brand-on-primary-container" />
-            <span>Sign in with your official company email.</span>
-          </div>
-
-        </div>
-      </section>
-
-      {/* ── RIGHT PANEL: CLEAN MINIMALIST CREDENTIALS (50% WIDTH) ── */}
-      <section className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 relative bg-brand-surface-bright">
-        {/* Abstract subtle background dots matching flat modern design system */}
-        <div 
-          className="absolute inset-0 opacity-[0.015] pointer-events-none"
-          style={{
-            backgroundImage: "radial-gradient(circle at 1px 1px, #191c1e 1px, transparent 0)",
-            backgroundSize: "24px 24px"
-          }}
-        />
-
-        <div className="w-full max-w-[440px] flex flex-col items-center space-y-8">
-          
-          {/* Level 1 Tonal Layered Credentials Card (1px border and diff shadow) */}
-          <div className="w-full bg-white rounded-2xl border border-brand-surface-highest/60 shadow-[0px_2px_4px_rgba(11,31,58,0.04)] p-8 sm:p-10">
-            
-            {/* Header Text (Headline SM style) */}
-            <div className="mb-6">
-              <h3 className="text-[20px] font-semibold leading-[28px] text-brand-on-surface">
-                Internal Portal Login
-              </h3>
-              <p className="text-[14px] leading-[20px] text-brand-on-surface-variant/80 mt-1 font-normal">
-                Enter your credentials to continue.
-              </p>
-            </div>
-
-            {/* Domain Verification Notifications */}
-            {error && (
-              <div className="bg-brand-error-container border border-brand-error/10 rounded-lg p-3.5 flex gap-2.5 items-start mb-5 animate-shake">
-                <ShieldAlert className="w-4 h-4 text-brand-error-container mt-0.5 flex-shrink-0" />
-                <span className="text-[12px] leading-[16px] font-semibold text-brand-on-error-container leading-tight">
-                  {error}
-                </span>
+            {errorMsg && (
+              <div className="mb-6 p-3 rounded-[8px] bg-[#ffdad6] border border-[#ffb4ab] text-[13px] text-[#93000a] font-medium text-center">
+                {errorMsg}
               </div>
             )}
 
-            {success && (
-              <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3.5 flex gap-2.5 items-start mb-5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                <span className="text-[12px] leading-[16px] font-semibold text-emerald-800 leading-tight">
-                  Sign in validated! Access approved. Redirecting to workspace...
-                </span>
-              </div>
-            )}
-
-            {/* Form inputs */}
-            <form onSubmit={handleLogin} className="space-y-5" noValidate>
+            <form onSubmit={handleSubmit} className="space-y-5" noValidate>
               
-              {/* Company Email Field */}
-              <div>
-                <label 
-                  htmlFor="company-email" 
-                  className="block text-[12px] font-semibold text-brand-on-surface tracking-[0.05em] uppercase mb-1.5"
-                >
-                  Company Email
-                </label>
-                <div className="relative group">
-                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-on-surface-variant group-focus-within:text-brand-secondary transition-colors duration-200">
-                    <Mail className="w-4 h-4" />
+              {!isLogin && (
+                <>
+                  <div>
+                    <label htmlFor="name" className="block text-[12px] font-semibold text-[#191c1e] mb-2 tracking-[0.05em] uppercase">Full Name</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"><UserIcon /></span>
+                      <input id="name" type="text" required value={formData.name} onChange={handleChange} placeholder="John Doe" 
+                             className="w-full pl-11 pr-4 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#75777e] focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all" />
+                    </div>
                   </div>
-                  <input
-                    id="company-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-brand-outline-variant bg-white text-brand-on-surface text-[14px] leading-[20px] placeholder:text-brand-outline/70 focus:outline-none focus:ring-2 focus:ring-brand-secondary/15 focus:border-brand-secondary transition-all duration-200 font-normal"
-                  />
+                  <div>
+                    <label htmlFor="role" className="block text-[12px] font-semibold text-[#191c1e] mb-2 tracking-[0.05em] uppercase">Your Role</label>
+                    <div className="relative">
+                      <select id="role" required value={formData.role} onChange={handleChange} 
+                              className="w-full px-4 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all appearance-none">
+                        <option value="MarketingExecutive">Marketing Executive</option>
+                        <option value="MarketingLead">Marketing Lead</option>
+                        <option value="Admin">Admin</option>
+                        <option value="Customer">Customer</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label htmlFor="email" className="block text-[12px] font-semibold text-[#191c1e] mb-2 tracking-[0.05em] uppercase">
+                  {isLogin ? "Company Email" : "Email Address"}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"><MailIcon /></span>
+                  <input id="email" type="email" required value={formData.email} onChange={handleChange} placeholder="name@company.com" 
+                         className="w-full pl-11 pr-4 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all" />
                 </div>
               </div>
 
-              {/* Password Field */}
               <div>
-                <div className="flex justify-between items-center mb-1.5">
-                  <label 
-                    htmlFor="password" 
-                    className="text-[12px] font-semibold text-brand-on-surface tracking-[0.05em] uppercase"
-                  >
-                    Password
-                  </label>
-                  <a 
-                    href="#" 
-                    className="text-[11px] font-bold text-brand-outline hover:text-brand-on-surface transition-colors duration-150"
-                  >
-                    Forgot Password?
-                  </a>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="password" className="block text-[12px] font-semibold text-[#191c1e] tracking-[0.05em] uppercase">Password</label>
+                  {isLogin && (
+                    <a href="#" className="text-[13px] font-medium text-[#44474d] hover:text-[#0b1f3a] transition-colors">Forgot Password?</a>
+                  )}
                 </div>
-                <div className="relative group">
-                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-on-surface-variant group-focus-within:text-brand-secondary transition-colors duration-200">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-12 py-2.5 rounded-lg border border-brand-outline-variant bg-white text-brand-on-surface text-[14px] leading-[20px] placeholder:text-brand-outline/70 focus:outline-none focus:ring-2 focus:ring-brand-secondary/15 focus:border-brand-secondary transition-all duration-200 font-normal"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-outline hover:text-brand-on-surface transition-colors duration-150"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"><LockIcon /></span>
+                  <input id="password" type={showPassword ? "text" : "password"} required value={formData.password} onChange={handleChange} placeholder="••••••••" 
+                         className="w-full pl-11 pr-12 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] tracking-widest focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all font-mono" />
+                  <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#75777e] hover:text-[#191c1e] transition-colors">
+                    <EyeIcon visible={showPassword} />
                   </button>
                 </div>
               </div>
 
-              {/* Keep me signed in Checkbox */}
-              <div className="flex items-center">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-[12px] leading-[16px] text-brand-on-surface-variant font-medium">
-                  <input
-                    type="checkbox"
-                    checked={keepSignedIn}
-                    onChange={(e) => setKeepSignedIn(e.target.checked)}
-                    className="w-4 h-4 rounded border-brand-outline-variant text-brand-primary-container focus:ring-brand-primary-container/30 cursor-pointer accent-brand-primary-container"
-                  />
-                  <span>Keep me signed in for 30 days</span>
-                </label>
-              </div>
+              {isLogin && (
+                <div className="flex items-center gap-2 pt-2">
+                  <input type="checkbox" id="remember" className="w-4 h-4 rounded-[4px] border-[#c4c6ce] text-[#0b1f3a] focus:ring-[#0b1f3a]" />
+                  <label htmlFor="remember" className="text-[13px] text-[#44474d] cursor-pointer">Keep me signed in for 30 days</label>
+                </div>
+              )}
 
-              {/* Login Button (Solid Dark Blue primary, 8px border-radius) */}
-              <button
-                type="submit"
-                disabled={isLoading || success}
-                className="w-full py-3 px-4 rounded-lg bg-brand-primary-container hover:bg-brand-primary text-white text-[14px] leading-[20px] font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary-container/20 active:scale-[0.99] transition-all duration-200 disabled:opacity-75 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <svg
-                      className="animate-spin h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      />
-                    </svg>
-                    <span>Verifying Credentials...</span>
-                  </>
+              <button type="submit" disabled={loading} 
+                      className="w-full mt-4 py-3.5 px-6 rounded-[8px] bg-[#0b1f3a] hover:bg-[#152e52] text-white text-[14px] font-semibold transition-colors duration-200 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {loading ? (
+                  <><svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>{isLogin ? "Authenticating…" : "Creating account…"}</>
                 ) : (
                   <>
-                    <span>Login to Ecosystem</span>
-                    <ArrowRight className="w-4 h-4" />
+                    {isLogin ? "Login to Ecosystem" : "Create Account"} 
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   </>
                 )}
               </button>
             </form>
 
-            {/* Divider Line (Subtle Blue highlight hairline border) */}
-            <div className="w-full h-[1px] bg-brand-surface-highest/60 my-6" />
-
-            {/* Assistance Footer */}
-            <div className="text-center text-[12px] leading-[16px] text-brand-on-surface-variant font-medium">
-              Need assistance or lost access?{" "}
-              <a 
-                href="#" 
-                className="font-bold text-brand-on-surface hover:text-black hover:underline transition-all duration-150"
+            {/* Support / Toggle Link */}
+            <div className="mt-8 pt-8 border-t border-[#eceef0] text-center">
+              <p className="text-[13px] text-[#44474d] mb-1">
+                {isLogin ? "Need assistance or lost access?" : "Already have an account?"}
+              </p>
+              <button 
+                onClick={() => { setIsLogin(!isLogin); setErrorMsg(""); }} 
+                className="text-[13px] font-semibold text-[#191c1e] hover:text-[#0b1f3a] transition-colors"
               >
-                Contact IT Support
-              </a>
+                {isLogin ? "Contact IT Support" : "Sign in to existing account"}
+              </button>
             </div>
-
           </div>
 
-          {/* Three Pagination Indicator Dots (8px increments) */}
-          <div className="flex gap-2 items-center justify-center">
-            <span className="w-2.5 h-2.5 rounded-full bg-brand-outline-variant transition-colors duration-150" />
-            <span className="w-2.5 h-2.5 rounded-full bg-brand-surface-container transition-colors duration-150" />
-            <span className="w-2.5 h-2.5 rounded-full bg-brand-surface-container transition-colors duration-150" />
+          {/* Dots Indicator (Decorative) */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-3 h-3 rounded-full bg-[#e0e3e5]"></div>
+            <div className="w-3 h-3 rounded-full bg-[#e0e3e5]"></div>
+            <div className="w-3 h-3 rounded-full bg-[#e0e3e5]"></div>
           </div>
-
         </div>
-      </section>
-
+      </div>
     </main>
   );
 }
