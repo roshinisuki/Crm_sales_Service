@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api";
+import { getMarketingLogsAction, checkInAction, checkOutAction } from "@/app/actions/marketingLogs";
+import { getCustomersAction } from "@/app/actions/customers";
 import { MarketingLog, Customer } from "@/types";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -56,16 +57,12 @@ export default function VisitsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [logRes, custRes] = await Promise.all([
-        fetchApi<MarketingLog[]>("/marketing-logs"),
-        fetchApi<Customer[]>("/customers"),
+      const [logsRes, custRes] = await Promise.all([
+        getMarketingLogsAction(),
+        getCustomersAction(),
       ]);
-      if (logRes.success && logRes.data) {
-        setLogs(logRes.data);
-      }
-      if (custRes.success && custRes.data) {
-        setCustomers(custRes.data);
-      }
+      if (logsRes.success) setLogs(logsRes.data || []);
+      if (custRes.success) setCustomers(custRes.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -83,19 +80,20 @@ export default function VisitsPage() {
       return;
     }
     navigator.geolocation.getCurrentPosition(async (pos) => {
-      const res = await fetchApi<any>("/marketing-logs/checkout", {
-        method: "POST",
-        body: JSON.stringify({
-          id,
+      try {
+        const res = await checkOutAction({
+          id: id,
           checkOutLat: pos.coords.latitude,
           checkOutLng: pos.coords.longitude,
           notes: "Checked out successfully from premises.",
-        }),
-      });
-      if (res.success) {
-        loadData();
-      } else {
-        alert(res.message || "Failed to check out");
+        });
+        if (res.success) {
+          loadData();
+        } else {
+          alert(res.message || "Failed to check out");
+        }
+      } catch (err) {
+        alert("Failed to process checkout");
       }
     }, () => {
       alert("Failed to get location. Please enable GPS.");
@@ -119,25 +117,25 @@ export default function VisitsPage() {
       return;
     }
 
-    const res = await fetchApi<MarketingLog>("/marketing-logs/checkin", {
-      method: "POST",
-      body: JSON.stringify({
+    try {
+      const res = await checkInAction({
         customerId: formData.customerId,
+        purpose: formData.purpose,
+        notes: formData.notes,
         checkInLat: location.lat,
         checkInLng: location.lng,
-        checkInPhoto: "https://images.unsplash.com/photo-1542282088-fe8426682b8f?w=150",
-        purpose: formData.purpose,
-        notes: formData.notes || null,
-      }),
-    });
-
-    if (res.success) {
-      setIsModalOpen(false);
-      loadData();
-    } else {
-      setErrorMsg(res.message || "Failed to check in");
+      });
+      if (res.success) {
+        setIsModalOpen(false);
+        loadData();
+      } else {
+        setErrorMsg(res.message || "Failed to check in");
+      }
+    } catch (err) {
+      setErrorMsg("Failed to process check in");
+    } finally {
+      setFormLoading(false);
     }
-    setFormLoading(false);
   };
 
   const filtered = logs.filter((l) => {

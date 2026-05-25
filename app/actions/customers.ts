@@ -1,23 +1,19 @@
-import { NextRequest } from "next/server";
+"use server";
+
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiError } from "@/lib/apiResponse";
-import { verifyAuth, requireRole } from "@/lib/auth";
+import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import bcrypt from "bcryptjs";
 
-export async function GET(request: NextRequest) {
+export async function getCustomersAction(params?: { search?: string; city?: string; status?: string }) {
   try {
-    const userPayload = verifyAuth(request);
+    const userPayload = await verifyAuth();
     if (!userPayload) {
-      return apiError("Unauthorized", 401);
+      return { success: false, message: "Unauthorized" };
     }
 
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search") || "";
-    const city = searchParams.get("city") || "";
-    const status = searchParams.get("status") || "";
+    const { search = "", city = "", status = "" } = params || {};
 
-    // RBAC base filter
     let rbacFilter = {};
     if (userPayload.role === "MarketingExecutive") {
       rbacFilter = { assignedUserId: userPayload.id };
@@ -47,27 +43,26 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
-    return apiSuccess(customers);
+    return { success: true, data: customers };
   } catch (error) {
     console.error("GET Customers Error:", error);
-    return apiError("Failed to fetch customers", 500);
+    return { success: false, message: "Failed to fetch customers" };
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function createCustomerAction(data: any) {
   try {
-    const userPayload = verifyAuth(request);
-    if (!requireRole(userPayload, ["Admin", "MarketingLead", "MarketingExecutive"])) {
-      return apiError("Unauthorized", 403);
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "MarketingLead", "MarketingExecutive"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized" };
     }
 
-    const { customerCode, name, email, phone, city, status, assignedUserId } = await request.json();
+    const { customerCode, name, email, phone, city, status, assignedUserId } = data;
 
     if (!customerCode || !name) {
-      return apiError("Customer Code and Name are required");
+      return { success: false, message: "Customer Code and Name are required" };
     }
 
-    // Executives cannot assign themselves or others
     const finalAssignedUserId = userPayload.role === "MarketingExecutive" 
       ? userPayload.id 
       : assignedUserId || null;
@@ -77,7 +72,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingCustomer) {
-      return apiError("Customer Code must be unique");
+      return { success: false, message: "Customer Code must be unique" };
     }
 
     const newCustomer = await prisma.customer.create({
@@ -109,15 +104,15 @@ export async function POST(request: NextRequest) {
     }
 
     await logAudit(
-      userPayload?.id || null,
+      userPayload.id,
       "Customer",
       "Create",
       `Created customer ${customerCode} (${name})`
     );
 
-    return apiSuccess(newCustomer, "Customer created successfully", 201);
+    return { success: true, data: newCustomer, message: "Customer created successfully" };
   } catch (error) {
     console.error("POST Customer Error:", error);
-    return apiError("Failed to create customer", 500);
+    return { success: false, message: "Failed to create customer" };
   }
 }

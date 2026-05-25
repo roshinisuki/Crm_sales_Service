@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api";
+import { getAuditLogsAction } from "@/app/actions/auditLogs";
 import { AuditLog } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
@@ -48,17 +48,19 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [moduleFilter, setModuleFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
   const loadLogs = async () => {
     setLoading(true);
     setErrorMsg("");
     try {
-      const params = new URLSearchParams();
-      if (search) params.append("search", search);
-      if (moduleFilter) params.append("module", moduleFilter);
+      const params: any = {};
+      if (moduleFilter) params.module = moduleFilter;
+      if (actionFilter) params.action = actionFilter;
+      params.limit = 100; // default from old code
 
-      const res = await fetchApi<AuditLog[]>(`/audit-logs?${params.toString()}`);
+      const res = await getAuditLogsAction(params);
       if (res.success && res.data) {
         setLogs(res.data);
       } else {

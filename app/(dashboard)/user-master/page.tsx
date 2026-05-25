@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api";
+import { getUsersAction, createUserAction, updateUserAction } from "@/app/actions/users";
 import { User, Role } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
@@ -45,7 +45,7 @@ export default function UserMasterPage() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const res = await fetchApi<User[]>("/users");
+      const res = await getUsersAction();
       if (res.success && res.data) {
         setUsers(res.data);
       }
@@ -115,25 +115,13 @@ export default function UserMasterPage() {
 
     let res;
     if (formData.id) {
-      res = await fetchApi<User>(`/users`, {
-        method: "PUT",
-        body: JSON.stringify({
-          id: formData.id,
-          name: formData.name,
-          role: formData.role,
-          isActive: formData.isActive,
-        }),
+      res = await updateUserAction(formData.id, {
+        name: formData.name,
+        role: formData.role,
+        isActive: formData.isActive,
       });
     } else {
-      res = await fetchApi<User>("/users", {
-        method: "POST",
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          role: formData.role,
-        }),
-      });
+      res = await createUserAction(formData);
     }
 
     if (res.success) {

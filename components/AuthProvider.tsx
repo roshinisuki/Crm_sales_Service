@@ -24,22 +24,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.data) {
-          setUser(data.data);
-        } else {
+    import("@/app/actions/auth").then(({ getMeAction }) => {
+      getMeAction()
+        .then((data: any) => {
+          if (data.success && data.data) {
+            setUser(data.data);
+          } else {
+            setUser(null);
+          }
+        })
+        .catch((err: any) => {
+          console.error("Failed to fetch user profile", err);
           setUser(null);
-        }
-      })
-      .catch((err) => {
-        console.error("Failed to fetch user profile", err);
-        setUser(null);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    });
   }, []);
 
   return (

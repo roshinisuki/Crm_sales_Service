@@ -1,14 +1,14 @@
-import { NextRequest } from "next/server";
+"use server";
+
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiError } from "@/lib/apiResponse";
-import { verifyAuth, requireRole } from "@/lib/auth";
+import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 
-export async function GET(request: NextRequest) {
+export async function getVisitorsAction() {
   try {
-    const userPayload = verifyAuth(request);
-    if (!requireRole(userPayload, ["Admin", "MarketingLead", "MarketingExecutive"])) {
-      return apiError("Unauthorized", 403);
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "MarketingLead", "MarketingExecutive"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized" };
     }
 
     const visitors = await prisma.visitor.findMany({
@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
       orderBy: { inTime: "desc" },
     });
 
-    // Normalize to frontend-friendly field names
     const normalized = visitors.map((v) => ({
       ...v,
       name:         v.visitorName,
@@ -29,24 +28,24 @@ export async function GET(request: NextRequest) {
       checkOutTime: v.outTime?.toISOString() ?? null,
     }));
 
-    return apiSuccess(normalized);
+    return { success: true, data: normalized };
   } catch (error) {
     console.error("GET Visitors Error:", error);
-    return apiError("Failed to fetch visitors", 500);
+    return { success: false, message: "Failed to fetch visitors" };
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function createVisitorAction(data: any) {
   try {
-    const userPayload = verifyAuth(request);
-    if (!requireRole(userPayload, ["Admin", "MarketingLead", "MarketingExecutive"])) {
-      return apiError("Unauthorized", 403);
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "MarketingLead", "MarketingExecutive"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized" };
     }
 
-    const { name, email, phone, company, purpose, hostName } = await request.json();
+    const { name, email, phone, company, purpose, hostName } = data;
 
     if (!name || !phone || !purpose) {
-      return apiError("Name, Phone, and Purpose are required");
+      return { success: false, message: "Name, Phone, and Purpose are required" };
     }
 
     const visitor = await prisma.visitor.create({
@@ -56,7 +55,7 @@ export async function POST(request: NextRequest) {
         visitorPhone: phone,
         company:      company || "",
         purpose,
-        hostUserId:   userPayload!.id,
+        hostUserId:   userPayload.id,
         inTime:       new Date(),
       },
       include: {
@@ -65,14 +64,16 @@ export async function POST(request: NextRequest) {
     });
 
     await logAudit(
-      userPayload!.id,
+      userPayload.id,
       "visitor",
       "create",
       `Walk-in registered: ${name} visited ${visitor.host?.name ?? "office"}`
     );
 
-    return apiSuccess(
-      {
+    return {
+      success: true,
+      message: "Visitor registered successfully",
+      data: {
         ...visitor,
         name:         visitor.visitorName,
         email:        visitor.visitorEmail,
@@ -80,39 +81,38 @@ export async function POST(request: NextRequest) {
         hostName:     visitor.host?.name ?? null,
         checkInTime:  visitor.inTime.toISOString(),
         checkOutTime: null,
-      },
-      "Visitor registered successfully",
-      201
-    );
+      }
+    };
   } catch (error) {
     console.error("POST Visitor Error:", error);
-    return apiError("Failed to create visitor", 500);
+    return { success: false, message: "Failed to create visitor" };
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function checkoutVisitorAction(data: any) {
   try {
-    const userPayload = verifyAuth(request);
-    if (!requireRole(userPayload, ["Admin", "MarketingLead", "MarketingExecutive"])) {
-      return apiError("Unauthorized", 403);
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "MarketingLead", "MarketingExecutive"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized" };
     }
 
-    const { id } = await request.json();
-    if (!id) return apiError("Visitor ID is required");
+    const { id } = data;
+    if (!id) return { success: false, message: "Visitor ID is required" };
 
     const visitor = await prisma.visitor.update({
       where: { id },
       data:  { outTime: new Date() },
     });
 
-    await logAudit(userPayload!.id, "visitor", "checkout", `Visitor ${visitor.visitorName} checked out`);
+    await logAudit(userPayload.id, "visitor", "checkout", `Visitor ${visitor.visitorName} checked out`);
 
-    return apiSuccess(
-      { ...visitor, checkOutTime: visitor.outTime?.toISOString() ?? null },
-      "Visitor checked out"
-    );
+    return {
+      success: true,
+      message: "Visitor checked out",
+      data: { ...visitor, checkOutTime: visitor.outTime?.toISOString() ?? null }
+    };
   } catch (error) {
     console.error("PUT Visitor Error:", error);
-    return apiError("Failed to checkout visitor", 500);
+    return { success: false, message: "Failed to checkout visitor" };
   }
 }

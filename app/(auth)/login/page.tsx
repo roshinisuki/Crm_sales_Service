@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { loginAction } from "@/app/actions/auth";
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 function MailIcon() {
@@ -131,20 +132,10 @@ export default function AuthPage() {
     }
 
     try {
-      const endpoint = isLogin ? "/api/auth/login" : "/api/users";
-      // Form body for backend structure
-      const body = isLogin 
-        ? { email: formData.email, password: formData.password }
-        : { name: formData.name, email: formData.email, password: formData.password, role: formData.role };
+      const { email, password } = formData;
+      const data = await loginAction({ email, password });
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         setErrorMsg(data.message || "Authentication failed");
       } else {
         // Force a full reload so the AuthProvider state resets and fetches the new user

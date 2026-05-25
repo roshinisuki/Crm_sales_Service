@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api";
+import { getFollowUpsAction, createFollowUpAction, updateFollowUpStatusAction } from "@/app/actions/followUps";
+import { getCustomersAction } from "@/app/actions/customers";
 import { FollowUp, Customer } from "@/types";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -40,16 +41,12 @@ export default function FollowUpsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [followRes, custRes] = await Promise.all([
-        fetchApi<FollowUp[]>("/follow-ups"),
-        fetchApi<Customer[]>("/customers"),
+      const [followUpRes, custRes] = await Promise.all([
+        getFollowUpsAction({ status: statusFilter === "All" ? undefined : statusFilter }),
+        getCustomersAction(),
       ]);
-      if (followRes.success && followRes.data) {
-        setFollowUps(followRes.data);
-      }
-      if (custRes.success && custRes.data) {
-        setCustomers(custRes.data);
-      }
+      if (followUpRes.success) setFollowUps(followUpRes.data || []);
+      if (custRes.success) setCustomers(custRes.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -59,7 +56,7 @@ export default function FollowUpsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [statusFilter]);
 
   const openCreateModal = () => {
     setFormData({
@@ -72,14 +69,15 @@ export default function FollowUpsPage() {
   };
 
   const handleToggleComplete = async (id: string) => {
-    const res = await fetchApi<any>(`/follow-ups`, {
-      method: "PUT",
-      body: JSON.stringify({ id, status: "Completed" }),
-    });
-    if (res.success) {
-      loadData();
-    } else {
-      alert(res.message || "Failed to update follow-up");
+    try {
+      const res = await updateFollowUpStatusAction({ id, status: "Completed" });
+      if (res.success) {
+        loadData();
+      } else {
+        alert(res.message || "Failed to update follow-up");
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -94,20 +92,17 @@ export default function FollowUpsPage() {
       return;
     }
 
-    const res = await fetchApi<FollowUp>("/follow-ups", {
-      method: "POST",
-      body: JSON.stringify({
-        customerId: formData.customerId,
-        scheduledTime: formData.scheduledTime,
-        notes: formData.notes || null,
-      }),
-    });
+    try {
+      const res = await createFollowUpAction(formData);
 
-    if (res.success) {
-      setIsModalOpen(false);
-      loadData();
-    } else {
-      setErrorMsg(res.message || "Failed to schedule follow-up");
+      if (res.success) {
+        setIsModalOpen(false);
+        loadData();
+      } else {
+        setErrorMsg(res.message || "Failed to schedule follow-up");
+      }
+    } catch (err) {
+      setErrorMsg("An unexpected error occurred.");
     }
     setFormLoading(false);
   };

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api";
-import { Customer, UserProfile } from "@/types";
+import { getCustomersAction, createCustomerAction } from "@/app/actions/customers";
+import { getUsersAction } from "@/app/actions/users";
+import { Customer, User } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -42,7 +43,7 @@ export default function CustomerMasterPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { user } = useAuth();
-  const [executives, setExecutives] = useState<UserProfile[]>([]);
+  const [executives, setExecutives] = useState<User[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
@@ -60,12 +61,11 @@ export default function CustomerMasterPage() {
   const loadCustomers = async () => {
     setLoading(true);
     try {
-      // Build query string params
-      const params = new URLSearchParams();
-      if (search) params.append("search", search);
-      if (statusFilter) params.append("status", statusFilter);
+      const params: any = {};
+      if (search) params.search = search;
+      if (statusFilter) params.status = statusFilter;
 
-      const res = await fetchApi<Customer[]>(`/customers?${params.toString()}`);
+      const res = await getCustomersAction(params);
       if (res.success && res.data) {
         setCustomers(res.data);
       }
@@ -78,7 +78,7 @@ export default function CustomerMasterPage() {
 
   const loadExecutives = async () => {
     if (user?.role === "Admin" || user?.role === "MarketingLead") {
-      const res = await fetchApi<UserProfile[]>("/users");
+      const res = await getUsersAction();
       if (res.success && res.data) {
         setExecutives(res.data.filter(u => u.role === "MarketingExecutive"));
       }
@@ -136,31 +136,11 @@ export default function CustomerMasterPage() {
 
     let res;
     if (formData.id) {
-      res = await fetchApi<Customer>(`/customers`, {
-        method: "PUT",
-        body: JSON.stringify({
-          id: formData.id,
-          name: formData.name,
-          email: formData.email || null,
-          phone: formData.phone || null,
-          city: formData.city || null,
-          status: formData.status,
-          assignedUserId: formData.assignedUserId || null,
-        }),
-      });
+      setErrorMsg("Updating customers is not implemented yet via server actions.");
+      setFormLoading(false);
+      return;
     } else {
-      res = await fetchApi<Customer>("/customers", {
-        method: "POST",
-        body: JSON.stringify({
-          customerCode: formData.customerCode,
-          name: formData.name,
-          email: formData.email || null,
-          phone: formData.phone || null,
-          city: formData.city || null,
-          status: formData.status,
-          assignedUserId: formData.assignedUserId || null,
-        }),
-      });
+      res = await createCustomerAction(formData);
     }
 
     if (res.success) {

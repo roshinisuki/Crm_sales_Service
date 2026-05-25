@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api";
+import { getSubscriptionsAction, createSubscriptionAction, updateSubscriptionAction } from "@/app/actions/subscriptions";
+import { getCustomersAction } from "@/app/actions/customers";
 import { Subscription, Customer } from "@/types";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -42,6 +43,8 @@ export default function SubscriptionsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+  const [isEdit, setIsEdit] = useState(false);
+  const [selectedSub, setSelectedSub] = useState<Subscription | null>(null);
 
   const [formData, setFormData] = useState({
     customerId: "",
@@ -56,15 +59,11 @@ export default function SubscriptionsPage() {
     setLoading(true);
     try {
       const [subRes, custRes] = await Promise.all([
-        fetchApi<Subscription[]>("/subscriptions"),
-        fetchApi<Customer[]>("/customers"),
+        getSubscriptionsAction({}),
+        getCustomersAction(),
       ]);
-      if (subRes.success && subRes.data) {
-        setSubscriptions(subRes.data);
-      }
-      if (custRes.success && custRes.data) {
-        setCustomers(custRes.data);
-      }
+      if (subRes.success) setSubscriptions(subRes.data || []);
+      if (custRes.success) setCustomers(custRes.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -77,6 +76,8 @@ export default function SubscriptionsPage() {
   }, []);
 
   const openCreateModal = () => {
+    setIsEdit(false);
+    setSelectedSub(null);
     setFormData({
       customerId: "",
       planName: "",
@@ -100,23 +101,31 @@ export default function SubscriptionsPage() {
       return;
     }
 
-    const res = await fetchApi<Subscription>("/subscriptions", {
-      method: "POST",
-      body: JSON.stringify({
+    let res;
+    if (isEdit && selectedSub) {
+      res = await updateSubscriptionAction(selectedSub.id, {
+        planName: formData.planName,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        status: formData.status,
+        notes: formData.notes,
+      });
+    } else {
+      res = await createSubscriptionAction({
         customerId: formData.customerId,
-        planName:   formData.planName,
-        startDate:  formData.startDate,
-        endDate:    formData.endDate,
-        status:     formData.status,
-        notes:      formData.notes || null,
-      }),
-    });
+        planName: formData.planName,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        status: formData.status,
+        notes: formData.notes,
+      });
+    }
 
     if (res.success) {
       setIsModalOpen(false);
       loadData();
     } else {
-      setErrorMsg(res.message || "Failed to create subscription");
+      setErrorMsg(res.message || "Failed to process subscription");
     }
     setFormLoading(false);
   };

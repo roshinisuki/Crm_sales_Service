@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
@@ -11,8 +11,10 @@ export interface TokenPayload {
   exp: number;
 }
 
-export function verifyAuth(request: NextRequest): TokenPayload | null {
-  const token = request.cookies.get("token")?.value;
+export async function verifyAuth(): Promise<TokenPayload | null> {
+  // Await the cookies() function in Next.js 15+ or resolve it generally
+  const cookieStore = await cookies();
+  const token = cookieStore.get("token")?.value;
 
   if (!token) {
     return null;

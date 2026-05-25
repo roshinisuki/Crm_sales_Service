@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { fetchApi } from "@/lib/api";
+import { getVisitorsAction, createVisitorAction, checkoutVisitorAction } from "@/app/actions/visitors";
 import { Visitor } from "@/types";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -38,7 +38,7 @@ export default function VisitorManagementPage() {
   const loadVisitors = async () => {
     setLoading(true);
     try {
-      const res = await fetchApi<Visitor[]>("/visitors");
+      const res = await getVisitorsAction();
       if (res.success && res.data) {
         setVisitors(res.data);
       }
@@ -67,14 +67,15 @@ export default function VisitorManagementPage() {
   };
 
   const handleCheckout = async (id: string) => {
-    const res = await fetchApi<any>(`/visitors`, {
-      method: "PUT",
-      body: JSON.stringify({ id }),
-    });
-    if (res.success) {
-      loadVisitors();
-    } else {
-      alert(res.message || "Failed to checkout visitor");
+    try {
+      const res = await checkoutVisitorAction({ id });
+      if (res.success) {
+        loadVisitors();
+      } else {
+        alert(res.message || "Failed to checkout visitor");
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -89,17 +90,7 @@ export default function VisitorManagementPage() {
       return;
     }
 
-    const res = await fetchApi<Visitor>("/visitors", {
-      method: "POST",
-      body: JSON.stringify({
-        name: formData.name,
-        email: formData.email || null,
-        phone: formData.phone,
-        company: formData.company || null,
-        purpose: formData.purpose,
-        hostName: formData.hostName,
-      }),
-    });
+    const res = await createVisitorAction(formData);
 
     if (res.success) {
       setIsModalOpen(false);

@@ -6,8 +6,8 @@ export interface User {
   name: string;
   role: Role;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Customer {
@@ -19,38 +19,39 @@ export interface Customer {
   city: string | null;
   status: "Active" | "Inactive" | "Prospect";
   assignedUserId: string | null;
-  assignedUser?: User;
-  createdAt: string;
-  updatedAt: string;
+  assignedUser?: Partial<User>;
+  createdAt?: string;
+  updatedAt?: string;
+  subscriptions?: any[];
 }
 
 export interface Subscription {
   id: string;
   customerId: string;
-  customer?: Customer;
+  customer?: Partial<Customer>;
   planName: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | Date;
+  endDate: string | Date;
   status: "Active" | "Expired" | "Cancelled" | "Pending";
   notes: string | null;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
 
 /** MarketingVisit — field names matching the Prisma 'MarketingVisit' model */
 export interface MarketingLog {
   id: string;
   executiveId: string;
-  executive?: User;
+  executive?: Partial<User>;
   customerId: string;
-  customer?: Customer;
-  checkIn: string;         // was checkInTime
-  checkOut: string | null; // was checkOutTime
-  remarks: string | null;  // was notes
-  nextMeetingDate: string | null;
-  createdAt: string;
+  customer?: Partial<Customer>;
+  checkIn: string | Date;
+  checkOut: string | Date | null;
+  remarks: string | null;
+  nextMeetingDate: string | Date | null;
+  createdAt?: string | Date;
 
-  // Alias getters — kept for backward compat with page components
+  // Alias getters
   checkInTime: string;
   checkOutTime: string | null;
   checkInLat: number;
@@ -60,22 +61,24 @@ export interface MarketingLog {
   checkInPhoto: string | null;
   purpose: string | null;
   notes: string | null;
+  userId?: string;
+  user?: Partial<User>;
 }
 
 /** Visitor — field names matching the Prisma 'Visitor' model */
 export interface Visitor {
   id: string;
-  visitorName: string;   // was name
+  visitorName: string;
   company: string;
-  visitorEmail: string | null;  // was email
-  visitorPhone: string; // was phone
+  visitorEmail: string | null;
+  visitorPhone: string;
   purpose: string;
-  inTime: string;         // was checkInTime
-  outTime: string | null; // was checkOutTime
+  inTime: string | Date;
+  outTime: string | Date | null;
   hostUserId: string;
-  host?: User;
-  createdAt: string;
-  updatedAt: string;
+  host?: Partial<User>;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 
   // Aliases for backward compat
   name: string;
@@ -90,20 +93,20 @@ export interface Visitor {
 export interface FollowUp {
   id: string;
   customerId: string;
-  customer?: Customer;
+  customer?: Partial<Customer>;
   assignedUserId: string;
-  assignedUser?: User;
-  nextMeetingDate: string;   // was scheduledTime
-  remarks: string | null;    // was notes
+  assignedUser?: Partial<User>;
+  nextMeetingDate: string | Date;
+  remarks: string | null;
   status: "Pending" | "Completed" | "Overdue";
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 
-  // Aliases for backward compat
+  // Aliases
   scheduledTime: string;
   notes: string | null;
   userId: string;
-  user?: User;
+  user?: Partial<User>;
 }
 
 export interface AuditLog {

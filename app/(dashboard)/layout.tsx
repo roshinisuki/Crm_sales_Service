@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { logoutAction } from "@/app/actions/auth";
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
@@ -63,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await logoutAction();
       // Force a full page reload so AuthProvider unmounts and clears old user state
       window.location.href = "/login";
     } catch (err) {
