@@ -28,7 +28,7 @@ const KPI_DATA = [
   { label: "Total Users",          value: "5",   sub: "All roles",              color: "text-slate-800",   bg: "bg-blue-50",    icon: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" },
   { label: "Customers",            value: "128", sub: "24 active this month",   color: "text-slate-800",   bg: "bg-indigo-50",  icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
   { label: "Active Subs",          value: "94",  sub: "12 expiring this week",  color: "text-emerald-700", bg: "bg-emerald-50", icon: "M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" },
-  { label: "Today's Visits",       value: "18",  sub: "5 still active",         color: "text-slate-800",   bg: "bg-amber-50",   icon: "M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" },
+  { label: "Marketing Visits",     value: "18",  sub: "5 still active",         color: "text-slate-800",   bg: "bg-amber-50",   icon: "M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" },
   { label: "Upcoming Follow-ups",  value: "9",   sub: "Next 7 days",            color: "text-blue-700",    bg: "bg-sky-50",     icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { label: "Overdue Follow-ups",   value: "4",   sub: "Needs action",           color: "text-red-600",     bg: "bg-red-50",     icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" },
   { label: "Today's Visitors",     value: "7",   sub: "Office check-ins",       color: "text-slate-800",   bg: "bg-violet-50",  icon: "M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
@@ -143,7 +143,7 @@ export default function DashboardPage() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filteredVisits.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-10 text-sm text-slate-400">No visits in this category</td></tr>
+                  <tr><td colSpan={6} className="text-center py-10 text-sm text-slate-400">No marketing visits in this category</td></tr>
                 ) : filteredVisits.map(v => (
                   <tr key={v.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-6 py-3.5 text-xs font-mono text-slate-500">{v.id}</td>
@@ -206,7 +206,7 @@ export default function DashboardPage() {
             </div>
             <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
               <span>Peak: <strong className="text-slate-800">2 PM</strong></span>
-              <span>Total: <strong className="text-slate-800">18 visits</strong></span>
+              <span>Total: <strong className="text-slate-800">18 marketing visits</strong></span>
             </div>
           </div>
 

@@ -100,19 +100,55 @@ export default function AuthPage() {
     setLoading(true);
     setErrorMsg("");
 
+    // Validate email domain on the client side using Zod schema first
+    if (isLogin) {
+      if (!formData.email.endsWith("@sukisoftware.com")) {
+        setErrorMsg("Must use an official @sukisoftware.com email address");
+        setLoading(false);
+        return;
+      }
+      if (formData.password.length < 6) {
+        setErrorMsg("Password must be at least 6 characters");
+        setLoading(false);
+        return;
+      }
+    } else {
+      if (!formData.name.trim()) {
+        setErrorMsg("Full name is required");
+        setLoading(false);
+        return;
+      }
+      if (!formData.email.endsWith("@sukisoftware.com")) {
+        setErrorMsg("Must use an official @sukisoftware.com email address");
+        setLoading(false);
+        return;
+      }
+      if (formData.password.length < 6) {
+        setErrorMsg("Password must be at least 6 characters");
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
-      const endpoint = isLogin ? "/user/login" : "/user/register";
+      const endpoint = isLogin ? "/api/auth/login" : "/api/users";
+      // Form body for backend structure
+      const body = isLogin 
+        ? { email: formData.email, password: formData.password }
+        : { name: formData.name, email: formData.email, password: formData.password, role: formData.role };
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
-      if (!data.success) {
+      if (!res.ok || !data.success) {
         setErrorMsg(data.message || "Authentication failed");
       } else {
-        router.push("/dashboard");
+        // Force a full reload so the AuthProvider state resets and fetches the new user
+        window.location.href = "/dashboard";
       }
     } catch (err) {
       setErrorMsg("A network error occurred. Please try again.");

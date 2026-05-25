@@ -1,156 +1,249 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchApi } from "@/lib/api";
+import { FollowUp, Customer } from "@/types";
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
-const Ico = ({ d, d2, size = 16, className }: { d: string; d2?: string; size?: number; className?: string }) => (
+const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />{d2 && <path d={d2} />}
+    <path d={d} />
   </svg>
 );
 
 const icons = {
+  plus: "M12 4v16m8-8H4",
+  search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+  x: "M6 18L18 6M6 6l12 12",
   users: "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
   calendar: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
   clock: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   alert: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
   check_circle: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-  chevron_left: "M15 19l-7-7 7-7",
-  chevron_right: "M9 5l7 7-7 7",
-  message: "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
-  check: "M5 13l4 4L19 7",
-  external: "M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14",
 };
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const FOLLOW_UPS = [
-  { id: "F-301", customer: "Delta Logistics", exec: "Arjun Mehta", date: "2026-05-24", remarks: "Renewal contract needs signature from Director.", status: "Overdue", priority: "High" },
-  { id: "F-302", customer: "PrimeEdge IT", exec: "Divya Nair", date: "2026-05-23", remarks: "Send pricing proposal for 50 users.", status: "Due Today", priority: "Medium" },
-  { id: "F-303", customer: "Horizon Hotels", exec: "Arjun Mehta", date: "2026-05-25", remarks: "Onboarding session for new branch managers.", status: "Upcoming", priority: "Low" },
-  { id: "F-304", customer: "Sunrise Pharma", exec: "Divya Nair", date: "2026-05-28", remarks: "Quarterly review meeting.", status: "Upcoming", priority: "Medium" },
-  { id: "F-305", customer: "Ramesh Constructions", exec: "Arjun Mehta", date: "2026-05-20", remarks: "Completed training session.", status: "Completed", priority: "Low" },
-];
-
-const KPI_DATA = [
-  { label: "Upcoming", value: "14", icon: icons.calendar, color: "text-blue-600", bg: "bg-blue-50" },
-  { label: "Due Today", value: "3", icon: icons.clock, color: "text-amber-600", bg: "bg-amber-50" },
-  { label: "Overdue", value: "5", icon: icons.alert, color: "text-red-600", bg: "bg-red-50" },
-  { label: "Completed (May)", value: "28", icon: icons.check_circle, color: "text-emerald-600", bg: "bg-emerald-50" },
-];
-
-const TABS = ["All", "Due Today", "Upcoming", "Overdue", "Completed"];
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function PriorityBadge({ priority }: { priority: string }) {
-  const styles: Record<string, string> = {
-    "High": "bg-red-50 text-red-700 border-red-200",
-    "Medium": "bg-amber-50 text-amber-700 border-amber-200",
-    "Low": "bg-slate-100 text-slate-600 border-slate-200",
-  };
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold border ${styles[priority]}`}>
-      {priority}
-    </span>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function FollowUpsPage() {
-  const [activeTab, setActiveTab] = useState("All");
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
 
-  const filtered = FOLLOW_UPS.filter(f => {
-    if (activeTab === "All") return true;
-    return f.status === activeTab;
+  const [formData, setFormData] = useState({
+    customerId: "",
+    scheduledTime: "",
+    notes: "",
+  });
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [followRes, custRes] = await Promise.all([
+        fetchApi<FollowUp[]>("/follow-ups"),
+        fetchApi<Customer[]>("/customers"),
+      ]);
+      if (followRes.success && followRes.data) {
+        setFollowUps(followRes.data);
+      }
+      if (custRes.success && custRes.data) {
+        setCustomers(custRes.data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const openCreateModal = () => {
+    setFormData({
+      customerId: "",
+      scheduledTime: "",
+      notes: "",
+    });
+    setErrorMsg("");
+    setIsModalOpen(true);
+  };
+
+  const handleToggleComplete = async (id: string) => {
+    const res = await fetchApi<any>(`/follow-ups`, {
+      method: "PUT",
+      body: JSON.stringify({ id, status: "Completed" }),
+    });
+    if (res.success) {
+      loadData();
+    } else {
+      alert(res.message || "Failed to update follow-up");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setErrorMsg("");
+
+    if (!formData.customerId || !formData.scheduledTime) {
+      setErrorMsg("Please select a customer and choose a scheduled time.");
+      setFormLoading(false);
+      return;
+    }
+
+    const res = await fetchApi<FollowUp>("/follow-ups", {
+      method: "POST",
+      body: JSON.stringify({
+        customerId: formData.customerId,
+        scheduledTime: formData.scheduledTime,
+        notes: formData.notes || null,
+      }),
+    });
+
+    if (res.success) {
+      setIsModalOpen(false);
+      loadData();
+    } else {
+      setErrorMsg(res.message || "Failed to schedule follow-up");
+    }
+    setFormLoading(false);
+  };
+
+  const filtered = followUps.filter((f) => {
+    const custName = f.customer?.name.toLowerCase() || "";
+    const notes = f.notes?.toLowerCase() || "";
+    const matchesSearch = custName.includes(search.toLowerCase()) || notes.includes(search.toLowerCase());
+    const matchesStatus = statusFilter === "All" ? true : f.status === statusFilter;
+    return matchesSearch && matchesStatus;
   });
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
-      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Follow-ups</h1>
           <p className="text-sm text-slate-500 mt-1">Manage scheduled meetings, calls, and pending tasks.</p>
         </div>
+        <button 
+          onClick={openCreateModal}
+          className="flex items-center gap-2 px-4 py-2 bg-[#0D2137] text-white rounded-xl text-sm font-medium hover:bg-[#1a365d] transition-colors shadow-sm"
+        >
+          <Ico d={icons.plus} size={16} />
+          Schedule Follow-up
+        </button>
       </div>
 
-      {/* ── KPI Grid ── */}
+      {/* KPI Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {KPI_DATA.map(k => (
-          <div key={k.label} className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl ${k.bg} flex items-center justify-center shrink-0`}>
-              <Ico d={k.icon} size={20} className={k.color} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800 tracking-tight">{k.value}</p>
-              <p className="text-xs font-semibold text-slate-500">{k.label}</p>
-            </div>
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+            <Ico d={icons.calendar} size={20} className="text-blue-600" />
           </div>
-        ))}
+          <div>
+            <p className="text-2xl font-bold text-slate-800 tracking-tight">
+              {followUps.filter(f => f.status === "Pending").length}
+            </p>
+            <p className="text-xs font-semibold text-slate-500">Upcoming</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+            <Ico d={icons.alert} size={20} className="text-red-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-slate-800 tracking-tight">
+              {followUps.filter(f => f.status === "Overdue").length}
+            </p>
+            <p className="text-xs font-semibold text-slate-500">Overdue</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+            <Ico d={icons.check_circle} size={20} className="text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-slate-800 tracking-tight">
+              {followUps.filter(f => f.status === "Completed").length}
+            </p>
+            <p className="text-xs font-semibold text-slate-500">Completed</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+            <Ico d={icons.users} size={20} className="text-indigo-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-slate-800 tracking-tight">{followUps.length}</p>
+            <p className="text-xs font-semibold text-slate-500">Total Follow-ups</p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* ── Main List (Left: 3 cols) ── */}
         <div className="xl:col-span-3 bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
-          
           {/* Tabs */}
-          <div className="px-5 pt-4 flex gap-2 border-b border-slate-100 overflow-x-auto hide-scrollbar">
-            {TABS.map(tab => (
-              <button key={tab} onClick={() => setActiveTab(tab)}
+          <div className="px-5 pt-4 flex gap-2 border-b border-slate-100 overflow-x-auto">
+            {["All", "Pending", "Overdue", "Completed"].map(tab => (
+              <button key={tab} onClick={() => setStatusFilter(tab)}
                 className={`px-4 pb-3 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap -mb-px ${
-                  activeTab === tab ? "border-[#0D2137] text-[#0D2137]" : "border-transparent text-slate-400 hover:text-slate-600"
+                  statusFilter === tab ? "border-[#0D2137] text-[#0D2137]" : "border-transparent text-slate-400 hover:text-slate-600"
                 }`}>
                 {tab}
               </button>
             ))}
           </div>
 
+          <div className="p-5 border-b border-slate-100">
+            <input 
+              type="text" 
+              placeholder="Search follow-ups by customer or details..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-shadow"
+            />
+          </div>
+
           {/* List Items */}
           <div className="divide-y divide-slate-100">
-            {filtered.length === 0 ? (
-              <div className="p-10 text-center text-slate-400 text-sm">No follow-ups found for this category.</div>
+            {loading ? (
+              <div className="p-10 text-center text-slate-500 text-sm">Loading scheduled reminders...</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-10 text-center text-slate-400 text-sm">No follow-ups recorded.</div>
             ) : filtered.map(f => {
               const isOverdue = f.status === "Overdue";
               return (
                 <div key={f.id} className={`p-5 flex flex-col md:flex-row md:items-center gap-5 hover:bg-slate-50/50 transition-colors ${isOverdue ? 'bg-red-50/30' : ''}`}>
-                  {/* Date Block */}
                   <div className={`w-16 h-16 rounded-xl flex flex-col items-center justify-center shrink-0 border shadow-sm ${
-                    isOverdue ? "bg-red-50 border-red-200 text-red-700" : 
-                    f.status === "Due Today" ? "bg-amber-50 border-amber-200 text-amber-700" :
-                    "bg-white border-slate-200 text-slate-700"
+                    isOverdue ? "bg-red-50 border-red-200 text-red-700" : "bg-white border-slate-200 text-slate-700"
                   }`}>
-                    <span className="text-[10px] font-bold uppercase tracking-wider">{new Date(f.date).toLocaleString('default', { month: 'short' })}</span>
-                    <span className="text-xl font-black leading-none">{new Date(f.date).getDate()}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{new Date(f.scheduledTime).toLocaleString('default', { month: 'short' })}</span>
+                    <span className="text-xl font-black leading-none">{new Date(f.scheduledTime).getDate()}</span>
                   </div>
 
-                  {/* Details */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
-                      <h3 className={`text-base font-bold truncate ${isOverdue ? 'text-red-900' : 'text-slate-800'}`}>{f.customer}</h3>
-                      <PriorityBadge priority={f.priority} />
+                      <h3 className="text-base font-bold text-slate-800 truncate">{f.customer?.name || "Unknown"}</h3>
                       {isOverdue && <span className="text-[10px] font-bold text-white bg-red-500 px-2 py-0.5 rounded-full uppercase tracking-wide">Overdue</span>}
+                      {f.status === "Completed" && <span className="text-[10px] font-bold text-white bg-emerald-500 px-2 py-0.5 rounded-full uppercase tracking-wide">Completed</span>}
                     </div>
-                    <p className="text-sm text-slate-600 truncate mb-2">{f.remarks}</p>
+                    <p className="text-sm text-slate-600 truncate mb-2">{f.notes || "No notes added for this reminder"}</p>
                     <div className="flex items-center gap-4 text-[11px] font-medium text-slate-400">
-                      <span className="flex items-center gap-1"><Ico d={icons.users} size={12} /> {f.exec}</span>
-                      <span className="flex items-center gap-1 font-mono">{f.id}</span>
+                      <span className="flex items-center gap-1 font-mono">Scheduled: {new Date(f.scheduledTime).toLocaleString()}</span>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 shrink-0 md:flex-col md:w-32 lg:flex-row lg:w-auto">
+                  <div className="flex items-center gap-2 shrink-0">
                     {f.status !== "Completed" && (
-                      <>
-                        <button className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold transition-colors">
-                          <Ico d={icons.check} size={14} /> Done
-                        </button>
-                        <button className="flex-1 lg:flex-none flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 text-xs font-semibold transition-colors">
-                          <Ico d={icons.message} size={14} /> Note
-                        </button>
-                      </>
+                      <button 
+                        onClick={() => handleToggleComplete(f.id)}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold transition-colors"
+                      >
+                        <Ico d={icons.check_circle} size={14} /> Complete
+                      </button>
                     )}
-                    <button className="p-2 text-slate-400 hover:text-[#0D2137] bg-slate-50 hover:bg-slate-100 border border-transparent hover:border-slate-200 rounded-xl transition-all">
-                      <Ico d={icons.external} size={16} />
-                    </button>
                   </div>
                 </div>
               );
@@ -158,55 +251,98 @@ export default function FollowUpsPage() {
           </div>
         </div>
 
-        {/* ── Right Column: Mini Calendar ── */}
-        <div className="flex flex-col gap-6">
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-sm font-bold text-slate-800">May 2026</h2>
-              <div className="flex gap-1">
-                <button className="p-1 rounded bg-slate-50 hover:bg-slate-100 text-slate-400"><Ico d={icons.chevron_left} size={14} /></button>
-                <button className="p-1 rounded bg-slate-50 hover:bg-slate-100 text-slate-400"><Ico d={icons.chevron_right} size={14} /></button>
-              </div>
+        {/* Calendar Side Panel */}
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 flex flex-col h-fit">
+          <h2 className="text-sm font-bold text-slate-800 mb-4">Calendar Agenda</h2>
+          <div className="space-y-4">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <p className="text-xs font-bold text-slate-700">Quick Reminder</p>
+              <p className="text-[11px] text-slate-500 mt-1">Always perform follow-ups timely to convert Prospect customers to Active subscriptions.</p>
             </div>
-
-            <div className="grid grid-cols-7 gap-1 text-center mb-2">
-              {['S','M','T','W','T','F','S'].map((d,i) => <div key={i} className="text-[10px] font-bold text-slate-400">{d}</div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium">
-              {/* Padding */}
-              <div className="p-2 text-slate-300">26</div><div className="p-2 text-slate-300">27</div><div className="p-2 text-slate-300">28</div><div className="p-2 text-slate-300">29</div><div className="p-2 text-slate-300">30</div>
-              {/* Days */}
-              {Array.from({length: 31}).map((_, i) => {
-                const day = i + 1;
-                const isToday = day === 23;
-                const hasFollowUp = [20, 23, 24, 25, 28].includes(day);
-                
-                return (
-                  <div key={day} className={`p-1.5 rounded-lg flex items-center justify-center relative cursor-pointer
-                    ${isToday ? 'bg-[#0D2137] text-white font-bold' : 'hover:bg-slate-100 text-slate-700'}
-                  `}>
-                    {day}
-                    {hasFollowUp && !isToday && (
-                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500"></span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          
-          <div className="bg-gradient-to-br from-[#0D2137] to-[#1a365d] rounded-2xl shadow-sm p-6 text-white text-center">
-            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-3">
-              <Ico d={icons.check_circle} size={24} className="text-emerald-400" />
-            </div>
-            <h3 className="text-base font-bold mb-1">Great Job!</h3>
-            <p className="text-xs text-blue-100/70 mb-4">You have completed 85% of your follow-ups this week.</p>
-            <button className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-colors border border-white/5">
-              View Performance
-            </button>
           </div>
         </div>
       </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <h2 className="text-lg font-bold text-slate-800">Schedule Reminder</h2>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
+                <Ico d={icons.x} size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="p-6 overflow-y-auto space-y-4">
+                {errorMsg && (
+                  <div className="p-3 rounded-[8px] bg-[#ffdad6] border border-[#ffb4ab] text-[13px] text-[#93000a] font-medium text-center">
+                    {errorMsg}
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Customer Account <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    value={formData.customerId}
+                    onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
+                    required
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none"
+                  >
+                    <option value="">Select a customer...</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.customerCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Date & Time <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="datetime-local" 
+                    required
+                    value={formData.scheduledTime}
+                    onChange={(e) => setFormData({ ...formData, scheduledTime: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none text-slate-700" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Reminder Action Notes</label>
+                  <textarea 
+                    rows={3} 
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Enter call notes, requirements..." 
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none resize-none"
+                  ></textarea>
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(false)} 
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={formLoading}
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#0D2137] hover:bg-[#1a365d] transition-colors shadow-sm disabled:opacity-75"
+                >
+                  {formLoading ? "Scheduling..." : "Schedule"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

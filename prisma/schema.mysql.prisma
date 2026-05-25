@@ -3,8 +3,9 @@
 // Connection string format: mysql://user:password@localhost:3306/database
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
+  provider   = "prisma-client-js"
+  engineType = "library"
+  output     = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -34,6 +35,12 @@ enum SubscriptionStatus {
   Pending
 }
 
+enum FollowUpStatus {
+  Pending
+  Completed
+  Overdue
+}
+
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -50,6 +57,7 @@ model User {
   hostedVisitors      Visitor[]
   auditLogs           AuditLog[]
   passwordResetTokens PasswordResetToken[]
+  assignedFollowUps   FollowUp[]
 
   @@index([role])
   @@index([isActive])
@@ -68,6 +76,7 @@ model Customer {
 
   subscriptions Subscription[]
   visits        MarketingVisit[]
+  followUps     FollowUp[]
 
   @@index([customerCode])
   @@index([status])
@@ -111,6 +120,7 @@ model MarketingVisit {
 model Visitor {
   id           String    @id @default(uuid())
   visitorName  String
+  company      String
   visitorEmail String?
   visitorPhone String
   purpose      String
@@ -149,4 +159,22 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model FollowUp {
+  id              String         @id @default(uuid())
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  assignedUserId  String
+  assignedUser    User           @relation(fields: [assignedUserId], references: [id])
+  nextMeetingDate DateTime
+  remarks         String?        @db.Text
+  status          FollowUpStatus @default(Pending)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([customerId])
+  @@index([assignedUserId])
+  @@index([status])
+  @@index([nextMeetingDate])
 }
