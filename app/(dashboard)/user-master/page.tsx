@@ -223,6 +223,7 @@ export default function UserMasterPage() {
               <option value="Admin">Admin</option>
               <option value="MarketingLead">Marketing Lead</option>
               <option value="MarketingExecutive">Marketing Executive</option>
+              <option value="Customer">Customer</option>
             </select>
           </div>
         </div>
@@ -373,6 +374,7 @@ export default function UserMasterPage() {
                     <option value="MarketingExecutive">Marketing Executive</option>
                     <option value="MarketingLead">Marketing Lead</option>
                     <option value="Admin">Admin</option>
+                    <option value="Customer">Customer</option>
                   </select>
                 </div>
                 {formData.id && (
