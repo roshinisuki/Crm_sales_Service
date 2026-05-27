@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getCustomersAction, createCustomerAction } from "@/app/actions/customers";
+import { getCustomersAction, createCustomerAction, updateCustomerAction, deleteCustomersAction } from "@/app/actions/customers";
 import { getUsersAction } from "@/app/actions/users";
 import { activateCustomerPortal } from "@/app/actions/auth";
 import { Customer, User } from "@/types";
@@ -49,6 +49,8 @@ export default function CustomerMasterPage() {
   const [formLoading, setFormLoading] = useState(false);
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const showToast = (type: "success" | "error", msg: string) => {
     setToast({ type, msg });
@@ -144,9 +146,7 @@ export default function CustomerMasterPage() {
 
     let res;
     if (formData.id) {
-      setErrorMsg("Updating customers is not implemented yet via server actions.");
-      setFormLoading(false);
-      return;
+      res = await updateCustomerAction(formData);
     } else {
       res = await createCustomerAction(formData);
     }
@@ -158,6 +158,34 @@ export default function CustomerMasterPage() {
       setErrorMsg(res.message || "Operation failed");
     }
     setFormLoading(false);
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.length === customers.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(customers.map(c => c.id));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!confirm(`Are you sure you want to permanently delete ${selectedIds.length} customer(s)? This will erase ALL their visits, subscriptions, and portal access. This action CANNOT be undone.`)) return;
+    
+    setIsDeleting(true);
+    const res = await deleteCustomersAction(selectedIds);
+    setIsDeleting(false);
+    
+    if (res.success) {
+      showToast("success", res.message || "Customers deleted.");
+      setSelectedIds([]);
+      loadCustomers();
+    } else {
+      showToast("error", res.message || "Failed to delete customers.");
+    }
   };
 
   const handleActivatePortal = async (customerId: string, customerName: string) => {
@@ -279,9 +307,34 @@ export default function CustomerMasterPage() {
         </div>
 
         <div className="overflow-x-auto">
+          {selectedIds.length > 0 && (
+            <div className="bg-[#0b1f3a] text-white px-5 py-3 flex items-center justify-between text-sm font-medium animate-in fade-in slide-in-from-top-4">
+              <span>{selectedIds.length} customer(s) selected</span>
+              <button 
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 rounded-lg transition-colors flex items-center gap-2 shadow-sm border border-red-400"
+              >
+                {isDeleting ? "Deleting..." : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    Delete Selected
+                  </>
+                )}
+              </button>
+            </div>
+          )}
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200/60">
+                <th className="px-6 py-4 w-10">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-slate-300 text-[#0b1f3a] focus:ring-[#0b1f3a]"
+                    checked={customers.length > 0 && selectedIds.length === customers.length}
+                    onChange={toggleAll}
+                  />
+                </th>
                 <th className="px-6 py-4">Customer Code</th>
                 <th className="px-6 py-4">Company details</th>
                 <th className="px-6 py-4">City</th>
@@ -292,19 +345,27 @@ export default function CustomerMasterPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-sm text-slate-500">
+                  <td colSpan={6} className="text-center py-8 text-sm text-slate-500">
                     Loading customer data...
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-sm text-slate-500">
+                  <td colSpan={6} className="text-center py-8 text-sm text-slate-500">
                     No customers found.
                   </td>
                 </tr>
               ) : (
                 customers.map(c => (
-                  <tr key={c.id} className="hover:bg-slate-50/80 transition-colors group">
+                  <tr key={c.id} className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(c.id) ? 'bg-blue-50/50' : ''}`}>
+                    <td className="px-6 py-4">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-slate-300 text-[#0b1f3a] focus:ring-[#0b1f3a]"
+                        checked={selectedIds.includes(c.id)}
+                        onChange={() => toggleOne(c.id)}
+                      />
+                    </td>
                     <td className="px-6 py-4 text-sm font-medium text-slate-700">{c.customerCode}</td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -327,7 +388,7 @@ export default function CustomerMasterPage() {
                         >
                           Edit Details
                         </button>
-                        {(user?.role === "Admin" || user?.role === "MarketingLead") && c.email && (
+                        {(user?.role === "Admin" || user?.role === "MarketingLead") && c.email && c.status === "Active" && !c.hasActivatedPortal && (
                           <button
                             onClick={() => handleActivatePortal(c.id, c.name)}
                             disabled={activatingId === c.id}

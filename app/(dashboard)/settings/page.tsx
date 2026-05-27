@@ -18,9 +18,8 @@ const icons = {
   check: "M5 13l4 4L19 7",
 };
 
-interface ToggleProps { label: string; description?: string; defaultChecked?: boolean }
-function Toggle({ label, description, defaultChecked }: ToggleProps) {
-  const [on, setOn] = useState(defaultChecked ?? false);
+interface ToggleProps { label: string; description?: string; checked: boolean; onChange: (checked: boolean) => void }
+function Toggle({ label, description, checked, onChange }: ToggleProps) {
   return (
     <div className="flex items-center justify-between py-3.5 border-b border-slate-100 last:border-0">
       <div>
@@ -28,13 +27,13 @@ function Toggle({ label, description, defaultChecked }: ToggleProps) {
         {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
       </div>
       <button
-        onClick={() => setOn(!on)}
-        className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ${on ? "bg-[#0D2137]" : "bg-slate-200"}`}
-        aria-checked={on}
+        onClick={() => onChange(!checked)}
+        className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ${checked ? "bg-[#0D2137]" : "bg-slate-200"}`}
+        aria-checked={checked}
         role="switch"
       >
         <span
-          className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform duration-200 ${on ? "translate-x-5" : "translate-x-0"}`}
+          className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transform transition-transform duration-200 ${checked ? "translate-x-5" : "translate-x-0"}`}
         />
       </button>
     </div>
@@ -62,21 +61,94 @@ export default function SettingsPage() {
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwError, setPwError] = useState("");
+  const [pwSuccess, setPwSuccess] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
 
-  const handleSave = () => {
+  const [prefs, setPrefs] = useState({
+    emailFollowUp: true,
+    emailVisitorCheckIn: false,
+    inAppVisitUpdate: true
+  });
+  
+  useEffect(() => {
+    if (!authLoading && user?.role === "Admin") {
+      fetch("/api/notification-preferences")
+        .then(res => res.json())
+        .then(res => {
+          if (res.success && res.data) {
+            setPrefs({
+              emailFollowUp: res.data.emailFollowUp,
+              emailVisitorCheckIn: res.data.emailVisitorCheckIn,
+              inAppVisitUpdate: res.data.inAppVisitUpdate
+            });
+          }
+        })
+        .catch(console.error);
+    }
+  }, [user, authLoading]);
+
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => { setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000); }, 800);
+    try {
+      const res = await fetch("/api/notification-preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(prefs)
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const calculateStrength = (pwd: string) => {
+    if (!pwd) return 0;
+    let score = 0;
+    if (pwd.length >= 8) score += 1;
+    if (/[A-Z]/.test(pwd)) score += 1;
+    if (/[0-9]/.test(pwd)) score += 1;
+    return score;
+  };
+  
+  const pwScore = calculateStrength(pwForm.next);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pwForm.next !== pwForm.confirm) { setPwError("New passwords do not match."); return; }
-    if (pwForm.next.length < 8) { setPwError("Password must be at least 8 characters."); return; }
     setPwError("");
-    setSaving(true);
-    setTimeout(() => { setSaving(false); setSaved(true); setPwForm({ current: "", next: "", confirm: "" }); setTimeout(() => setSaved(false), 2000); }, 800);
+    setPwSuccess("");
+    
+    if (pwForm.next !== pwForm.confirm) { setPwError("New passwords do not match."); return; }
+    if (pwScore < 3) { setPwError("Password must be at least 8 characters, 1 uppercase, and 1 number."); return; }
+    
+    setPwLoading(true);
+    try {
+      const res = await fetch("/api/profile/password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.next })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setPwSuccess("Password updated successfully.");
+        setPwForm({ current: "", next: "", confirm: "" });
+      } else {
+        setPwError(data.message || "Failed to update password.");
+      }
+    } catch (err) {
+      setPwError("An error occurred. Please try again.");
+    } finally {
+      setPwLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -149,6 +221,11 @@ export default function SettingsPage() {
                 {pwError}
               </div>
             )}
+            {pwSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 font-medium">
+                {pwSuccess}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Current Password</label>
               <input
@@ -170,6 +247,14 @@ export default function SettingsPage() {
                 placeholder="Min. 8 characters"
                 className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
+              <div className="flex items-center gap-2 mt-2">
+                <div className={`h-1.5 flex-1 rounded-full transition-colors ${pwScore >= 1 ? (pwScore >= 3 ? 'bg-emerald-500' : pwScore >= 2 ? 'bg-amber-400' : 'bg-red-400') : 'bg-slate-200'}`} />
+                <div className={`h-1.5 flex-1 rounded-full transition-colors ${pwScore >= 2 ? (pwScore >= 3 ? 'bg-emerald-500' : 'bg-amber-400') : 'bg-slate-200'}`} />
+                <div className={`h-1.5 flex-1 rounded-full transition-colors ${pwScore >= 3 ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 w-12 text-right">
+                  {pwScore === 0 ? "None" : pwScore === 1 ? "Weak" : pwScore === 2 ? "Medium" : "Strong"}
+                </span>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm New Password</label>
@@ -184,20 +269,34 @@ export default function SettingsPage() {
             </div>
             <button
               type="submit"
-              disabled={saving}
+              disabled={pwLoading}
               className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#0D2137] hover:bg-[#1a365d] transition-colors shadow-sm disabled:opacity-70"
             >
-              {saving ? "Updating..." : "Update Password"}
+              {pwLoading ? "Updating..." : "Update Password"}
             </button>
           </form>
         </Card>
 
         {/* Notifications */}
         <Card title="Notifications" icon={icons.bell}>
-          <Toggle label="Email Alerts" description="Receive email on follow-up reminders and overdue tasks." defaultChecked={true} />
-          <Toggle label="Subscription Expiry Alerts" description="Get notified 7 days before a customer plan expires." defaultChecked={true} />
-          <Toggle label="New Visitor Check-in" description="Alert on every new office visitor check-in." defaultChecked={false} />
-          <Toggle label="Audit Log Digest" description="Receive a daily summary of audit events." defaultChecked={false} />
+          <Toggle 
+            label="Email Alerts" 
+            description="Receive email on follow-up reminders and overdue tasks." 
+            checked={prefs.emailFollowUp} 
+            onChange={(c) => setPrefs(p => ({ ...p, emailFollowUp: c }))} 
+          />
+          <Toggle 
+            label="New Visitor Check-in" 
+            description="Alert on every new office visitor check-in." 
+            checked={prefs.emailVisitorCheckIn} 
+            onChange={(c) => setPrefs(p => ({ ...p, emailVisitorCheckIn: c }))} 
+          />
+          <Toggle 
+            label="In-App Visit Updates" 
+            description="Receive in-app alerts for visit updates." 
+            checked={prefs.inAppVisitUpdate} 
+            onChange={(c) => setPrefs(p => ({ ...p, inAppVisitUpdate: c }))} 
+          />
         </Card>
 
         {/* Compliance & Privacy */}

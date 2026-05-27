@@ -74,6 +74,22 @@ export async function createVisitorAction(data: any) {
       `Walk-in registered: ${name} visited ${visitor.host?.name ?? "office"}`
     );
 
+    // Notify Admin and Leads about the walk-in
+    const adminsAndLeads = await prisma.user.findMany({
+      where: { isActive: true, role: { in: ["Admin", "MarketingLead"] } }
+    });
+    
+    if (adminsAndLeads.length > 0) {
+      await prisma.notification.createMany({
+        data: adminsAndLeads.map(u => ({
+          userId: u.id,
+          title: "New Visitor Walk-in",
+          message: `${name} from ${company || "unknown"} checked in to meet ${visitor.host?.name ?? "someone"}`,
+          type: "visit"
+        }))
+      });
+    }
+
     return {
       success: true,
       message: "Visitor registered successfully",
@@ -116,7 +132,35 @@ export async function checkoutVisitorAction(data: any) {
       data: { ...visitor, checkOutTime: visitor.outTime?.toISOString() ?? null }
     };
   } catch (error) {
-    console.error("PUT Visitor Error:", error);
+    console.error("Checkout Visitor Error:", error);
     return { success: false, message: "Failed to checkout visitor" };
+  }
+}
+
+export async function deleteVisitorAction(id: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || userPayload.role !== "Admin") {
+      return { success: false, message: "Unauthorized: Only Admins can delete visitors" };
+    }
+
+    if (!id) return { success: false, message: "Visitor ID is required" };
+
+    const visitor = await prisma.visitor.findUnique({ where: { id } });
+    if (!visitor) return { success: false, message: "Visitor not found" };
+
+    await prisma.visitor.delete({ where: { id } });
+
+    await logAudit(
+      userPayload.id,
+      "visitor",
+      "delete",
+      `Visitor record deleted: ${visitor.visitorName}`
+    );
+
+    return { success: true, message: "Visitor deleted successfully" };
+  } catch (error) {
+    console.error("Delete Visitor Error:", error);
+    return { success: false, message: "Failed to delete visitor" };
   }
 }

@@ -5,11 +5,13 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  userType?: "internal" | "customer";
   isActive: boolean;
   isFirstLogin?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
+
 
 export interface Customer {
   id: string;
@@ -24,6 +26,7 @@ export interface Customer {
   createdAt?: string;
   updatedAt?: string;
   subscriptions?: any[];
+  hasActivatedPortal?: boolean;
 }
 
 export interface Subscription {

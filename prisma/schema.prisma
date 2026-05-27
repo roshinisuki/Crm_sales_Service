@@ -52,6 +52,9 @@ model User {
   name         String
   passwordHash String
   role         Role     @default(MarketingExecutive)
+  userType           String    @default("internal") // "internal" | "customer"
+  phone              String?
+  profilePhoto       String?   @db.Text
   isActive           Boolean   @default(true)
   isFirstLogin       Boolean   @default(true)
   otpCode            String?
@@ -79,16 +82,19 @@ model User {
   passwordResetTokens PasswordResetToken[]
   assignedFollowUps   FollowUp[]
   assignedCustomers   Customer[] @relation("AssignedCustomers")
+  notifications       Notification[]
+  notificationPrefs   NotificationPreference?
 
   @@index([role])
   @@index([isActive])
+  @@index([userType])
 }
 
 model Customer {
   id           String         @id @default(uuid())
   customerCode String         @unique
   name         String
-  email        String?
+  email        String?        @unique
   phone        String?
   city           String?
   status         CustomerStatus @default(Active)
@@ -248,4 +254,28 @@ model FollowUp {
   @@index([assignedUserId])
   @@index([status])
   @@index([nextMeetingDate])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  title      String
+  message    String   @db.Text
+  type       String   // "follow_up", "visit", "system"
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model NotificationPreference {
+  id                  Int     @id @default(autoincrement())
+  userId              String  @unique
+  emailFollowUp       Boolean @default(true)
+  emailVisitorCheckIn Boolean @default(false)
+  inAppVisitUpdate    Boolean @default(true)
+  user                User    @relation(fields: [userId], references: [id])
 }

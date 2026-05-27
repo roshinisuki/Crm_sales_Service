@@ -125,6 +125,7 @@ type Stage = "email" | "otp" | "setPassword" | "password";
 function LoginContent() {
   const searchParams = useSearchParams();
   const resetSuccess = searchParams.get("reset") === "success";
+  const activated = searchParams.get("activated") === "true";
   const timedOut = searchParams.get("reason") === "timeout";
 
   const [stage, setStage] = useState<Stage>("email");
@@ -278,6 +279,17 @@ function LoginContent() {
               <div>
                 <p className="text-[13px] font-semibold text-[#2e7d32]">Password updated successfully</p>
                 <p className="text-[12px] text-[#2e7d32]/80">You can now sign in with your new password.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Account Activated Banner ── */}
+          {activated && (
+            <div className="mb-6 p-4 rounded-[10px] bg-[#e6f4ea] border border-[#a8d5b0] flex items-center gap-3">
+              <CheckIcon />
+              <div>
+                <p className="text-[13px] font-semibold text-[#2e7d32]">Account activated successfully!</p>
+                <p className="text-[12px] text-[#2e7d32]/80">Welcome to Suki CRM. Sign in with your email and new password.</p>
               </div>
             </div>
           )}

@@ -49,6 +49,8 @@ export default function AuditLogsPage() {
   const [search, setSearch] = useState("");
   const [moduleFilter, setModuleFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
   const loadLogs = async () => {
@@ -58,6 +60,8 @@ export default function AuditLogsPage() {
       const params: any = {};
       if (moduleFilter) params.module = moduleFilter;
       if (actionFilter) params.action = actionFilter;
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
       params.limit = 100; // default from old code
 
       const res = await getAuditLogsAction(params);
@@ -83,7 +87,7 @@ export default function AuditLogsPage() {
     if (user?.role === "Admin") {
       loadLogs();
     }
-  }, [search, moduleFilter, user]);
+  }, [moduleFilter, actionFilter, startDate, endDate, user]);
 
   const handleExportCSV = () => {
     if (logs.length === 0) return;
@@ -200,20 +204,48 @@ export default function AuditLogsPage() {
               placeholder="Search by user or action..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-shadow"
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <select
               value={moduleFilter}
               onChange={(e) => setModuleFilter(e.target.value)}
-              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[120px] shadow-sm z-50 relative"
             >
               <option value="">All Modules</option>
               {(modules.length > 0 ? modules : ["auth","user","customer","subscription","visit","visitor","follow-up"]).map((m) => (
                 <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
               ))}
             </select>
+            <select
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-w-[120px] shadow-sm z-50 relative"
+            >
+              <option value="">All Actions</option>
+              <option value="create">Create</option>
+              <option value="update">Update</option>
+              <option value="delete">Delete</option>
+              <option value="login">Login</option>
+              <option value="checkin">Check-in</option>
+              <option value="checkout">Check-out</option>
+            </select>
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm"
+              />
+              <span className="text-slate-400 font-medium text-xs">to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 shadow-sm"
+              />
+            </div>
           </div>
         </div>
 

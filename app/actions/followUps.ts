@@ -49,16 +49,18 @@ export async function createFollowUpAction(data: any) {
     const userPayload = await verifyAuth();
     if (!userPayload) return { success: false, message: "Unauthorized" };
 
-    const { customerId, scheduledTime, notes, remarks } = data;
+    const { customerId, scheduledTime, notes, remarks, assignedToId } = data;
 
     if (!customerId || !scheduledTime) {
       return { success: false, message: "Customer ID and Scheduled Time are required" };
     }
 
+    const finalAssignedUserId = (userPayload.role === "Admin" && assignedToId) ? assignedToId : userPayload.id;
+
     const followUp = await prisma.followUp.create({
       data: {
         customerId,
-        assignedUserId:  userPayload.id,
+        assignedUserId:  finalAssignedUserId,
         nextMeetingDate: new Date(scheduledTime),
         remarks:         notes || remarks || null,
         status:          "Pending",

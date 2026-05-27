@@ -113,6 +113,31 @@ export function buildInvitationEmail(name: string, email: string, otp: string, i
     emailFooter("Need help? Contact your system administrator.");
 }
 
+// ── Internal Employee Activation Email (admin creates internal user) ───────────
+export function buildInternalActivationEmail(name: string, activationUrl: string, inviterName: string): string {
+  return emailHeader("Welcome to Suki CRM") +
+    `<p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#191c1e;">Hi ${name},</p>
+     <p style="margin:0 0 24px;font-size:14px;color:#44474d;line-height:22px;">
+       <strong>${inviterName}</strong> has added you to <strong>Suki CRM</strong> as a team member.
+       Click the button below to set your password and activate your account.
+     </p>` +
+    linkButton(activationUrl, "Set My Password & Activate Account") +
+    `<p style="margin:0 0 6px;font-size:13px;color:#75777e;">Or copy this link:</p>
+     <p style="margin:0;font-size:12px;color:#455f87;word-break:break-all;">${activationUrl}</p>
+     <div style="margin-top:24px;padding:16px;background:#f0f4ff;border-radius:8px;border-left:4px solid #455f87;">
+       <p style="margin:0;font-size:13px;color:#455f87;line-height:22px;">
+         <strong>How to get started:</strong><br/>
+         1. Click the button above (or copy the link)<br/>
+         2. Set your personal password<br/>
+         3. Log in at <a href="${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login" style="color:#0b1f3a;">Suki CRM</a> with your email and new password
+       </p>
+     </div>
+     <p style="margin:20px 0 0;font-size:13px;color:#75777e;text-align:center;">
+       This link expires in <strong>24 hours</strong>. If you did not expect this, please ignore this email.
+     </p>` +
+    emailFooter("Need help? Contact your system administrator.");
+}
+
 // ── Password Reset Email (Internal Users) ─────────────────────────────────────
 export function buildResetEmail(name: string, resetUrl: string): string {
   return emailHeader("Password Reset Request") +

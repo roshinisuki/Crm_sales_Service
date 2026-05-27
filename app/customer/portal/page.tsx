@@ -1,5 +1,6 @@
 import { getMeAction } from "@/app/actions/auth";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 
 export default async function CustomerPortalPage() {
   const userRes = await getMeAction();
@@ -8,6 +9,13 @@ export default async function CustomerPortalPage() {
   }
 
   const user = userRes.data;
+
+  const customer = await prisma.customer.findUnique({
+    where: { email: user.email },
+    include: { subscriptions: true }
+  });
+
+  const subscriptions = customer?.subscriptions || [];
 
   return (
     <div className="space-y-6">
@@ -19,13 +27,38 @@ export default async function CustomerPortalPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 col-span-2">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Your Subscriptions</h2>
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-8 text-center">
-            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+          
+          {subscriptions.length === 0 ? (
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-8 text-center">
+              <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+              </div>
+              <h3 className="text-slate-700 font-medium mb-1">No active subscriptions</h3>
+              <p className="text-sm text-slate-500">Contact your sales representative to add services.</p>
             </div>
-            <h3 className="text-slate-700 font-medium mb-1">No active subscriptions</h3>
-            <p className="text-sm text-slate-500">Contact your sales representative to add services.</p>
-          </div>
+          ) : (
+            <div className="space-y-4">
+              {subscriptions.map(sub => (
+                <div key={sub.id} className="bg-slate-50 border border-slate-200 rounded-xl p-5 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-800">{sub.planName}</h3>
+                    <p className="text-xs font-medium text-slate-500 mt-1">
+                      {new Date(sub.startDate).toLocaleDateString()} - {new Date(sub.endDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
+                      sub.status === 'Active' ? 'bg-emerald-100 text-emerald-700' :
+                      sub.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
+                      'bg-slate-200 text-slate-700'
+                    }`}>
+                      {sub.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">

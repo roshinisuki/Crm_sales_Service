@@ -13,6 +13,7 @@ import {
   buildResetEmail,
   buildInvitationEmail,
   buildCustomerActivationEmail,
+  buildInternalActivationEmail,
 } from "@/lib/email";
 import { z } from "zod";
 import { verifyAuth, isInternalEmail, requiresInternalEmail, getRoleRedirect } from "@/lib/auth";
@@ -369,6 +370,16 @@ export async function sendPasswordResetLink(email: string) {
 
     if (!user) return genericResponse;
 
+    // Strict check for Customers: ensure their business record is "Active"
+    if (user.userType === "customer") {
+      const customerRecord = await prisma.customer.findUnique({
+        where: { email: normalizedEmail },
+      });
+      if (!customerRecord || customerRecord.status !== "Active") {
+        return genericResponse;
+      }
+    }
+
     // Generate reset token — expires in 15 minutes
     const resetToken = jwt.sign(
       { userId: user.id, purpose: "PASSWORD_RESET" },
@@ -509,6 +520,7 @@ export async function activateCustomerPortal(customerId: string) {
     });
     if (!customer) return { success: false, message: "Customer not found." };
     if (!customer.email) return { success: false, message: "Customer does not have an email address." };
+    if (customer.status !== "Active") return { success: false, message: "Only Active customers can be granted portal access." };
 
     // Find or create user record for customer
     let user = await prisma.user.findUnique({ where: { email: customer.email } });
@@ -544,7 +556,7 @@ export async function activateCustomerPortal(customerId: string) {
     });
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const activationUrl = `${appUrl}/customer/activate?token=${activationToken}`;
+    const activationUrl = `${appUrl}/activate-account?token=${activationToken}`;
 
     await sendEmail(
       customer.email,
@@ -684,13 +696,13 @@ export async function loginAction(data: { email: string; password: string }) {
 // ADMIN-CONTROLLED USER CREATION + INVITATION
 // ═══════════════════════════════════════════════════════════════
 
-export async function createUserByAdmin(data: {
+// ═══════════════════════════════════════════════════════════════
+// ADMIN-CONTROLLED INTERNAL USER CREATION
+// ═══════════════════════════════════════════════════════════════
+export async function createInternalUserByAdmin(data: {
   name: string;
   email: string;
-  role: "Admin" | "MarketingLead" | "MarketingExecutive" | "Customer";
-  phone?: string;
-  department?: string;
-  employeeId?: string;
+  role: "MarketingLead" | "MarketingExecutive";
 }) {
   try {
     const adminPayload = await verifyAuth();
@@ -698,18 +710,18 @@ export async function createUserByAdmin(data: {
       return { success: false, message: "Unauthorized: Admin only." };
     }
 
-    const { name, email, role, phone, department, employeeId } = data;
+    const { name, email, role } = data;
     if (!name?.trim() || !email?.trim() || !role) {
       return { success: false, message: "Name, email and role are required." };
     }
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Domain check for internal roles
-    if (requiresInternalEmail(role) && !isInternalEmail(normalizedEmail)) {
+    // Domain check: internal users MUST use company email
+    if (!isInternalEmail(normalizedEmail)) {
       return {
         success: false,
-        message: `Internal users must have a @${ALLOWED_DOMAIN} email address.`,
+        message: `Internal employees must use a @${ALLOWED_DOMAIN} email address.`,
       };
     }
 
@@ -718,8 +730,13 @@ export async function createUserByAdmin(data: {
       return { success: false, message: "A user with this email already exists." };
     }
 
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+    // Generate a secure activation token (24 hours)
+    const activationToken = jwt.sign(
+      { email: normalizedEmail, purpose: "ACCOUNT_ACTIVATION" },
+      JWT_SECRET,
+      { expiresIn: `${ACTIVATION_EXPIRY_HRS}h` }
+    );
+    const activationTokenExpiry = new Date(Date.now() + ACTIVATION_EXPIRY_HRS * 60 * 60 * 1000);
 
     const adminUser = await prisma.user.findUnique({ where: { id: adminPayload.id }, select: { name: true } });
     const inviterName = adminUser?.name || "Suki CRM Admin";
@@ -729,44 +746,74 @@ export async function createUserByAdmin(data: {
         email: normalizedEmail,
         name: name.trim(),
         role,
+        userType: "internal",
         passwordHash: "",
         isActive: true,
         isFirstLogin: true,
-        otpCode: otp,
-        otpExpiry,
+        activationToken,
+        activationTokenExpiry,
         otpAttempts: 0,
         invitedBy: adminPayload.id,
         invitedAt: new Date(),
       },
     });
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const activationUrl = `${appUrl}/activate-account?token=${activationToken}`;
+
     await sendEmail(
       normalizedEmail,
-      "You've been invited to Suki CRM",
-      buildInvitationEmail(name.trim(), normalizedEmail, otp, inviterName)
+      "You've been added to Suki CRM — Set Your Password",
+      buildInternalActivationEmail(name.trim(), activationUrl, inviterName)
     );
 
-    await logAudit(adminPayload.id, "User Master", "USER_CREATED", `Admin created user ${normalizedEmail} (${role})`);
-    await logAudit(adminPayload.id, "User Master", "INVITATION_SENT", `Invitation sent to ${normalizedEmail}`);
+    await logAudit(adminPayload.id, "User Master", "USER_CREATED", `Admin created internal user ${normalizedEmail} (${role})`);
+    await logAudit(adminPayload.id, "User Master", "ACTIVATION_SENT", `Activation link sent to ${normalizedEmail}`);
 
     return {
       success: true,
-      message: `Account created and invitation sent to ${normalizedEmail}.`,
+      message: `Account created. Activation link sent to ${normalizedEmail}.`,
       data: {
         id: newUser.id,
         email: newUser.email,
         name: newUser.name,
         role: newUser.role,
+        userType: newUser.userType,
         isActive: newUser.isActive,
         isFirstLogin: newUser.isFirstLogin,
       },
     };
   } catch (error) {
-    console.error("createUserByAdmin error:", error);
+    console.error("createInternalUserByAdmin error:", error);
     return { success: false, message: "Failed to create user. Please try again." };
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ADMIN-CONTROLLED CUSTOMER PORTAL USER CREATION
+// ═══════════════════════════════════════════════════════════════
+export async function createCustomerPortalUser(customerId: string) {
+  try {
+    const adminPayload = await verifyAuth();
+    if (!adminPayload || adminPayload.role !== "Admin") {
+      return { success: false, message: "Unauthorized: Admin only." };
+    }
+
+    // Delegate to the existing portal activation flow
+    const result = await activateCustomerPortal(customerId);
+    if (result.success) {
+      await logAudit(adminPayload.id, "User Master", "CUSTOMER_PORTAL_CREATED", `Portal user created for customer ${customerId}`);
+    }
+    return result;
+  } catch (error) {
+    console.error("createCustomerPortalUser error:", error);
+    return { success: false, message: "Failed to create customer portal user." };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RESEND INVITATION (activation link, not OTP)
+// ═══════════════════════════════════════════════════════════════
 export async function resendInvitation(userId: string) {
   try {
     const adminPayload = await verifyAuth();
@@ -781,29 +828,124 @@ export async function resendInvitation(userId: string) {
     const adminUser = await prisma.user.findUnique({ where: { id: adminPayload.id }, select: { name: true } });
     const inviterName = adminUser?.name || "Suki CRM Admin";
 
-    const otp = crypto.randomInt(100000, 999999).toString();
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        otpCode: otp,
-        otpExpiry: new Date(Date.now() + 10 * 60 * 1000),
-        otpAttempts: 0,
-        invitedBy: adminPayload.id,
-        invitedAt: new Date(),
-      },
-    });
+    if (user.userType === "customer") {
+      // For customer portal users, resend the portal activation email
+      const result = await activateCustomerPortal(
+        // Find the linked customer
+        (await prisma.customer.findFirst({ where: { email: user.email } }))?.id || ""
+      );
+      if (!result.success) return { success: false, message: result.message || "Failed to resend portal activation." };
+    } else {
+      // For internal users, regenerate activation token and resend
+      const activationToken = jwt.sign(
+        { email: user.email, purpose: "ACCOUNT_ACTIVATION" },
+        JWT_SECRET,
+        { expiresIn: `${ACTIVATION_EXPIRY_HRS}h` }
+      );
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          activationToken,
+          activationTokenExpiry: new Date(Date.now() + ACTIVATION_EXPIRY_HRS * 60 * 60 * 1000),
+          invitedBy: adminPayload.id,
+          invitedAt: new Date(),
+        },
+      });
 
-    await sendEmail(
-      user.email,
-      "Your Suki CRM invitation (resent)",
-      buildInvitationEmail(user.name, user.email, otp, inviterName)
-    );
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const activationUrl = `${appUrl}/activate-account?token=${activationToken}`;
+
+      await sendEmail(
+        user.email,
+        "Suki CRM — Set Your Password (resent)",
+        buildInternalActivationEmail(user.name, activationUrl, inviterName)
+      );
+    }
 
     await logAudit(adminPayload.id, "User Master", "INVITATION_RESENT", `Invitation resent to ${user.email}`);
-
     return { success: true, message: `Invitation resent to ${user.email}.` };
   } catch (error) {
     console.error("resendInvitation error:", error);
     return { success: false, message: "Failed to resend invitation." };
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ACTIVATE ACCOUNT (new users setting password via activation link)
+// ═══════════════════════════════════════════════════════════════
+export async function activateAccountAction(token: string, password: string) {
+  try {
+    // Validate the JWT
+    let payload: any;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return { success: false, message: "Activation link is invalid or has expired." };
+    }
+
+    if (payload?.purpose !== "ACCOUNT_ACTIVATION" && payload?.purpose !== "CUSTOMER_ACTIVATION") {
+      return { success: false, message: "Invalid activation link." };
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { activationToken: token },
+    });
+
+    if (!user) {
+      return { success: false, message: "This activation link has already been used or is invalid." };
+    }
+
+    if (!user.activationTokenExpiry || user.activationTokenExpiry < new Date()) {
+      return { success: false, message: "Activation link has expired. Please contact your administrator." };
+    }
+
+    const parsed = passwordSchema.safeParse(password);
+    if (!parsed.success) {
+      return {
+        success: false,
+        message: parsed.error.issues?.[0]?.message || "Password does not meet requirements.",
+      };
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        isFirstLogin: false,
+        isActive: true,
+        activationToken: null,
+        activationTokenExpiry: null,
+        otpCode: null,
+        otpExpiry: null,
+        otpAttempts: 0,
+        passwordSetAt: new Date(),
+        loginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    await logAudit(user.id, "AUTH", "ACCOUNT_ACTIVATED", `Account activated for ${user.email}`);
+    return { success: true, message: "Account activated successfully." };
+  } catch (error: any) {
+    if (error?.digest?.startsWith("NEXT_REDIRECT")) throw error;
+    console.error("activateAccountAction error:", error);
+    return { success: false, message: "Something went wrong. Please try again." };
+  }
+}
+
+// Legacy alias kept for backward compatibility
+export async function createUserByAdmin(data: {
+  name: string;
+  email: string;
+  role: "Admin" | "MarketingLead" | "MarketingExecutive" | "Customer";
+  phone?: string;
+  department?: string;
+  employeeId?: string;
+}) {
+  if (data.role === "MarketingLead" || data.role === "MarketingExecutive") {
+    return createInternalUserByAdmin({ name: data.name, email: data.email, role: data.role });
+  }
+  return { success: false, message: "Use the split creation flow (createInternalUserByAdmin / createCustomerPortalUser)." };
 }

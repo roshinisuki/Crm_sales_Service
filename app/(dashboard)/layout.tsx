@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { logoutAction } from "@/app/actions/auth";
 import { useEffect, useState } from "react";
+import DashboardHeader from "@/components/DashboardHeader";
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
@@ -214,34 +215,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Topbar */}
-        <header className="h-14 md:h-16 bg-white border-b border-slate-200/80 flex items-center justify-between px-4 md:px-6 lg:px-8 shrink-0 z-10">
-          <div className="flex items-center gap-3">
-            {/* Hamburger - mobile only */}
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="md:hidden w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors border border-slate-200/60"
-              aria-label="Open menu"
-            >
-              {icons.menu}
-            </button>
-            <h1 className="text-base md:text-lg font-bold text-slate-800 capitalize">{pageTitle}</h1>
-          </div>
-          <div className="flex items-center gap-2 md:gap-3">
-            <div className="relative hidden sm:block">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">{icons.search}</span>
-              <input
-                type="text"
-                placeholder="General search…"
-                className="w-44 md:w-56 pl-10 pr-4 py-2 rounded-xl bg-slate-100 text-sm text-slate-700 placeholder:text-slate-400 border border-slate-200/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition"
-              />
-            </div>
-            <button className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors border border-slate-200/60">
-              {icons.bell}
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
-            </button>
-            <img src={`https://i.pravatar.cc/150?u=${user?.email || "admin"}`} alt="User" className="w-8 h-8 md:w-9 md:h-9 rounded-xl object-cover border-2 border-slate-200 cursor-pointer" />
-          </div>
-        </header>
+        <DashboardHeader pageTitle={pageTitle} user={user} setDrawerOpen={setDrawerOpen} />
 
         {/* Page content */}
         <div className="flex-1 overflow-auto p-4 md:p-5 lg:p-7 pb-8">

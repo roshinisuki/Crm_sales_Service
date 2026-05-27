@@ -18,6 +18,7 @@ export async function getUsersAction() {
         email: true,
         name: true,
         role: true,
+        userType: true,
         isActive: true,
         isFirstLogin: true,
         createdAt: true,
@@ -33,14 +34,14 @@ export async function getUsersAction() {
 
 
 
-export async function updateUserAction(id: string, data: any) {
+export async function updateUserAction(params: { id: string; role?: string; isActive?: boolean }) {
   try {
     const userPayload = await verifyAuth();
     if (!userPayload || userPayload.role !== "Admin") {
       return { success: false, message: "Unauthorized: Only Admin can update users" };
     }
 
-    const { role, isActive } = data;
+    const { id, role, isActive } = params;
 
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) {
@@ -50,7 +51,7 @@ export async function updateUserAction(id: string, data: any) {
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
-        role: role !== undefined ? role : existingUser.role,
+        role: role !== undefined ? (role as any) : existingUser.role,
         isActive: isActive !== undefined ? isActive : existingUser.isActive,
       },
     });

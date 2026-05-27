@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 
-export async function getAuditLogsAction(params?: { module?: string; action?: string; limit?: number }) {
+export async function getAuditLogsAction(params?: { module?: string; action?: string; startDate?: string; endDate?: string; limit?: number }) {
   try {
     const userPayload = await verifyAuth();
     if (!userPayload || userPayload.role !== "Admin") {
@@ -13,14 +13,32 @@ export async function getAuditLogsAction(params?: { module?: string; action?: st
     const moduleFilter = params?.module;
     const actionFilter = params?.action;
     const limit = params?.limit || 100;
+    const startDate = params?.startDate ? new Date(params.startDate) : null;
+    const endDate = params?.endDate ? new Date(params.endDate) : null;
+    
+    if (endDate) {
+      // Set end date to end of day to include all logs on that day
+      endDate.setHours(23, 59, 59, 999);
+    }
+
+    const whereClause: any = { AND: [] };
+    
+    if (moduleFilter) whereClause.AND.push({ module: moduleFilter });
+    if (actionFilter) whereClause.AND.push({ action: actionFilter });
+    
+    if (startDate || endDate) {
+      const timestampFilter: any = {};
+      if (startDate) timestampFilter.gte = startDate;
+      if (endDate) timestampFilter.lte = endDate;
+      whereClause.AND.push({ timestamp: timestampFilter });
+    }
+
+    if (whereClause.AND.length === 0) {
+      delete whereClause.AND;
+    }
 
     const logs = await prisma.auditLog.findMany({
-      where: {
-        AND: [
-          moduleFilter ? { module: moduleFilter } : {},
-          actionFilter ? { action: actionFilter } : {},
-        ],
-      },
+      where: whereClause,
       include: {
         user: { select: { id: true, name: true, email: true } },
       },

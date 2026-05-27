@@ -149,6 +149,28 @@ export async function getDashboardDataAction() {
       }
     });
 
+    // 5. Inbound Walk-Ins (Checked-In today, not checked out)
+    const inboundWalkIns = await prisma.visitor.count({
+      where: {
+        AND: [
+          isExecutive ? { hostUserId: userId } : {},
+          { inTime: { gte: startOfToday, lte: endOfToday } },
+          { outTime: null }
+        ]
+      }
+    });
+
+    // 6. Outbound Walk-Ins (Checked-out today)
+    const outboundWalkIns = await prisma.visitor.count({
+      where: {
+        AND: [
+          isExecutive ? { hostUserId: userId } : {},
+          { inTime: { gte: startOfToday, lte: endOfToday } },
+          { outTime: { not: null } }
+        ]
+      }
+    });
+
     const teamCount = await prisma.user.count({
       where: { isActive: true, role: { in: ["MarketingExecutive", "MarketingLead"] } }
     });
@@ -213,7 +235,9 @@ export async function getDashboardDataAction() {
           activeSubs: activeSubs || 0,
           teamCount: teamCount || 0,
           totalCustomers: totalCustomers || 0,
-          visitsToday: visitsToday || 0
+          visitsToday: visitsToday || 0,
+          inboundWalkIns,
+          outboundWalkIns
         }
       }
     };
@@ -305,11 +329,8 @@ export async function checkOutInboundAction(data: {
       return { success: false, message: "Missing required checkout fields." };
     }
 
-    // Validate next meeting requirement
+    // Validate next meeting requirement (Removed per user request)
     const isNextMeetingRequired = !["Converted", "Not Interested"].includes(outcome);
-    if (isNextMeetingRequired && !nextMeetingDate) {
-      return { success: false, message: "Next meeting date is required for the chosen outcome." };
-    }
 
     const visit = await prisma.customerVisit.findUnique({
       where: { id },
@@ -424,22 +445,39 @@ export async function checkInOutboundAction(data: {
     }
 
     // 3. Log Outbound Visit
-    const visit = await prisma.marketingVisit.create({
+    const newVisit = await prisma.marketingVisit.create({
       data: {
-        customerId,
         executiveId: userPayload.id,
+        customerId,
         purpose,
         remarks: notes || null,
         checkInLat: checkInLat || null,
         checkInLng: checkInLng || null,
         status: "CHECKED_IN",
         checkIn: new Date()
-      }
+      },
+      include: { customer: { select: { name: true } } }
     });
 
-    await logAudit(userPayload.id, "VISIT", "OUTBOUND_CHECK_IN", `Field visit logged: Executive checked in to customer ${customerId}`);
+    // Notify Admin and Leads about the outbound check-in
+    const adminsAndLeads = await prisma.user.findMany({
+      where: { isActive: true, role: { in: ["Admin", "MarketingLead"] } }
+    });
+    
+    if (adminsAndLeads.length > 0) {
+      await prisma.notification.createMany({
+        data: adminsAndLeads.map(u => ({
+          userId: u.id,
+          title: "New Outbound Visit",
+          message: `${userPayload.name} started a field visit with ${newVisit.customer.name} for ${purpose}`,
+          type: "visit"
+        }))
+      });
+    }
+
+    await logAudit(userPayload.id, "VISITS", "OUTBOUND_CHECKIN", `Checked-in for outbound visit at ${newVisit.customer.name}`);
     revalidatePath("/dashboard");
-    return { success: true, message: "Field Check-in successful", data: { ...visit, checkIn: visit.checkIn.toISOString(), checkOut: visit.checkOut?.toISOString() ?? null, createdAt: visit.createdAt.toISOString(), updatedAt: visit.updatedAt.toISOString() } };
+    return { success: true, message: "Field Check-in successful", data: { ...newVisit, checkIn: newVisit.checkIn.toISOString(), checkOut: newVisit.checkOut?.toISOString() ?? null, createdAt: newVisit.createdAt.toISOString(), updatedAt: newVisit.updatedAt.toISOString() } };
   } catch (error) {
     console.error("Outbound Checkin Error:", error);
     return { success: false, message: "Failed to register field visit check-in" };
@@ -469,11 +507,8 @@ export async function checkOutOutboundAction(data: {
       return { success: false, message: "Missing required checkout fields." };
     }
 
-    // Validate next meeting requirement
+    // Validate next meeting requirement (Removed per user request)
     const isNextMeetingRequired = !["Converted", "Not Interested"].includes(outcome);
-    if (isNextMeetingRequired && !nextMeetingDate) {
-      return { success: false, message: "Next meeting date is required for the chosen outcome." };
-    }
 
     const visit = await prisma.marketingVisit.findUnique({
       where: { id },

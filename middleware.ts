@@ -6,11 +6,11 @@ const PUBLIC_PATHS = [
   "/login",
   "/forgot-password",
   "/reset-password",
-  "/customer/activate",
+  "/activate-account",
 ];
 
 // Routes only customers can access
-const CUSTOMER_ONLY_PATHS = ["/customer/portal", "/customer/activate"];
+const CUSTOMER_ONLY_PATHS = ["/customer/portal"];
 
 // Routes customers cannot access
 const INTERNAL_ONLY_PATHS = ["/dashboard", "/customer-master", "/subscription", "/marketing-log", "/visitor-management", "/follow-up", "/audit-logs", "/user-master", "/settings"];

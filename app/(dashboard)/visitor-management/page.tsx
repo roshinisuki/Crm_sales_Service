@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getVisitorsAction, createVisitorAction, checkoutVisitorAction } from "@/app/actions/visitors";
+import { getVisitorsAction, createVisitorAction, checkoutVisitorAction, deleteVisitorAction } from "@/app/actions/visitors";
 import { Visitor } from "@/types";
+import { useAuth } from "@/components/AuthProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -18,12 +19,16 @@ const icons = {
   clock: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
 };
 
-export default function VisitorManagementPage() {
+  const { user } = useAuth();
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedVisitor, setSelectedVisitor] = useState<Visitor | null>(null);
+  
   const [errorMsg, setErrorMsg] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formLoading, setFormLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -63,6 +68,7 @@ export default function VisitorManagementPage() {
       hostName: "",
     });
     setErrorMsg("");
+    setFieldErrors({});
     setIsModalOpen(true);
   };
 
@@ -79,13 +85,44 @@ export default function VisitorManagementPage() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this visitor record?")) return;
+    try {
+      const res = await deleteVisitorAction(id);
+      if (res.success) {
+        loadVisitors();
+      } else {
+        alert(res.message || "Failed to delete visitor");
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormLoading(true);
     setErrorMsg("");
+    setFieldErrors({});
 
-    if (!formData.name.trim() || !formData.phone.trim() || !formData.purpose.trim() || !formData.hostName.trim()) {
-      setErrorMsg("Visitor Name, Contact Phone, Purpose, and Host Name are required");
+    let errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) errors.name = "Name is required.";
+    if (!formData.purpose.trim()) errors.purpose = "Purpose is required.";
+    if (!formData.hostName.trim()) errors.hostName = "Host Name is required.";
+    
+    if (!formData.phone.trim()) {
+      errors.phone = "Phone is required.";
+    } else if (!/^\d{10}$/.test(formData.phone.trim())) {
+      errors.phone = "Phone must be exactly 10 digits.";
+    }
+
+    if (formData.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errors.email = "Invalid email format.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       setFormLoading(false);
       return;
     }
@@ -232,14 +269,33 @@ export default function VisitorManagementPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {!v.checkOutTime && (
+                      <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleCheckout(v.id)}
-                          className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                          onClick={() => {
+                            setSelectedVisitor(v);
+                            setIsViewModalOpen(true);
+                          }}
+                          className="text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors shadow-sm border border-blue-100"
                         >
-                          Check Out
+                          View
                         </button>
-                      )}
+                        {!v.checkOutTime && (
+                          <button
+                            onClick={() => handleCheckout(v.id)}
+                            className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                          >
+                            Check Out
+                          </button>
+                        )}
+                        {user?.role === "Admin" && (
+                          <button
+                            onClick={() => handleDelete(v.id)}
+                            className="text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors shadow-sm border border-red-100"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -273,12 +329,15 @@ export default function VisitorManagementPage() {
                   </label>
                   <input 
                     type="text" 
-                    required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, name: e.target.value });
+                      if (fieldErrors.name) setFieldErrors({ ...fieldErrors, name: "" });
+                    }}
                     placeholder="e.g. Rahul Sharma" 
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" 
+                    className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${fieldErrors.name ? "border-red-300 bg-red-50/30" : "border-slate-200"}`} 
                   />
+                  {fieldErrors.name && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.name}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -286,10 +345,14 @@ export default function VisitorManagementPage() {
                     <input 
                       type="email" 
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, email: e.target.value });
+                        if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: "" });
+                      }}
                       placeholder="Email address" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" 
+                      className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${fieldErrors.email ? "border-red-300 bg-red-50/30" : "border-slate-200"}`} 
                     />
+                    {fieldErrors.email && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.email}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -297,12 +360,15 @@ export default function VisitorManagementPage() {
                     </label>
                     <input 
                       type="tel" 
-                      required
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="e.g. +91 9876543210" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" 
+                      onChange={(e) => {
+                        setFormData({ ...formData, phone: e.target.value });
+                        if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: "" });
+                      }}
+                      placeholder="e.g. 9876543210" 
+                      className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${fieldErrors.phone ? "border-red-300 bg-red-50/30" : "border-slate-200"}`} 
                     />
+                    {fieldErrors.phone && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.phone}</p>}
                   </div>
                 </div>
                 <div>
@@ -322,12 +388,15 @@ export default function VisitorManagementPage() {
                     </label>
                     <input 
                       type="text" 
-                      required
                       value={formData.purpose}
-                      onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, purpose: e.target.value });
+                        if (fieldErrors.purpose) setFieldErrors({ ...fieldErrors, purpose: "" });
+                      }}
                       placeholder="e.g. Interview, Deliveries" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" 
+                      className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${fieldErrors.purpose ? "border-red-300 bg-red-50/30" : "border-slate-200"}`} 
                     />
+                    {fieldErrors.purpose && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.purpose}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -335,12 +404,15 @@ export default function VisitorManagementPage() {
                     </label>
                     <input 
                       type="text" 
-                      required
                       value={formData.hostName}
-                      onChange={(e) => setFormData({ ...formData, hostName: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, hostName: e.target.value });
+                        if (fieldErrors.hostName) setFieldErrors({ ...fieldErrors, hostName: "" });
+                      }}
                       placeholder="e.g. Priya Sharma" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" 
-                  />
+                      className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 ${fieldErrors.hostName ? "border-red-300 bg-red-50/30" : "border-slate-200"}`} 
+                    />
+                    {fieldErrors.hostName && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.hostName}</p>}
                   </div>
                 </div>
               </div>
@@ -362,6 +434,67 @@ export default function VisitorManagementPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Modal */}
+      {isViewModalOpen && selectedVisitor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <h2 className="text-lg font-bold text-slate-800">Visitor Details</h2>
+              <button onClick={() => setIsViewModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
+                <Ico d={icons.x} size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4 border-b border-slate-100 pb-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xl">
+                  {selectedVisitor.name.charAt(0)}
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-slate-800">{selectedVisitor.name}</p>
+                  <p className="text-sm font-medium text-slate-500">{selectedVisitor.company || "No Company"}</p>
+                </div>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Phone:</span>
+                  <span className="font-bold text-slate-800">{selectedVisitor.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Email:</span>
+                  <span className="font-bold text-slate-800">{selectedVisitor.email || "N/A"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Host:</span>
+                  <span className="font-bold text-slate-800">{selectedVisitor.hostName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Purpose:</span>
+                  <span className="font-bold text-slate-800">{selectedVisitor.purpose}</span>
+                </div>
+                <div className="flex justify-between pt-3 border-t border-slate-100">
+                  <span className="font-semibold text-slate-500">Check In:</span>
+                  <span className="font-bold text-slate-800">{new Date(selectedVisitor.checkInTime).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-500">Check Out:</span>
+                  <span className={`font-bold ${selectedVisitor.checkOutTime ? "text-emerald-600" : "text-amber-500"}`}>
+                    {selectedVisitor.checkOutTime ? new Date(selectedVisitor.checkOutTime).toLocaleString() : "Still in premises"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setIsViewModalOpen(false)}
+                className="px-5 py-2 rounded-xl text-sm font-bold bg-[#0D2137] text-white hover:bg-slate-800 transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

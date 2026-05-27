@@ -79,11 +79,6 @@ export default function CheckOutModal({
       return;
     }
 
-    if (isNextMeetingRequired && !nextMeetingDate) {
-      setErrorMsg("Next meeting date is required for the selected outcome.");
-      return;
-    }
-
     if (customerDecision === "REJECTED" && !rejectionReason.trim()) {
       setErrorMsg("Rejection reason is required when rejecting a customer.");
       return;
@@ -269,10 +264,9 @@ export default function CheckOutModal({
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Date & Time *</label>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Date & Time</label>
                       <input
                         type="datetime-local"
-                        required={isNextMeetingRequired}
                         value={nextMeetingDate}
                         onChange={(e) => setNextMeetingDate(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs focus:outline-none font-semibold text-slate-700"

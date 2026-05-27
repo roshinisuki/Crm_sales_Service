@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { getFollowUpsListAction } from "@/app/actions/visits";
 import { updateFollowUpStatusAction, createFollowUpAction } from "@/app/actions/followUps";
 import { getCustomersAction } from "@/app/actions/customers";
+import { getUsersAction } from "@/app/actions/users";
+import { useAuth } from "@/components/AuthProvider";
 
 const icons = {
   plus: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>,
@@ -14,8 +16,10 @@ const icons = {
 };
 
 export default function FollowUpsPage() {
+  const { user } = useAuth();
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Overdue" | "Completed">("All");
@@ -23,25 +27,31 @@ export default function FollowUpsPage() {
   // Modal Open
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formLoading, setFormLoading] = useState(false);
 
   // Modal inputs
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [assignedToId, setAssignedToId] = useState("");
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [res, custRes] = await Promise.all([
+      const [res, custRes, usersRes] = await Promise.all([
         getFollowUpsListAction(),
-        getCustomersAction()
+        getCustomersAction(),
+        getUsersAction()
       ]);
       if (res.success && res.data) {
         setFollowUps(res.data);
       }
       if (custRes.success && custRes.data) {
         setCustomers(custRes.data);
+      }
+      if (usersRes?.success && usersRes.data) {
+        setUsers(usersRes.data.filter((u: any) => u.isActive && u.role === "MarketingExecutive" || u.role === "MarketingLead"));
       }
     } catch (err) {
       console.error(err);
@@ -54,10 +64,12 @@ export default function FollowUpsPage() {
     loadData();
   }, []);
 
-  const handleMarkComplete = async (id: string) => {
+  const handleUpdateStatus = async (id: string, status: string) => {
     try {
-      const res = await updateFollowUpStatusAction({ id, status: "Completed" });
+      const res = await updateFollowUpStatusAction({ id, status });
       if (res.success) {
+        // Show success toast (using alert for now since toast not implemented yet)
+        alert(`Status updated to ${status}`);
         loadData();
       } else {
         alert(res.message || "Failed to update status.");
@@ -71,9 +83,16 @@ export default function FollowUpsPage() {
     e.preventDefault();
     setFormLoading(true);
     setErrorMsg("");
+    setFieldErrors({});
 
-    if (!selectedCustomerId || !scheduledTime) {
-      setErrorMsg("Please fill in all required fields.");
+    let errors: Record<string, string> = {};
+
+    if (!selectedCustomerId) errors.customer = "Customer is required";
+    if (!scheduledTime) errors.date = "Follow-up date is required";
+    if (user?.role === "Admin" && !assignedToId) errors.assignedTo = "Executive assignment is required";
+    
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       setFormLoading(false);
       return;
     }
@@ -82,7 +101,8 @@ export default function FollowUpsPage() {
       const res = await createFollowUpAction({
         customerId: selectedCustomerId,
         scheduledTime,
-        notes
+        notes,
+        assignedToId
       });
 
       if (res.success) {
@@ -125,7 +145,9 @@ export default function FollowUpsPage() {
             setSelectedCustomerId("");
             setScheduledTime("");
             setNotes("");
+            setAssignedToId(user?.id || "");
             setErrorMsg("");
+            setFieldErrors({});
             setIsModalOpen(true);
           }}
           className="flex items-center gap-2 px-4 py-2.5 bg-[#0D2137] text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-colors shadow-sm"
@@ -212,7 +234,7 @@ export default function FollowUpsPage() {
           </div>
 
           {/* List Items */}
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 overflow-x-auto w-full">
             {loading ? (
               <div className="p-10 text-center text-slate-500 text-xs font-bold">Loading scheduled follow-up meetings...</div>
             ) : filtered.length === 0 ? (
@@ -224,7 +246,8 @@ export default function FollowUpsPage() {
               
               // Color badges
               let badgeBg = "bg-slate-100 text-slate-600 border-slate-200";
-              if (isToday) badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
+              if (f.status === "Cancelled") badgeBg = "bg-red-50 text-red-600 border-red-200/80";
+              else if (isToday) badgeBg = "bg-emerald-50 text-emerald-700 border-emerald-200/80";
               else if (isOverdue) badgeBg = "bg-red-50 text-red-600 border-red-200/80 animate-pulse";
               else if (!isCompleted) badgeBg = "bg-amber-50 text-amber-700 border-amber-200/80";
 
@@ -246,8 +269,9 @@ export default function FollowUpsPage() {
                       <span className="text-[9px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-semibold">{f.customerCode}</span>
                       
                       {/* Priority Badges */}
-                      {isToday && <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold border bg-emerald-100/60 text-emerald-800 border-emerald-200 leading-none">Due Today</span>}
-                      {isOverdue && <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold border bg-red-100/60 text-red-800 border-red-200 leading-none animate-pulse">Overdue</span>}
+                      {f.status === "Cancelled" && <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold border bg-red-100/60 text-red-800 border-red-200 leading-none">Cancelled</span>}
+                      {f.status !== "Cancelled" && isToday && <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold border bg-emerald-100/60 text-emerald-800 border-emerald-200 leading-none">Due Today</span>}
+                      {f.status !== "Cancelled" && isOverdue && <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold border bg-red-100/60 text-red-800 border-red-200 leading-none animate-pulse">Overdue</span>}
                       {isCompleted && <span className="inline-flex px-2 py-0.5 rounded-full text-[9px] font-extrabold border bg-slate-100 text-slate-600 border-slate-200 leading-none">Completed</span>}
                     </div>
 
@@ -268,16 +292,32 @@ export default function FollowUpsPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {!isCompleted ? (
-                      <button
-                        onClick={() => handleMarkComplete(f.id)}
-                        className="flex items-center gap-1 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold transition-all shadow-xs"
+                    {user?.role === "Admin" ? (
+                      <select
+                        value={f.status}
+                        onChange={(e) => handleUpdateStatus(f.id, e.target.value)}
+                        className={`text-xs font-bold rounded-xl px-3 py-1.5 border shadow-sm focus:outline-none transition-colors cursor-pointer ${
+                          f.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          f.status === 'Cancelled' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}
                       >
-                        {icons.check}
-                        Complete
-                      </button>
+                        <option value="Pending">Pending</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
                     ) : (
-                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">Completed</span>
+                      !isCompleted && f.status !== "Cancelled" ? (
+                        <button
+                          onClick={() => handleUpdateStatus(f.id, "Completed")}
+                          className="flex items-center gap-1 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold transition-all shadow-xs"
+                        >
+                          {icons.check}
+                          Complete
+                        </button>
+                      ) : (
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl">{f.status}</span>
+                      )
                     )}
                   </div>
                 </div>
@@ -338,9 +378,11 @@ export default function FollowUpsPage() {
                   </label>
                   <select
                     value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    required
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                    onChange={(e) => {
+                      setSelectedCustomerId(e.target.value);
+                      if (fieldErrors.customer) setFieldErrors({ ...fieldErrors, customer: "" });
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 ${fieldErrors.customer ? "border-red-300" : "border-slate-200"}`}
                   >
                     <option value="">Select customer...</option>
                     {customers.map((c) => (
@@ -349,18 +391,45 @@ export default function FollowUpsPage() {
                       </option>
                     ))}
                   </select>
+                  {fieldErrors.customer && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.customer}</p>}
                 </div>
+                {user?.role === "Admin" && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                      Assigned To <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={assignedToId}
+                      onChange={(e) => {
+                        setAssignedToId(e.target.value);
+                        if (fieldErrors.assignedTo) setFieldErrors({ ...fieldErrors, assignedTo: "" });
+                      }}
+                      className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 ${fieldErrors.assignedTo ? "border-red-300" : "border-slate-200"}`}
+                    >
+                      <option value="">Select Executive...</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                    </select>
+                    {fieldErrors.assignedTo && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.assignedTo}</p>}
+                  </div>
+                )}
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
                     Next Meeting Date & Time <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="datetime-local"
-                    required
                     value={scheduledTime}
-                    onChange={(e) => setScheduledTime(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none text-slate-700 font-semibold"
+                    onChange={(e) => {
+                      setScheduledTime(e.target.value);
+                      if (fieldErrors.date) setFieldErrors({ ...fieldErrors, date: "" });
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-sm focus:outline-none text-slate-700 font-semibold ${fieldErrors.date ? "border-red-300" : "border-slate-200"}`}
                   />
+                  {fieldErrors.date && <p className="text-xs text-red-500 font-medium mt-1">{fieldErrors.date}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">Agenda / Reminder Notes</label>

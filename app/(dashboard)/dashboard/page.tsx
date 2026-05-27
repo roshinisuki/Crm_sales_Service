@@ -472,12 +472,44 @@ export default function DashboardPage() {
                   {icons.lightning}
                 </div>
                 <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-                  +32%
+                  Today
                 </span>
               </div>
               <div>
                 <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Visits Today</p>
                 {loading ? <Skeleton className="h-5 w-10 mt-1" /> : <p className="text-xl font-black text-slate-800 mt-0.5">{dashboardData?.stats?.visitsToday}</p>}
+              </div>
+            </div>
+
+            {/* Card 5: Inbound Checked-In */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/60 shadow-sm flex flex-col justify-between h-[120px] hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                </div>
+                <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                  Live
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Inbound (Walk-ins)</p>
+                {loading ? <Skeleton className="h-5 w-10 mt-1" /> : <p className="text-xl font-black text-slate-800 mt-0.5">{dashboardData?.stats?.inboundWalkIns ?? 0}</p>}
+              </div>
+            </div>
+
+            {/* Card 6: Outbound Checked-Out */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-200/60 shadow-sm flex flex-col justify-between h-[120px] hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="w-9 h-9 bg-emerald-50 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  Completed
+                </span>
+              </div>
+              <div>
+                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Outbound (Checkouts)</p>
+                {loading ? <Skeleton className="h-5 w-10 mt-1" /> : <p className="text-xl font-black text-slate-800 mt-0.5">{dashboardData?.stats?.outboundWalkIns ?? 0}</p>}
               </div>
             </div>
           </div>
