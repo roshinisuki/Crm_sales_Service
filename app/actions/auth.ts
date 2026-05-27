@@ -7,12 +7,21 @@ import { revalidatePath } from "next/cache";
 import * as crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import { sendEmail, buildOtpEmail, buildResetEmail, buildInvitationEmail } from "@/lib/email";
+import {
+  sendEmail,
+  buildOtpEmail,
+  buildResetEmail,
+  buildInvitationEmail,
+  buildCustomerActivationEmail,
+} from "@/lib/email";
 import { z } from "zod";
-import { verifyAuth } from "@/lib/auth";
+import { verifyAuth, isInternalEmail, requiresInternalEmail, getRoleRedirect } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
+const ALLOWED_DOMAIN = process.env.ALLOWED_DOMAIN || "sukisoftware.com";
+const RESET_EXPIRY_MIN = Number(process.env.RESET_TOKEN_EXPIRY_MINUTES) || 15;
+const ACTIVATION_EXPIRY_HRS = Number(process.env.ACTIVATION_TOKEN_EXPIRY_HOURS) || 24;
 
 // ─── Password Strength Schema ─────────────────────────────────────────────────
 const passwordSchema = z
@@ -23,15 +32,15 @@ const passwordSchema = z
   .regex(/[!@#$%^&*]/, "Must contain a special character (!@#$%^&*)");
 
 // ─── JWT Cookie Setter ────────────────────────────────────────────────────────
-async function issueAuthCookie(user: {
-  id: string;
-  email: string;
-  role: string;
-}) {
+async function issueAuthCookie(user: { id: string; email: string; role: string }, rememberMe = false) {
+  // rememberMe=true → 7 days; default → 30 minutes (inactivity timeout enforced client-side)
+  const expiresIn = rememberMe ? "7d" : "30m";
+  const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 30 * 60;
+
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role },
     JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn }
   );
 
   const cookieStore = await cookies();
@@ -39,7 +48,7 @@ async function issueAuthCookie(user: {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60,
+    maxAge,
     path: "/",
   });
 }
@@ -51,8 +60,10 @@ async function issueAuthCookie(user: {
 // --- STEP 0: Check login type ---
 export async function checkLoginType(email: string) {
   try {
+    const normalizedEmail = email.toLowerCase().trim();
+
     const user = await prisma.user.findFirst({
-      where: { email: email.toLowerCase().trim(), isActive: true },
+      where: { email: normalizedEmail, isActive: true },
     });
 
     if (!user) {
@@ -66,7 +77,19 @@ export async function checkLoginType(email: string) {
       };
     }
 
-    return { success: true, data: { isFirstLogin: user.isFirstLogin } };
+    // Domain validation for internal roles
+    if (requiresInternalEmail(user.role) && !isInternalEmail(normalizedEmail)) {
+      return {
+        success: false,
+        message: `Only @${ALLOWED_DOMAIN} email addresses are allowed for internal accounts.`,
+      };
+    }
+
+    // Bypass first-time setup flow for all internal users.
+    // They will login with email and password directly, and use "Forgot Password" if they need to set their initial password.
+    const isFirstLogin = false;
+
+    return { success: true, data: { isFirstLogin } };
   } catch (error) {
     console.error("checkLoginType error:", error);
     return { success: false, message: "Something went wrong. Please try again." };
@@ -124,7 +147,6 @@ export async function verifyFirstLoginOtp(email: string, otp: string) {
       return { success: false, message: "Invalid request." };
     }
 
-    // Check expiry
     if (!user.otpExpiry || user.otpExpiry < new Date()) {
       await prisma.user.update({
         where: { id: user.id },
@@ -134,7 +156,6 @@ export async function verifyFirstLoginOtp(email: string, otp: string) {
       return { success: false, message: "Code expired. Request a new one." };
     }
 
-    // Check max attempts
     if (user.otpAttempts >= 3) {
       await prisma.user.update({
         where: { id: user.id },
@@ -147,7 +168,6 @@ export async function verifyFirstLoginOtp(email: string, otp: string) {
       };
     }
 
-    // Check OTP match
     if (user.otpCode !== otp) {
       await prisma.user.update({
         where: { id: user.id },
@@ -157,7 +177,6 @@ export async function verifyFirstLoginOtp(email: string, otp: string) {
       return { success: false, message: "Incorrect code. Try again." };
     }
 
-    // OTP is valid — do NOT clear yet (will clear after password saved)
     await logAudit(user.id, "AUTH", "OTP_VERIFIED", `OTP verified for ${user.email}`);
     return { success: true, message: "Code verified. Please set your password." };
   } catch (error) {
@@ -170,7 +189,8 @@ export async function verifyFirstLoginOtp(email: string, otp: string) {
 export async function completeFirstLogin(
   email: string,
   otp: string,
-  newPassword: string
+  newPassword: string,
+  rememberMe = false
 ) {
   try {
     const user = await prisma.user.findFirst({
@@ -181,7 +201,6 @@ export async function completeFirstLogin(
       return { success: false, message: "Invalid request." };
     }
 
-    // Re-verify OTP server-side (never trust client)
     if (!user.otpExpiry || user.otpExpiry < new Date()) {
       await prisma.user.update({
         where: { id: user.id },
@@ -206,12 +225,11 @@ export async function completeFirstLogin(
       return { success: false, message: "Invalid verification code." };
     }
 
-    // Validate password strength
     const parsed = passwordSchema.safeParse(newPassword);
     if (!parsed.success) {
       return {
         success: false,
-        message: parsed.error.errors[0]?.message || "Password does not meet requirements.",
+        message: parsed.error.issues?.[0]?.message || "Password does not meet requirements.",
       };
     }
 
@@ -228,16 +246,15 @@ export async function completeFirstLogin(
         lastLoginAt: new Date(),
         loginAttempts: 0,
         lockedUntil: null,
+        rememberMe,
       },
     });
 
-    await issueAuthCookie(user);
+    await issueAuthCookie(user, rememberMe);
     await logAudit(user.id, "AUTH", "FIRST_LOGIN_COMPLETE", `First login completed for ${user.email}`);
 
-    revalidatePath("/dashboard");
-    redirect("/dashboard");
+    return { success: true, redirectUrl: getRoleRedirect(user.role) };
   } catch (error: any) {
-    // redirect() throws internally — re-throw it
     if (error?.digest?.startsWith("NEXT_REDIRECT")) throw error;
     console.error("completeFirstLogin error:", error);
     return { success: false, message: "Something went wrong. Please try again." };
@@ -248,23 +265,27 @@ export async function completeFirstLogin(
 // FLOW 2 — NORMAL LOGIN (EMAIL + PASSWORD)
 // ═══════════════════════════════════════════════════════════════
 
-export async function loginWithPassword(email: string, password: string) {
+export async function loginWithPassword(email: string, password: string, rememberMe: boolean) {
   try {
+    const normalizedEmail = email.toLowerCase().trim();
     const user = await prisma.user.findFirst({
-      where: { email: email.toLowerCase().trim(), isActive: true },
+      where: { email: normalizedEmail, isActive: true },
     });
 
     if (!user) {
       return { success: false, message: "Invalid email or password." };
     }
 
-    // Block if isFirstLogin=true — must go through OTP flow first
-    if (user.isFirstLogin) {
+    // Domain validation for internal roles
+    if (requiresInternalEmail(user.role) && !isInternalEmail(normalizedEmail)) {
+      await logAudit(user.id, "AUTH", "LOGIN_DOMAIN_REJECTED", `Domain check failed for ${normalizedEmail}`);
       return {
         success: false,
-        message: "Please complete your first-time account setup.",
+        message: `Only @${ALLOWED_DOMAIN} email addresses are allowed for internal accounts.`,
       };
     }
+
+    // Block if isFirstLogin=true removed as per request to bypass OTP setup for all roles.
 
     // Check account lock
     if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -275,6 +296,9 @@ export async function loginWithPassword(email: string, password: string) {
     }
 
     // Verify password
+    if (!user.passwordHash) {
+      return { success: false, message: "Invalid email or password." };
+    }
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
       const newAttempts = (user.loginAttempts || 0) + 1;
@@ -293,10 +317,9 @@ export async function loginWithPassword(email: string, password: string) {
 
     // Customer subscription check
     if (user.role === "Customer") {
-      // Find subscription via Customer record linked to this user
       const activeSubscription = await prisma.subscription.findFirst({
         where: {
-          customer: { assignedUserId: user.id },
+          customer: { email: user.email },
           status: "Active",
           endDate: { gt: new Date() },
         },
@@ -313,14 +336,14 @@ export async function loginWithPassword(email: string, password: string) {
     // Reset lockout + update lastLogin
     await prisma.user.update({
       where: { id: user.id },
-      data: { loginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
+      data: { loginAttempts: 0, lockedUntil: null, lastLoginAt: new Date(), rememberMe },
     });
 
-    await issueAuthCookie(user);
+    await issueAuthCookie(user, rememberMe);
     await logAudit(user.id, "AUTH", "LOGIN", `Successful login for ${user.email}`);
 
-    revalidatePath("/dashboard");
-    redirect("/dashboard");
+    const redirectUrl = getRoleRedirect(user.role);
+    return { success: true, redirectUrl };
   } catch (error: any) {
     if (error?.digest?.startsWith("NEXT_REDIRECT")) throw error;
     console.error("loginWithPassword error:", error);
@@ -332,40 +355,41 @@ export async function loginWithPassword(email: string, password: string) {
 // FLOW 3 — FORGOT PASSWORD (RESET LINK)
 // ═══════════════════════════════════════════════════════════════
 
-// --- STEP 1: Send Reset Link ---
 export async function sendPasswordResetLink(email: string) {
-  // Always return the same message (prevent email enumeration)
   const genericResponse = {
     success: true,
-    message: "If this email is registered, a reset link has been sent.",
+    message: "If an account exists with this email, a reset link has been sent.",
   };
 
   try {
+    const normalizedEmail = email.toLowerCase().trim();
     const user = await prisma.user.findFirst({
-      where: { email: email.toLowerCase().trim(), isActive: true },
+      where: { email: normalizedEmail, isActive: true },
     });
 
     if (!user) return genericResponse;
 
+    // Generate reset token — expires in 15 minutes
     const resetToken = jwt.sign(
       { userId: user.id, purpose: "PASSWORD_RESET" },
       JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: `${RESET_EXPIRY_MIN}m` }
     );
 
     await prisma.user.update({
       where: { id: user.id },
       data: {
         resetToken,
-        resetTokenExpiry: new Date(Date.now() + 60 * 60 * 1000),
+        resetTokenExpiry: new Date(Date.now() + RESET_EXPIRY_MIN * 60 * 1000),
       },
     });
 
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${resetToken}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const resetUrl = `${appUrl}/reset-password?token=${resetToken}`;
 
     await sendEmail(
       user.email,
-      "Reset your Suki CRM password",
+      "Reset Your Password — Suki Marketing CRM",
       buildResetEmail(user.name, resetUrl)
     );
 
@@ -374,12 +398,11 @@ export async function sendPasswordResetLink(email: string) {
     return genericResponse;
   } catch (error) {
     console.error("sendPasswordResetLink error:", error);
-    // Still return generic — never expose email existence
     return genericResponse;
   }
 }
 
-// --- STEP 2: Validate Reset Token (called on page load) ---
+// --- Validate Reset Token (called on page load) ---
 export async function validateResetToken(token: string) {
   try {
     let payload: any;
@@ -412,10 +435,9 @@ export async function validateResetToken(token: string) {
   }
 }
 
-// --- STEP 3: Save New Password ---
+// --- Save New Password ---
 export async function saveNewPassword(token: string, newPassword: string) {
   try {
-    // Re-validate token server-side
     let payload: any;
     try {
       payload = jwt.verify(token, JWT_SECRET);
@@ -439,12 +461,11 @@ export async function saveNewPassword(token: string, newPassword: string) {
       return { success: false, message: "Reset link has expired. Please request a new one." };
     }
 
-    // Validate password strength server-side
     const parsed = passwordSchema.safeParse(newPassword);
     if (!parsed.success) {
       return {
         success: false,
-        message: parsed.error.errors[0]?.message || "Password does not meet requirements.",
+        message: parsed.error.issues?.[0]?.message || "Password does not meet requirements.",
       };
     }
 
@@ -471,7 +492,144 @@ export async function saveNewPassword(token: string, newPassword: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// SHARED ACTIONS (preserved from original)
+// FLOW 4 — CUSTOMER PORTAL ACTIVATION
+// ═══════════════════════════════════════════════════════════════
+
+/** Admin/Lead activates portal access for a customer */
+export async function activateCustomerPortal(customerId: string) {
+  try {
+    const adminPayload = await verifyAuth();
+    if (!adminPayload || !["Admin", "MarketingLead"].includes(adminPayload.role)) {
+      return { success: false, message: "Unauthorized: Admin or Marketing Lead only." };
+    }
+
+    // Find customer record
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+    });
+    if (!customer) return { success: false, message: "Customer not found." };
+    if (!customer.email) return { success: false, message: "Customer does not have an email address." };
+
+    // Find or create user record for customer
+    let user = await prisma.user.findUnique({ where: { email: customer.email } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          email: customer.email,
+          name: customer.name,
+          role: "Customer",
+          passwordHash: "",
+          isActive: true,
+          isFirstLogin: true,
+        },
+      });
+    }
+
+    // Generate activation token (24hr)
+    const activationToken = jwt.sign(
+      { userId: user.id, purpose: "CUSTOMER_ACTIVATION" },
+      JWT_SECRET,
+      { expiresIn: `${ACTIVATION_EXPIRY_HRS}h` }
+    );
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        activationToken,
+        activationTokenExpiry: new Date(Date.now() + ACTIVATION_EXPIRY_HRS * 60 * 60 * 1000),
+        isActive: true,
+        isFirstLogin: true,
+      },
+    });
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const activationUrl = `${appUrl}/customer/activate?token=${activationToken}`;
+
+    await sendEmail(
+      customer.email,
+      "Welcome to Suki Software Customer Portal",
+      buildCustomerActivationEmail(customer.name, activationUrl)
+    );
+
+    await logAudit(
+      adminPayload.id,
+      "Customer Master",
+      "PORTAL_ACTIVATED",
+      `Portal access activated for customer ${customer.name} (${customer.email})`
+    );
+
+    return { success: true, message: `Activation email sent to ${customer.email}.` };
+  } catch (error) {
+    console.error("activateCustomerPortal error:", error);
+    return { success: false, message: "Failed to activate portal access." };
+  }
+}
+
+/** Customer sets their password via activation link */
+export async function completeCustomerActivation(token: string, password: string) {
+  try {
+    let payload: any;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return { success: false, message: "Activation link is invalid or has expired." };
+    }
+
+    if (payload?.purpose !== "CUSTOMER_ACTIVATION") {
+      return { success: false, message: "Invalid activation link." };
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { id: payload.userId, activationToken: token },
+    });
+
+    if (!user) {
+      return { success: false, message: "This activation link has already been used." };
+    }
+
+    if (!user.activationTokenExpiry || user.activationTokenExpiry < new Date()) {
+      return { success: false, message: "Activation link has expired. Please contact support." };
+    }
+
+    const parsed = passwordSchema.safeParse(password);
+    if (!parsed.success) {
+      return {
+        success: false,
+        message: parsed.error.issues?.[0]?.message || "Password does not meet requirements.",
+      };
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        isFirstLogin: false,
+        isActive: true,
+        activationToken: null,
+        activationTokenExpiry: null,
+        lastLoginAt: new Date(),
+        loginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    await issueAuthCookie(user, false);
+    await logAudit(user.id, "AUTH", "CUSTOMER_ACTIVATION_COMPLETE", `Customer portal activated for ${user.email}`);
+
+    revalidatePath("/customer/portal");
+    redirect("/customer/portal");
+  } catch (error: any) {
+    if (error?.digest?.startsWith("NEXT_REDIRECT")) throw error;
+    console.error("completeCustomerActivation error:", error);
+    return { success: false, message: "Something went wrong. Please try again." };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SHARED ACTIONS
 // ═══════════════════════════════════════════════════════════════
 
 export async function logoutAction() {
@@ -510,23 +668,22 @@ export async function getMeAction() {
       return { success: false, message: "User not found or inactive" };
     }
 
-    return { success: true, data: user };
+    return { success: true, data: { ...user, lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null } };
   } catch (error) {
     console.error("getMeAction error:", error);
     return { success: false, message: "Internal server error" };
   }
 }
 
-// Legacy alias — keeps compatibility with any existing references to loginAction
+// Legacy alias
 export async function loginAction(data: { email: string; password: string }) {
-  return loginWithPassword(data.email, data.password);
+  return loginWithPassword(data.email, data.password, false);
 }
 
 // ═══════════════════════════════════════════════════════════════
 // ADMIN-CONTROLLED USER CREATION + INVITATION
 // ═══════════════════════════════════════════════════════════════
 
-// Create user + send invitation OTP (Admin only)
 export async function createUserByAdmin(data: {
   name: string;
   email: string;
@@ -547,6 +704,15 @@ export async function createUserByAdmin(data: {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
+
+    // Domain check for internal roles
+    if (requiresInternalEmail(role) && !isInternalEmail(normalizedEmail)) {
+      return {
+        success: false,
+        message: `Internal users must have a @${ALLOWED_DOMAIN} email address.`,
+      };
+    }
+
     const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return { success: false, message: "A user with this email already exists." };
@@ -555,7 +721,6 @@ export async function createUserByAdmin(data: {
     const otp = crypto.randomInt(100000, 999999).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Get admin name for invitation email
     const adminUser = await prisma.user.findUnique({ where: { id: adminPayload.id }, select: { name: true } });
     const inviterName = adminUser?.name || "Suki CRM Admin";
 
@@ -575,7 +740,6 @@ export async function createUserByAdmin(data: {
       },
     });
 
-    // Send branded invitation email
     await sendEmail(
       normalizedEmail,
       "You've been invited to Suki CRM",
@@ -603,7 +767,6 @@ export async function createUserByAdmin(data: {
   }
 }
 
-// Resend invitation OTP to an existing pending user (Admin only)
 export async function resendInvitation(userId: string) {
   try {
     const adminPayload = await verifyAuth();
@@ -644,4 +807,3 @@ export async function resendInvitation(userId: string) {
     return { success: false, message: "Failed to resend invitation." };
   }
 }
-

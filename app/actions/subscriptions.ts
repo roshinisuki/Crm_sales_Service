@@ -34,7 +34,15 @@ export async function getSubscriptionsAction(params?: { customerId?: string; sta
       orderBy: { createdAt: "desc" },
     });
 
-    return { success: true, data: subscriptions };
+    const serialized = subscriptions.map((s) => ({
+      ...s,
+      createdAt: s.createdAt.toISOString(),
+      updatedAt: s.updatedAt.toISOString(),
+      startDate: s.startDate.toISOString(),
+      endDate: s.endDate.toISOString(),
+    }));
+
+    return { success: true, data: serialized };
   } catch (error) {
     console.error("GET Subscriptions Error:", error);
     return { success: false, message: "Failed to fetch subscriptions" };

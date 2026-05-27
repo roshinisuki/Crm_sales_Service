@@ -30,6 +30,8 @@ export async function getMarketingLogsAction(params?: { customerId?: string }) {
       ...v,
       checkInTime:  v.checkIn.toISOString(),
       checkOutTime: v.checkOut?.toISOString() ?? null,
+      checkIn:      v.checkIn.toISOString(),
+      checkOut:     v.checkOut?.toISOString() ?? null,
       checkInLat:   v.checkInLat ?? 0,
       checkInLng:   v.checkInLng ?? 0,
       checkOutLat:  v.checkOutLat ?? null,
@@ -38,6 +40,9 @@ export async function getMarketingLogsAction(params?: { customerId?: string }) {
       notes:        v.remarks ?? null,
       userId:       v.executiveId,
       user:         v.executive,
+      createdAt:    v.createdAt.toISOString(),
+      updatedAt:    v.updatedAt.toISOString(),
+      nextMeetingDate: v.nextMeetingDate?.toISOString() ?? null,
     }));
 
     return { success: true, data: normalized };

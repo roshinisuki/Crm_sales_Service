@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { logoutAction } from "@/app/actions/auth";
+import { useEffect, useState } from "react";
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
@@ -26,15 +27,18 @@ const icons = {
   search:       <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />,
   bell:         <Icon d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />,
   logout:       <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />,
+  menu:         <Icon d="M4 6h16M4 12h16M4 18h16" />,
+  close:        <Icon d="M6 18L18 6M6 6l12 12" />,
 };
 
 const mainNav: NavItem[]  = [{ href: "/dashboard",          label: "Dashboard",     icon: icons.dashboard }];
 const crmNav: NavItem[]   = [
-  { href: "/customer-master",    label: "Customers",     icon: icons.customers },
-  { href: "/subscription",       label: "Subscriptions", icon: icons.subscription },
-  { href: "/marketing-log",      label: "Marketing Visits", icon: icons.visits },
-  { href: "/visitor-management", label: "Visitor Management", icon: icons.visitors },
-  { href: "/follow-up",          label: "Follow-ups",    icon: icons.followup },
+  { href: "/customer-master",    label: "Customers",         icon: icons.customers },
+  { href: "/subscription",       label: "Subscriptions",     icon: icons.subscription },
+  { href: "/marketing-log",      label: "Marketing Visits",  icon: icons.visits },
+  { href: "/visitor-management", label: "Visitor Management",icon: icons.visitors },
+  { href: "/follow-up",          label: "Follow-ups",        icon: icons.followup },
+  { href: "/decision-summary",   label: "Decision Summary",  icon: icons.audit },
 ];
 const adminNav: NavItem[] = [
   { href: "/audit-logs",   label: "Audit Log", icon: icons.audit },
@@ -42,10 +46,11 @@ const adminNav: NavItem[] = [
   { href: "/settings",     label: "Settings",  icon: icons.settings },
 ];
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, onClick }: { item: NavItem; active: boolean; onClick?: () => void }) {
   return (
     <Link
       href={item.href}
+      onClick={onClick}
       className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group
         ${active ? "bg-white/[0.13] text-white" : "text-white/50 hover:text-white hover:bg-white/[0.07]"}`}
     >
@@ -57,15 +62,104 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
+// Sidebar content shared between desktop and mobile drawer
+function SidebarContent({ pathname, user, loading, handleLogout, onNavClick }: {
+  pathname: string;
+  user: any;
+  loading: boolean;
+  handleLogout: () => void;
+  onNavClick?: () => void;
+}) {
+  return (
+    <>
+      {/* Logo */}
+      <div className="px-5 pt-6 pb-5 border-b border-white/[0.07] shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 flex items-center justify-center shrink-0">
+            <img src="/logo.png" alt="Suki ERP" className="w-full h-full object-contain" />
+          </div>
+          <div>
+            <p className="text-white text-base font-bold leading-tight">Suki ERP</p>
+            <p className="text-white/40 text-[11px] leading-tight mt-0.5">Marketing CRM</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
+        {!loading && user?.role !== "Customer" && mainNav.map(item =>
+          <NavLink key={item.href} item={item} active={pathname === item.href} onClick={onNavClick} />
+        )}
+
+        {!loading && user?.role !== "Customer" && (
+          <>
+            <div className="pt-5 pb-1.5">
+              <p className="px-3.5 text-[10px] font-semibold text-white/25 uppercase tracking-widest">CRM</p>
+            </div>
+            {crmNav.map(item => {
+              if (user?.role === "MarketingExecutive" && (item.href === "/visitor-management" || item.href === "/decision-summary")) return null;
+              return <NavLink key={item.href} item={item} active={pathname.startsWith(item.href)} onClick={onNavClick} />;
+            })}
+          </>
+        )}
+
+        {!loading && user?.role === "Customer" && (
+          <>
+            <div className="pt-5 pb-1.5">
+              <p className="px-3.5 text-[10px] font-semibold text-white/25 uppercase tracking-widest">Portal</p>
+            </div>
+            <NavLink item={{ href: "/subscription", label: "My Subscriptions", icon: icons.subscription }} active={pathname.startsWith("/subscription")} onClick={onNavClick} />
+          </>
+        )}
+
+        {!loading && (user?.role === "Admin" || user?.role === "MarketingLead") && (
+          <>
+            <div className="pt-5 pb-1.5">
+              <p className="px-3.5 text-[10px] font-semibold text-white/25 uppercase tracking-widest">Admin</p>
+            </div>
+            {adminNav.map(item => {
+              if (user?.role === "MarketingLead" && (item.href === "/settings" || item.href === "/user-master")) return null;
+              return <NavLink key={item.href} item={item} active={pathname.startsWith(item.href)} onClick={onNavClick} />;
+            })}
+          </>
+        )}
+      </nav>
+
+      {/* User / Logout */}
+      <div className="p-3 border-t border-white/[0.07] shrink-0">
+        <div onClick={handleLogout} className="flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors group">
+          <img src={`https://i.pravatar.cc/150?u=${user?.email || "admin"}`} alt="User" className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
+          <div className="flex-1 overflow-hidden">
+            <p className="text-white text-xs font-semibold leading-tight truncate">{user?.name || "Loading..."}</p>
+            <p className="text-white/30 text-[10px] leading-tight truncate">{user?.role || "..."}</p>
+          </div>
+          <span className="text-white/20 group-hover:text-white/50 transition-colors shrink-0">{icons.logout}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login");
+    }
+  }, [user, loading, router]);
+
+  // Close drawer on route change
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {
       await logoutAction();
-      // Force a full page reload so AuthProvider unmounts and clears old user state
       window.location.href = "/login";
     } catch (err) {
       console.error('Logout failed', err);
@@ -77,96 +171,80 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen overflow-hidden bg-[#F0F2F5]">
 
-      {/* ── Sidebar ── */}
+      {/* ── Desktop Sidebar ── */}
       <aside className="hidden md:flex w-[240px] shrink-0 bg-[#0D2137] flex-col h-full z-20">
-        {/* Logo */}
-        <div className="px-5 pt-6 pb-5 border-b border-white/[0.07] shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 flex items-center justify-center shrink-0">
-              <img src="/logo.png" alt="Suki ERP" className="w-full h-full object-contain" />
-            </div>
-            <div>
-              <p className="text-white text-base font-bold leading-tight">Suki ERP</p>
-              <p className="text-white/40 text-[11px] leading-tight mt-0.5">Marketing CRM</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-          {!loading && user?.role !== "Customer" && mainNav.map(item => <NavLink key={item.href} item={item} active={pathname === item.href} />)}
-
-          {!loading && user?.role !== "Customer" && (
-            <>
-              <div className="pt-5 pb-1.5">
-                <p className="px-3.5 text-[10px] font-semibold text-white/25 uppercase tracking-widest">CRM</p>
-              </div>
-              {crmNav.map(item => {
-                if (user?.role === "MarketingExecutive" && item.href === "/visitor-management") return null;
-                return <NavLink key={item.href} item={item} active={pathname.startsWith(item.href)} />
-              })}
-            </>
-          )}
-
-          {!loading && user?.role === "Customer" && (
-            <>
-              <div className="pt-5 pb-1.5">
-                <p className="px-3.5 text-[10px] font-semibold text-white/25 uppercase tracking-widest">Portal</p>
-              </div>
-              <NavLink item={{ href: "/subscription", label: "My Subscriptions", icon: icons.subscription }} active={pathname.startsWith("/subscription")} />
-            </>
-          )}
-
-          {!loading && (user?.role === "Admin" || user?.role === "MarketingLead") && (
-            <>
-              <div className="pt-5 pb-1.5">
-                <p className="px-3.5 text-[10px] font-semibold text-white/25 uppercase tracking-widest">Admin</p>
-              </div>
-              {adminNav.map(item => {
-                if (user?.role === "MarketingLead" && (item.href === "/settings" || item.href === "/user-master")) return null;
-                return <NavLink key={item.href} item={item} active={pathname.startsWith(item.href)} />
-              })}
-            </>
-          )}
-        </nav>
-
-        {/* User */}
-        <div className="p-3 border-t border-white/[0.07] shrink-0">
-          <div onClick={handleLogout} className="flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-white/5 cursor-pointer transition-colors group">
-            <img src={`https://i.pravatar.cc/150?u=${user?.email || "admin"}`} alt="User" className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0" />
-            <div className="flex-1 overflow-hidden">
-              <p className="text-white text-xs font-semibold leading-tight truncate">{user?.name || "Loading..."}</p>
-              <p className="text-white/30 text-[10px] leading-tight truncate">{user?.role || "..."}</p>
-            </div>
-            <span className="text-white/20 group-hover:text-white/50 transition-colors shrink-0">{icons.logout}</span>
-          </div>
-        </div>
+        <SidebarContent
+          pathname={pathname}
+          user={user}
+          loading={loading}
+          handleLogout={handleLogout}
+        />
       </aside>
 
-      {/* ── Main ── */}
+      {/* ── Mobile Drawer Overlay ── */}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={() => setDrawerOpen(false)}
+        />
+      )}
+
+      {/* ── Mobile Drawer Panel ── */}
+      <aside
+        className={`fixed top-0 left-0 h-full w-[280px] bg-[#0D2137] flex flex-col z-50 md:hidden transition-transform duration-300 ease-in-out shadow-2xl
+          ${drawerOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        {/* Close button */}
+        <button
+          onClick={() => setDrawerOpen(false)}
+          className="absolute top-4 right-4 w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-colors z-10"
+        >
+          {icons.close}
+        </button>
+        <SidebarContent
+          pathname={pathname}
+          user={user}
+          loading={loading}
+          handleLogout={handleLogout}
+          onNavClick={() => setDrawerOpen(false)}
+        />
+      </aside>
+
+      {/* ── Main Content ── */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
         {/* Topbar */}
-        <header className="h-16 bg-white border-b border-slate-200/80 flex items-center justify-between px-6 lg:px-8 shrink-0 z-10">
-          <h1 className="text-lg font-bold text-slate-800 capitalize">{pageTitle}</h1>
+        <header className="h-14 md:h-16 bg-white border-b border-slate-200/80 flex items-center justify-between px-4 md:px-6 lg:px-8 shrink-0 z-10">
           <div className="flex items-center gap-3">
+            {/* Hamburger - mobile only */}
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="md:hidden w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition-colors border border-slate-200/60"
+              aria-label="Open menu"
+            >
+              {icons.menu}
+            </button>
+            <h1 className="text-base md:text-lg font-bold text-slate-800 capitalize">{pageTitle}</h1>
+          </div>
+          <div className="flex items-center gap-2 md:gap-3">
             <div className="relative hidden sm:block">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">{icons.search}</span>
               <input
                 type="text"
                 placeholder="General search…"
-                className="w-56 pl-10 pr-4 py-2 rounded-xl bg-slate-100 text-sm text-slate-700 placeholder:text-slate-400 border border-slate-200/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition"
+                className="w-44 md:w-56 pl-10 pr-4 py-2 rounded-xl bg-slate-100 text-sm text-slate-700 placeholder:text-slate-400 border border-slate-200/60 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition"
               />
             </div>
             <button className="relative w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors border border-slate-200/60">
               {icons.bell}
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white" />
             </button>
-            <img src={`https://i.pravatar.cc/150?u=${user?.email || "admin"}`} alt="User" className="w-9 h-9 rounded-xl object-cover border-2 border-slate-200 cursor-pointer" />
+            <img src={`https://i.pravatar.cc/150?u=${user?.email || "admin"}`} alt="User" className="w-8 h-8 md:w-9 md:h-9 rounded-xl object-cover border-2 border-slate-200 cursor-pointer" />
           </div>
         </header>
 
-        {/* Scrollable page content */}
-        <div className="flex-1 overflow-auto p-5 lg:p-7 pb-8">
+        {/* Page content */}
+        <div className="flex-1 overflow-auto p-4 md:p-5 lg:p-7 pb-8">
           {children}
         </div>
       </main>

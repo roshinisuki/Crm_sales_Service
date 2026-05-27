@@ -26,6 +26,10 @@ export async function getVisitorsAction() {
       hostName:     v.host?.name ?? null,
       checkInTime:  v.inTime.toISOString(),
       checkOutTime: v.outTime?.toISOString() ?? null,
+      inTime:       v.inTime.toISOString(),
+      outTime:      v.outTime?.toISOString() ?? null,
+      createdAt:    v.createdAt.toISOString(),
+      updatedAt:    v.updatedAt.toISOString(),
     }));
 
     return { success: true, data: normalized };

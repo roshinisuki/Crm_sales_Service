@@ -43,7 +43,21 @@ export async function getCustomersAction(params?: { search?: string; city?: stri
       orderBy: { createdAt: "desc" },
     });
 
-    return { success: true, data: customers };
+    // Serialize dates to strings so client components can receive them safely
+    const serialized = customers.map((c) => ({
+      ...c,
+      createdAt: c.createdAt.toISOString(),
+      updatedAt: c.updatedAt.toISOString(),
+      subscriptions: c.subscriptions.map((s) => ({
+        ...s,
+        createdAt: s.createdAt.toISOString(),
+        updatedAt: s.updatedAt.toISOString(),
+        startDate: s.startDate.toISOString(),
+        endDate: s.endDate.toISOString(),
+      })),
+    }));
+
+    return { success: true, data: serialized };
   } catch (error) {
     console.error("GET Customers Error:", error);
     return { success: false, message: "Failed to fetch customers" };
@@ -110,7 +124,7 @@ export async function createCustomerAction(data: any) {
       `Created customer ${customerCode} (${name})`
     );
 
-    return { success: true, data: newCustomer, message: "Customer created successfully" };
+    return { success: true, data: { ...newCustomer, createdAt: newCustomer.createdAt.toISOString(), updatedAt: newCustomer.updatedAt.toISOString() }, message: "Customer created successfully" };
   } catch (error) {
     console.error("POST Customer Error:", error);
     return { success: false, message: "Failed to create customer" };

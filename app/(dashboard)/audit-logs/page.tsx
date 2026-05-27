@@ -85,6 +85,26 @@ export default function AuditLogsPage() {
     }
   }, [search, moduleFilter, user]);
 
+  const handleExportCSV = () => {
+    if (logs.length === 0) return;
+    const headers = ["Timestamp", "Module", "Action", "Performed By", "Target / Details"];
+    const rows = logs.map((l) => [
+      `"${new Date(l.createdAt || l.timestamp || "").toLocaleString()}"`,
+      `"${l.module}"`,
+      `"${l.action}"`,
+      `"${l.userEmail || l.performedBy || "System"}"`,
+      `"${(l.details || l.entityId || "—").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `audit_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (authLoading || user?.role !== "Admin") return null;
 
   const modules = Array.from(new Set(logs.map((l) => l.module)));
@@ -104,13 +124,22 @@ export default function AuditLogsPage() {
           <h1 className="text-2xl font-bold text-slate-800">Audit Log</h1>
           <p className="text-sm text-slate-500 mt-1">Full trail of every system action for security and compliance.</p>
         </div>
-        <button
-          onClick={() => loadLogs()}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0D2137] text-white rounded-xl text-sm font-medium hover:bg-[#1a365d] transition-colors shadow-sm"
-        >
-          <Ico d={icons.refresh} size={16} />
-          Refresh Logs
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+          >
+            <Ico d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" size={16} />
+            Export CSV
+          </button>
+          <button
+            onClick={() => loadLogs()}
+            className="flex items-center gap-2 px-4 py-2 bg-[#0D2137] text-white rounded-xl text-sm font-medium hover:bg-[#1a365d] transition-colors shadow-sm"
+          >
+            <Ico d={icons.refresh} size={16} />
+            Refresh Logs
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}

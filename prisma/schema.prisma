@@ -26,6 +26,9 @@ enum CustomerStatus {
   Active
   Inactive
   Prospect
+  APPROVED
+  REJECTED
+  PENDING
 }
 
 enum SubscriptionStatus {
@@ -60,12 +63,17 @@ model User {
   lockedUntil        DateTime?
   lastLoginAt        DateTime?
   invitedBy          String?
-  invitedAt          DateTime?
+  invitedAt                DateTime?
+  rememberMe               Boolean   @default(false)
+  lastActivityAt           DateTime?
+  activationToken          String?   @db.Text
+  activationTokenExpiry    DateTime?
   passwordSetAt      DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   marketingVisits     MarketingVisit[]
+  customerVisits      CustomerVisit[]
   hostedVisitors      Visitor[]
   auditLogs           AuditLog[]
   passwordResetTokens PasswordResetToken[]
@@ -90,7 +98,8 @@ model Customer {
   updatedAt      DateTime       @updatedAt
 
   subscriptions Subscription[]
-  visits        MarketingVisit[]
+  marketingVisits MarketingVisit[]
+  customerVisits  CustomerVisit[]
   followUps     FollowUp[]
 
   @@index([customerCode])
@@ -115,27 +124,62 @@ model Subscription {
   @@index([endDate])
 }
 
+model CustomerVisit {
+  id                 String    @id @default(uuid())
+  customerId         String
+  customer           Customer  @relation(fields: [customerId], references: [id])
+  hostedBy           String
+  host               User      @relation(fields: [hostedBy], references: [id])
+  purpose            String    // Sales Meeting / Subscription Discussion / Support / Demo / Other
+  checkInTime        DateTime  @default(now())
+  checkOutTime       DateTime?
+  meetingSummary     String?   @db.Text
+  outcome            String?   // Interested / Not Interested / Follow-up Required / Pending Decision / Converted
+  customerDecision   String?   // APPROVED / REJECTED / PENDING
+  rejectionReason    String?   @db.Text
+  nextMeetingDate    DateTime?
+  nextMeetingNotes   String?   @db.Text
+  status             String    @default("CHECKED_IN") // CHECKED_IN / CHECKED_OUT
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([hostedBy])
+  @@index([status])
+}
+
 model MarketingVisit {
-  id              String    @id @default(uuid())
-  executiveId     String
-  executive       User      @relation(fields: [executiveId], references: [id])
-  customerId      String
-  customer        Customer  @relation(fields: [customerId], references: [id])
-  checkIn         DateTime  @default(now())
-  checkOut        DateTime?
-  checkInLat      Float?
-  checkInLng      Float?
-  checkOutLat     Float?
-  checkOutLng     Float?
-  checkInPhoto    String?
-  remarks         String?   @db.Text
-  nextMeetingDate DateTime?
-  createdAt       DateTime  @default(now())
+  id                 String    @id @default(uuid())
+  executiveId        String
+  executive          User      @relation(fields: [executiveId], references: [id])
+  customerId         String
+  customer           Customer  @relation(fields: [customerId], references: [id])
+  checkIn            DateTime  @default(now())
+  checkOut           DateTime?
+  checkInLat         Float?
+  checkInLng         Float?
+  checkOutLat        Float?
+  checkOutLng        Float?
+  checkInPhoto       String?
+  remarks            String?   @db.Text
+  nextMeetingDate    DateTime?
+  createdAt          DateTime  @default(now())
+
+  // New fields for high fidelity outbound field visits workflow
+  purpose            String?   // Sales Pitch / Follow-up Meeting / Subscription Renewal / Demo / Support Visit / Other
+  meetingDescription String?   @db.Text
+  outcome            String?   // Interested / Not Interested / Follow-up Required / Pending Decision / Converted
+  customerDecision   String?   // APPROVED / REJECTED / PENDING
+  rejectionReason    String?   @db.Text
+  nextMeetingNotes   String?   @db.Text
+  status             String    @default("CHECKED_IN") // CHECKED_IN / CHECKED_OUT
+  updatedAt          DateTime? @updatedAt
 
   @@index([executiveId])
   @@index([customerId])
   @@index([nextMeetingDate])
   @@index([checkIn])
+  @@index([status])
 }
 
 model Visitor {
@@ -193,6 +237,12 @@ model FollowUp {
   status          FollowUpStatus @default(Pending)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+
+  // New fields for inbound/outbound workflow integration
+  visitId         String?
+  visitType       String?        // INBOUND / OUTBOUND
+  completedAt     DateTime?
+  notes           String?        @db.Text
 
   @@index([customerId])
   @@index([assignedUserId])

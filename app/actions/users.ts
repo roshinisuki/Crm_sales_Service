@@ -24,7 +24,7 @@ export async function getUsersAction() {
       },
     });
 
-    return { success: true, data: users };
+    return { success: true, data: users.map(u => ({ ...u, createdAt: u.createdAt.toISOString() })) };
   } catch (error) {
     console.error("GET Users Error:", error);
     return { success: false, message: "Failed to fetch users" };

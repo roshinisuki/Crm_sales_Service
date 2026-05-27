@@ -29,9 +29,12 @@ export async function getFollowUpsAction(params?: { status?: string }) {
     const normalized = followUps.map((f) => ({
       ...f,
       scheduledTime: f.nextMeetingDate.toISOString(),
+      nextMeetingDate: f.nextMeetingDate.toISOString(),
       notes:         f.remarks,
       userId:        f.assignedUserId,
       user:          f.assignedUser,
+      createdAt:     f.createdAt.toISOString(),
+      updatedAt:     f.updatedAt.toISOString(),
     }));
 
     return { success: true, data: normalized };

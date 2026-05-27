@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 type Role = "Admin" | "MarketingLead" | "MarketingExecutive" | "Customer";
 
@@ -17,34 +17,11 @@ interface AuthContextType {
   loading: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, loading: false });
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    import("@/app/actions/auth").then(({ getMeAction }) => {
-      getMeAction()
-        .then((data: any) => {
-          if (data.success && data.data) {
-            setUser(data.data);
-          } else {
-            setUser(null);
-          }
-        })
-        .catch((err: any) => {
-          console.error("Failed to fetch user profile", err);
-          setUser(null);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    });
-  }, []);
-
+export function AuthProvider({ children, initialUser = null }: { children: React.ReactNode, initialUser?: UserProfile | null }) {
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user: initialUser, loading: false }}>
       {children}
     </AuthContext.Provider>
   );

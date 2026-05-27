@@ -1,40 +1,37 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || "smtp.gmail.com",
-  port: Number(process.env.EMAIL_PORT) || 587,
+  host: process.env.SMTP_HOST || process.env.EMAIL_HOST || "smtp.gmail.com",
+  port: Number(process.env.SMTP_PORT || process.env.EMAIL_PORT) || 587,
   secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
+    user: process.env.SMTP_USER || process.env.EMAIL_USER,
+    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
   },
 });
 
 export async function sendEmail(to: string, subject: string, html: string) {
   try {
-    if (!process.env.EMAIL_USER) {
+    const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+    if (!user) {
       console.log("=========================================");
       console.log(`[DEVELOPMENT] Mock Email to: ${to}`);
       console.log(`Subject: ${subject}`);
-      console.log(`Body includes OTP? Check below:`);
-      // Simple regex to extract a 6 digit number if it exists
       const otpMatch = html.match(/\b\d{6}\b/);
-      if (otpMatch) {
-        console.log(`=> Extracted OTP: ${otpMatch[0]}`);
-      }
+      if (otpMatch) console.log(`=> Extracted OTP: ${otpMatch[0]}`);
+      const linkMatch = html.match(/href="([^"]+)"/g);
+      if (linkMatch) console.log(`=> Links: ${linkMatch.join(" | ")}`);
       console.log("=========================================");
-      return; // Skip actual sending
+      return;
     }
-
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || '"Suki CRM" <noreply@sukisoftsolution.com>',
+      from: process.env.SMTP_FROM || process.env.EMAIL_FROM || '"Suki CRM" <noreply@sukisoftware.com>',
       to,
       subject,
       html,
     });
   } catch (error) {
     console.error("Failed to send email via SMTP:", error);
-    // Don't throw here, otherwise the user creation fails completely
   }
 }
 
@@ -69,6 +66,14 @@ function otpBox(otp: string) {
 </td></tr></table>`;
 }
 
+function linkButton(href: string, label: string) {
+  return `<table width="100%" cellpadding="0" cellspacing="0">
+  <tr><td align="center" style="padding:8px 0 24px;">
+    <a href="${href}" style="display:inline-block;padding:14px 36px;background:#0b1f3a;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">${label}</a>
+  </td></tr>
+</table>`;
+}
+
 // ── OTP Email (first-login via login page) ────────────────────────────────────
 export function buildOtpEmail(name: string, otp: string): string {
   return emailHeader("Secure Account Activation") +
@@ -96,7 +101,7 @@ export function buildInvitationEmail(name: string, email: string, otp: string, i
     `<div style="margin-top:24px;padding:16px;background:#f0f4ff;border-radius:8px;border-left:4px solid #455f87;">
        <p style="margin:0;font-size:13px;color:#455f87;line-height:22px;">
          <strong>How to get started:</strong><br/>
-         1. Go to the <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://suki-crm.com"}/login" style="color:#0b1f3a;">Suki CRM login page</a><br/>
+         1. Go to the <a href="${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/login" style="color:#0b1f3a;">Suki CRM login page</a><br/>
          2. Enter your email: <strong>${email}</strong><br/>
          3. Enter the activation code above<br/>
          4. Set your personal password
@@ -108,24 +113,50 @@ export function buildInvitationEmail(name: string, email: string, otp: string, i
     emailFooter("Need help? Contact your system administrator.");
 }
 
-// ── Reset Password Email ───────────────────────────────────────────────────────
+// ── Password Reset Email (Internal Users) ─────────────────────────────────────
 export function buildResetEmail(name: string, resetUrl: string): string {
   return emailHeader("Password Reset Request") +
     `<p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#191c1e;">Hi ${name},</p>
      <p style="margin:0 0 28px;font-size:14px;color:#44474d;line-height:22px;">
        We received a request to reset your Suki CRM password. Click below to set a new password:
-     </p>
-     <table width="100%" cellpadding="0" cellspacing="0">
-       <tr><td align="center" style="padding:8px 0 24px;">
-         <a href="${resetUrl}" style="display:inline-block;padding:14px 36px;background:#0b1f3a;color:#fff;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;">
-           Reset Password
-         </a>
-       </td></tr>
-     </table>
-     <p style="margin:0 0 6px;font-size:13px;color:#75777e;">Or copy this link:</p>
+     </p>` +
+    linkButton(resetUrl, "Reset Password") +
+    `<p style="margin:0 0 6px;font-size:13px;color:#75777e;">Or copy this link:</p>
      <p style="margin:0;font-size:12px;color:#455f87;word-break:break-all;">${resetUrl}</p>
      <p style="margin:20px 0 0;font-size:13px;color:#75777e;">
-       Expires in <strong>1 hour</strong>. If you did not request this, ignore this email.
+       Expires in <strong>15 minutes</strong>. If you did not request this, ignore this email.
+     </p>` +
+    emailFooter("For security, never share this link with anyone.");
+}
+
+// ── Customer Portal Activation Email ──────────────────────────────────────────
+export function buildCustomerActivationEmail(name: string, activationUrl: string): string {
+  return emailHeader("Welcome to Suki Software Customer Portal") +
+    `<p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#191c1e;">Hi ${name},</p>
+     <p style="margin:0 0 28px;font-size:14px;color:#44474d;line-height:22px;">
+       Your customer portal account has been activated. Click the button below to set your password and access your subscription details.
+     </p>` +
+    linkButton(activationUrl, "Activate My Account") +
+    `<p style="margin:0 0 6px;font-size:13px;color:#75777e;">Or copy this link:</p>
+     <p style="margin:0;font-size:12px;color:#455f87;word-break:break-all;">${activationUrl}</p>
+     <p style="margin:20px 0 0;font-size:13px;color:#75777e;">
+       This link expires in <strong>24 hours</strong>. If you did not expect this, contact your sales representative.
+     </p>` +
+    emailFooter("Suki Software Customer Support — support@sukisoftware.com");
+}
+
+// ── Customer Portal Password Reset Email ──────────────────────────────────────
+export function buildCustomerResetEmail(name: string, resetUrl: string): string {
+  return emailHeader("Reset Your Portal Password") +
+    `<p style="margin:0 0 8px;font-size:15px;font-weight:600;color:#191c1e;">Hi ${name},</p>
+     <p style="margin:0 0 28px;font-size:14px;color:#44474d;line-height:22px;">
+       We received a request to reset your Suki Software Customer Portal password.
+     </p>` +
+    linkButton(resetUrl, "Reset My Password") +
+    `<p style="margin:0 0 6px;font-size:13px;color:#75777e;">Or copy this link:</p>
+     <p style="margin:0;font-size:12px;color:#455f87;word-break:break-all;">${resetUrl}</p>
+     <p style="margin:20px 0 0;font-size:13px;color:#75777e;">
+       Expires in <strong>15 minutes</strong>. If you did not request this, ignore this email.
      </p>` +
     emailFooter("For security, never share this link with anyone.");
 }

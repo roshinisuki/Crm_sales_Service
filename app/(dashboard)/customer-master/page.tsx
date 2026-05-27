@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getCustomersAction, createCustomerAction } from "@/app/actions/customers";
 import { getUsersAction } from "@/app/actions/users";
+import { activateCustomerPortal } from "@/app/actions/auth";
 import { Customer, User } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -46,6 +47,13 @@ export default function CustomerMasterPage() {
   const [executives, setExecutives] = useState<User[]>([]);
   const [errorMsg, setErrorMsg] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+  const [activatingId, setActivatingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  const showToast = (type: "success" | "error", msg: string) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const [formData, setFormData] = useState({
     id: "",
@@ -152,8 +160,35 @@ export default function CustomerMasterPage() {
     setFormLoading(false);
   };
 
+  const handleActivatePortal = async (customerId: string, customerName: string) => {
+    if (!confirm(`Send a portal activation email to the contact for "${customerName}"?`)) return;
+    setActivatingId(customerId);
+    const res = await activateCustomerPortal(customerId);
+    setActivatingId(null);
+    if (res.success) {
+      showToast("success", res.message || "Activation email sent.");
+    } else {
+      showToast("error", res.message || "Failed to send activation.");
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto">
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-xl text-sm font-semibold border ${
+          toast.type === "success"
+            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+            : "bg-red-50 border-red-200 text-red-800"
+        }`}>
+          {toast.type === "success"
+            ? <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            : <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          }
+          {toast.msg}
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Customer Master</h1>
@@ -285,12 +320,29 @@ export default function CustomerMasterPage() {
                     <td className="px-6 py-4 text-sm text-slate-600">{c.city || "-"}</td>
                     <td className="px-6 py-4"><StatusBadge status={c.status} /></td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => openEditModal(c)}
-                        className="text-xs font-semibold text-[#0D2137] hover:underline px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
-                      >
-                        Edit Details
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => openEditModal(c)}
+                          className="text-xs font-semibold text-[#0D2137] hover:underline px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors"
+                        >
+                          Edit Details
+                        </button>
+                        {(user?.role === "Admin" || user?.role === "MarketingLead") && c.email && (
+                          <button
+                            onClick={() => handleActivatePortal(c.id, c.name)}
+                            disabled={activatingId === c.id}
+                            title={`Send portal activation email to ${c.email}`}
+                            className="text-xs font-semibold text-violet-700 px-3 py-1.5 rounded-lg bg-violet-50 hover:bg-violet-100 border border-violet-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          >
+                            {activatingId === c.id ? (
+                              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            ) : (
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                            )}
+                            Activate Portal
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

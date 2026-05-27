@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import {
   checkLoginType,
   sendFirstLoginOtp,
@@ -10,7 +12,7 @@ import {
   loginWithPassword,
 } from "@/app/actions/auth";
 
-// ── Icons ────────────────────────────────────────────────────────────────────
+// ── Icons ───────────────────────────────────────────────────────────────────
 function MailIcon() {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
@@ -45,6 +47,13 @@ function Spinner() {
     </svg>
   );
 }
+function CheckIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
 
 // ── Strength bar ──────────────────────────────────────────────────────────────
 function getStrength(p: string): { level: number; label: string; color: string } {
@@ -57,6 +66,33 @@ function getStrength(p: string): { level: number; label: string; color: string }
   if (score === 2) return { level: score, label: "Fair", color: "#e6a817" };
   if (score === 3) return { level: score, label: "Good", color: "#2e7d32" };
   return { level: score, label: "Strong", color: "#1565c0" };
+}
+
+// ── Inactivity Timeout ───────────────────────────────────────────────────────
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+function useInactivityLogout(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    let timer: NodeJS.Timeout;
+
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        // Clear cookie by navigating to login with timeout param
+        window.location.href = "/login?reason=timeout";
+      }, INACTIVITY_TIMEOUT_MS);
+    };
+
+    const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
+    events.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    reset(); // start timer
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach(e => window.removeEventListener(e, reset));
+    };
+  }, [enabled]);
 }
 
 // ── Left Panel ────────────────────────────────────────────────────────────────
@@ -86,13 +122,18 @@ function LeftPanel() {
 // ════════════════════════════════════════════════════════════════
 type Stage = "email" | "otp" | "setPassword" | "password";
 
-export default function LoginPage() {
+function LoginContent() {
+  const searchParams = useSearchParams();
+  const resetSuccess = searchParams.get("reset") === "success";
+  const timedOut = searchParams.get("reason") === "timeout";
+
   const [stage, setStage] = useState<Stage>("email");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -100,6 +141,10 @@ export default function LoginPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Inactivity auto-logout — only active after login (stage won't be email on dashboard)
+  // We attach it here but it only fires after 30min of no activity
+  useInactivityLogout(false); // enabled=false on login page itself — runs on dashboard via layout
 
   // Resend countdown timer
   useEffect(() => {
@@ -113,7 +158,7 @@ export default function LoginPage() {
     if (otp.every(d => d !== "") && stage === "otp") {
       handleVerifyOtp();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otp]);
 
   const strength = getStrength(password);
@@ -127,7 +172,6 @@ export default function LoginPage() {
     setLoading(false);
     if (!res.success) { setError(res.message ?? "Something went wrong."); return; }
     if (res.data?.isFirstLogin) {
-      // First-time login: send OTP
       await handleSendOtp();
     } else {
       setStage("password");
@@ -179,19 +223,26 @@ export default function LoginPage() {
     if (!passwordsMatch) { setError("Passwords do not match."); return; }
     if (strength.level < 2) { setError("Password is too weak."); return; }
     setError(""); setLoading(true);
-    const res = await completeFirstLogin(email.trim(), otp.join(""), password);
+    const res = await completeFirstLogin(email.trim(), otp.join(""), password, rememberMe);
     setLoading(false);
-    if (res && !res.success) { setError(res.message ?? "Failed to activate account."); }
-    // On success: server redirects to /dashboard
+    if (res && res.success && res.redirectUrl) {
+      window.location.href = res.redirectUrl;
+    } else if (res && !res.success) { 
+      setError(res.message ?? "Failed to activate account."); 
+    }
   }
 
   // ── Normal login ──
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(""); setLoading(true);
-    const res = await loginWithPassword(email.trim(), password);
+    const res = await loginWithPassword(email.trim(), password, rememberMe);
     setLoading(false);
-    if (res && !res.success) { setError(res.message ?? "Login failed."); }
+    if (res && res.success && res.redirectUrl) {
+      window.location.href = res.redirectUrl;
+    } else if (res && !res.success) { 
+      setError(res.message ?? "Login failed."); 
+    }
   }
 
   // ── Shared UI pieces ──
@@ -219,6 +270,31 @@ export default function LoginPage() {
 
       <div className="flex flex-1 items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-[460px]">
+
+          {/* ── Success Banner (after password reset) ── */}
+          {resetSuccess && (
+            <div className="mb-6 p-4 rounded-[10px] bg-[#e6f4ea] border border-[#a8d5b0] flex items-center gap-3">
+              <CheckIcon />
+              <div>
+                <p className="text-[13px] font-semibold text-[#2e7d32]">Password updated successfully</p>
+                <p className="text-[12px] text-[#2e7d32]/80">You can now sign in with your new password.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Timeout Banner ── */}
+          {timedOut && (
+            <div className="mb-6 p-4 rounded-[10px] bg-[#fff8e1] border border-[#ffe082] flex items-center gap-3">
+              <svg className="w-4 h-4 text-[#f59e0b] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-[13px] font-semibold text-[#92400e]">Session expired</p>
+                <p className="text-[12px] text-[#92400e]/80">You were logged out due to 30 minutes of inactivity.</p>
+              </div>
+            </div>
+          )}
+
           <div className="w-full bg-white rounded-[16px] border border-[#e2e8f0] shadow-[0px_2px_8px_rgba(11,31,58,0.06)] px-8 py-10 sm:px-12 sm:py-12">
 
             {/* ── STAGE: EMAIL ─────────────────────────────── */}
@@ -259,8 +335,6 @@ export default function LoginPage() {
                 </div>
                 <InfoBox />
                 <ErrorBox />
-
-                {/* 6 digit boxes */}
                 <div className="flex gap-3 justify-center mb-6">
                   {otp.map((digit, i) => (
                     <input
@@ -276,12 +350,10 @@ export default function LoginPage() {
                     />
                   ))}
                 </div>
-
                 <button onClick={handleVerifyOtp} disabled={loading || otp.some(d => d === "")}
                   className="w-full py-3.5 px-6 rounded-[8px] bg-[#0b1f3a] hover:bg-[#152e52] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                   {loading ? <><Spinner />Verifying…</> : "Verify Code"}
                 </button>
-
                 <div className="mt-5 text-center">
                   {resendCooldown > 0 ? (
                     <p className="text-[13px] text-[#75777e]">Resend available in <span className="font-semibold text-[#0b1f3a]">{resendCooldown}s</span></p>
@@ -306,7 +378,6 @@ export default function LoginPage() {
                 </div>
                 <ErrorBox />
                 <form onSubmit={handleSetPassword} className="space-y-5" noValidate>
-                  {/* New password */}
                   <div>
                     <label htmlFor="new-password" className="block text-[12px] font-semibold text-[#191c1e] mb-2 tracking-[0.05em] uppercase">New Password</label>
                     <div className="relative">
@@ -316,7 +387,6 @@ export default function LoginPage() {
                         className="w-full pl-11 pr-12 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all" />
                       <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#75777e] hover:text-[#191c1e]"><EyeIcon visible={showPassword} /></button>
                     </div>
-                    {/* Strength bar */}
                     {password && (
                       <div className="mt-2">
                         <div className="flex gap-1 mb-1">
@@ -328,7 +398,6 @@ export default function LoginPage() {
                       </div>
                     )}
                   </div>
-                  {/* Confirm password */}
                   <div>
                     <label htmlFor="confirm-password" className="block text-[12px] font-semibold text-[#191c1e] mb-2 tracking-[0.05em] uppercase">Confirm Password</label>
                     <div className="relative">
@@ -344,6 +413,16 @@ export default function LoginPage() {
                       </p>
                     )}
                   </div>
+                  {/* Remember Me */}
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <div className="relative">
+                      <input type="checkbox" className="sr-only" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />
+                      <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${rememberMe ? "bg-[#0b1f3a] border-[#0b1f3a]" : "border-[#c4c6ce] bg-white"}`}>
+                        {rememberMe && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                    </div>
+                    <span className="text-[13px] text-[#44474d]">Remember me for <strong className="text-[#191c1e]">7 days</strong></span>
+                  </label>
                   <SubmitBtn label="Activate Account" loadingLabel="Activating…" />
                 </form>
               </>
@@ -375,7 +454,17 @@ export default function LoginPage() {
                       <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#75777e] hover:text-[#191c1e] transition-colors"><EyeIcon visible={showPassword} /></button>
                     </div>
                   </div>
-                  <SubmitBtn label="Login to Ecosystem" loadingLabel="Authenticating…" />
+                  {/* Remember Me */}
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <div className="relative">
+                      <input type="checkbox" className="sr-only" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />
+                      <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${rememberMe ? "bg-[#0b1f3a] border-[#0b1f3a]" : "border-[#c4c6ce] bg-white"}`}>
+                        {rememberMe && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                    </div>
+                    <span className="text-[13px] text-[#44474d]">Remember me for <strong className="text-[#191c1e]">7 days</strong></span>
+                  </label>
+                  <SubmitBtn label="Sign In" loadingLabel="Authenticating…" />
                 </form>
               </>
             )}
@@ -391,5 +480,17 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen flex items-center justify-center bg-[#f7f9fb]">
+        <div className="w-8 h-8 border-4 border-[#0b1f3a] border-t-transparent rounded-full animate-spin" />
+      </main>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }
