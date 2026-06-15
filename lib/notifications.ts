@@ -21,6 +21,10 @@ export async function dispatchNotification({
   if (prefs) {
     if (type === "visit" && !prefs.inAppVisitUpdate) {
       shouldSend = false;
+    } else if (type === "deal" && !prefs.notifyOnDealStatus) {
+      shouldSend = false;
+    } else if (type === "call" && !prefs.notifyOnCallLog) {
+      shouldSend = false;
     }
   }
 
@@ -56,6 +60,10 @@ export async function dispatchNotificationsToMany({
     const prefs = prefMap.get(uid);
     if (prefs) {
       if (type === "visit" && !prefs.inAppVisitUpdate) {
+        shouldSend = false;
+      } else if (type === "deal" && !prefs.notifyOnDealStatus) {
+        shouldSend = false;
+      } else if (type === "call" && !prefs.notifyOnCallLog) {
         shouldSend = false;
       }
     }

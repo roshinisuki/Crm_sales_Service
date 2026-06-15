@@ -98,10 +98,10 @@ function useInactivityLogout(enabled: boolean) {
 // ── Left Panel ────────────────────────────────────────────────────────────────
 function LeftPanel() {
   return (
-    <div className="hidden lg:flex w-1/2 bg-[#0b1f3a] flex-col justify-center items-center p-12 text-center relative overflow-hidden">
+    <div className="hidden lg:flex w-1/2 bg-black flex-col justify-center items-center p-12 text-center relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_50%,rgba(255,255,255,0.03)_0%,transparent_80%)]" />
       <div className="relative z-10 max-w-md flex flex-col items-center">
-        <img src="/logo.png" alt="SUKI CRM" className="w-[88px] h-[88px] object-contain mb-10" />
+        <img src="/logo.png" alt="SUKI CRM" className="w-[144px] h-[144px] object-contain mb-10" />
         <h1 className="text-[40px] font-semibold text-white mb-6 leading-[1.15] tracking-tight">Welcome to<br /> SUKI  CRM</h1>
         <p className="text-[#7587a7] text-base leading-[24px] mb-12 font-medium">
           Secure access to your customer ecosystem. Manage relationships, analyze data, and grow your brand with enterprise-grade precision.
@@ -257,7 +257,7 @@ function LoginContent() {
 
   const SubmitBtn = ({ label, loadingLabel }: { label: string; loadingLabel: string }) => (
     <button type="submit" disabled={loading}
-      className="w-full mt-4 py-3.5 px-6 rounded-[8px] bg-[#0b1f3a] hover:bg-[#152e52] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+      className="w-full mt-4 py-3.5 px-6 rounded-[8px] bg-[#C2601A] hover:bg-[#A84F16] text-black text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
       {loading ? <><Spinner />{loadingLabel}</> : <>{label}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></>}
     </button>
   );

@@ -9,116 +9,163 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlserver"
   url      = env("DATABASE_URL")
 }
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-enum Role {
-  Admin
-  MarketingLead
-  MarketingExecutive
-  Customer
-}
 
-enum CustomerStatus {
-  Active
-  Inactive
-  Prospect
-  APPROVED
-  REJECTED
-  PENDING
-  New
-  Contacted
-  Qualified
-  ProposalSent
-  Negotiation
-  Converted
-  Lost
-}
 
-enum SubscriptionStatus {
-  Active
-  Expired
-  Cancelled
-  Pending
-  Renewed
-}
 
-enum FollowUpStatus {
-  Pending
-  Completed
-  Overdue
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  role         Role     @default(MarketingExecutive)
-  userType           String    @default("internal") // "internal" | "customer"
-  phone              String?
-  profilePhoto       String?   @db.Text
-  isActive           Boolean   @default(true)
-  isFirstLogin       Boolean   @default(true)
-  otpCode            String?
-  otpExpiry          DateTime?
-  otpAttempts        Int       @default(0)
-  resetToken         String?   @db.Text
-  resetTokenExpiry   DateTime?
-  loginAttempts      Int       @default(0)
-  lockedUntil        DateTime?
-  lastLoginAt        DateTime?
-  invitedBy          String?
-  invitedAt                DateTime?
-  rememberMe               Boolean   @default(false)
-  lastActivityAt           DateTime?
-  activationToken          String?   @db.Text
-  activationTokenExpiry    DateTime?
-  passwordSetAt      DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  name                  String
+  passwordHash          String
+  role                  String      @default("SalesExecutive")
+  userType              String    @default("internal") // "internal" | "customer"
+  phone                 String?
+  profilePhoto          String?   @db.NVarChar(Max)
+  isActive              Boolean   @default(true)
+  isFirstLogin          Boolean   @default(true)
+  otpCode               String?
+  otpExpiry             DateTime?
+  otpAttempts           Int       @default(0)
+  resetToken            String?   @db.NVarChar(Max)
+  resetTokenExpiry      DateTime?
+  loginAttempts         Int       @default(0)
+  lockedUntil           DateTime?
+  lastLoginAt           DateTime?
+  invitedBy             String?
+  invitedAt             DateTime?
+  rememberMe            Boolean   @default(false)
+  lastActivityAt        DateTime?
+  activationToken       String?   @db.NVarChar(Max)
+  activationTokenExpiry DateTime?
+  passwordSetAt         DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  marketingVisits     MarketingVisit[]
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
+
+  marketingVisits     MarketingVisit[]        @relation("ExecutiveVisits")
   customerVisits      CustomerVisit[]
   hostedVisitors      Visitor[]
   auditLogs           AuditLog[]
   passwordResetTokens PasswordResetToken[]
-  assignedFollowUps   FollowUp[]
-  assignedCustomers   Customer[] @relation("AssignedCustomers")
+  assignedFollowUps   FollowUp[]              @relation("AssignedFollowUps")
+  completedFollowUps  FollowUp[]              @relation("CompletedFollowUps")
+  assignedCustomers   Customer[]              @relation("AssignedCustomers")
   notifications       Notification[]
   notificationPrefs   NotificationPreference?
+  assignedDeals       Deal[]
+  callLogs            CallLog[]
+  dealStageHistories  DealStageHistory[]
+
+  // Enterprise relations
+  leads              Lead[]
+  onboardedCustomers Customer[]         @relation("OnboardedCustomers")
+  approvedVisits     MarketingVisit[]   @relation("ApprovedVisits")
+  assignedTickets    SupportTicket[]
+  communicationLogs  CommunicationLog[]
+
+  // Lead SLA Ownership History
+  leadOwnerHistoryFrom      LeadOwnerHistory[] @relation("OwnerHistoryFrom")
+  leadOwnerHistoryTo        LeadOwnerHistory[] @relation("OwnerHistoryTo")
+  leadOwnerHistoryChangedBy LeadOwnerHistory[] @relation("OwnerHistoryChangedBy")
+
+  approvedDiscounts  Deal[]            @relation("ApprovedDiscounts")
+  requestedApprovals ApprovalHistory[] @relation("RequestedApprovals")
+  resolvedApprovals  ApprovalHistory[] @relation("ResolvedApprovals")
+  proposalVersions   ProposalVersion[]
+
+  // Polymorphic Notes
+  createdNotes Note[] @relation("CreatedNotes")
+
+  // Contacts & Tasks
+  Contact Contact[]
+  Task    Task[]
 
   @@index([role])
   @@index([isActive])
   @@index([userType])
+  @@index([companyId])
 }
 
 model Customer {
-  id           String         @id @default(uuid())
-  customerCode String         @unique
-  name         String
-  email        String?        @unique
-  phone        String?
-  city           String?
-  status         CustomerStatus @default(Active)
-  assignedUserId String?
-  assignedUser   User?          @relation("AssignedCustomers", fields: [assignedUserId], references: [id], onDelete: Cascade)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id                String                   @id @default(uuid())
+  customerCode      String                   @unique
+  name              String
+  email             String?                  @unique
+  phone             String?
+  city              String?
+  status            String           @default("Prospect")
+  assignedUserId    String?
+  assignedUser      User?                    @relation("AssignedCustomers", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  onboardingStatus  String @default("Pending")
+  onboardedAt       DateTime?
+  onboardedById     String?
+  onboardedBy       User?                    @relation("OnboardedCustomers", fields: [onboardedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  convertedFromLead String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
 
-  subscriptions Subscription[]
-  marketingVisits MarketingVisit[]
-  customerVisits  CustomerVisit[]
-  followUps     FollowUp[]
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
+
+  subscriptions     Subscription[]
+  marketingVisits   MarketingVisit[]
+  customerVisits    CustomerVisit[]
+  followUps         FollowUp[]
+  deals             Deal[]
+  callLogs          CallLog[]
+  communicationLogs CommunicationLog[]
+  invoices          Invoice[]
+  supportTickets    SupportTicket[]
+  proposals         Proposal[]
+
+  // Keep leadSource for history if converted
+  leadSource String?
 
   @@index([customerCode])
   @@index([status])
   @@index([assignedUserId])
+  @@index([companyId])
 }
 
 model Subscription {
@@ -128,75 +175,111 @@ model Subscription {
   planName   String
   startDate  DateTime
   endDate    DateTime
-  status     SubscriptionStatus @default(Active)
-  notes      String?            @db.Text
+  status     String @default("Active")
+  notes      String?            @db.NVarChar(Max)
   createdAt  DateTime           @default(now())
   updatedAt  DateTime           @updatedAt
+
+  // Renewal Alert Sentinels (prevent duplicate notifications)
+  renewalAlertSent30 Boolean @default(false)
+  renewalAlertSent7  Boolean @default(false)
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
 
   @@index([customerId])
   @@index([status])
   @@index([endDate])
+  @@index([companyId])
 }
 
 model CustomerVisit {
-  id                 String    @id @default(uuid())
-  customerId         String
-  customer           Customer  @relation(fields: [customerId], references: [id])
-  hostedBy           String
-  host               User      @relation(fields: [hostedBy], references: [id], onDelete: Cascade)
-  purpose            String
-  checkInTime        DateTime  @default(now())
-  checkOutTime       DateTime?
-  meetingSummary     String?   @db.Text
-  outcome            String?
-  customerDecision   String?
-  rejectionReason    String?   @db.Text
-  nextMeetingDate    DateTime?
-  nextMeetingNotes   String?   @db.Text
-  status             String    @default("CHECKED_IN")
-  priority           String    @default("Normal")
-  meetingType        String?
-  source             String?
-  agenda             String?   @db.Text
-  department         String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  customerId       String
+  customer         Customer  @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  hostedBy         String
+  host             User      @relation(fields: [hostedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purpose          String
+  checkInTime      DateTime  @default(now())
+  checkOutTime     DateTime?
+  meetingSummary   String?   @db.NVarChar(Max)
+  outcome          String?
+  customerDecision String?
+  rejectionReason  String?   @db.NVarChar(Max)
+  nextMeetingDate  DateTime?
+  nextMeetingNotes String?   @db.NVarChar(Max)
+  status           String    @default("CHECKED_IN")
+  priority         String    @default("Normal")
+  meetingType      String?
+  source           String?
+  agenda           String?   @db.NVarChar(Max)
+  department       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
 
   @@index([customerId])
   @@index([hostedBy])
   @@index([status])
+  @@index([companyId])
 }
 
 model MarketingVisit {
   id                 String    @id @default(uuid())
   executiveId        String
-  executive          User      @relation(fields: [executiveId], references: [id], onDelete: Cascade)
-  customerId         String
-  customer           Customer  @relation(fields: [customerId], references: [id])
-  checkIn            DateTime  @default(now())
+  executive          User      @relation("ExecutiveVisits", fields: [executiveId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerId         String?
+  customer           Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leadId             String?
+  lead               Lead?     @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  checkIn            DateTime?
   checkOut           DateTime?
   checkInLat         Float?
   checkInLng         Float?
   checkOutLat        Float?
   checkOutLng        Float?
   checkInPhoto       String?
-  remarks            String?   @db.Text
+  remarks            String?   @db.NVarChar(Max)
   nextMeetingDate    DateTime?
   createdAt          DateTime  @default(now())
   purpose            String?
-  meetingDescription String?   @db.Text
+  meetingDescription String?   @db.NVarChar(Max)
   outcome            String?
   customerDecision   String?
-  rejectionReason    String?   @db.Text
-  nextMeetingNotes   String?   @db.Text
-  status             String    @default("CHECKED_IN")
+  rejectionReason    String?   @db.NVarChar(Max)
+  nextMeetingNotes   String?   @db.NVarChar(Max)
+  status             String    @default("REQUESTED") // REQUESTED, APPROVED, CHECKED_IN, COMPLETED, REJECTED
+  approvedByUserId   String?
+  approvedByUser     User?     @relation("ApprovedVisits", fields: [approvedByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedAt         DateTime?
   updatedAt          DateTime? @updatedAt
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
 
   @@index([executiveId])
   @@index([customerId])
+  @@index([leadId])
   @@index([nextMeetingDate])
-  @@index([checkIn])
   @@index([status])
+  @@index([companyId])
 }
 
 model Visitor {
@@ -218,17 +301,33 @@ model Visitor {
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  module    String
-  action    String
-  details   String?  @db.Text
+  id      String  @id @default(uuid())
+  userId  String?
+  user    User?   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  module  String
+  action  String
+  details String? @db.NVarChar(Max)
+
+  // Phase 2: State-Diff Audit Fields
+  resourceId    String? // ID of the entity that changed (lead ID, customer ID, etc.)
+  previousState String? @db.NVarChar(Max) // Snapshot of entity before the change
+  newState String? @db.NVarChar(Max) // Snapshot of entity after the change
+  ipAddress     String? // Client IP address extracted from request headers
+  userAgent     String? @db.NVarChar(Max) // Browser/client user agent string
+  severity      String  @default("INFO") // INFO | WARN | HIGH | CRITICAL
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
   timestamp DateTime @default(now())
 
   @@index([userId])
   @@index([module])
   @@index([timestamp])
+  @@index([severity])
+  @@index([resourceId])
+  @@index([companyId])
 }
 
 model PasswordResetToken {
@@ -245,38 +344,63 @@ model PasswordResetToken {
 
 model FollowUp {
   id              String         @id @default(uuid())
-  customerId      String
-  customer        Customer       @relation(fields: [customerId], references: [id])
+  customerId      String?
+  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leadId          String?
+  lead            Lead?          @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   assignedUserId  String
-  assignedUser    User           @relation(fields: [assignedUserId], references: [id], onDelete: Cascade)
+  assignedUser    User           @relation("AssignedFollowUps", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   nextMeetingDate DateTime
-  remarks         String?        @db.Text
-  status          FollowUpStatus @default(Pending)
+  remarks         String?        @db.NVarChar(Max)
+  status          String @default("Pending")
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   // New fields for inbound/outbound workflow integration
-  visitId         String?
-  visitType       String?        // INBOUND / OUTBOUND
-  completedAt     DateTime?
-  notes           String?        @db.Text
+  visitId     String?
+  visitType   String? // INBOUND / OUTBOUND
+  completedAt DateTime?
+  notes       String?   @db.NVarChar(Max)
+
+  // Advanced tracking fields
+  dueDate         DateTime?
+  reminderAt      DateTime?
+  completedById   String?
+  completedBy     User?     @relation("CompletedFollowUps", fields: [completedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceType      String? // e.g. "LEAD_INGESTION", "VISIT_CHECKOUT", "MANUAL"
+  sourceId        String?
+  completionNotes String?   @db.NVarChar(Max)
+  priority        String    @default("Medium") // Low, Medium, High
+  escalationLevel Int       @default(0)
+  autoCreated     Boolean   @default(false)
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
 
   @@index([customerId])
+  @@index([leadId])
   @@index([assignedUserId])
   @@index([status])
   @@index([nextMeetingDate])
+  @@index([completedById])
+  @@index([companyId])
 }
 
 model Notification {
-  id         String   @id @default(uuid())
-  userId     String
-  title      String
-  message    String   @db.Text
-  type       String   // "follow_up", "visit", "system"
-  link       String?  // Optional URL for action linkage
-  isRead     Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String   @db.NVarChar(Max)
+  type      String // "follow_up", "visit", "system"
+  link      String? // Optional URL for action linkage
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
@@ -289,5 +413,430 @@ model NotificationPreference {
   emailFollowUp       Boolean @default(true)
   emailVisitorCheckIn Boolean @default(false)
   inAppVisitUpdate    Boolean @default(true)
+  notifyOnDealStatus  Boolean @default(true)
+  notifyOnCallLog     Boolean @default(true)
   user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+
+
+
+model Deal {
+  id                String             @id @default(uuid())
+  dealName          String
+  customerId        String
+  customer          Customer           @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealValue         Float
+  expectedCloseDate DateTime
+  assignedUserId    String?
+  assignedUser      User?              @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notes             String?            @db.NVarChar(Max)
+  status            String         @default("Active")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  stageHistories    DealStageHistory[]
+
+  // Discount & Locking fields
+  discountPercent      Float   @default(0.0)
+  discountStatus       String  @default("None") // "None" | "Pending" | "Approved" | "Rejected"
+  isLocked             Boolean @default(false)
+  discountNotes        String? @db.NVarChar(Max)
+  discountApprovedById String?
+  discountApprovedBy   User?   @relation("ApprovedDiscounts", fields: [discountApprovedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  lostReason      String?           @db.NVarChar(Max)
+  approvalRemarks String?           @db.NVarChar(Max)
+  approvalHistory ApprovalHistory[]
+  proposals       Proposal[]
+  opportunityDetail OpportunityDetail?
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
+
+  // Forecast & Renewal details
+  forecastEntryDate DateTime?
+  renewalDate       DateTime?
+
+  @@index([customerId])
+  @@index([assignedUserId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model OpportunityDetail {
+  id     String @id @default(uuid())
+  dealId String @unique
+  deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  // ── Requirement Gathering (Discovery) Fields ──
+  currentChallenges    String? @db.NVarChar(Max)
+  painPoints           String? @db.NVarChar(Max)
+  painPointsList       String? @db.NVarChar(Max) // JSON string of checkboxes
+  
+  requiredFeatures     String? @db.NVarChar(Max) // Legacy
+  modulesRequired      String? @db.NVarChar(Max) // JSON string of checkboxes
+  
+  deploymentType       String? // Cloud SaaS, On-Premise
+  integrationsRequired String? @db.NVarChar(Max) // JSON string of checkboxes
+  
+  userCountSales       Int?
+  userCountManagers    Int?
+  userCountAdmins      Int?
+
+  budgetRange          String?
+  timeline             String?
+  procurementProcess   String?
+  
+  decisionMaker       String?
+  influencer          String?
+  budgetOwner         String?
+  expectedGoLive      DateTime?
+  
+  currentVendor       String?
+  competitorsEvaluated String? @db.NVarChar(Max)
+
+  // ── Pre-Sales Review Fields ──
+  proposedSolution     String? @db.NVarChar(Max)
+  scopeClassification  String?
+  estimatedDuration    String?
+  developmentEffort    String?
+  implementationEffort String?
+  supportRequirements  String?
+
+  // ── Meeting Scheduled Fields ──
+  meetingType         String?
+  meetingMode         String?
+  meetingDate         DateTime?
+  meetingStatus       String?
+  meetingDuration     Int?
+  meetingParticipants String? @db.NVarChar(Max)
+  meetingLocation     String? @db.NVarChar(Max)
+  meetingAgenda       String? @db.NVarChar(Max)
+  meetingOutcome      String? @db.NVarChar(Max)
+
+  // ── Demo Conducted Fields ──
+  demoType            String?
+  demoDate            DateTime?
+  demoPresenter       String?
+  demoDuration        Int?
+  demoAttendees       String? @db.NVarChar(Max)
+  demoCustomerRating  String?
+  demoInterestLevel   String?
+  demoQuestionsRaised String? @db.NVarChar(Max)
+
+  // ── Rejected Demo Fields ──
+  demoRejectionReason  String?
+  demoRejectionRemarks String? @db.NVarChar(Max)
+  demoCompetitorName   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CallLog {
+  id         String    @id @default(uuid())
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leadId     String?
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notes      String?   @db.NVarChar(Max)
+  duration   Int? // duration in seconds
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  timestamp  DateTime  @default(now())
+
+  @@index([customerId])
+  @@index([leadId])
+  @@index([userId])
+}
+
+model DealStageHistory {
+  id          Int      @id @default(autoincrement())
+  dealId      String
+  deal        Deal     @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fromStatus  String?
+  toStatus    String
+  changedById String
+  changedBy   User     @relation(fields: [changedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  changedAt   DateTime @default(now())
+
+  @@index([dealId])
+  @@index([changedById])
+}
+
+model SystemConfig {
+  key   String @id
+  value String
+}
+
+model Lead {
+  id             String     @id @default(uuid())
+  leadCode       String     @unique
+  name           String
+  email          String?    @unique
+  phone          String?
+  city           String?
+  status         String @default("New")
+  assignedUserId String?
+  assignedUser   User?      @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leadSource     String @default("Website")
+  notes          String?    @db.NVarChar(Max)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // SLA Tracking Fields
+  slaStatus           String @default("Pending")
+  slaResponseDeadline DateTime? // Set to createdAt + 15 min on ingestion
+  firstRespondedAt    DateTime? // Set when status first moves away from New
+  escalationLevel     Int       @default(0) // 0=None, 1=48h Manager Alert, 2=72h Auto-Reassign
+  lastInteractionAt   DateTime  @default(now())
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
+
+  communicationLogs CommunicationLog[]
+  marketingVisits   MarketingVisit[]
+  followUps         FollowUp[]
+  callLogs          CallLog[]
+  ownerHistory      LeadOwnerHistory[]
+
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([slaStatus])
+  @@index([escalationLevel])
+  @@index([companyId])
+}
+
+model LeadOwnerHistory {
+  id            String   @id @default(uuid())
+  leadId        String
+  lead          Lead     @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fromUserId    String?
+  fromUser      User?    @relation("OwnerHistoryFrom", fields: [fromUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  toUserId      String?
+  toUser        User?    @relation("OwnerHistoryTo", fields: [toUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  changedById   String? // Null = SYSTEM auto-reassignment
+  changedByUser User?    @relation("OwnerHistoryChangedBy", fields: [changedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reason        String?  @db.NVarChar(Max)
+  timestamp     DateTime @default(now())
+
+  @@index([leadId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([changedById])
+}
+
+model CommunicationLog {
+  id           String                 @id @default(uuid())
+  customerId   String?
+  customer     Customer?              @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leadId       String?
+  lead         Lead?                  @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  channel String
+  direction String
+  status       String // e.g. "Sent", "Delivered", "Failed"
+  content      String                 @db.NVarChar(Max)
+  sentByUserId String?
+  sentByUser   User?                  @relation(fields: [sentByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sentAt       DateTime               @default(now())
+
+  @@index([customerId])
+  @@index([leadId])
+  @@index([sentByUserId])
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount        Float
+  status        String @default("Unpaid")
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model SupportTicket {
+  id             String         @id @default(uuid())
+  ticketNumber   String         @unique
+  customerId     String
+  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  title          String
+  description    String         @db.NVarChar(Max)
+  priority       String @default("Medium")
+  status         String   @default("Open")
+  assignedUserId String?
+  assignedUser   User?          @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([assignedUserId])
+}
+
+model Proposal {
+  id             String   @id @default(uuid())
+  proposalNumber String   @unique
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealId         String?
+  deal           Deal?    @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  title          String
+  description    String?  @db.NVarChar(Max)
+  value          Float    @default(0.0)
+  validUntil     DateTime
+  proposalPdfUrl String?  @db.NVarChar(Max)
+  status         String   @default("Draft") // "Draft" | "Sent" | "CustomerReviewing" | "RevisionRequested" | "Accepted" | "Rejected" | "Expired"
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  versions ProposalVersion[]
+
+  // Multi-Tenancy
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
+
+  @@index([customerId])
+  @@index([dealId])
+  @@index([status])
+  @@index([companyId])
+}
+
+model ProposalVersion {
+  id             String   @id @default(uuid())
+  proposalId     String
+  proposal       Proposal @relation(fields: [proposalId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  versionNumber  Int
+  title          String
+  description    String?  @db.NVarChar(Max)
+  value          Float
+  validUntil     DateTime
+  proposalPdfUrl String?  @db.NVarChar(Max)
+  status         String
+  changedById    String
+  changedBy      User     @relation(fields: [changedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt      DateTime @default(now())
+
+  @@index([proposalId])
+}
+
+model ApprovalHistory {
+  id              String    @id @default(uuid())
+  dealId          String
+  deal            Deal      @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedById   String
+  requestedBy     User      @relation("RequestedApprovals", fields: [requestedById], references: [id])
+  resolvedById    String?
+  resolvedBy      User?     @relation("ResolvedApprovals", fields: [resolvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  discountPercent Float
+  status          String // Pending, Approved, Rejected
+  remarks         String?   @db.NVarChar(Max)
+  previousStatus  String?   // Deal status captured before locking (for exact rollback on rejection)
+  createdAt       DateTime  @default(now())
+  resolvedAt      DateTime?
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
+
+  @@index([dealId])
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  leads           Lead[]
+  customers       Customer[]
+  deals           Deal[]
+  proposals       Proposal[]
+  followUps       FollowUp[]
+  marketingVisits MarketingVisit[]
+  customerVisits  CustomerVisit[]
+  auditLogs       AuditLog[]
+  notes           Note[]
+  subscriptions   Subscription[]
+}
+
+model Note {
+  id          String    @id @default(uuid())
+  content     String    @db.NVarChar(Max)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String
+  createdBy   User      @relation("CreatedNotes", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  entityType  String // "LEAD" | "CONTACT" | "VISIT" | "DEAL" | "PROPOSAL" | "NEGOTIATION"
+  entityId    String // Target record UUID
+  deletedAt   DateTime?
+  deletedById String?
+  companyId   String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([entityType, entityId])
+  @@index([createdById])
+  @@index([companyId])
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  title     String?
+  status    String   @default("Active")
+  notes     String?  @db.NVarChar(Max)
+  ownerId   String
+  User      User     @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Task Task[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.NVarChar(Max)
+  status      String    @default("Open")
+  priority    String    @default("Medium")
+  dueDate     DateTime?
+  contactId   String?
+  Contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignedTo  String
+  User        User      @relation(fields: [assignedTo], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([assignedTo])
+  @@index([contactId])
+  @@index([status])
 }

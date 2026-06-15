@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { buildScope, checkRecordScope } from "@/lib/scopes";
 
 export async function getMarketingLogsAction(params?: { customerId?: string }) {
   try {
@@ -11,13 +12,19 @@ export async function getMarketingLogsAction(params?: { customerId?: string }) {
       return { success: false, message: "Unauthorized" };
     }
 
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
     const customerId = params?.customerId;
-    const isExecutive = userPayload.role === "MarketingExecutive";
+    const scope = buildScope(userPayload, "MarketingVisit");
 
     const visits = await prisma.marketingVisit.findMany({
       where: {
-        ...(isExecutive ? { executiveId: userPayload.id } : {}),
+        ...scope,
         ...(customerId ? { customerId } : {}),
+        checkIn: { not: null }
       },
       include: {
         executive: { select: { id: true, name: true, email: true } },
@@ -28,9 +35,9 @@ export async function getMarketingLogsAction(params?: { customerId?: string }) {
 
     const normalized = visits.map((v) => ({
       ...v,
-      checkInTime:  v.checkIn.toISOString(),
+      checkInTime:  v.checkIn ? v.checkIn.toISOString() : "",
       checkOutTime: v.checkOut?.toISOString() ?? null,
-      checkIn:      v.checkIn.toISOString(),
+      checkIn:      v.checkIn ? v.checkIn.toISOString() : "",
       checkOut:     v.checkOut?.toISOString() ?? null,
       checkInLat:   v.checkInLat ?? 0,
       checkInLng:   v.checkInLng ?? 0,
@@ -55,13 +62,24 @@ export async function getMarketingLogsAction(params?: { customerId?: string }) {
 export async function checkInAction(data: any) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || !["MarketingExecutive", "MarketingLead", "Admin"].includes(userPayload.role)) {
+    if (!userPayload || !["SalesExecutive", "SalesManager", "Admin", "SuperAdmin"].includes(userPayload.role)) {
       return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const { customerId, purpose, remarks, notes, checkInLat, checkInLng, checkInPhoto } = data;
 
     if (!customerId) return { success: false, message: "Customer ID is required for check-in" };
+
+    // Verify Customer Scope
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer || !checkRecordScope(userPayload, customer, "Customer")) {
+      return { success: false, message: "Customer not found or access denied." };
+    }
 
     const visit = await prisma.marketingVisit.create({
       data: {
@@ -73,6 +91,7 @@ export async function checkInAction(data: any) {
         checkInLat:  checkInLat ?? null,
         checkInLng:  checkInLng ?? null,
         checkInPhoto: checkInPhoto ?? null,
+        companyId:   userPayload.companyId,
       },
       include: {
         customer:  { select: { id: true, name: true, customerCode: true } },
@@ -92,7 +111,7 @@ export async function checkInAction(data: any) {
       message: "Checked in successfully",
       data: {
         ...visit,
-        checkInTime:  visit.checkIn.toISOString(),
+        checkInTime:  visit.checkIn ? visit.checkIn.toISOString() : "",
         checkOutTime: null,
         checkInLat:   visit.checkInLat ?? 0,
         checkInLng:   visit.checkInLng ?? 0,
@@ -111,8 +130,13 @@ export async function checkInAction(data: any) {
 export async function checkOutAction(data: any) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || !["MarketingExecutive", "MarketingLead", "Admin"].includes(userPayload.role)) {
+    if (!userPayload || !["SalesExecutive", "SalesManager", "Admin", "SuperAdmin"].includes(userPayload.role)) {
       return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const { id, checkOutLat, checkOutLng, notes } = data;
@@ -120,7 +144,9 @@ export async function checkOutAction(data: any) {
     if (!id) return { success: false, message: "Visit ID is required for check-out" };
 
     const existing = await prisma.marketingVisit.findUnique({ where: { id } });
-    if (!existing) return { success: false, message: "Visit record not found" };
+    if (!existing || !checkRecordScope(userPayload, existing, "MarketingVisit")) {
+      return { success: false, message: "Visit record not found or access denied." };
+    }
     if (existing.checkOut) return { success: false, message: "This visit has already been checked out" };
 
     const updated = await prisma.marketingVisit.update({
@@ -153,7 +179,7 @@ export async function checkOutAction(data: any) {
       message: "Checked out successfully",
       data: {
         ...updated,
-        checkInTime:  updated.checkIn.toISOString(),
+        checkInTime:  updated.checkIn ? updated.checkIn.toISOString() : "",
         checkOutTime: updated.checkOut?.toISOString() ?? null,
         checkOutLat:  updated.checkOutLat ?? 0,
         checkOutLng:  updated.checkOutLng ?? 0,

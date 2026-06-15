@@ -16,7 +16,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, data: { customers: [], visits: [], visitors: [] } });
     }
 
-    const isExec = userPayload.role === "MarketingExecutive";
+    const isExec = userPayload.role === "SalesExecutive";
     const userId = userPayload.id;
 
     const customers = await prisma.customer.findMany({

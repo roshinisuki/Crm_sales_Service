@@ -137,7 +137,7 @@ export default function ProfilePage() {
             <h2 className="text-xl font-black text-slate-800">{name}</h2>
             <p className="text-sm font-semibold text-slate-500 mt-0.5">{email}</p>
             <div className="mt-3 flex justify-center">
-              <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-wider rounded-lg border border-blue-100">
+              <span className="px-3 py-1 bg-red-50 text-[#800000] font-bold text-[10px] uppercase tracking-wider rounded-lg border border-red-100">
                 {role}
               </span>
             </div>
@@ -163,7 +163,7 @@ export default function ProfilePage() {
               <button 
                 type="button" 
                 onClick={() => setPasswordModalOpen(true)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs rounded-xl transition-colors border border-slate-200/60"
+                className="px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold text-xs rounded-xl transition-colors border border-slate-200/60 cursor-pointer"
               >
                 Change Password
               </button>
@@ -177,18 +177,18 @@ export default function ProfilePage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-semibold"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Phone Number</label>
                 <input
-                  type="tel"
+                  type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+1 (555) 000-0000"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-semibold"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold"
                 />
               </div>
 
@@ -199,7 +199,7 @@ export default function ProfilePage() {
                   value={profilePhoto}
                   onChange={(e) => setProfilePhoto(e.target.value)}
                   placeholder="https://example.com/photo.jpg"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-semibold"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold"
                 />
                 <p className="text-[10px] font-semibold text-slate-400 mt-1">Provide a direct link to an image to update your avatar.</p>
               </div>
@@ -209,7 +209,7 @@ export default function ProfilePage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2.5 bg-[#0D2137] hover:bg-[#1a365d] text-white font-bold text-xs rounded-xl transition-colors shadow-sm disabled:opacity-75"
+                className="px-6 py-2.5 bg-[#D44D4D] hover:bg-[#C94F4F] text-white font-bold text-xs rounded-xl transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
               >
                 {saving ? "Saving Changes..." : "Save Profile"}
               </button>
@@ -238,7 +238,7 @@ export default function ProfilePage() {
                   required
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
                 />
               </div>
               <div>
@@ -249,7 +249,7 @@ export default function ProfilePage() {
                   minLength={8}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
                 />
               </div>
               <div>
@@ -260,7 +260,7 @@ export default function ProfilePage() {
                   minLength={8}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
                 />
               </div>
 
@@ -268,14 +268,14 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => setPasswordModalOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={passwordLoading}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors disabled:opacity-75 shadow-sm"
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors disabled:opacity-75 shadow-sm cursor-pointer"
                 >
                   {passwordLoading ? "Updating..." : "Update Password"}
                 </button>

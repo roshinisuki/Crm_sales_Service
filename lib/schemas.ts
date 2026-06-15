@@ -17,7 +17,7 @@ export const userSchema = z.object({
     .endsWith("@sukisoftware.com", "Must use an official @sukisoftware.com email address"),
   name: z.string().min(2, "Name must be at least 2 characters"),
   password: z.string().min(6, "Password must be at least 6 characters").optional().or(z.literal("")),
-  role: z.enum(["Admin", "MarketingLead", "MarketingExecutive"]),
+  role: z.enum(["Admin", "SalesManager", "SalesExecutive"]),
   isActive: z.boolean().default(true),
 });
 

@@ -1,252 +1,331 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomUUID as uuidv4 } from "crypto";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const now = new Date();
+
   console.log("Cleaning up existing database records...");
-  
+  await prisma.task.deleteMany({});
+  await prisma.contact.deleteMany({});
   await prisma.auditLog.deleteMany({});
+  await prisma.notification.deleteMany({});
+  await prisma.notificationPreference.deleteMany({});
+  await prisma.passwordResetToken.deleteMany({});
   await prisma.followUp.deleteMany({});
   await prisma.marketingVisit.deleteMany({});
   await prisma.customerVisit.deleteMany({});
   await prisma.visitor.deleteMany({});
   await prisma.subscription.deleteMany({});
   await prisma.customer.deleteMany({});
-  await prisma.passwordResetToken.deleteMany({});
   await prisma.user.deleteMany({});
 
-  console.log("Seeding database with 10+ records for all modules...");
-
+  // ---- Users ----
+  console.log("Seeding users...");
   const passwordHash = await bcrypt.hash("password123", 10);
-
-  // 1. Users (12 Users)
   const usersData = [
     { email: "admin@sukisoftware.com", name: "System Admin", role: "Admin" },
-    { email: "lead@sukisoftware.com", name: "Sarah Lead", role: "MarketingLead" },
-    { email: "exec1@sukisoftware.com", name: "John Executive", role: "MarketingExecutive" },
-    { email: "exec2@sukisoftware.com", name: "Emma Executive", role: "MarketingExecutive" },
-    { email: "exec3@sukisoftware.com", name: "Michael Exec", role: "MarketingExecutive" },
-    { email: "exec4@sukisoftware.com", name: "Sophia Exec", role: "MarketingExecutive" },
-    { email: "customer1@techinnovators.com", name: "Tech Innovators Client", role: "Customer" },
-    { email: "customer2@globalsolutions.com", name: "Global Solutions Client", role: "Customer" },
-    { email: "customer3@alpharetail.com", name: "Alpha Retail Client", role: "Customer" },
-    { email: "customer4@beta.com", name: "Beta Client", role: "Customer" },
-    { email: "customer5@gamma.com", name: "Gamma Client", role: "Customer" },
-    { email: "customer6@delta.com", name: "Delta Client", role: "Customer" },
+    { email: "lead@sukisoftware.com", name: "Sarah Lead", role: "SalesManager" },
+    { email: "exec1@sukisoftware.com", name: "John Executive", role: "SalesExecutive" },
+    { email: "exec2@sukisoftware.com", name: "Emma Executive", role: "SalesExecutive" },
+    { email: "exec3@sukisoftware.com", name: "Michael Exec", role: "SalesExecutive" },
+    { email: "exec4@sukisoftware.com", name: "Sophia Exec", role: "SalesExecutive" },
   ];
-
   const createdUsers: Record<string, any> = {};
   for (const u of usersData) {
     createdUsers[u.email] = await prisma.user.create({
       data: {
+        id: uuidv4(),
         email: u.email,
         name: u.name,
         passwordHash,
-        role: u.role as any,
+        role: u.role,
         isActive: true,
-        isFirstLogin: false,
+        updatedAt: now,
       },
     });
   }
-
   const execs = [
     createdUsers["exec1@sukisoftware.com"],
     createdUsers["exec2@sukisoftware.com"],
     createdUsers["exec3@sukisoftware.com"],
-    createdUsers["exec4@sukisoftware.com"]
+    createdUsers["exec4@sukisoftware.com"],
   ];
-  const admin = createdUsers["admin@sukisoftware.com"];
-  const lead = createdUsers["lead@sukisoftware.com"];
+  console.log(`${usersData.length} users created.`);
 
-  console.log("12 Users created.");
-
-  // 2. Customers (12 Customers)
+  // ---- Customers ----
+  console.log("Seeding customers...");
   const customersData = [
-    { code: "CUST-001", name: "Tech Innovators Inc.", email: "customer1@techinnovators.com", city: "New York", status: "Active" },
-    { code: "CUST-002", name: "Global Solutions LLC", email: "customer2@globalsolutions.com", city: "San Francisco", status: "Active" },
-    { code: "CUST-003", name: "Alpha Retailers", email: "customer3@alpharetail.com", city: "Chicago", status: "Prospect" },
-    { code: "CUST-004", name: "Beta Logistics", email: "customer4@beta.com", city: "Miami", status: "Active" },
-    { code: "CUST-005", name: "Gamma Healthcare", email: "customer5@gamma.com", city: "Boston", status: "Active" },
-    { code: "CUST-006", name: "Delta Manufacturing", email: "customer6@delta.com", city: "Seattle", status: "Prospect" },
-    { code: "CUST-007", name: "Epsilon Edu", email: "contact@epsilon.com", city: "Austin", status: "Inactive" },
-    { code: "CUST-008", name: "Zeta Finance", email: "contact@zeta.com", city: "Denver", status: "Active" },
-    { code: "CUST-009", name: "Eta Real Estate", email: "contact@eta.com", city: "Atlanta", status: "Active" },
-    { code: "CUST-010", name: "Theta Energy", email: "contact@theta.com", city: "Houston", status: "Prospect" },
-    { code: "CUST-011", name: "Iota Consulting", email: "contact@iota.com", city: "Phoenix", status: "Active" },
-    { code: "CUST-012", name: "Kappa Media", email: "contact@kappa.com", city: "Los Angeles", status: "Active" },
+    { code: "CUST-001", name: "Tech Innovators Inc.", email: "contact@techinnovators.com", phone: "555-1001", city: "New York", status: "Active" },
+    { code: "CUST-002", name: "Global Solutions LLC", email: "contact@globalsolutions.com", phone: "555-1002", city: "San Francisco", status: "Active" },
+    { code: "CUST-003", name: "Alpha Retailers", email: "contact@alpharetail.com", phone: "555-1003", city: "Chicago", status: "Active" },
+    { code: "CUST-004", name: "Beta Logistics", email: "contact@beta.com", phone: "555-1004", city: "Miami", status: "Active" },
+    { code: "CUST-005", name: "Gamma Healthcare", email: "contact@gamma.com", phone: "555-1005", city: "Boston", status: "Inactive" },
+    { code: "CUST-006", name: "Delta Manufacturing", email: "contact@delta.com", phone: "555-1006", city: "Seattle", status: "Active" },
+    { code: "CUST-007", name: "Epsilon Edu", email: "contact@epsilon.com", phone: "555-1007", city: "Austin", status: "Inactive" },
+    { code: "CUST-008", name: "Zeta Finance", email: "contact@zeta.com", phone: "555-1008", city: "Denver", status: "Active" },
+    { code: "CUST-009", name: "Eta Real Estate", email: "contact@eta.com", phone: "555-1009", city: "Atlanta", status: "Active" },
+    { code: "CUST-010", name: "Theta Energy", email: "contact@theta.com", phone: "555-1010", city: "Houston", status: "Active" },
   ];
-
   const createdCustomers: any[] = [];
-  for (let i = 0; i < customersData.length; i++) {
-    const c = customersData[i];
-    const exec = execs[i % execs.length];
+  for (const c of customersData) {
     const cust = await prisma.customer.create({
       data: {
+        id: uuidv4(),
         customerCode: c.code,
         name: c.name,
         email: c.email,
-        phone: `555-010${i.toString().padStart(2, '0')}`,
+        phone: c.phone,
         city: c.city,
-        status: c.status as any,
-        assignedUserId: exec.id,
+        status: c.status,
+        updatedAt: now,
       },
     });
     createdCustomers.push(cust);
   }
+  console.log(`${createdCustomers.length} customers created.`);
 
-  console.log("12 Customers created.");
-
-  // 3. Subscriptions (15 Subscriptions)
-  const subsData = [];
-  for (let i = 0; i < 15; i++) {
-    const customer = createdCustomers[i % createdCustomers.length];
-    const isExpired = i % 4 === 0;
-    const isPending = i % 5 === 0;
-    
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - (isExpired ? 14 : Math.floor(Math.random() * 10) + 1));
-    
-    const endDate = new Date(startDate);
-    endDate.setFullYear(endDate.getFullYear() + 1);
-
-    subsData.push({
-      customerId: customer.id,
-      planName: i % 2 === 0 ? "Enterprise Plan" : "Standard Plan",
-      startDate,
-      endDate,
-      status: (isPending ? "Pending" : isExpired ? "Expired" : "Active") as any,
-      notes: `Subscription ${i + 1} notes.`,
-    });
-  }
-
-  await prisma.subscription.createMany({ data: subsData });
-  console.log("15 Subscriptions created.");
-
-  // 4. Marketing Visits / Outbound (12 Visits)
-  const mVisitsData = [];
+  // ---- Subscriptions ----
+  console.log("Seeding subscriptions...");
+  const plans = ["Starter Plan", "Standard Plan", "Enterprise Plan"];
+  const subStatuses = ["Active", "Expired", "Pending"];
   for (let i = 0; i < 12; i++) {
     const customer = createdCustomers[i % createdCustomers.length];
-    const exec = execs[i % execs.length];
-    const pastDays = Math.floor(Math.random() * 10) + 1;
-    const checkIn = new Date();
-    checkIn.setDate(checkIn.getDate() - pastDays);
-    const checkOut = new Date(checkIn.getTime() + (Math.floor(Math.random() * 120) + 30) * 60 * 1000);
-
-    const outcomes = ["Interested", "Not Interested", "Follow-up Required", "Converted"];
-    const decisions = ["APPROVED", "REJECTED", "PENDING"];
-
-    mVisitsData.push({
-      executiveId: exec.id,
-      customerId: customer.id,
-      checkIn,
-      checkOut,
-      purpose: i % 2 === 0 ? "Sales Pitch" : "Subscription Renewal",
-      meetingDescription: `Detailed discussion for visit ${i + 1}`,
-      outcome: outcomes[i % outcomes.length],
-      customerDecision: decisions[i % decisions.length],
-      status: "CHECKED_OUT",
+    const startDate = new Date(now);
+    startDate.setMonth(startDate.getMonth() - (i + 1));
+    const endDate = new Date(startDate);
+    endDate.setFullYear(endDate.getFullYear() + 1);
+    await prisma.subscription.create({
+      data: {
+        id: uuidv4(),
+        customerId: customer.id,
+        planName: plans[i % plans.length],
+        startDate,
+        endDate,
+        status: subStatuses[i % subStatuses.length],
+        notes: `Subscription ${i + 1} notes.`,
+        updatedAt: now,
+      },
     });
   }
-  await prisma.marketingVisit.createMany({ data: mVisitsData });
-  console.log("12 Marketing Visits created.");
+  console.log("12 subscriptions created.");
 
-  // 5. Customer Visits / Inbound (10 Visits)
-  const cVisitsData = [];
+  // ---- Customer Visits ----
+  console.log("Seeding customer visits...");
+  const visitPurposes = ["Product Demo", "Contract Renewal", "Support Visit", "Onboarding"];
+  const visitOutcomes = ["Interested", "Needs Follow-up", "Closed Deal", "Declined"];
   for (let i = 0; i < 10; i++) {
-    const customer = createdCustomers[(i + 3) % createdCustomers.length];
-    const checkIn = new Date();
-    checkIn.setDate(checkIn.getDate() - (i + 1));
-    const checkOut = new Date(checkIn.getTime() + 45 * 60 * 1000);
-
-    cVisitsData.push({
-      customerId: customer.id,
-      hostedBy: lead.id,
-      purpose: "Support",
-      checkInTime: checkIn,
-      checkOutTime: checkOut,
-      meetingSummary: `Inbound customer visit ${i + 1}`,
-      outcome: i % 2 === 0 ? "Resolved" : "Follow-up Required",
-      customerDecision: "APPROVED",
-      status: "CHECKED_OUT",
-    });
-  }
-  await prisma.customerVisit.createMany({ data: cVisitsData });
-  console.log("10 Customer Visits created.");
-
-  // 6. Visitors / General Walk-ins (10 Visitors)
-  const visitorsData = [];
-  for (let i = 0; i < 10; i++) {
-    const checkIn = new Date();
-    checkIn.setDate(checkIn.getDate() - (i + 1));
-    const checkOut = new Date(checkIn.getTime() + 60 * 60 * 1000);
-
-    visitorsData.push({
-      visitorName: `Guest Visitor ${i + 1}`,
-      company: `Vendor Corp ${i + 1}`,
-      visitorEmail: `guest${i + 1}@vendor.com`,
-      visitorPhone: `555-800-${1000 + i}`,
-      purpose: i % 2 === 0 ? "Vendor Meeting" : "Interview",
-      hostUserId: admin.id,
-      inTime: checkIn,
-      outTime: checkOut,
-    });
-  }
-  await prisma.visitor.createMany({ data: visitorsData });
-  console.log("10 Visitors created.");
-
-  // 7. Follow-ups (15 Follow-ups)
-  const followUpsData = [];
-  for (let i = 0; i < 15; i++) {
     const customer = createdCustomers[i % createdCustomers.length];
     const exec = execs[i % execs.length];
-    
-    let status = "Pending";
-    const nextMeetingDate = new Date();
-    
-    if (i % 3 === 0) {
-      status = "Completed";
-      nextMeetingDate.setDate(nextMeetingDate.getDate() - 5);
-    } else if (i % 3 === 1) {
-      status = "Overdue";
-      nextMeetingDate.setDate(nextMeetingDate.getDate() - 2);
-    } else {
-      nextMeetingDate.setDate(nextMeetingDate.getDate() + 3);
-    }
-
-    followUpsData.push({
-      customerId: customer.id,
-      assignedUserId: exec.id,
-      nextMeetingDate,
-      remarks: `Follow-up action item ${i + 1}`,
-      status: status as any,
+    const checkIn = new Date(now);
+    checkIn.setDate(checkIn.getDate() - i * 3);
+    const checkOut = new Date(checkIn);
+    checkOut.setHours(checkOut.getHours() + 2);
+    await prisma.customerVisit.create({
+      data: {
+        id: uuidv4(),
+        customerId: customer.id,
+        hostedBy: exec.id,
+        purpose: visitPurposes[i % visitPurposes.length],
+        checkInTime: checkIn,
+        checkOutTime: i < 8 ? checkOut : null,
+        outcome: visitOutcomes[i % visitOutcomes.length],
+        meetingSummary: `Discussed requirements and next steps for ${customer.name}.`,
+        status: i < 8 ? "CHECKED_OUT" : "CHECKED_IN",
+        updatedAt: now,
+      },
     });
   }
-  await prisma.followUp.createMany({ data: followUpsData });
-  console.log("15 Follow-ups created.");
+  console.log("10 customer visits created.");
 
-  // 8. Audit Logs (20 Audit Logs)
-  const auditLogsData = [];
-  const modules = ["auth", "user", "customer", "subscription", "visit", "visitor", "follow-up"];
-  const actions = ["login", "create", "update", "delete", "checkin", "checkout"];
-  
-  for (let i = 0; i < 20; i++) {
+  // ---- Marketing Visits ----
+  console.log("Seeding marketing visits...");
+  for (let i = 0; i < 8; i++) {
+    const customer = createdCustomers[i % createdCustomers.length];
     const exec = execs[i % execs.length];
-    const timestamp = new Date();
-    timestamp.setHours(timestamp.getHours() - i);
-
-    auditLogsData.push({
-      userId: exec.id,
-      module: modules[i % modules.length],
-      action: actions[i % actions.length],
-      details: `Generated audit log entry ${i + 1}`,
-      timestamp,
+    const checkIn = new Date(now);
+    checkIn.setDate(checkIn.getDate() - i * 4);
+    const checkOut = new Date(checkIn);
+    checkOut.setHours(checkOut.getHours() + 1);
+    await prisma.marketingVisit.create({
+      data: {
+        id: uuidv4(),
+        customerId: customer.id,
+        executiveId: exec.id,
+        checkIn,
+        checkOut: i < 7 ? checkOut : null,
+        purpose: visitPurposes[i % visitPurposes.length],
+        outcome: visitOutcomes[i % visitOutcomes.length],
+        status: i < 7 ? "CHECKED_OUT" : "CHECKED_IN",
+        updatedAt: now,
+      },
     });
   }
-  await prisma.auditLog.createMany({ data: auditLogsData });
-  console.log("20 Audit Logs created.");
+  console.log("8 marketing visits created.");
 
-  console.log("Database seeded successfully with 10+ records for all side bar menus! 🎉");
+  // ---- Follow-ups ----
+  console.log("Seeding follow-ups...");
+  const followUpStatuses = ["Pending", "Completed", "Overdue"];
+  for (let i = 0; i < 10; i++) {
+    const customer = createdCustomers[i % createdCustomers.length];
+    const exec = execs[i % execs.length];
+    const nextMeeting = new Date(now);
+    nextMeeting.setDate(nextMeeting.getDate() + i * 5 - 10);
+    await prisma.followUp.create({
+      data: {
+        id: uuidv4(),
+        customerId: customer.id,
+        assignedUserId: exec.id,
+        nextMeetingDate: nextMeeting,
+        remarks: `Follow up with ${customer.name} regarding proposal.`,
+        status: followUpStatuses[i % followUpStatuses.length],
+        updatedAt: now,
+      },
+    });
+  }
+  console.log("10 follow-ups created.");
+
+  // ---- Visitors ----
+  console.log("Seeding visitors...");
+  const visitorNames = [
+    "Rajesh Sharma", "Priya Patel", "Amit Verma", "Sneha Nair",
+    "Vikram Mehta", "Ananya Singh", "Ravi Kumar", "Deepa Joshi",
+  ];
+  for (let i = 0; i < 8; i++) {
+    const exec = execs[i % execs.length];
+    const inTime = new Date(now);
+    inTime.setDate(inTime.getDate() - i);
+    await prisma.visitor.create({
+      data: {
+        id: uuidv4(),
+        visitorName: visitorNames[i],
+        company: `Visitor Corp ${i + 1}`,
+        visitorPhone: `900000${i.toString().padStart(4, "0")}`,
+        visitorEmail: `visitor${i + 1}@example.com`,
+        purpose: visitPurposes[i % visitPurposes.length],
+        inTime,
+        outTime: i < 6 ? new Date(inTime.getTime() + 90 * 60 * 1000) : null,
+        hostUserId: exec.id,
+        updatedAt: now,
+      },
+    });
+  }
+  console.log("8 visitors created.");
+
+  // ---- Notifications ----
+  console.log("Seeding notifications...");
+  const notifTypes = ["visit", "deal", "call", "system"];
+  for (let i = 0; i < 8; i++) {
+    const exec = execs[i % execs.length];
+    await prisma.notification.create({
+      data: {
+        id: uuidv4(),
+        userId: exec.id,
+        title: `Notification ${i + 1}`,
+        message: `This is a sample notification message #${i + 1}.`,
+        type: notifTypes[i % notifTypes.length],
+        isRead: i % 3 === 0,
+      },
+    });
+  }
+  console.log("8 notifications created.");
+
+  // ---- Audit Logs ----
+  console.log("Seeding audit logs...");
+  const modules = ["Customer", "Visit", "FollowUp", "Subscription", "User"];
+  const actions = ["CREATE", "UPDATE", "DELETE", "VIEW"];
+  for (let i = 0; i < 10; i++) {
+    const exec = execs[i % execs.length];
+    await prisma.auditLog.create({
+      data: {
+        id: uuidv4(),
+        userId: exec.id,
+        module: modules[i % modules.length],
+        action: actions[i % actions.length],
+        details: `User performed ${actions[i % actions.length]} on ${modules[i % modules.length]} record.`,
+      },
+    });
+  }
+  console.log("10 audit logs created.");
+
+  // ---- Contacts ----
+  console.log("Seeding contacts...");
+  const contactsData = [
+    { name: "Alice Johnson", email: "alice.johnson@example.com", phone: "555-2001", company: "Tech Innovators Inc.", title: "CTO", status: "Active" },
+    { name: "Bob Martinez", email: "bob.martinez@example.com", phone: "555-2002", company: "Global Solutions LLC", title: "VP Sales", status: "Active" },
+    { name: "Carol White", email: "carol.white@example.com", phone: "555-2003", company: "Alpha Retailers", title: "Procurement Head", status: "Active" },
+    { name: "David Brown", email: "david.brown@example.com", phone: "555-2004", company: "Beta Logistics", title: "Operations Manager", status: "Active" },
+    { name: "Eve Davis", email: "eve.davis@example.com", phone: "555-2005", company: "Gamma Healthcare", title: "IT Director", status: "Inactive" },
+    { name: "Frank Wilson", email: "frank.wilson@example.com", phone: "555-2006", company: "Delta Manufacturing", title: "Plant Manager", status: "Active" },
+    { name: "Grace Lee", email: "grace.lee@example.com", phone: "555-2007", company: "Zeta Finance", title: "CFO", status: "Active" },
+    { name: "Henry Taylor", email: "henry.taylor@example.com", phone: "555-2008", company: "Eta Real Estate", title: "Director", status: "Active" },
+    { name: "Iris Anderson", email: "iris.anderson@example.com", phone: "555-2009", company: "Theta Energy", title: "Sustainability Lead", status: "Active" },
+    { name: "Jack Thomas", email: "jack.thomas@example.com", phone: "555-2010", company: "Epsilon Edu", title: "Head of Learning", status: "Inactive" },
+    { name: "Karen Jackson", email: "karen.jackson@example.com", phone: "555-2011", company: "Tech Innovators Inc.", title: "Product Manager", status: "Active" },
+    { name: "Liam Harris", email: "liam.harris@example.com", phone: "555-2012", company: "Global Solutions LLC", title: "Senior Engineer", status: "Active" },
+  ];
+  const createdContacts: any[] = [];
+  for (let i = 0; i < contactsData.length; i++) {
+    const c = contactsData[i];
+    const owner = execs[i % execs.length];
+    const contact = await prisma.contact.create({
+      data: {
+        id: uuidv4(),
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        company: c.company,
+        title: c.title,
+        status: c.status,
+        notes: `Contact added via initial seed for ${c.company}.`,
+        ownerId: owner.id,
+      },
+    });
+    createdContacts.push(contact);
+  }
+  console.log(`${createdContacts.length} contacts created.`);
+
+  // ---- Tasks ----
+  console.log("Seeding tasks...");
+  const taskTitles = [
+    "Send proposal to client",
+    "Schedule demo call",
+    "Follow up on contract",
+    "Prepare quarterly report",
+    "Update CRM records",
+    "Review subscription renewal",
+    "Onboarding call with new client",
+    "Collect feedback from last visit",
+    "Prepare product presentation",
+    "Respond to support inquiry",
+    "Coordinate with legal for NDA",
+    "Set up next discovery meeting",
+  ];
+  const taskStatuses = ["Open", "In Progress", "Done"];
+  const taskPriorities = ["Low", "Medium", "High"];
+  for (let i = 0; i < 12; i++) {
+    const exec = execs[i % execs.length];
+    const contact = i < createdContacts.length ? createdContacts[i] : null;
+    const dueDate = new Date(now);
+    dueDate.setDate(dueDate.getDate() + (i * 3 - 6));
+    await prisma.task.create({
+      data: {
+        id: uuidv4(),
+        title: taskTitles[i],
+        description: `Task details: ${taskTitles[i]}. Assigned to ${exec.name}.`,
+        status: taskStatuses[i % taskStatuses.length],
+        priority: taskPriorities[i % taskPriorities.length],
+        dueDate,
+        contactId: contact?.id ?? null,
+        assignedTo: exec.id,
+      },
+    });
+  }
+  console.log("12 tasks created.");
+
+  console.log("\nDatabase seeded successfully! All models populated. ✓");
 }
 
 main()

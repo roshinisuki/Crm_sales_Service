@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import PageContainer from "@/components/PageContainer";
 import { getCustomerDecisionSummaryAction, updateCustomerStatusAction } from "@/app/actions/visits";
 import { activateCustomerPortal } from "@/app/actions/auth";
 
@@ -72,13 +73,13 @@ export default function DecisionSummaryPage() {
   };
 
   useEffect(() => {
-    if (user && ["Admin", "MarketingLead"].includes(user.role)) {
+    if (user && ["Admin", "SalesManager"].includes(user.role)) {
       loadData();
     }
   }, [user]);
 
   // Handle Unauthorized early
-  if (!authLoading && user && !["Admin", "MarketingLead"].includes(user.role)) {
+  if (!authLoading && user && !["Admin", "SalesManager"].includes(user.role)) {
     return (
       <div className="p-8 text-center bg-white rounded-3xl border border-slate-200/60 shadow-sm max-w-md mx-auto mt-12 space-y-4">
         <div className="text-3xl">⚠️</div>
@@ -86,7 +87,7 @@ export default function DecisionSummaryPage() {
         <p className="text-xs text-slate-500 font-medium leading-relaxed">
           This page is only accessible to Marketing Leads and System Administrators to monitor and approve customer portal requests.
         </p>
-        <a href="/dashboard" className="inline-block px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
+        <a href="/dashboard" className="inline-block px-5 py-2.5 bg-[#151515] hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm">
           Return to Dashboard
         </a>
       </div>
@@ -96,35 +97,64 @@ export default function DecisionSummaryPage() {
 
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto animate-in fade-in duration-200">
+    <PageContainer>
       
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-slate-800">Customer Decision summary</h1>
+        <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Customer Decision summary</h1>
         <p className="text-xs text-slate-500 font-medium">Verify customer access, monitor conversion metrics, and manage approval queues.</p>
       </div>
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-3xl p-5 border border-slate-200/60 shadow-sm flex flex-col gap-2">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Visited This Month</p>
-          {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-2xl font-black text-slate-800">{data?.totalVisitedThisMonth}</p>}
+        {/* Visited This Month */}
+        <div className="kpi-total">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Visited This Month</p>
+          </div>
+          <div className="mt-2">
+            {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-3xl font-black text-slate-800">{data?.totalVisitedThisMonth}</p>}
+          </div>
         </div>
-        <div className="bg-white rounded-3xl p-5 border border-[#10B981]/20 shadow-sm flex flex-col gap-2 border-l-4 border-l-[#10B981]">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-[#10B981]">Approved Master</p>
-          {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-2xl font-black text-[#10B981]">{data?.approvedCount}</p>}
+
+        {/* Approved Master */}
+        <div className="kpi-completed">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Approved Master</p>
+          </div>
+          <div className="mt-2">
+            {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-3xl font-black text-slate-800">{data?.approvedCount}</p>}
+          </div>
         </div>
-        <div className="bg-white rounded-3xl p-5 border border-[#EF4444]/20 shadow-sm flex flex-col gap-2 border-l-4 border-l-[#EF4444]">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-[#EF4444]">Rejected Count</p>
-          {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-2xl font-black text-[#EF4444]">{data?.rejectedCount}</p>}
+
+        {/* Rejected Count */}
+        <div className="kpi-overdue">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Rejected Count</p>
+          </div>
+          <div className="mt-2">
+            {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-3xl font-black text-slate-800">{data?.rejectedCount}</p>}
+          </div>
         </div>
-        <div className="bg-white rounded-3xl p-5 border border-amber-200 shadow-sm flex flex-col gap-2 border-l-4 border-l-amber-500">
-          <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider text-amber-700">Pending Queue</p>
-          {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-2xl font-black text-amber-600">{data?.pendingCount}</p>}
+
+        {/* Pending Queue */}
+        <div className="kpi-pending">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pending Queue</p>
+          </div>
+          <div className="mt-2">
+            {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-3xl font-black text-slate-800">{data?.pendingCount}</p>}
+          </div>
         </div>
-        <div className="bg-[#0D2137] rounded-3xl p-5 text-white shadow-sm flex flex-col gap-2">
-          <p className="text-[10px] font-extrabold text-white/50 uppercase tracking-wider">Conversion Score</p>
-          {loading ? <Skeleton className="h-6 w-12 bg-white/10" /> : <p className="text-2xl font-black text-[#5C8FFF]">{data?.conversionRate}%</p>}
+
+        {/* Conversion Score */}
+        <div className="kpi-total">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Conversion Score</p>
+          </div>
+          <div className="mt-2">
+            {loading ? <Skeleton className="h-6 w-12" /> : <p className="text-3xl font-black text-slate-800">{data?.conversionRate}%</p>}
+          </div>
         </div>
       </div>
 
@@ -174,7 +204,7 @@ export default function DecisionSummaryPage() {
                       <td className="px-4 py-4 text-slate-600 whitespace-nowrap">{v.host?.name || "System Admin"}</td>
                       <td className="px-4 py-4 text-slate-500 font-medium whitespace-nowrap">
                         <p>Started: {checkIn}</p>
-                        <p className={`text-[10px] font-bold mt-0.5 ${!checkOut ? "text-amber-500 animate-pulse" : "text-slate-400"}`}>
+                        <p className={`text-[10px] font-bold mt-0.5 ${!checkOut ? "text-[#D44D4D] animate-pulse" : "text-slate-400"}`}>
                           {!checkOut ? "● In Office" : `Ended: ${checkOut}`}
                         </p>
                       </td>
@@ -213,6 +243,6 @@ export default function DecisionSummaryPage() {
         </div>
       </div>
 
-    </div>
+    </PageContainer>
   );
 }

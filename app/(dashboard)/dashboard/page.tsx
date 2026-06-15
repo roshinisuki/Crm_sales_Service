@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { getDashboardDataAction } from "@/app/actions/visits";
+import { getSalesAnalyticsAction } from "@/app/actions/analytics";
 
 import AdminDashboard from "@/components/dashboards/AdminDashboard";
 import ExecutiveDashboard from "@/components/dashboards/ExecutiveDashboard";
@@ -12,50 +13,67 @@ export default function DashboardRouter() {
   const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [salesData, setSalesData] = useState<any>(null);
+  const [dateRange, setDateRange] = useState("alltime");
 
   const loadData = async () => {
+    if (!user) return;
     setLoading(true);
     try {
-      const res = await getDashboardDataAction();
-      if (res.success && res.data) {
-        setDashboardData(res.data);
+      const [dashRes, salesRes] = await Promise.all([
+        getDashboardDataAction(),
+        getSalesAnalyticsAction(dateRange === "alltime" ? undefined : dateRange)
+      ]);
+      
+      if (dashRes.success && dashRes.data) {
+        setDashboardData(dashRes.data);
+      }
+      if (salesRes.success && salesRes.data) {
+        setSalesData(salesRes.data);
       }
     } catch (err) {
-      console.error("Failed to load dashboard data", err);
+      console.error("Failed to load unified dashboard data", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!authLoading && user && user.role !== "Admin") {
+    if (!authLoading && user) {
       loadData();
-    } else if (!authLoading && user && user.role === "Admin") {
-      setLoading(false); // AdminDashboard fetches its own data
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, dateRange]);
 
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
         <div className="flex flex-col items-center gap-3">
-          <span className="w-8 h-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+          <span className="w-8 h-8 rounded-full border-4 border-[#D44D4D] border-t-transparent animate-spin" />
           <p className="text-sm font-bold text-slate-500">Loading your workspace...</p>
         </div>
       </div>
     );
   }
 
-  if (user?.role === "MarketingExecutive") {
-    return <ExecutiveDashboard data={dashboardData} user={user} loadData={loadData} />;
+  const commonProps = {
+    dashboardData,
+    salesData,
+    user,
+    loadData,
+    dateRange,
+    setDateRange,
+  };
+
+  if (user?.role === "SalesExecutive") {
+    return <ExecutiveDashboard {...commonProps} />;
   }
 
-  if (user?.role === "MarketingLead") {
-    return <LeadDashboard data={dashboardData} user={user} loadData={loadData} />;
+  if (user?.role === "SalesManager") {
+    return <LeadDashboard {...commonProps} />;
   }
 
   if (user?.role === "Admin") {
-    return <AdminDashboard />;
+    return <AdminDashboard {...commonProps} />;
   }
 
   return (

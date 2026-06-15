@@ -3,44 +3,56 @@
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 
-export async function getAuditLogsAction(params?: { module?: string; action?: string; startDate?: string; endDate?: string; limit?: number }) {
+export async function getAuditLogsAction(params?: {
+  module?: string;
+  action?: string;
+  severity?: string;
+  resourceId?: string;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+}) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || userPayload.role !== "Admin") {
-      return { success: false, message: "Unauthorized: Only Admin can view audit logs" };
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized: Admins only" };
     }
 
-    const moduleFilter = params?.module;
-    const actionFilter = params?.action;
-    const limit = params?.limit || 100;
-    const startDate = params?.startDate ? new Date(params.startDate) : null;
-    const endDate = params?.endDate ? new Date(params.endDate) : null;
-    
-    if (endDate) {
-      // Set end date to end of day to include all logs on that day
-      endDate.setHours(23, 59, 59, 999);
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
-    const whereClause: any = { AND: [] };
-    
-    if (moduleFilter) whereClause.AND.push({ module: moduleFilter });
-    if (actionFilter) whereClause.AND.push({ action: actionFilter });
-    
+    const moduleFilter   = params?.module;
+    const actionFilter   = params?.action;
+    const severityFilter = params?.severity;
+    const resourceFilter = params?.resourceId;
+    const limit          = params?.limit || 200;
+    const startDate      = params?.startDate ? new Date(params.startDate) : null;
+    const endDate        = params?.endDate   ? new Date(params.endDate)   : null;
+
+    if (endDate) endDate.setHours(23, 59, 59, 999);
+
+    const whereClause: any = { companyId: userPayload.companyId, AND: [] };
+
+    if (moduleFilter)   whereClause.AND.push({ module:    { contains: moduleFilter, mode: "insensitive" } });
+    if (actionFilter)   whereClause.AND.push({ action:    { contains: actionFilter, mode: "insensitive" } });
+    if (severityFilter) whereClause.AND.push({ severity:  severityFilter });
+    if (resourceFilter) whereClause.AND.push({ resourceId: resourceFilter });
+
     if (startDate || endDate) {
       const timestampFilter: any = {};
       if (startDate) timestampFilter.gte = startDate;
-      if (endDate) timestampFilter.lte = endDate;
+      if (endDate)   timestampFilter.lte = endDate;
       whereClause.AND.push({ timestamp: timestampFilter });
     }
 
-    if (whereClause.AND.length === 0) {
-      delete whereClause.AND;
-    }
+    if (whereClause.AND.length === 0) delete whereClause.AND;
 
     const logs = await prisma.auditLog.findMany({
       where: whereClause,
       include: {
-        user: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true, role: true } },
       },
       orderBy: { timestamp: "desc" },
       take: limit,
@@ -48,10 +60,14 @@ export async function getAuditLogsAction(params?: { module?: string; action?: st
 
     const normalized = logs.map((log) => ({
       ...log,
-      userEmail: log.user?.email || "",
-      performedBy: log.user?.name || "System",
-      createdAt: log.timestamp.toISOString(),
-      timestamp: log.timestamp.toISOString(),
+      userEmail:    log.user?.email    || "",
+      performedBy:  log.user?.name     || "System",
+      performedRole: log.user?.role    || "System",
+      createdAt:    log.timestamp.toISOString(),
+      timestamp:    log.timestamp.toISOString(),
+      // Stringify JSON for safe transport to client
+      previousState: log.previousState ? JSON.stringify(log.previousState) : null,
+      newState:      log.newState      ? JSON.stringify(log.newState)      : null,
     }));
 
     return { success: true, data: normalized };

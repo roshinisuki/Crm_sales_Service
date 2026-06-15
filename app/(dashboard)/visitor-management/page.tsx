@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getUnifiedOfficeVisitsAction, createVisitorAction, checkoutVisitorAction } from "@/app/actions/visitors";
+import { getUnifiedOfficeVisitsAction, createVisitorAction, checkoutVisitorAction, promoteVisitorToCustomerAction } from "@/app/actions/visitors";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import InboundCheckInModal from "@/components/InboundCheckInModal";
 import CheckOutModal from "@/components/CheckOutModal";
+import PageContainer from "@/components/PageContainer";
+import { SummaryCard } from "@/components/ui/SummaryCard";
+import { Users, Clock, Building } from "lucide-react";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -131,6 +134,21 @@ export default function OfficeVisitsPage() {
     setIsCheckoutModalOpen(true);
   };
 
+  const handlePromoteGuest = async (id: string) => {
+    if (!confirm("Are you sure you want to promote this guest walk-in to a CRM Lead? This will automatically assign them to an executive.")) return;
+    try {
+      const res = await promoteVisitorToCustomerAction(id);
+      if (res.success) {
+        toast.success(res.message || "Guest promoted successfully!");
+        loadVisits();
+      } else {
+        toast.error(res.message || "Failed to promote guest");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred");
+    }
+  };
+
 
   // Filter & Search Logic
   const filtered = visits.filter((v) => {
@@ -155,60 +173,50 @@ export default function OfficeVisitsPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
+    <PageContainer>
       
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Office Visits</h1>
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Office Visits</h1>
           <p className="text-sm text-slate-500 mt-1">Manage office walk-ins, CRM customers arrival queue, and guest entries.</p>
         </div>
         <button 
           onClick={handleOpenRegisterPrompt}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0D2137] text-white rounded-xl text-sm font-medium hover:bg-[#1a365d] transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-[#D44D4D] text-white rounded-xl text-sm font-medium hover:bg-[#C94F4F] transition-colors shadow-sm cursor-pointer"
         >
           <Ico d={icons.plus} size={16} />
           Register Office Visit
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-            <Ico d={icons.users} size={20} className="text-blue-600" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800 tracking-tight">{visits.length}</p>
-            <p className="text-xs font-semibold text-slate-500">Total Entries Today</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-            <Ico d={icons.clock} size={20} className="text-amber-600" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800 tracking-tight">
-              {visits.filter((v) => !v.checkOutTime).length}
-            </p>
-            <p className="text-xs font-semibold text-slate-500">Currently in Premises</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-            <Ico d={icons.users} size={20} className="text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-slate-800 tracking-tight">
-              {visits.filter((v) => v.checkOutTime).length}
-            </p>
-            <p className="text-xs font-semibold text-slate-500">Total Checked Out</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+        <SummaryCard 
+          label="Total Entries" 
+          value={visits.length} 
+          icon={<Users size={20} />} 
+          variant="slate" 
+          subtitle="Today's total"
+        />
+        <SummaryCard 
+          label="In Premises" 
+          value={visits.filter((v) => !v.checkOutTime).length} 
+          icon={<Clock size={20} />} 
+          variant="amber" 
+          subtitle="Currently inside"
+        />
+        <SummaryCard 
+          label="Checked Out" 
+          value={visits.filter((v) => v.checkOutTime).length} 
+          icon={<Building size={20} />} 
+          variant="green" 
+          subtitle="Visit completed"
+        />
       </div>
 
+
       {/* Main Workspace Card */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+      <div className="crm-card overflow-hidden flex flex-col">
         
         {/* Table Filters Header */}
         <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/40">
@@ -245,7 +253,7 @@ export default function OfficeVisitsPage() {
               placeholder="Search by name, contact, company, purpose..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-shadow"
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
             />
           </div>
 
@@ -253,19 +261,19 @@ export default function OfficeVisitsPage() {
 
         {/* Data Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="crm-table">
             <thead>
-              <tr className="bg-slate-50/50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-200/60">
-                <th className="px-6 py-4 whitespace-nowrap">Visitor / Client</th>
-                <th className="px-4 py-4 whitespace-nowrap">Type</th>
-                <th className="px-4 py-4 whitespace-nowrap">Purpose</th>
-                <th className="px-4 py-4 whitespace-nowrap">Host Name</th>
-                <th className="px-4 py-4 whitespace-nowrap">Start / End Visit</th>
-                <th className="px-4 py-4 whitespace-nowrap">Outcome Status</th>
-                <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
+              <tr className="crm-tr border-b border-slate-200/60">
+                <th className="crm-th whitespace-nowrap">Visitor / Client</th>
+                <th className="crm-th whitespace-nowrap">Type</th>
+                <th className="crm-th whitespace-nowrap">Purpose</th>
+                <th className="crm-th whitespace-nowrap">Host Name</th>
+                <th className="crm-th whitespace-nowrap">Start / End Visit</th>
+                <th className="crm-th whitespace-nowrap">Outcome Status</th>
+                <th className="crm-th text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
+            <tbody>
               {loading ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-sm text-slate-500 font-medium">
@@ -286,10 +294,10 @@ export default function OfficeVisitsPage() {
                     : "Still inside";
 
                   return (
-                    <tr key={v.id} className="hover:bg-slate-50/40 transition-colors group">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                    <tr key={v.id} className="crm-tr hover:bg-slate-50/40 transition-colors group">
+                      <td className="crm-td whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${v.type === "Customer" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"}`}>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${v.type === "Customer" ? "bg-red-100 text-[#800000]" : "bg-slate-100 text-slate-700"}`}>
                             {v.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
@@ -300,23 +308,23 @@ export default function OfficeVisitsPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] ${v.type === "Customer" ? "bg-blue-50 text-blue-700 border border-blue-100" : "bg-slate-100 text-slate-600 border border-slate-200"}`}>
+                      <td className="crm-td whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-md font-bold text-[9px] ${v.type === "Customer" ? "bg-red-50 text-[#D44D4D] border border-red-100" : "bg-slate-100 text-slate-600 border border-slate-200"}`}>
                           {v.type}
                         </span>
                       </td>
-                      <td className="px-4 py-4 font-semibold text-slate-600 whitespace-nowrap">{v.purpose}</td>
-                      <td className="px-4 py-4 font-medium text-slate-600 whitespace-nowrap">{v.hostName}</td>
-                      <td className="px-4 py-4 font-semibold text-slate-500 whitespace-nowrap">
+                      <td className="crm-td font-semibold text-slate-600 whitespace-nowrap">{v.purpose}</td>
+                      <td className="crm-td font-medium text-slate-600 whitespace-nowrap">{v.hostName}</td>
+                      <td className="crm-td font-semibold text-slate-500 whitespace-nowrap">
                         <p>Started: {checkInText}</p>
                         <p className={`text-[10px] font-bold mt-0.5 ${!v.checkOutTime ? "text-amber-500 animate-pulse" : "text-slate-400"}`}>
                           {!v.checkOutTime ? "● Active In Office" : `Ended: ${checkOutText}`}
                         </p>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
+                      <td className="crm-td whitespace-nowrap">
                         <PurposeStatusBadge purpose={v.purpose} status={v.status} outcome={v.outcome} />
                       </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                      <td className="crm-td text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           {v.followUpStatus && (
                             <span className={`px-2 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider border ${
@@ -325,16 +333,24 @@ export default function OfficeVisitsPage() {
                               Follow-up: {v.followUpStatus}
                             </span>
                           )}
+                          {v.type === "Guest" && (user?.role === "Admin" || user?.role === "SalesManager") && (
+                            <button
+                              onClick={() => handlePromoteGuest(v.id)}
+                              className="text-[10px] font-extrabold text-[#D44D4D] hover:text-white hover:bg-[#D44D4D] border border-slate-200 hover:border-transparent px-3 py-1.5 rounded-lg transition-all uppercase tracking-wider shadow-xs cursor-pointer mr-1"
+                            >
+                              Promote to Lead
+                            </button>
+                          )}
                           {!v.checkOutTime && (
                             <button
                               onClick={() => {
-                                if (v.type === "Customer") {
-                                  handleOpenCheckoutCustomer(v);
-                                } else {
-                                  handleCheckoutGuest(v.id);
-                                }
+                                  if (v.type === "Customer") {
+                                    handleOpenCheckoutCustomer(v);
+                                  } else {
+                                    handleCheckoutGuest(v.id);
+                                  }
                               }}
-                              className="text-[10px] font-extrabold text-white bg-[#0D2137] hover:bg-[#1a3a5f] px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider shadow-sm"
+                              className="text-[10px] font-extrabold text-white bg-[#D44D4D] hover:bg-[#C94F4F] px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider shadow-sm cursor-pointer"
                             >
                               End Visit
                             </button>
@@ -374,6 +390,6 @@ export default function OfficeVisitsPage() {
         visit={activeCheckoutVisit}
       />
 
-    </div>
+    </PageContainer>
   );
 }

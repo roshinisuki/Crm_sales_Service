@@ -17,8 +17,8 @@ datasource db {
 
 enum Role {
   Admin
-  MarketingLead
-  MarketingExecutive
+  SalesManager
+  SalesExecutive
   Customer
 }
 
@@ -51,7 +51,7 @@ model User {
   email        String   @unique
   name         String
   passwordHash String
-  role         Role     @default(MarketingExecutive)
+  role         Role     @default(SalesExecutive)
   isActive     Boolean  @default(true)
   rememberMe               Boolean   @default(false)
   lastActivityAt           DateTime?

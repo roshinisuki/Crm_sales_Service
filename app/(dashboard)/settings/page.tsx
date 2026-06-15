@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import PageContainer from "@/components/PageContainer";
+import { PageShell } from "@/components/ui/PageShell";
+import { getSystemConfigsAction, updateSystemConfigsAction } from "@/app/actions/systemConfigs";
+import { getUsersAction } from "@/app/actions/users";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -35,7 +39,7 @@ function Toggle({ label, description, checked: controlledChecked, onChange, defa
       </div>
       <button
         onClick={handleToggle}
-        className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none ${isChecked ? "bg-[#0D2137]" : "bg-slate-200"}`}
+        className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none cursor-pointer ${isChecked ? "bg-[#D44D4D]" : "bg-slate-200"}`}
         aria-checked={isChecked}
         role="switch"
       >
@@ -78,11 +82,137 @@ export default function SettingsPage() {
   const [prefs, setPrefs] = useState({
     emailFollowUp: true,
     emailVisitorCheckIn: false,
-    inAppVisitUpdate: true
+    inAppVisitUpdate: true,
+    notifyOnDealStatus: true,
+    notifyOnCallLog: true
   });
+
+  // Lead Ingestion configurations states
+  const [users, setUsers] = useState<any[]>([]);
+  const [leadsApiKey, setLeadsApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [leadsAssignmentMode, setLeadsAssignmentMode] = useState("ROUND_ROBIN");
+  const [leadsDefaultAssigneeId, setLeadsDefaultAssigneeId] = useState("");
+  const [savingLeads, setSavingLeads] = useState(false);
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const apiUrl = `${origin}/api/leads`;
+
+  const codeSnippet = `<!-- Suki CRM Lead Ingestion Snippet -->
+<form id="suki-lead-form" style="max-width: 400px; font-family: sans-serif; display: flex; flex-direction: column; gap: 12px;">
+  <div>
+    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Full Name *</label>
+    <input type="text" name="name" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px;" />
+  </div>
+  <div>
+    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Email Address</label>
+    <input type="email" name="email" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px;" />
+  </div>
+  <div>
+    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Phone Number</label>
+    <input type="tel" name="phone" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px;" />
+  </div>
+  <div>
+    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px;">City</label>
+    <input type="text" name="city" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px;" />
+  </div>
+  <div>
+    <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px;">Message</label>
+    <textarea name="message" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; min-height: 80px;"></textarea>
+  </div>
+  <button type="submit" style="background: #D44D4D; color: white; padding: 10px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">
+    Submit Enquiry
+  </button>
+</form>
+
+<script>
+  document.getElementById('suki-lead-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = {
+      name: formData.get('name'),
+      email: formData.get('email'),
+      phone: formData.get('phone'),
+      city: formData.get('city'),
+      message: formData.get('message'),
+      leadSource: 'Website'
+    };
+
+    try {
+      const response = await fetch('${apiUrl}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': '${leadsApiKey || "YOUR_API_KEY"}'
+        },
+        body: JSON.stringify(data)
+      });
+      const result = await response.json();
+      if (result.success) {
+        alert('Thank you! Your enquiry has been received.');
+        e.target.reset();
+      } else {
+        alert('Submission failed: ' + result.message);
+      }
+    } catch (err) {
+      console.error('Error submitting lead:', err);
+      alert('Could not submit enquiry. Please try again.');
+    }
+  });
+</script>`;
   
   useEffect(() => {
-    if (!authLoading && user?.role === "Admin") {
+    // Load active users for default assignee dropdown
+    getUsersAction().then((res) => {
+      if (res.success && res.data) {
+        setUsers(res.data.filter((u: any) => u.isActive));
+      }
+    });
+
+    // Load system configurations
+    getSystemConfigsAction().then((res) => {
+      if (res.success && res.data) {
+        setLeadsApiKey(res.data.leads_api_key);
+        setLeadsAssignmentMode(res.data.leads_assignment_mode);
+        setLeadsDefaultAssigneeId(res.data.leads_default_assignee_id);
+      }
+    });
+  }, []);
+
+  const handleSaveLeadsConfig = async () => {
+    setSavingLeads(true);
+    try {
+      const res = await updateSystemConfigsAction({
+        leads_api_key: leadsApiKey,
+        leads_assignment_mode: leadsAssignmentMode,
+        leads_default_assignee_id: leadsDefaultAssigneeId,
+      });
+      if (res.success) {
+        toast.success("Lead API configurations updated successfully.");
+      } else {
+        toast.error(res.message || "Failed to update API configurations.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred.");
+    } finally {
+      setSavingLeads(false);
+    }
+  };
+
+  const handleRegenerateApiKey = () => {
+    if (confirm("Are you sure you want to regenerate the API key? External forms using the old key will stop working.")) {
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      let key = "suki_";
+      for (let i = 0; i < 24; i++) {
+        key += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      setLeadsApiKey(key);
+      toast.info("New key generated. Please save preferences to apply changes.");
+    }
+  };
+  
+  useEffect(() => {
+    if (!authLoading && user) {
       fetch("/api/notification-preferences")
         .then(res => res.json())
         .then(res => {
@@ -90,7 +220,9 @@ export default function SettingsPage() {
             setPrefs({
               emailFollowUp: res.data.emailFollowUp,
               emailVisitorCheckIn: res.data.emailVisitorCheckIn,
-              inAppVisitUpdate: res.data.inAppVisitUpdate
+              inAppVisitUpdate: res.data.inAppVisitUpdate,
+              notifyOnDealStatus: res.data.notifyOnDealStatus,
+              notifyOnCallLog: res.data.notifyOnCallLog
             });
           }
         })
@@ -169,13 +301,11 @@ export default function SettingsPage() {
   if (authLoading || user?.role !== "Admin") return null;
 
   return (
-    <div className="space-y-6 max-w-[860px] mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage system preferences, security, and notification options.</p>
-        </div>
-      </div>
+    <PageShell
+      title="Settings"
+      subtitle="Manage system preferences, security, and notification options."
+    >
+      <PageContainer className="space-y-4 p-0">
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -187,12 +317,12 @@ export default function SettingsPage() {
               <input
                 type="text"
                 defaultValue=" SUKI  Software Pvt. Ltd."
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
               />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Default Timezone</label>
-              <select className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+              <select className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer">
                 <option>Asia/Kolkata (IST +5:30)</option>
                 <option>UTC+0 (GMT)</option>
                 <option>America/New_York (EST)</option>
@@ -200,7 +330,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Currency Display</label>
-              <select className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+              <select className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer">
                 <option>INR (₹)</option>
                 <option>USD ($)</option>
                 <option>EUR (€)</option>
@@ -209,7 +339,7 @@ export default function SettingsPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#0D2137] hover:bg-[#1a365d] transition-colors shadow-sm disabled:opacity-70"
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
             >
               {saving ? "Saving..." : "Save Preferences"}
             </button>
@@ -237,7 +367,7 @@ export default function SettingsPage() {
                 value={pwForm.current}
                 onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })}
                 placeholder="••••••••"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
               />
             </div>
             <div>
@@ -248,7 +378,7 @@ export default function SettingsPage() {
                 value={pwForm.next}
                 onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })}
                 placeholder="Min. 8 characters"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
               />
               <div className="flex items-center gap-2 mt-2">
                 <div className={`h-1.5 flex-1 rounded-full transition-colors ${pwScore >= 1 ? (pwScore >= 3 ? 'bg-emerald-500' : pwScore >= 2 ? 'bg-amber-400' : 'bg-red-400') : 'bg-slate-200'}`} />
@@ -267,13 +397,13 @@ export default function SettingsPage() {
                 value={pwForm.confirm}
                 onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
                 placeholder="Repeat new password"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
               />
             </div>
             <button
               type="submit"
               disabled={pwLoading}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#0D2137] hover:bg-[#1a365d] transition-colors shadow-sm disabled:opacity-70"
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
             >
               {pwLoading ? "Updating..." : "Update Password"}
             </button>
@@ -300,6 +430,18 @@ export default function SettingsPage() {
             checked={prefs.inAppVisitUpdate} 
             onChange={(c) => setPrefs(p => ({ ...p, inAppVisitUpdate: c }))} 
           />
+          <Toggle 
+            label="Deal Status Updates" 
+            description="Receive alerts on deal assignment, creation, and status progression." 
+            checked={prefs.notifyOnDealStatus} 
+            onChange={(c) => setPrefs(p => ({ ...p, notifyOnDealStatus: c }))} 
+          />
+          <Toggle 
+            label="Call Logging Alerts" 
+            description="Receive alerts when new calls are logged with customers." 
+            checked={prefs.notifyOnCallLog} 
+            onChange={(c) => setPrefs(p => ({ ...p, notifyOnCallLog: c }))} 
+          />
         </Card>
 
         {/* Compliance & Privacy */}
@@ -313,7 +455,112 @@ export default function SettingsPage() {
             <p className="text-[11px] text-amber-700 mt-1">Audit logs are retained for 90 days. Contact your administrator to configure custom retention policies.</p>
           </div>
         </Card>
+
+        {/* Lead Ingestion API & Auto-Assignment Configs */}
+        <Card title="Lead Ingestion API & Auto-Assignment" icon={icons.shield}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">API Endpoint URL</label>
+              <input
+                type="text"
+                readOnly
+                value={apiUrl}
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-500 font-mono select-all focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">API Key (LEADS_API_KEY)</label>
+              <div className="flex gap-2">
+                <input
+                  type={showApiKey ? "text" : "password"}
+                  value={leadsApiKey}
+                  onChange={(e) => setLeadsApiKey(e.target.value)}
+                  className="flex-1 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                >
+                  {showApiKey ? "Hide" : "Show"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRegenerateApiKey}
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                >
+                  Regen
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Auto-Assignment Mode</label>
+              <select
+                value={leadsAssignmentMode}
+                onChange={(e) => setLeadsAssignmentMode(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              >
+                <option value="ROUND_ROBIN">Round-Robin Assignment (Balanced Load)</option>
+                <option value="DEFAULT_POOL">Triage Pool (Assign to Default User)</option>
+              </select>
+            </div>
+
+            {leadsAssignmentMode === "DEFAULT_POOL" && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Default Assignee</label>
+                <select
+                  value={leadsDefaultAssigneeId}
+                  onChange={(e) => setLeadsDefaultAssigneeId(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                >
+                  <option value="">-- Select default triage assignee --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <button
+              onClick={handleSaveLeadsConfig}
+              disabled={savingLeads}
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
+            >
+              {savingLeads ? "Saving API Settings..." : "Save API & Assignment Config"}
+            </button>
+
+            {/* Widget Copy Code block */}
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-slate-700">Web Form Integration Widget</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(codeSnippet);
+                    toast.success("Widget code copied to clipboard!");
+                  }}
+                  className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-[#D44D4D] border border-red-200/60 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Copy Snippet
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500 mb-2">
+                Copy and paste this HTML form and script block into your company's landing page or external website.
+              </p>
+              <textarea
+                readOnly
+                value={codeSnippet}
+                className="w-full h-32 px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-[10px] text-slate-300 font-mono focus:outline-none"
+              />
+            </div>
+          </div>
+        </Card>
       </div>
-    </div>
+    </PageContainer>
+    </PageShell>
   );
 }

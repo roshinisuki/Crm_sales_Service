@@ -17,20 +17,9 @@ const transporter = nodemailer.createTransport({
 export async function sendOverdueSummaries() {
   console.log("Running daily overdue follow-ups summary scheduler...");
   try {
-    const today = new Date();
-    
-    // First, update any Pending followups that are now past their nextMeetingDate to Overdue
-    await prisma.followUp.updateMany({
-      where: {
-        status: "Pending",
-        nextMeetingDate: {
-          lt: today,
-        },
-      },
-      data: {
-        status: "Overdue",
-      },
-    });
+    // central sweep function to mark overdue, trigger escalations, and dispatch notifications
+    const { checkAndUpdateOverdueFollowUps } = await import("../app/actions/followUps");
+    await checkAndUpdateOverdueFollowUps();
 
     // Now get all Overdue follow-ups
     const overdueFollowUps = await prisma.followUp.findMany({

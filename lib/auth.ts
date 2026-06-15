@@ -11,6 +11,8 @@ export interface TokenPayload {
   id: string;
   email: string;
   role: string;
+  companyId?: string | null;
+  supportMode?: boolean;
   iat: number;
   exp: number;
 }
@@ -23,7 +25,7 @@ export function isInternalEmail(email: string): boolean {
 
 /** Returns true if the role requires an internal (company) email */
 export function requiresInternalEmail(role: string): boolean {
-  return ["Admin", "MarketingLead", "MarketingExecutive"].includes(role);
+  return ["Admin", "SalesManager", "SalesExecutive"].includes(role);
 }
 
 export async function verifyAuth(): Promise<TokenPayload | null> {
@@ -55,8 +57,8 @@ export function requireRole(payload: TokenPayload | null, allowedRoles: string[]
 export function getRoleRedirect(role: string): string {
   switch (role) {
     case "Admin":               return "/dashboard";
-    case "MarketingLead":       return "/dashboard";
-    case "MarketingExecutive":  return "/dashboard";
+    case "SalesManager":       return "/dashboard";
+    case "SalesExecutive":  return "/dashboard";
     case "Customer":            return "/customer/portal";
     default:                    return "/login";
   }

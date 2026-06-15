@@ -30,7 +30,7 @@ export async function PATCH(request: Request) {
     if (!userPayload) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { emailFollowUp, emailVisitorCheckIn, inAppVisitUpdate } = body;
+    const { emailFollowUp, emailVisitorCheckIn, inAppVisitUpdate, notifyOnDealStatus, notifyOnCallLog } = body;
 
     const prefs = await prisma.notificationPreference.upsert({
       where: { userId: userPayload.id },
@@ -38,12 +38,16 @@ export async function PATCH(request: Request) {
         userId: userPayload.id,
         emailFollowUp: emailFollowUp ?? true,
         emailVisitorCheckIn: emailVisitorCheckIn ?? false,
-        inAppVisitUpdate: inAppVisitUpdate ?? true
+        inAppVisitUpdate: inAppVisitUpdate ?? true,
+        notifyOnDealStatus: notifyOnDealStatus ?? true,
+        notifyOnCallLog: notifyOnCallLog ?? true
       },
       update: {
         ...(emailFollowUp !== undefined && { emailFollowUp }),
         ...(emailVisitorCheckIn !== undefined && { emailVisitorCheckIn }),
         ...(inAppVisitUpdate !== undefined && { inAppVisitUpdate }),
+        ...(notifyOnDealStatus !== undefined && { notifyOnDealStatus }),
+        ...(notifyOnCallLog !== undefined && { notifyOnCallLog }),
       }
     });
 

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { buildScope, checkRecordScope } from "@/lib/scopes";
 
 export async function getSubscriptionsAction(params?: { customerId?: string; status?: string }) {
   try {
@@ -11,16 +12,19 @@ export async function getSubscriptionsAction(params?: { customerId?: string; sta
       return { success: false, message: "Unauthorized" };
     }
 
-    const { customerId, status } = params || {};
-
-    let rbacFilter = {};
-    if (userPayload.role === "MarketingExecutive") {
-      rbacFilter = { customer: { assignedUserId: userPayload.id } };
-    } else if (userPayload.role === "Customer") {
-      rbacFilter = { customer: { email: userPayload.email } };
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
+    const { customerId, status } = params || {};
 
+    const scope = buildScope(userPayload, "Subscription");
+    if (userPayload.role === "SalesExecutive") {
+      scope.customer = { assignedUserId: userPayload.id };
+    } else if (userPayload.role === "Customer") {
+      scope.customer = { email: userPayload.email };
+    }
 
     // 2. Query with adapted filter status (since 'Expiring' is dynamic, query as Active)
     const expiringFilter = status === "Expiring";
@@ -28,8 +32,8 @@ export async function getSubscriptionsAction(params?: { customerId?: string; sta
 
     const subscriptions = await prisma.subscription.findMany({
       where: {
+        ...scope,
         AND: [
-          rbacFilter,
           customerId ? { customerId } : {},
           statusQuery ? { status: statusQuery as any } : {},
         ],
@@ -75,14 +79,25 @@ export async function getSubscriptionsAction(params?: { customerId?: string; sta
 export async function createSubscriptionAction(data: any) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || !["Admin", "MarketingLead", "MarketingExecutive"].includes(userPayload.role)) {
+    if (!userPayload || !["Admin", "SalesManager", "SalesExecutive", "SuperAdmin"].includes(userPayload.role)) {
       return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const { customerId, planName, startDate, endDate, status, notes } = data;
 
     if (!customerId || !planName || !startDate || !endDate) {
       return { success: false, message: "customerId, planName, startDate and endDate are required" };
+    }
+
+    // Verify Customer scope
+    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer || !checkRecordScope(userPayload, customer, "Customer")) {
+      return { success: false, message: "Customer not found or access denied." };
     }
 
     const subscription = await prisma.subscription.create({
@@ -93,6 +108,7 @@ export async function createSubscriptionAction(data: any) {
         endDate:    new Date(endDate),
         status:     status || "Active",
         notes:      notes || null,
+        companyId:  userPayload.companyId,
       },
       include: {
         customer: { select: { id: true, name: true, customerCode: true } },
@@ -103,7 +119,7 @@ export async function createSubscriptionAction(data: any) {
     if (status === "Active" || !status) {
       await prisma.customer.update({
         where: { id: customerId },
-        data: { status: "Active" }
+        data: { status: "ActiveCustomer" }
       });
     }
 
@@ -124,8 +140,23 @@ export async function createSubscriptionAction(data: any) {
 export async function updateSubscriptionAction(id: string, data: any) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || !["Admin", "MarketingLead"].includes(userPayload.role)) {
+    if (!userPayload || !["Admin", "SalesManager", "SuperAdmin"].includes(userPayload.role)) {
       return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
+    const existing = await prisma.subscription.findUnique({ where: { id } });
+    if (!existing) {
+      return { success: false, message: "Subscription not found" };
+    }
+
+    // Access scope check
+    if (!checkRecordScope(userPayload, existing, "Subscription")) {
+      return { success: false, message: "Unauthorized: Access denied." };
     }
 
     const { planName, startDate, endDate, status, notes } = data;
@@ -167,8 +198,13 @@ export async function renewSubscriptionAction(data: {
 }) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || !["Admin", "MarketingLead", "MarketingExecutive"].includes(userPayload.role)) {
+    if (!userPayload || !["Admin", "SalesManager", "SalesExecutive", "SuperAdmin"].includes(userPayload.role)) {
       return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const { oldSubscriptionId, planName, startDate, endDate, notes } = data;
@@ -181,8 +217,8 @@ export async function renewSubscriptionAction(data: {
       where: { id: oldSubscriptionId }
     });
 
-    if (!oldSub) {
-      return { success: false, message: "Original subscription plan not found." };
+    if (!oldSub || !checkRecordScope(userPayload, oldSub, "Subscription")) {
+      return { success: false, message: "Original subscription plan not found or access denied." };
     }
 
     // 2. Mark the old subscription as Renewed
@@ -200,16 +236,16 @@ export async function renewSubscriptionAction(data: {
         endDate: new Date(endDate),
         status: "Active",
         notes: notes || `Renewed from plan ${oldSub.planName} (${oldSub.id}).`,
+        companyId: userPayload.companyId,
       },
       include: {
         customer: { select: { id: true, name: true, customerCode: true } }
       }
     });
 
-    // 4. Force Customer Status to Active
     await prisma.customer.update({
       where: { id: oldSub.customerId },
-      data: { status: "Active" }
+      data: { status: "ActiveCustomer" }
     });
 
     await logAudit(
@@ -233,5 +269,79 @@ export async function renewSubscriptionAction(data: {
   } catch (error) {
     console.error("RENEW Subscription Error:", error);
     return { success: false, message: "Failed to renew subscription" };
+  }
+}
+
+export async function deleteSubscriptionAction(id: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
+    const current = await prisma.subscription.findUnique({ where: { id } });
+    if (!current) return { success: false, message: "Subscription not found" };
+
+    if (!checkRecordScope(userPayload, current, "Subscription")) {
+      return { success: false, message: "Unauthorized: Access denied." };
+    }
+
+    if (userPayload.role === "SuperAdmin") {
+      await prisma.subscription.delete({ where: { id } });
+      await logAudit(userPayload.id, "subscription", "delete_permanent", `Permanently deleted subscription ${id}`);
+    } else {
+      await prisma.subscription.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          deletedById: userPayload.id
+        }
+      });
+      await logAudit(userPayload.id, "subscription", "delete", `Soft-deleted subscription ${id}`);
+    }
+    return { success: true, message: "Subscription deleted successfully" };
+  } catch (error) {
+    console.error("deleteSubscriptionAction error:", error);
+    return { success: false, message: "Failed to delete subscription" };
+  }
+}
+
+export async function restoreSubscriptionAction(id: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
+    const current = await prisma.subscription.findUnique({ where: { id } });
+    if (!current) return { success: false, message: "Subscription not found" };
+
+    if (current.companyId !== userPayload.companyId) {
+      return { success: false, message: "Unauthorized access" };
+    }
+
+    await prisma.subscription.update({
+      where: { id },
+      data: {
+        deletedAt: null,
+        deletedById: null
+      }
+    });
+
+    await logAudit(userPayload.id, "subscription", "restore", `Restored subscription ${id}`);
+    return { success: true, message: "Subscription restored successfully" };
+  } catch (error) {
+    console.error("restoreSubscriptionAction error:", error);
+    return { success: false, message: "Failed to restore subscription" };
   }
 }

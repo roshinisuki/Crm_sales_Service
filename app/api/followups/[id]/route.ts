@@ -1,0 +1,65 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { verifyAuth } from "@/lib/auth";
+import { logAudit } from "@/lib/audit";
+import { revalidatePath } from "next/cache";
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await context.params;
+    const body = await request.json();
+
+    const existing = await prisma.followUp.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ success: false, message: "Follow-up not found" }, { status: 404 });
+    }
+
+    if (userPayload.role === "SalesExecutive" && existing.assignedUserId !== userPayload.id) {
+      return NextResponse.json({ success: false, message: "Unauthorized: You do not own this follow-up" }, { status: 403 });
+    }
+
+    const data: any = {};
+    if (body.nextMeetingDate !== undefined) {
+      data.nextMeetingDate = new Date(body.nextMeetingDate);
+      data.dueDate = data.nextMeetingDate;
+    }
+    if (body.remarks !== undefined) data.remarks = body.remarks;
+    if (body.notes !== undefined) data.notes = body.notes;
+    if (body.priority !== undefined) data.priority = body.priority;
+    if (body.reminderAt !== undefined) data.reminderAt = body.reminderAt ? new Date(body.reminderAt) : null;
+    if (body.status !== undefined) data.status = body.status;
+
+    if (body.assignedUserId !== undefined) {
+      if (userPayload.role === "SalesExecutive" && body.assignedUserId !== userPayload.id) {
+        return NextResponse.json({ success: false, message: "Executives can only assign to themselves" }, { status: 400 });
+      }
+      data.assignedUserId = body.assignedUserId;
+    }
+
+    const updated = await prisma.followUp.update({
+      where: { id },
+      data,
+    });
+
+    await logAudit(userPayload.id, "follow-up", "update", `Follow-up ${id} updated via API`);
+
+    revalidatePath("/dashboard");
+    revalidatePath("/follow-up");
+    if (updated.customerId) {
+      revalidatePath(`/customers/${updated.customerId}`);
+      revalidatePath(`/customer-master/${updated.customerId}`);
+    }
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+  }
+}

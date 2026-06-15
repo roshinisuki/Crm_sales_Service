@@ -3,225 +3,239 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import { logoutAction } from "@/app/actions/auth";
+import { getInitials } from "@/lib/ui-utils";
+import { Search, Bell, ChevronDown, Menu, Settings, User, LogOut, Check, Trash2 } from "lucide-react";
+import { cn } from "@/lib/ui-utils";
 
-const icons = {
-  search: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
-  bell: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>,
-  menu: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>,
-  check: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>,
+const ROLE_LABELS: Record<string, string> = {
+  Admin:              "Administrator",
+  SalesManager:      "Marketing Lead",
+  SalesExecutive: "Sales Executive",
+  Customer:           "Customer",
 };
+
+function useClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
 
 export default function DashboardHeader({
   pageTitle,
   user,
-  setDrawerOpen
+  setDrawerOpen,
+  toggleCollapse,
+  isCollapsed,
 }: {
   pageTitle: string;
   user: any;
   setDrawerOpen: (v: boolean) => void;
+  toggleCollapse?: () => void;
+  isCollapsed?: boolean;
 }) {
   const router = useRouter();
+  const toast = useToast();
+  const now = useClock();
 
-  // Search State
+  // Theme
+  const [activeTheme, setActiveTheme] = useState("ember");
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("crm-theme-color") || "ember";
+    const savedMode = localStorage.getItem("crm-theme-mode") || "light";
+    setActiveTheme(savedTheme);
+    setIsDarkMode(savedMode === "dark");
+    document.documentElement.setAttribute("data-theme", `${savedTheme}-${savedMode}`);
+    if (savedMode === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const changeTheme = (t: string) => {
+    setActiveTheme(t);
+    localStorage.setItem("crm-theme-color", t);
+    document.documentElement.setAttribute("data-theme", `${t}-${isDarkMode ? "dark" : "light"}`);
+  };
+
+  const toggleMode = () => {
+    const next = !isDarkMode;
+    setIsDarkMode(next);
+    localStorage.setItem("crm-theme-mode", next ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", `${activeTheme}-${next ? "dark" : "light"}`);
+    if (next) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
+
+  // Search
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<{ customers: any[], visits: any[], visitors: any[] } | null>(null);
+  const [searchResults, setSearchResults] = useState<{ customers: any[]; visits: any[]; visitors: any[] } | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Notification State
+  // Notifications
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
-  const toast = useToast();
+
+  // Profile dropdown
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
+  // Close on outside click
   useEffect(() => {
-    // Close dropdowns on click outside
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setIsSearchOpen(false);
-      }
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setIsNotifOpen(false);
-      }
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current  && !searchRef.current.contains(e.target as Node))  setIsSearchOpen(false);
+      if (notifRef.current   && !notifRef.current.contains(e.target as Node))   setIsNotifOpen(false);
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setIsProfileOpen(false);
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-
-
-  // Fetch Notifications periodically and trigger toast alert popups
-  // Use a ref to track which notification IDs have already triggered a toast in this session
+  // SSE Notifications
   const seenToastIds = useRef<Set<string>>(new Set());
-
   useEffect(() => {
     if (!user) return;
-
     let isFirstLoad = true;
-    const eventSource = new EventSource("/api/notifications/sse");
-
-    eventSource.onmessage = (event) => {
+    const es = new EventSource("/api/notifications/sse");
+    es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (data.success) {
-          const fetchedNotifications = data.data;
-          const newUnreads = fetchedNotifications.filter((n: any) => !n.isRead);
-          const trulyNewForToast = newUnreads.filter((n: any) => !seenToastIds.current.has(n.id));
-
-          if (trulyNewForToast.length > 0 && !isFirstLoad) {
-            const latest = trulyNewForToast[0];
-            
-            let toastType: "success" | "error" | "warning" | "info" = "info";
+          const fetched = data.data;
+          const newUnreads = fetched.filter((n: any) => !n.isRead);
+          const trulyNew = newUnreads.filter((n: any) => !seenToastIds.current.has(n.id));
+          if (trulyNew.length > 0 && !isFirstLoad) {
+            const latest = trulyNew[0];
             const t = latest.title?.toLowerCase() || "";
-            if (t.includes("reject") || t.includes("fail") || t.includes("error")) toastType = "error";
-            else if (t.includes("approve") || t.includes("success") || t.includes("complete")) toastType = "success";
-            else if (t.includes("due") || t.includes("warning") || t.includes("overdue") || latest.type === "follow_up") toastType = "warning";
-            
-            toast[toastType](latest?.message || "New activity logged.", latest?.title || "Notification Received");
+            let type: "success" | "error" | "warning" | "info" = "info";
+            if (t.includes("reject") || t.includes("fail") || t.includes("error")) type = "error";
+            else if (t.includes("approve") || t.includes("success") || t.includes("complete")) type = "success";
+            else if (t.includes("due") || t.includes("warning") || t.includes("overdue") || latest.type === "follow_up") type = "warning";
+            toast[type](latest?.message || "New activity logged.", latest?.title || "Notification");
           }
-          
           newUnreads.forEach((n: any) => seenToastIds.current.add(n.id));
-          setNotifications(fetchedNotifications);
+          setNotifications(fetched);
           isFirstLoad = false;
         }
-      } catch (e) {
-        console.error("Error parsing SSE data", e);
-      }
+      } catch {}
     };
-
-    eventSource.onerror = (error) => {
-      console.error("SSE Error", error);
-      eventSource.close();
-    };
-
-    return () => eventSource.close();
+    es.onerror = () => es.close();
+    return () => es.close();
   }, [user]);
 
-  // Handle Search Debounce
+  // Debounced search
   useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSearchResults(null);
-      return;
-    }
-    const timer = setTimeout(() => {
+    if (searchQuery.length < 2) { setSearchResults(null); return; }
+    const t = setTimeout(() => {
       fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            setSearchResults(data.data);
-            setIsSearchOpen(true);
-          }
-        })
-        .catch(console.error);
+        .then(r => r.json())
+        .then(d => { if (d.success) { setSearchResults(d.data); setIsSearchOpen(true); } })
+        .catch(() => {});
     }, 300);
-
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [searchQuery]);
 
-  const markAllRead = async () => {
-    try {
-      await fetch("/api/notifications", { method: "PATCH" });
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-    } catch (e) {
-      console.error(e);
-    }
+  const markAllRead = () => {
+    fetch("/api/notifications", { method: "PATCH" }).catch(() => {});
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  };
+  const markRead = (id: string) => {
+    fetch(`/api/notifications/${id}`, { method: "PATCH" }).catch(() => {});
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  };
+  const clearAll = () => {
+    fetch("/api/notifications", { method: "DELETE" }).catch(() => {});
+    setNotifications([]);
   };
 
-  const markAsRead = async (id: string) => {
-    try {
-      await fetch(`/api/notifications/${id}`, { method: "PATCH" });
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const clearAll = async () => {
-    try {
-      await fetch("/api/notifications", { method: "DELETE" });
-      setNotifications([]);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  const dateStr = now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
 
   return (
-    <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-6 shrink-0 z-10 relative">
-      <div className="flex items-center gap-3">
+    <header className="h-16 bg-[var(--topbar-bg)] border-b border-[var(--topbar-border)] flex items-center justify-between px-4 md:px-6 shrink-0 z-40 relative shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+
+      {/* ── Left ── */}
+      <div className="flex items-center gap-4">
+        {/* Mobile menu button */}
         <button
           onClick={() => setDrawerOpen(true)}
-          className="md:hidden w-8 h-8 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors border border-slate-200"
+          className="md:hidden w-8 h-8 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-offset)] flex items-center justify-center text-[var(--text-secondary)] transition-colors border border-[var(--border)]"
         >
-          {icons.menu}
+          <Menu size={18} />
         </button>
-        <h1 className="text-base font-semibold text-slate-800 capitalize tracking-tight">{pageTitle}</h1>
-      </div>
 
-      <div className="flex items-center gap-3 md:gap-4">
+        {/* Desktop Sidebar Toggle */}
+        <button
+          onClick={toggleCollapse}
+          className="hidden md:flex w-8 h-8 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-offset)] items-center justify-center text-[var(--text-secondary)] transition-colors border border-[var(--border)]"
+        >
+          <Menu size={18} />
+        </button>
+
         {/* Global Search */}
         <div className="relative hidden sm:block" ref={searchRef}>
-          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">{icons.search}</span>
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+            <Search size={15} />
+          </span>
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setIsSearchOpen(true);
-            }}
+            onChange={e => { setSearchQuery(e.target.value); setIsSearchOpen(true); }}
             placeholder="Search leads, customers..."
-            className="w-48 md:w-64 pl-9 pr-3 py-1.5 rounded-full bg-slate-50 text-sm text-slate-700 placeholder:text-slate-400 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            className="w-[280px] lg:w-[360px] h-[38px] pl-9 pr-3 rounded-xl bg-[var(--surface-2)] text-sm text-[var(--text-primary)] placeholder:text-slate-400 border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] focus:bg-[var(--surface)] transition-all"
           />
 
           {isSearchOpen && searchResults && (
-            <div className="absolute top-full mt-2 w-full lg:w-80 right-0 bg-white border border-slate-200 shadow-xl rounded-2xl overflow-hidden z-50">
+            <div className="absolute top-full mt-2 w-[360px] right-0 bg-[var(--surface)] border border-[var(--border)] shadow-xl rounded-2xl overflow-hidden z-50">
               <div className="max-h-80 overflow-y-auto">
                 {searchResults.customers.length === 0 && searchResults.visits.length === 0 && searchResults.visitors.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500 font-semibold">No results found.</div>
+                  <div className="p-5 text-center text-xs text-slate-400 font-semibold">No results found for "{searchQuery}"</div>
                 ) : (
                   <>
                     {searchResults.customers.length > 0 && (
                       <div className="p-2">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1">Customers</h4>
+                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1">Leads / Customers</h4>
                         {searchResults.customers.map((c: any) => (
-                          <div 
-                            key={c.id} 
-                            onClick={() => { router.push("/customer-master"); setIsSearchOpen(false); }}
-                            className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                          <div
+                            key={c.id}
+                            onClick={() => { router.push(`/leads/${c.id}`); setIsSearchOpen(false); setSearchQuery(""); }}
+                            className="p-2.5 hover:bg-[var(--surface-2)] rounded-xl cursor-pointer transition-colors flex items-center gap-3"
                           >
-                            <p className="text-xs font-bold text-slate-800 truncate">{c.name}</p>
-                            <p className="text-[10px] text-slate-500 truncate">{c.customerCode} • {c.email || c.phone}</p>
+                            <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                              {getInitials(c.name)}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-[var(--text-primary)] truncate">{c.name}</p>
+                              <p className="text-[10px] text-slate-400 truncate">{c.customerCode} · {c.email || c.phone || "—"}</p>
+                            </div>
                           </div>
                         ))}
                       </div>
                     )}
                     {searchResults.visits.length > 0 && (
-                      <div className="p-2 border-t border-slate-100">
+                      <div className="p-2 border-t border-[var(--border-subtle)]">
                         <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1">Visits</h4>
                         {searchResults.visits.map((v: any) => (
-                          <div 
-                            key={v.id} 
-                            onClick={() => { router.push("/marketing-log"); setIsSearchOpen(false); }}
-                            className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                          <div
+                            key={v.id}
+                            onClick={() => { router.push("/marketing-log"); setIsSearchOpen(false); setSearchQuery(""); }}
+                            className="p-2.5 hover:bg-[var(--surface-2)] rounded-xl cursor-pointer transition-colors"
                           >
-                            <p className="text-xs font-bold text-slate-800 truncate">{v.customer?.name}</p>
-                            <p className="text-[10px] text-slate-500 truncate">Rep: {v.executive?.name}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {searchResults.visitors.length > 0 && (
-                      <div className="p-2 border-t border-slate-100">
-                        <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 mb-1">Visitors</h4>
-                        {searchResults.visitors.map((v: any) => (
-                          <div 
-                            key={v.id} 
-                            onClick={() => { router.push("/visitor-management"); setIsSearchOpen(false); }}
-                            className="p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
-                          >
-                            <p className="text-xs font-bold text-slate-800 truncate">{v.visitorName}</p>
-                            <p className="text-[10px] text-slate-500 truncate">{v.company}</p>
+                            <p className="text-xs font-bold text-[var(--text-primary)] truncate">{v.customer?.name}</p>
+                            <p className="text-[10px] text-slate-400 truncate">Rep: {v.executive?.name}</p>
                           </div>
                         ))}
                       </div>
@@ -232,154 +246,159 @@ export default function DashboardHeader({
             </div>
           )}
         </div>
+      </div>
 
+      {/* ── Center flex spacer ── */}
+      <div className="flex-1" />
+
+      {/* ── Right ── */}
+      <div className="flex items-center gap-3">
+
+        {/* Theme Swatches */}
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl">
+          {["ember", "ocean", "forest", "obsidian"].map((themeName) => (
+            <button
+              key={themeName}
+              onClick={() => changeTheme(themeName)}
+              className={cn(
+                "w-3.5 h-3.5 rounded-full border transition-transform hover:scale-110",
+                activeTheme === themeName ? "ring-2 ring-offset-1 ring-[var(--border)]" : ""
+              )}
+              style={{
+                backgroundColor: themeName === "ember" ? "#C2601A" : themeName === "ocean" ? "#1E6FD9" : themeName === "forest" ? "#1A7A3C" : "#1A1A1A",
+                borderColor: "rgba(0,0,0,0.1)"
+              }}
+            />
+          ))}
+          <div className="w-px h-3.5 bg-slate-300 dark:bg-slate-700 mx-1" />
+          <button onClick={toggleMode} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-[9px] uppercase tracking-widest px-1">
+            {isDarkMode ? "DARK" : "LIGHT"}
+          </button>
+        </div>
+
+        {/* Date/Time */}
+        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl">
+          <span className="text-slate-400">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </span>
+          <span className="text-[12px] font-semibold text-[var(--text-secondary)]">{dateStr}</span>
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+          <span className="text-[12px] font-bold text-[var(--text-primary)]">{timeStr}</span>
+        </div>
+
+        {/* Notifications */}
         <div className="relative" ref={notifRef}>
-          <button 
+          <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative w-8 h-8 rounded-full hover:bg-slate-50 flex items-center justify-center text-slate-500 transition-colors"
+            className="relative w-9 h-9 rounded-xl bg-[var(--surface-2)] hover:bg-[var(--surface-offset)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] transition-colors"
           >
-            {icons.bell}
+            <Bell size={17} />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white animate-pulse" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--primary)] border-2 border-white dark:border-slate-900 animate-pulse" />
             )}
           </button>
 
           {isNotifOpen && (
-            <div className="absolute top-full mt-3 w-[340px] md:w-[400px] right-0 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-2xl overflow-hidden z-50 flex flex-col border border-slate-200">
+            <div className="absolute top-full mt-2 w-[360px] right-0 bg-[var(--surface)] shadow-2xl rounded-2xl overflow-hidden z-50 flex flex-col border border-[var(--border)] animate-fade-in">
               {/* Header */}
-              <div className="bg-[#0D2137] text-white p-4">
-                <div className="flex items-center justify-between mb-4">
+              <div className="bg-[#1A1A1A] text-white p-4">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    <h3 className="text-lg font-bold tracking-wide">Notifications</h3>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span className="text-[10px] text-indigo-100 uppercase tracking-widest font-semibold">Live - Real-time connected</span>
+                    <h3 className="text-sm font-bold tracking-wide">Notifications</h3>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Live</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button className="w-7 h-7 rounded bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-                      <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    </button>
+                  <div className="flex items-center gap-1.5">
                     {unreadCount > 0 && (
-                      <button onClick={markAllRead} className="px-2.5 py-1.5 rounded bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white flex items-center gap-1.5 transition-colors border border-white/10">
-                        {icons.check} MARK ALL READ
+                      <button onClick={markAllRead} className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold flex items-center gap-1 transition-colors">
+                        <Check size={10} /> Mark read
                       </button>
                     )}
                     {notifications.length > 0 && (
-                      <button onClick={clearAll} className="px-2.5 py-1.5 rounded bg-red-500/20 hover:bg-red-500/30 text-[10px] font-bold text-red-200 flex items-center gap-1.5 transition-colors border border-red-500/20">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> CLEAR ALL
+                      <button onClick={clearAll} className="px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-[10px] font-bold text-red-300 flex items-center gap-1 transition-colors">
+                        <Trash2 size={10} /> Clear
                       </button>
                     )}
-                  </div>
-                </div>
-                
-                {/* Tabs */}
-                <div className="flex items-center gap-6 text-xs font-bold uppercase tracking-wider">
-                  <div className="relative pb-2 cursor-pointer">
-                    <span className="text-white">ALL ({notifications.length})</span>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-t-full"></div>
-                  </div>
-                  <div className="relative pb-2 cursor-pointer text-indigo-200 hover:text-white transition-colors">
-                    UNREAD ({unreadCount})
                   </div>
                 </div>
               </div>
 
               {/* List */}
-              <div className="max-h-[380px] overflow-y-auto bg-slate-50">
+              <div className="max-h-[360px] overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-slate-400 text-xs font-semibold">No notifications</div>
+                  <div className="p-8 text-center text-slate-400 text-xs font-semibold">All caught up!</div>
                 ) : (
-                  <div className="divide-y divide-slate-100 bg-white">
+                  <div className="divide-y divide-[var(--border-subtle)]">
                     {notifications.map(n => (
-                      <div 
-                        key={n.id} 
-                        onClick={() => {
-                          markAsRead(n.id);
-                          setIsNotifOpen(false);
-                          if (n.link) router.push(n.link);
-                        }}
-                        className="p-4 hover:bg-slate-50 cursor-pointer transition-colors group relative"
+                      <div
+                        key={n.id}
+                        onClick={() => { markRead(n.id); setIsNotifOpen(false); if (n.link) router.push(n.link); }}
+                        className={`p-4 cursor-pointer transition-colors hover:bg-[var(--surface-2)] flex gap-3 ${!n.isRead ? "bg-[var(--accent-soft)]/20" : ""}`}
                       >
-                        <div className="flex gap-4">
-                          {/* Icon logic: choose icon based on title */}
-                          <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center shrink-0">
-                            {n.title.toLowerCase().includes("renewal") ? (
-                              <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            ) : n.title.toLowerCase().includes("ticket") || n.title.toLowerCase().includes("support") ? (
-                              <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" /></svg>
-                            ) : (
-                              <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                            )}
-                          </div>
-                          
-                          <div className="flex-1 min-w-0 pt-0.5">
-                            <p className={`text-[13px] truncate ${n.isRead ? "font-semibold text-slate-700" : "font-bold text-slate-900"}`}>
-                              {n.title}
-                            </p>
-                            <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-snug">
-                              {n.message}
-                            </p>
-                            <div className="flex items-center gap-1.5 mt-2">
-                              <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-                                {new Date(n.createdAt).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Unread indicator */}
-                          {!n.isRead && (
-                            <div className="flex flex-col items-end gap-2 shrink-0 mt-1">
-                              <span className="w-2 h-2 rounded-full bg-[#3b82f6]" />
-                            </div>
-                          )}
+                        <div className="w-9 h-9 rounded-full bg-orange-100 dark:bg-orange-950/40 flex items-center justify-center shrink-0 mt-0.5">
+                          <Bell size={14} className="text-orange-600 dark:text-orange-400" />
                         </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs truncate ${n.isRead ? "font-semibold text-[var(--text-secondary)]" : "font-bold text-[var(--text-primary)]"}`}>{n.title}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">{n.message}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{new Date(n.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        {!n.isRead && <span className="w-2 h-2 rounded-full bg-[var(--primary)] shrink-0 mt-1.5" />}
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-
-              {/* Footer */}
-              <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                <button 
-                  onClick={() => { router.push("/subscription"); setIsNotifOpen(false); }}
-                  className="text-[10px] font-bold text-[#4F46E5] hover:text-indigo-800 uppercase tracking-wider flex items-center gap-1"
-                >
-                  View Renewals <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-                </button>
-                <div className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">
-                  SUKI CRM System
-                </div>
-              </div>
             </div>
           )}
         </div>
 
-        {/* Primary CTA */}
-        <div className="hidden md:block h-5 w-px bg-slate-200 mx-1"></div>
-        <button 
-          onClick={() => router.push("/leads")}
-          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#DF643B] hover:bg-[#D1552C] text-white text-[13px] font-medium transition-colors shadow-sm"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-          Add Lead
-        </button>
+        {/* Profile */}
+        <div className="relative" ref={profileRef}>
+          <button
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
+          >
+            <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-black border border-orange-200 shrink-0">
+              {getInitials(user?.name || "User")}
+            </div>
+            <div className="hidden md:block text-left">
+              <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-tight">{user?.name || "User"}</p>
+              <p className="text-[11px] text-[var(--text-secondary)] font-medium leading-tight">{ROLE_LABELS[user?.role] || user?.role}</p>
+            </div>
+            <ChevronDown size={13} className="hidden md:block text-slate-400" />
+          </button>
 
-        {/* User Profile Initials Avatar */}
-        <div 
-          onClick={() => router.push("/profile")}
-          className="w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-bold tracking-wider cursor-pointer border border-slate-200 hover:bg-slate-200 transition-colors shrink-0"
-          title={user?.name || "User Profile"}
-        >
-          {(() => {
-            const name = user?.name || "System Admin";
-            const cleanName = name.replace(/[^a-zA-Z\s]/g, " ").trim();
-            const parts = cleanName.split(/\s+/);
-            if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-            return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase();
-          })()}
+          {isProfileOpen && (
+            <div className="absolute top-full mt-2 right-0 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-xl overflow-hidden z-50 animate-fade-in py-1">
+              <button
+                onClick={() => { router.push("/profile"); setIsProfileOpen(false); }}
+                className="w-full text-left px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors flex items-center gap-2.5"
+              >
+                <User size={14} className="text-slate-400" /> Profile
+              </button>
+              <button
+                onClick={() => { router.push("/settings"); setIsProfileOpen(false); }}
+                className="w-full text-left px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-2)] transition-colors flex items-center gap-2.5"
+              >
+                <Settings size={14} className="text-slate-400" /> Settings
+              </button>
+              <div className="h-px bg-slate-100 my-1" />
+              <button
+                onClick={async () => {
+                  try { await logoutAction(); window.location.href = "/login"; }
+                  catch (err) { console.error(err); }
+                }}
+                className="w-full text-left px-4 py-2.5 text-sm font-bold text-rose-500 hover:bg-rose-50 transition-colors flex items-center gap-2.5"
+              >
+                <LogOut size={14} /> Sign Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

@@ -120,14 +120,14 @@ export default function OutboundCheckInModal({
     }
   };
 
-  const inputCls = "w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700 font-medium";
+  const inputCls = "w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] text-slate-700 font-medium transition-all";
   const labelCls = "block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-slate-50 shrink-0">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-red-50 to-slate-50 shrink-0">
           <div>
             <h2 className="text-base font-bold text-slate-800">📍 Field Check-In</h2>
             <p className="text-[11px] text-slate-400 mt-0.5">Record an outbound customer visit</p>
@@ -149,7 +149,7 @@ export default function OutboundCheckInModal({
 
             {/* ── Section 1: Visit Target ── */}
             <div>
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2.5">1 · Visit Target</p>
+              <p className="text-[10px] font-black text-[#C94F4F] uppercase tracking-widest mb-2.5">1 · Visit Target</p>
               <div className="space-y-3">
                 <div>
                   <label className={labelCls}>Target Customer <span className="text-red-400">*</span></label>
@@ -173,7 +173,7 @@ export default function OutboundCheckInModal({
 
             {/* ── Section 2: Purpose ── */}
             <div>
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2.5">2 · Purpose of Visit</p>
+              <p className="text-[10px] font-black text-[#C94F4F] uppercase tracking-widest mb-2.5">2 · Purpose of Visit</p>
               <select
                 value={purpose}
                 onChange={e => setPurpose(e.target.value)}
@@ -190,7 +190,7 @@ export default function OutboundCheckInModal({
 
             {/* ── Section 3: GPS Verification ── */}
             <div>
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2.5">3 · GPS Verification</p>
+              <p className="text-[10px] font-black text-[#C94F4F] uppercase tracking-widest mb-2.5">3 · GPS Verification</p>
               <div className="p-3.5 border rounded-2xl bg-slate-50 border-slate-200/80 flex items-center justify-between gap-3">
                 <div className="flex-1">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Coordinates</p>
@@ -218,7 +218,7 @@ export default function OutboundCheckInModal({
 
             {/* ── Section 4: Notes ── */}
             <div>
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2.5">4 · Notes</p>
+              <p className="text-[10px] font-black text-[#C94F4F] uppercase tracking-widest mb-2.5">4 · Notes</p>
               <textarea rows={3} placeholder="Optional context or remarks..." value={notes} onChange={e => setNotes(e.target.value)}
                 className={inputCls + " resize-none"} />
             </div>
@@ -229,7 +229,7 @@ export default function OutboundCheckInModal({
             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={formLoading || locLoading} className="px-7 py-2.5 rounded-xl text-xs font-bold text-white bg-[#0D2137] hover:bg-slate-800 transition-colors shadow-sm disabled:opacity-75 flex items-center gap-2">
+            <button type="submit" disabled={formLoading || locLoading} className="px-7 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 flex items-center gap-2 cursor-pointer">
               {formLoading ? (
                 <><span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />Recording...</>
               ) : "📍 Field Check-In"}

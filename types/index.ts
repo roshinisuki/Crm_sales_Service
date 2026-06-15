@@ -1,4 +1,4 @@
-export type Role = "Admin" | "MarketingLead" | "MarketingExecutive" | "Customer";
+export type Role = "Admin" | "SalesManager" | "SalesExecutive" | "Customer";
 
 export interface User {
   id: string;
@@ -20,13 +20,29 @@ export interface Customer {
   email: string | null;
   phone: string | null;
   city: string | null;
-  status: "Active" | "Inactive" | "Prospect" | "APPROVED" | "REJECTED" | "PENDING" | "New" | "Contacted" | "Qualified" | "ProposalSent" | "Negotiation" | "Converted" | "Lost";
+  status: "Prospect" | "ActiveCustomer" | "Renewed" | "Churned";
   assignedUserId: string | null;
   assignedUser?: Partial<User>;
   createdAt?: string;
   updatedAt?: string;
   subscriptions?: any[];
   hasActivatedPortal?: boolean;
+  leadSource?: string | null;
+}
+
+export interface Lead {
+  id: string;
+  leadCode: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  city: string | null;
+  status: "New" | "Contacted" | "Qualified" | "ProposalSent" | "Negotiation" | "Converted" | "Lost";
+  assignedUserId: string | null;
+  assignedUser?: Partial<User>;
+  createdAt?: string;
+  updatedAt?: string;
+  leadSource?: string | null;
 }
 
 export interface Subscription {

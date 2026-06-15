@@ -4,15 +4,24 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { buildScope, checkRecordScope } from "@/lib/scopes";
 
 export async function getUsersAction() {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || !["Admin", "MarketingLead", "MarketingExecutive"].includes(userPayload.role)) {
+    if (!userPayload || !["Admin", "SalesManager", "SalesExecutive", "SuperAdmin"].includes(userPayload.role)) {
       return { success: false, message: "Unauthorized" };
     }
 
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
+    const scope = buildScope(userPayload, "User");
+
     const users = await prisma.user.findMany({
+      where: scope,
       select: {
         id: true,
         email: true,
@@ -32,13 +41,16 @@ export async function getUsersAction() {
   }
 }
 
-
-
 export async function updateUserAction(params: { id: string; role?: string; isActive?: boolean }) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || userPayload.role !== "Admin") {
-      return { success: false, message: "Unauthorized: Only Admin can update users" };
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized: Admins only" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const { id, role, isActive } = params;
@@ -46,6 +58,11 @@ export async function updateUserAction(params: { id: string; role?: string; isAc
     const existingUser = await prisma.user.findUnique({ where: { id } });
     if (!existingUser) {
       return { success: false, message: "User not found" };
+    }
+
+    // Access scope check
+    if (!checkRecordScope(userPayload, existingUser, "User")) {
+      return { success: false, message: "Unauthorized: Access denied." };
     }
 
     const updatedUser = await prisma.user.update({
@@ -83,8 +100,13 @@ export async function updateUserAction(params: { id: string; role?: string; isAc
 export async function deleteUserAction(id: string) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || userPayload.role !== "Admin") {
-      return { success: false, message: "Unauthorized: Only Admin can delete users" };
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized: Admins only" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const existingUser = await prisma.user.findUnique({ where: { id } });
@@ -92,14 +114,27 @@ export async function deleteUserAction(id: string) {
       return { success: false, message: "User not found" };
     }
 
-    await prisma.user.delete({ where: { id } });
+    // Access scope check
+    if (!checkRecordScope(userPayload, existingUser, "User")) {
+      return { success: false, message: "Unauthorized: Access denied." };
+    }
 
-    await logAudit(
-      userPayload.id,
-      "User Master",
-      "Delete",
-      `Deleted user ${existingUser.email}`
-    );
+    if (userPayload.role === "SuperAdmin") {
+      // Permanent Hard Delete for SuperAdmin
+      await prisma.user.delete({ where: { id } });
+      await logAudit(userPayload.id, "User Master", "Delete_Permanent", `Permanently deleted user ${existingUser.email}`);
+    } else {
+      // Soft Delete for Admin
+      await prisma.user.update({
+        where: { id },
+        data: {
+          deletedAt: new Date(),
+          deletedById: userPayload.id,
+          isActive: false, // Deactivate
+        }
+      });
+      await logAudit(userPayload.id, "User Master", "Delete", `Soft-deleted user ${existingUser.email}`);
+    }
 
     return { success: true, message: "User deleted successfully" };
   } catch (error) {
@@ -108,16 +143,63 @@ export async function deleteUserAction(id: string) {
   }
 }
 
-// ─── Approve Pending Registration ─────────────────────────────────────────────
-export async function approveUserAction(id: string) {
+export async function restoreUserAction(id: string) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || userPayload.role !== "Admin") {
-      return { success: false, message: "Unauthorized: Only Admin can approve users" };
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized: Admins only" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return { success: false, message: "User not found" };
+
+    if (user.companyId !== userPayload.companyId) {
+      return { success: false, message: "Unauthorized access" };
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: null,
+        deletedById: null,
+        isActive: true
+      }
+    });
+
+    await logAudit(userPayload.id, "User Master", "Restore", `Restored user ${user.email}`);
+    return { success: true, message: "User restored successfully" };
+  } catch (error) {
+    console.error("restoreUserAction error:", error);
+    return { success: false, message: "Failed to restore user" };
+  }
+}
+
+// ─── Approve Pending Registration ─────────────────────────────────────────────
+export async function approveUserAction(id: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized: Admins only" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return { success: false, message: "User not found" };
+
+    // Access scope check
+    if (!checkRecordScope(userPayload, user, "User")) {
+      return { success: false, message: "Unauthorized: Access denied." };
+    }
+
     if (user.isActive) return { success: false, message: "User is already active" };
 
     // Activate the user
@@ -164,12 +246,23 @@ export async function approveUserAction(id: string) {
 export async function rejectUserAction(id: string) {
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || userPayload.role !== "Admin") {
+    if (!userPayload || !["Admin", "SuperAdmin"].includes(userPayload.role)) {
       return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) return { success: false, message: "User not found" };
+
+    // Access scope check
+    if (!checkRecordScope(userPayload, user, "User")) {
+      return { success: false, message: "Unauthorized: Access denied." };
+    }
+
     if (user.isActive) return { success: false, message: "Cannot reject an already active user." };
 
     await prisma.user.delete({ where: { id } });

@@ -33,13 +33,13 @@ const passwordSchema = z
   .regex(/[!@#$%^&*]/, "Must contain a special character (!@#$%^&*)");
 
 // ─── JWT Cookie Setter ────────────────────────────────────────────────────────
-async function issueAuthCookie(user: { id: string; email: string; role: string }, rememberMe = false) {
+async function issueAuthCookie(user: { id: string; email: string; role: string; companyId?: string | null }, rememberMe = false) {
   // rememberMe=true → 7 days; default → 8 hours
   const expiresIn = rememberMe ? "7d" : "8h";
   const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 8 * 60 * 60;
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
+    { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
     JWT_SECRET,
     { expiresIn }
   );
@@ -194,7 +194,7 @@ export async function sendPasswordResetLink(email: string) {
       const customerRecord = await prisma.customer.findUnique({
         where: { email: normalizedEmail },
       });
-      if (!customerRecord || customerRecord.status !== "Active") {
+      if (!customerRecord || customerRecord.status !== "ActiveCustomer") {
         return genericResponse;
       }
     }
@@ -329,8 +329,13 @@ export async function saveNewPassword(token: string, newPassword: string) {
 export async function activateCustomerPortal(customerId: string) {
   try {
     const adminPayload = await verifyAuth();
-    if (!adminPayload || !["Admin", "MarketingLead"].includes(adminPayload.role)) {
+    if (!adminPayload || !["Admin", "SalesManager", "SuperAdmin"].includes(adminPayload.role)) {
       return { success: false, message: "Unauthorized: Admin or Marketing Lead only." };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (adminPayload.role === "SuperAdmin" && (!adminPayload.supportMode || !adminPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     // Find customer record
@@ -338,8 +343,14 @@ export async function activateCustomerPortal(customerId: string) {
       where: { id: customerId },
     });
     if (!customer) return { success: false, message: "Customer not found." };
+
+    // Tenant check
+    if (customer.companyId !== adminPayload.companyId) {
+      return { success: false, message: "Unauthorized access" };
+    }
+
     if (!customer.email) return { success: false, message: "Customer does not have an email address." };
-    if (customer.status !== "Active") return { success: false, message: "Only Active customers can be granted portal access." };
+    if (customer.status !== "ActiveCustomer") return { success: false, message: "Only Active customers can be granted portal access." };
 
     // Find or create user record for customer
     let user = await prisma.user.findUnique({ where: { email: customer.email } });
@@ -354,6 +365,7 @@ export async function activateCustomerPortal(customerId: string) {
           passwordHash: "",
           isActive: true,
           isFirstLogin: true,
+          companyId: customer.companyId,
         },
       });
     }
@@ -522,12 +534,17 @@ export async function loginAction(data: { email: string; password: string }) {
 export async function createInternalUserByAdmin(data: {
   name: string;
   email: string;
-  role: "MarketingLead" | "MarketingExecutive";
+  role: "SalesManager" | "SalesExecutive";
 }) {
   try {
     const adminPayload = await verifyAuth();
-    if (!adminPayload || adminPayload.role !== "Admin") {
+    if (!adminPayload || !["Admin", "SuperAdmin"].includes(adminPayload.role)) {
       return { success: false, message: "Unauthorized: Admin only." };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (adminPayload.role === "SuperAdmin" && (!adminPayload.supportMode || !adminPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const { name, email, role } = data;
@@ -575,6 +592,7 @@ export async function createInternalUserByAdmin(data: {
         otpAttempts: 0,
         invitedBy: adminPayload.id,
         invitedAt: new Date(),
+        companyId: adminPayload.companyId,
       },
     });
 
@@ -615,8 +633,13 @@ export async function createInternalUserByAdmin(data: {
 export async function createCustomerPortalUser(customerId: string) {
   try {
     const adminPayload = await verifyAuth();
-    if (!adminPayload || adminPayload.role !== "Admin") {
+    if (!adminPayload || !["Admin", "SuperAdmin"].includes(adminPayload.role)) {
       return { success: false, message: "Unauthorized: Admin only." };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (adminPayload.role === "SuperAdmin" && (!adminPayload.supportMode || !adminPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     // Delegate to the existing portal activation flow
@@ -637,12 +660,23 @@ export async function createCustomerPortalUser(customerId: string) {
 export async function resendInvitation(userId: string) {
   try {
     const adminPayload = await verifyAuth();
-    if (!adminPayload || !["Admin", "MarketingLead"].includes(adminPayload.role)) {
+    if (!adminPayload || !["Admin", "SalesManager", "SuperAdmin"].includes(adminPayload.role)) {
       return { success: false, message: "Unauthorized: Admin or Marketing Lead only." };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (adminPayload.role === "SuperAdmin" && (!adminPayload.supportMode || !adminPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return { success: false, message: "User not found." };
+
+    // Tenant check
+    if (user.companyId !== adminPayload.companyId) {
+      return { success: false, message: "Unauthorized access" };
+    }
+
     if (!user.isFirstLogin) return { success: false, message: "User has already completed setup." };
 
     const adminUser = await prisma.user.findUnique({ where: { id: adminPayload.id }, select: { name: true } });
@@ -763,12 +797,12 @@ export async function activateAccountAction(token: string, password: string) {
 export async function createUserByAdmin(data: {
   name: string;
   email: string;
-  role: "Admin" | "MarketingLead" | "MarketingExecutive" | "Customer";
+  role: "Admin" | "SalesManager" | "SalesExecutive" | "Customer";
   phone?: string;
   department?: string;
   employeeId?: string;
 }) {
-  if (data.role === "MarketingLead" || data.role === "MarketingExecutive") {
+  if (data.role === "SalesManager" || data.role === "SalesExecutive") {
     return createInternalUserByAdmin({ name: data.name, email: data.email, role: data.role });
   }
   return { success: false, message: "Use the split creation flow (createInternalUserByAdmin / createCustomerPortalUser)." };

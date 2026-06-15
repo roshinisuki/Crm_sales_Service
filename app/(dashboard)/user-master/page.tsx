@@ -8,6 +8,7 @@ import { User } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
+import PageContainer from "@/components/PageContainer";
 import { useRouter } from "next/navigation";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -29,16 +30,16 @@ const icons = {
 };
 
 const ROLE_BADGE: Record<string, string> = {
-  Admin:              "bg-purple-100 text-purple-700",
-  MarketingLead:      "bg-blue-100 text-blue-700",
-  MarketingExecutive: "bg-cyan-100 text-cyan-700",
-  Customer:           "bg-emerald-100 text-emerald-700",
+  Admin:              "bg-[#151515] text-white border border-[#151515]/20",
+  SalesManager:      "bg-red-100 text-[#800000] border border-red-200",
+  SalesExecutive: "bg-slate-100 text-slate-800 border border-slate-200",
+  Customer:           "bg-slate-100 text-slate-650 border border-slate-200",
 };
 
 const ROLE_LABELS: Record<string, string> = {
   Admin:              "Admin",
-  MarketingLead:      "Marketing Lead",
-  MarketingExecutive: "Marketing Executive",
+  SalesManager:      "Marketing Lead",
+  SalesExecutive: "Marketing Executive",
   Customer:           "Customer Portal",
 };
 
@@ -62,7 +63,7 @@ export default function UserMasterPage() {
   // Internal form
   const [intName, setIntName] = useState("");
   const [intEmail, setIntEmail] = useState("");
-  const [intRole, setIntRole] = useState<"MarketingLead" | "MarketingExecutive">("MarketingExecutive");
+  const [intRole, setIntRole] = useState<"SalesManager" | "SalesExecutive">("SalesExecutive");
 
   // Confirm Modal
   const [confirmState, setConfirmState] = useState<{isOpen: boolean; title: string; message: string; isDestructive: boolean; action: () => void}>({ isOpen: false, title: "", message: "", isDestructive: false, action: () => {} });
@@ -124,7 +125,7 @@ export default function UserMasterPage() {
 
   // ── Modal openers ───────────────────────────────────────────
   const openCreateInternal = () => {
-    setIntName(""); setIntEmail(""); setIntRole("MarketingExecutive");
+    setIntName(""); setIntEmail(""); setIntRole("SalesExecutive");
     setErrorMsg(""); setSuccessMsg("");
     setModalMode("create_internal");
     setIsModalOpen(true);
@@ -208,10 +209,10 @@ export default function UserMasterPage() {
 
   // ── Table row ───────────────────────────────────────────────
   const TableRow = ({ u }: { u: User }) => (
-    <tr key={u.id} className="hover:bg-slate-50/80 transition-colors group">
-      <td className="px-6 py-4">
+    <tr key={u.id} className="crm-tr hover:bg-slate-50/80 transition-colors group">
+      <td className="crm-td">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0D2137] to-[#1a4a7a] text-white flex items-center justify-center font-bold text-sm shrink-0">
+          <div className="w-9 h-9 rounded-full bg-[#151515] text-white flex items-center justify-center font-bold text-sm shrink-0">
             {u.name.charAt(0).toUpperCase()}
           </div>
           <div>
@@ -220,25 +221,25 @@ export default function UserMasterPage() {
           </div>
         </div>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap">
+      <td className="crm-td whitespace-nowrap">
         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold ${ROLE_BADGE[u.role] || "bg-slate-100 text-slate-600"}`}>
           {ROLE_LABELS[u.role] || u.role}
         </span>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap">
+      <td className="crm-td whitespace-nowrap">
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${u.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-slate-100 text-slate-500 border border-slate-200"}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${u.isActive ? "bg-emerald-500" : "bg-slate-400"}`} />
           {u.isActive ? "Active" : "Inactive"}
         </span>
       </td>
-      <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">
+      <td className="crm-td text-xs text-slate-500 whitespace-nowrap">
         {u.isFirstLogin ? (
           <span className="inline-flex px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 font-bold border border-amber-200 text-[10px]">Pending Setup</span>
         ) : (
           <span className="text-slate-400">Activated</span>
         )}
       </td>
-      <td className="px-6 py-4 text-right whitespace-nowrap">
+      <td className="crm-td text-right whitespace-nowrap">
         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {u.isFirstLogin && (
             <button
@@ -270,25 +271,24 @@ export default function UserMasterPage() {
 
   // ── Render ──────────────────────────────────────────────────
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
+    <PageContainer>
 
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">User Management</h1>
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">User Management</h1>
           <p className="text-sm text-slate-500 mt-1">Manage internal team members and customer portal accounts separately.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={openCreateInternal}
-            className="flex items-center gap-2 px-4 py-2 bg-[#0D2137] text-white rounded-xl text-sm font-medium hover:bg-[#1a365d] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-[#D44D4D] text-white rounded-xl text-sm font-medium hover:bg-[#C94F4F] transition-colors shadow-sm cursor-pointer"
           >
             <Ico d={icons.plus} size={16} />
             Add Internal User
           </button>
           <button
             onClick={openCreateCustomer}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-[#151515] text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
           >
             <Ico d={icons.plus} size={16} />
             Add Customer Portal
@@ -298,26 +298,66 @@ export default function UserMasterPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Users", value: users.length, color: "bg-slate-100 text-slate-600" },
-          { label: "Internal Team", value: internalUsers.length, color: "bg-blue-50 text-blue-600" },
-          { label: "Customer Portals", value: customerUsers.length, color: "bg-emerald-50 text-emerald-600" },
-          { label: "Pending Setup", value: users.filter(u => u.isFirstLogin).length, color: "bg-amber-50 text-amber-600" },
-        ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-              <Ico d={icons.user} size={20} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-slate-800 tracking-tight">{loading ? "—" : value}</p>
-              <p className="text-xs font-semibold text-slate-500">{label}</p>
+        {/* Total Users - Blue */}
+        <div className="kpi-total">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Users</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-600">
+              <Ico d={icons.user} size={18} />
             </div>
           </div>
-        ))}
+          <div>
+            <p className="text-3xl font-black text-slate-800">{loading ? "—" : users.length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">All accounts</p>
+          </div>
+        </div>
+
+        {/* Internal Team - Red */}
+        <div className="kpi-overdue">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Internal Team</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-[#D44D4D]">
+              <Ico d={icons.user} size={18} />
+            </div>
+          </div>
+          <div>
+            <p className="text-3xl font-black text-slate-800">{loading ? "—" : internalUsers.length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Staff members</p>
+          </div>
+        </div>
+
+        {/* Customer Portals - Slate */}
+        <div className="kpi-total">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Portals</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-slate-600">
+              <Ico d={icons.user} size={18} />
+            </div>
+          </div>
+          <div>
+            <p className="text-3xl font-black text-slate-800">{loading ? "—" : customerUsers.length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Customer portals</p>
+          </div>
+        </div>
+
+        {/* Pending Setup - Amber */}
+        <div className="kpi-pending">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending Setup</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-amber-600">
+              <Ico d={icons.user} size={18} />
+            </div>
+          </div>
+          <div>
+            <p className="text-3xl font-black text-slate-800">{loading ? "—" : users.filter(u => u.isFirstLogin).length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Awaiting activation</p>
+          </div>
+        </div>
       </div>
 
+
       {/* Main table card */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+      <div className="crm-card overflow-hidden">
 
         {/* Tabs + Search */}
         <div className="px-6 pt-5 border-b border-slate-100">
@@ -326,19 +366,19 @@ export default function UserMasterPage() {
             <div className="flex p-1 bg-slate-100 rounded-xl w-fit">
               <button
                 onClick={() => setActiveTab("internal")}
-                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === "internal" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === "internal" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Internal Team
-                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "internal" ? "bg-[#0D2137] text-white" : "bg-slate-200 text-slate-500"}`}>
+                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "internal" ? "bg-[#151515] text-white" : "bg-slate-200 text-slate-500"}`}>
                   {internalUsers.length}
                 </span>
               </button>
               <button
                 onClick={() => setActiveTab("customer")}
-                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === "customer" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === "customer" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Customer Portal
-                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "customer" ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500"}`}>
+                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "customer" ? "bg-[#D44D4D] text-white" : "bg-slate-200 text-slate-500"}`}>
                   {customerUsers.length}
                 </span>
               </button>
@@ -354,7 +394,7 @@ export default function UserMasterPage() {
                 placeholder="Search by name, email, role…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-shadow"
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all font-medium text-slate-700"
               />
             </div>
           </div>
@@ -362,19 +402,19 @@ export default function UserMasterPage() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="crm-table">
             <thead>
-              <tr className="bg-slate-50/50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200/60">
-                <th className="px-6 py-4 whitespace-nowrap">
+              <tr className="crm-tr border-b border-slate-200/60">
+                <th className="crm-th whitespace-nowrap">
                   {activeTab === "internal" ? "Team Member" : "Customer Account"}
                 </th>
-                <th className="px-6 py-4 whitespace-nowrap">Role</th>
-                <th className="px-6 py-4 whitespace-nowrap">Status</th>
-                <th className="px-6 py-4 whitespace-nowrap">Setup</th>
-                <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
+                <th className="crm-th whitespace-nowrap">Role</th>
+                <th className="crm-th whitespace-nowrap">Status</th>
+                <th className="crm-th whitespace-nowrap">Setup</th>
+                <th className="crm-th text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {loading ? (
                 <tr><td colSpan={5} className="text-center py-12 text-sm text-slate-500">Loading users…</td></tr>
               ) : displayedUsers.length === 0 ? (
@@ -401,13 +441,13 @@ export default function UserMasterPage() {
 
       {/* ── Modal ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
 
             {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-red-50 to-slate-50 shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-slate-800">
+                <h2 className="text-base font-bold text-slate-800">
                   {modalMode === "create_internal" && "Add Internal Employee"}
                   {modalMode === "create_customer" && "Add Customer Portal User"}
                   {modalMode === "edit" && "Edit User"}
@@ -418,8 +458,8 @@ export default function UserMasterPage() {
                   {modalMode === "edit" && `Editing: ${editUser?.name}`}
                 </p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
-                <Ico d={icons.x} size={20} />
+              <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 rounded-xl bg-white/80 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all cursor-pointer">
+                <Ico d={icons.x} size={16} />
               </button>
             </div>
 
@@ -441,7 +481,7 @@ export default function UserMasterPage() {
               {modalMode === "create_internal" && (
                 <form id="modal-form" onSubmit={handleCreateInternal} className="p-6 space-y-4">
                   {/* Info note */}
-                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-xs text-blue-700">
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-xs text-red-800">
                     <strong>Internal Employee</strong> — role options are Marketing Lead or Marketing Executive only.
                     Email must end in <code className="font-mono">@sukisoftware.com</code>.
                     An <strong>activation link</strong> (not OTP) will be sent to set their password.
@@ -453,7 +493,7 @@ export default function UserMasterPage() {
                       type="text" required value={intName}
                       onChange={e => setIntName(e.target.value)}
                       placeholder="e.g. Priya Sharma"
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
                     />
                   </div>
 
@@ -463,7 +503,7 @@ export default function UserMasterPage() {
                       type="email" required value={intEmail}
                       onChange={e => setIntEmail(e.target.value)}
                       placeholder="priya@sukisoftware.com"
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
                     />
                   </div>
 
@@ -472,10 +512,10 @@ export default function UserMasterPage() {
                     <select
                       value={intRole} required
                       onChange={e => setIntRole(e.target.value as typeof intRole)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 cursor-pointer"
                     >
-                      <option value="MarketingExecutive">Marketing Executive</option>
-                      <option value="MarketingLead">Marketing Lead</option>
+                      <option value="SalesExecutive">Marketing Executive</option>
+                      <option value="SalesManager">Marketing Lead</option>
                     </select>
                     <p className="text-[10px] text-slate-400 mt-1">Admin accounts can only be created via database seeding.</p>
                   </div>
@@ -486,10 +526,10 @@ export default function UserMasterPage() {
               {modalMode === "create_customer" && (
                 <form id="modal-form" onSubmit={handleCreateCustomer} className="p-6 space-y-4">
                   {/* Info note */}
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-xs text-emerald-700">
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-xs text-[#800000]">
                     <strong>Customer Portal User</strong> — select an active customer. Their registered email will receive
                     a portal activation link to set their password and access the customer portal.
-                    <p className="mt-1 font-bold text-[10px] uppercase text-emerald-800">💡 Only ACTIVE customers (with active subscriptions) are eligible and shown below.</p>
+                    <p className="mt-1 font-bold text-[10px] uppercase text-[#700000]">💡 Only ACTIVE customers (with active subscriptions) are eligible and shown below.</p>
                   </div>
 
                   <div>
@@ -497,7 +537,7 @@ export default function UserMasterPage() {
                     <select
                       value={custId} required
                       onChange={e => setCustId(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-700"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 cursor-pointer"
                     >
                       <option value="">Select an active customer…</option>
                       {customers.filter(c => c.status === "Active" && !c.hasActivatedPortal && c.email).map(c => (
@@ -559,16 +599,14 @@ export default function UserMasterPage() {
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200 transition-colors">
+              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer">
                 Cancel
               </button>
               <button
                 form="modal-form"
                 type="submit"
                 disabled={formLoading || !!successMsg}
-                className={`px-6 py-2 rounded-xl text-xs font-bold text-white transition-colors shadow-sm disabled:opacity-70 ${
-                  modalMode === "create_customer" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#0D2137] hover:bg-[#153456]"
-                }`}
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
               >
                 {formLoading
                   ? "Please wait…"
@@ -589,6 +627,6 @@ export default function UserMasterPage() {
         onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
         isDestructive={confirmState.isDestructive}
       />
-    </div>
+    </PageContainer>
   );
 }

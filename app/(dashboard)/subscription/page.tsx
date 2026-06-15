@@ -5,6 +5,8 @@ import { getSubscriptionsAction, createSubscriptionAction, updateSubscriptionAct
 import { getCustomersAction } from "@/app/actions/customers";
 import { Subscription, Customer } from "@/types";
 import { useRouter } from "next/navigation";
+import PageContainer from "@/components/PageContainer";
+import { useAuth } from "@/components/AuthProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -45,6 +47,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function SubscriptionsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,7 +244,7 @@ export default function SubscriptionsPage() {
   );
 
   const approvedPendingSubs: Subscription[] = customers
-    .filter(c => c.status === "APPROVED" && !existingSubCustomerIds.has(c.id))
+    .filter(c => c.status === "ActiveCustomer" && !existingSubCustomerIds.has(c.id))
     .map(c => ({
       id: `virtual-pending-${c.id}`,
       customerId: c.id,
@@ -279,66 +282,79 @@ export default function SubscriptionsPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto">
+    <PageContainer>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Subscriptions</h1>
+          <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Subscriptions</h1>
           <p className="text-sm text-slate-500 mt-1">Manage customer plans, renewals, and expirations.</p>
         </div>
-        <button 
-          onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 bg-[#0D2137] text-white rounded-xl text-sm font-medium hover:bg-[#1a365d] transition-colors shadow-sm"
-        >
-          <Ico d={icons.plus} size={16} />
-          Add Subscription
-        </button>
+        {user?.role !== "SalesExecutive" && (
+          <button 
+            onClick={openCreateModal}
+            className="flex items-center gap-2 px-4 py-2 bg-[#D44D4D] text-white rounded-xl text-sm font-medium hover:bg-[#C94F4F] transition-colors shadow-sm cursor-pointer"
+          >
+            <Ico d={icons.plus} size={16} />
+            Add Subscription
+          </button>
+        )}
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-            <Ico d={icons.check} size={20} className="text-emerald-600" />
+        {/* Active - Green palette */}
+        <div className="kpi-completed">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+              <Ico d={icons.check} size={18} className="text-emerald-600" />
+            </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-800 tracking-tight">
-              {allSubs.filter(s => s.status === "Active").length}
-            </p>
-            <p className="text-xs font-semibold text-slate-500">Active Subs</p>
+            <p className="text-3xl font-black text-slate-800">{allSubs.filter(s => s.status === "Active").length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Active subscriptions</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center shrink-0 relative">
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-            <Ico d={icons.clock} size={20} className="text-amber-600" />
+
+        {/* Expiring - Amber palette */}
+        <div className="kpi-pending">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expiring Soon</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center relative">
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              <Ico d={icons.clock} size={18} className="text-amber-600" />
+            </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-800 tracking-tight">
-              {allSubs.filter(s => s.status === "Expiring").length}
-            </p>
-            <p className="text-xs font-semibold text-slate-500">Expiring Soon</p>
+            <p className="text-3xl font-black text-slate-800">{allSubs.filter(s => s.status === "Expiring").length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Renew soon</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-            <Ico d={icons.alert} size={20} className="text-red-600" />
+
+        {/* Expired - Red palette */}
+        <div className="kpi-overdue">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Expired</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+              <Ico d={icons.alert} size={18} className="text-red-600" />
+            </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-800 tracking-tight">
-              {allSubs.filter(s => s.status === "Expired").length}
-            </p>
-            <p className="text-xs font-semibold text-slate-500">Expired Plans</p>
+            <p className="text-3xl font-black text-slate-800">{allSubs.filter(s => s.status === "Expired").length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Expired plans</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-            <Ico d={icons.chart} size={20} className="text-blue-600" />
+
+        {/* Pending - Blue palette */}
+        <div className="kpi-total">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Pending</p>
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center">
+              <Ico d={icons.chart} size={18} className="text-slate-600" />
+            </div>
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-800 tracking-tight">
-              {allSubs.filter(s => s.status === "Pending").length}
-            </p>
-            <p className="text-xs font-semibold text-slate-500">Pending Plans</p>
+            <p className="text-3xl font-black text-slate-800">{allSubs.filter(s => s.status === "Pending").length}</p>
+            <p className="text-[10px] font-semibold text-slate-500 mt-0.5">Pending setup</p>
           </div>
         </div>
       </div>
@@ -346,7 +362,7 @@ export default function SubscriptionsPage() {
 
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col">
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col w-full min-w-0">
         <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/50">
           <div className="relative flex-1 max-w-md">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
@@ -357,14 +373,14 @@ export default function SubscriptionsPage() {
               placeholder="Search by customer or plan..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-shadow"
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <select 
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="Active">Active</option>
@@ -380,12 +396,12 @@ export default function SubscriptionsPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-slate-50/50 text-xs font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-200/60">
-                <th className="px-6 py-4 whitespace-nowrap">Customer</th>
-                <th className="px-6 py-4 whitespace-nowrap">Plan Details</th>
-                <th className="px-6 py-4 whitespace-nowrap">Timeline</th>
-                <th className="px-6 py-4 whitespace-nowrap">Status</th>
-                <th className="px-6 py-4">Notes</th>
-                <th className="px-6 py-4 text-right whitespace-nowrap">Actions</th>
+                <th className="px-4 py-3 whitespace-nowrap">Customer</th>
+                <th className="px-4 py-3 whitespace-nowrap">Plan Details</th>
+                <th className="px-4 py-3 whitespace-nowrap">Timeline</th>
+                <th className="px-4 py-3 whitespace-nowrap">Status</th>
+                <th className="px-4 py-3">Notes</th>
+                <th className="px-4 py-3 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -404,32 +420,39 @@ export default function SubscriptionsPage() {
               ) : (
                 filtered.map(s => (
                   <tr key={s.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-sm font-bold text-slate-800">{s.customer?.name || "Unknown Customer"}</p>
-                      <p className="text-xs text-slate-500">{s.customer?.customerCode || s.customerId}</p>
+                      <p className="text-xs text-slate-500">
+                        {s.customer?.customerCode || (s.customerId.length > 8 ? `${s.customerId.slice(0, 8)}...` : s.customerId)}
+                      </p>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <p className="text-sm font-medium text-slate-700">{s.planName}</p>
-                      <p className="text-[11px] text-slate-400 font-mono mt-0.5">{s.id}</p>
+                      {!s.id.startsWith("virtual-") && (
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5" title={s.id}>
+                          ID: {s.id.slice(0, 8)}
+                        </p>
+                      )}
                     </td>
-                    <td className="px-6 py-4 text-xs text-slate-600 whitespace-nowrap">
+                    <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
                       {s.startDate ? (
                         <div className="flex flex-col gap-1">
                           <span>Start: <span className="font-semibold text-slate-750">{new Date(s.startDate).toLocaleDateString()}</span></span>
                           <span>End: <span className="font-semibold text-slate-750">{new Date(s.endDate).toLocaleDateString()}</span></span>
                         </div>
                       ) : (
-                        <span className="inline-flex px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[10px] font-bold uppercase border border-blue-100">Setup Required</span>
+                        <span className="inline-flex px-2 py-0.5 bg-red-50 text-[#D44D4D] rounded-md text-[10px] font-bold uppercase border border-red-100">Setup Required</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <StatusBadge status={s.status} />
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-500 italic max-w-xs truncate" title={s.notes || ""}>
+                    <td className="px-4 py-3 text-sm text-slate-500 italic max-w-[180px] truncate" title={s.notes || ""}>
                       {s.notes || "—"}
                     </td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
-                      {(s.status === "Expiring" || (s.status === "Expired" && !activeCustomerIds.has(s.customerId))) && (
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {((s.status === "Expiring" && user?.role !== "SalesExecutive") || 
+                        (s.status === "Expired" && !activeCustomerIds.has(s.customerId))) && (
                         <button
                           onClick={() => openRenewModal(s)}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 rounded-xl text-xs font-bold transition-all shadow-xs"
@@ -437,7 +460,7 @@ export default function SubscriptionsPage() {
                           🔄 Renew
                         </button>
                       )}
-                      {s.status !== "Pending" && (
+                      {user?.role !== "SalesExecutive" && s.status !== "Pending" && (
                         <button
                           onClick={() => openEditModal(s)}
                           className="ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all shadow-xs"
@@ -445,10 +468,10 @@ export default function SubscriptionsPage() {
                           ✏️ Edit
                         </button>
                       )}
-                      {s.status === "Pending" && !s.startDate && (
+                      {user?.role !== "SalesExecutive" && s.status === "Pending" && !s.startDate && (
                         <button
                           onClick={() => handleCreateForApproved(s.customerId)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl text-xs font-bold transition-all shadow-xs"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-50 border border-red-200 text-[#D44D4D] rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
                         >
                           ⚙️ Setup Plan
                         </button>
@@ -464,12 +487,12 @@ export default function SubscriptionsPage() {
 
       {/* Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-              <h2 className="text-lg font-bold text-slate-800">Add Subscription Plan</h2>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-700 transition-colors">
-                <Ico d={icons.x} size={20} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-red-50 to-slate-50 shrink-0">
+              <h2 className="text-base font-bold text-slate-800">Add Subscription Plan</h2>
+              <button onClick={() => setIsModalOpen(false)} className="w-8 h-8 rounded-xl bg-white/80 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all cursor-pointer">
+                <Ico d={icons.x} size={16} />
               </button>
             </div>
 
@@ -488,18 +511,18 @@ export default function SubscriptionsPage() {
                     value={formData.customerId}
                     onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
                     required
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none"
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
                   >
                     <option value="">Select a customer...</option>
                     {customers
-                      .filter((c) => c.status === "Active" || c.status === "APPROVED")
+                      .filter((c) => c.status === "ActiveCustomer" || c.status === "Renewed")
                       .map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name} ({c.customerCode}){c.status === "APPROVED" ? " — Approved" : ""}
+                          {c.name} ({c.customerCode})
                         </option>
                       ))}
                   </select>
-                  <p className="text-xs text-slate-400 mt-1">Showing <span className="font-semibold text-emerald-600">Active</span> and <span className="font-semibold text-blue-600">Approved</span> customers. Prospect or Inactive customers will not appear.</p>
+                  <p className="text-xs text-slate-400 mt-1">Showing <span className="font-semibold text-emerald-600">Active</span> customers. Prospect or Churned customers will not appear.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -511,7 +534,7 @@ export default function SubscriptionsPage() {
                     value={formData.planName}
                     onChange={(e) => setFormData({ ...formData, planName: e.target.value })}
                     placeholder="e.g. Enterprise Premium Annual" 
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none" 
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" 
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -524,7 +547,7 @@ export default function SubscriptionsPage() {
                       required
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none text-slate-700" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700" 
                     />
                   </div>
                   <div>
@@ -536,7 +559,7 @@ export default function SubscriptionsPage() {
                       required
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none text-slate-700" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700" 
                     />
                   </div>
                 </div>
@@ -546,7 +569,7 @@ export default function SubscriptionsPage() {
                     <select 
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none"
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
                     >
                       <option value="Active">Active</option>
                       <option value="Expired">Expired</option>
@@ -562,7 +585,7 @@ export default function SubscriptionsPage() {
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Any remarks about this subscription..."
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none resize-none"
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
                   />
                 </div>
               </div>
@@ -578,7 +601,7 @@ export default function SubscriptionsPage() {
                 <button 
                   type="submit" 
                   disabled={formLoading}
-                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#0D2137] hover:bg-[#1a365d] transition-colors shadow-sm disabled:opacity-75"
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
                 >
                   {formLoading ? "Saving..." : "Add Subscription"}
                 </button>
@@ -590,18 +613,18 @@ export default function SubscriptionsPage() {
 
       {/* Subscription Renewal Modal */}
       {isRenewModalOpen && selectedSub && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-red-50 to-slate-50 shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-slate-800">🔄 Renew Subscription</h2>
+                <h2 className="text-base font-bold text-slate-800">🔄 Renew Subscription</h2>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">Extend customer subscription lifecycle</p>
               </div>
               <button 
                 onClick={() => setIsRenewModalOpen(false)} 
-                className="text-slate-400 hover:text-slate-700 transition-colors"
+                className="w-8 h-8 rounded-xl bg-white/80 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all cursor-pointer"
               >
-                <Ico d={icons.x} size={20} />
+                <Ico d={icons.x} size={16} />
               </button>
             </div>
 
@@ -637,7 +660,7 @@ export default function SubscriptionsPage() {
                     value={renewPlanName}
                     onChange={(e) => setRenewPlanName(e.target.value)}
                     placeholder="e.g. Enterprise Premium Annual" 
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-700 font-semibold" 
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold" 
                   />
                 </div>
 
@@ -651,7 +674,7 @@ export default function SubscriptionsPage() {
                       required
                       value={renewStartDate}
                       onChange={(e) => setRenewStartDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none text-slate-700 font-semibold" 
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold" 
                     />
                   </div>
                   <div>
@@ -663,7 +686,7 @@ export default function SubscriptionsPage() {
                       required
                       value={renewEndDate}
                       onChange={(e) => setRenewEndDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none text-slate-700 font-semibold" 
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold" 
                     />
                   </div>
                 </div>
@@ -675,7 +698,7 @@ export default function SubscriptionsPage() {
                     value={renewNotes}
                     onChange={(e) => setRenewNotes(e.target.value)}
                     placeholder="Provide details about payment terms, revised pricing, or contract adjustments..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none resize-none font-medium text-slate-700"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none font-medium text-slate-700"
                   />
                 </div>
               </div>
@@ -684,14 +707,14 @@ export default function SubscriptionsPage() {
                 <button 
                   type="button" 
                   onClick={() => setIsRenewModalOpen(false)} 
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200 transition-colors"
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   disabled={formLoading}
-                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-75"
+                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
                 >
                   {formLoading ? "Renewing..." : "Confirm Renewal"}
                 </button>
@@ -700,7 +723,7 @@ export default function SubscriptionsPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
 
