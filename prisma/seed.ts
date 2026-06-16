@@ -8,6 +8,16 @@ async function main() {
   const now = new Date();
 
   console.log("Cleaning up existing database records...");
+  await prisma.callLog.deleteMany({});
+  await prisma.leadOwnerHistory.deleteMany({});
+  await prisma.lead.deleteMany({});
+  await prisma.dealStageHistory.deleteMany({});
+  await prisma.opportunityDetail.deleteMany({});
+  await prisma.proposal.deleteMany({});
+  await prisma.approvalHistory.deleteMany({});
+  await prisma.deal.deleteMany({});
+  await prisma.communicationLog.deleteMany({});
+  await prisma.note.deleteMany({});
   await prisma.task.deleteMany({});
   await prisma.contact.deleteMany({});
   await prisma.auditLog.deleteMany({});
@@ -21,6 +31,29 @@ async function main() {
   await prisma.subscription.deleteMany({});
   await prisma.customer.deleteMany({});
   await prisma.user.deleteMany({});
+  await prisma.leadSource.deleteMany({});
+
+  // ---- Lead Sources ----
+  console.log("Seeding lead sources...");
+  const defaultLeadSources = [
+    "Website",
+    "Referral",
+    "Exhibition",
+    "Cold Call",
+    "LinkedIn",
+    "WhatsApp",
+    "Email Campaign",
+  ];
+  for (const name of defaultLeadSources) {
+    await prisma.leadSource.create({
+      data: {
+        id: uuidv4(),
+        name,
+        isActive: true,
+      },
+    });
+  }
+  console.log("Default lead sources seeded.");
 
   // ---- Users ----
   console.log("Seeding users...");
@@ -273,6 +306,7 @@ async function main() {
     const contact = await prisma.contact.create({
       data: {
         id: uuidv4(),
+        contactCode: `CON-${String(i + 1).padStart(4, "0")}`,
         name: c.name,
         email: c.email,
         phone: c.phone,
@@ -313,6 +347,7 @@ async function main() {
     await prisma.task.create({
       data: {
         id: uuidv4(),
+        taskCode: `TSK-${String(i + 1).padStart(4, "0")}`,
         title: taskTitles[i],
         description: `Task details: ${taskTitles[i]}. Assigned to ${exec.name}.`,
         status: taskStatuses[i % taskStatuses.length],
@@ -324,6 +359,64 @@ async function main() {
     });
   }
   console.log("12 tasks created.");
+
+  // ---- Leads ----
+  console.log("Seeding leads...");
+  const leadNames = [
+    "Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Prince",
+    "Evan Wright", "Fiona Green", "George Hall", "Hannah Scott",
+    "Ian Adams", "Julia Baker", "Kevin Clark", "Laura Davis"
+  ];
+  const leadStatuses = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
+  const leadSources = ["Website", "Referral", "SocialMedia", "Email", "Event", "ColdCall", "Partner", "Other"];
+  for (let i = 0; i < leadNames.length; i++) {
+    const exec = execs[i % execs.length];
+    await prisma.lead.create({
+      data: {
+        id: uuidv4(),
+        leadCode: `LEAD-${String(i + 1).padStart(4, "0")}`,
+        name: leadNames[i],
+        email: `lead${i + 1}@example.com`,
+        phone: `555-300${i}`,
+        city: ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix"][i % 5],
+        status: leadStatuses[i % leadStatuses.length],
+        assignedUserId: exec.id,
+        leadSource: leadSources[i % leadSources.length],
+        notes: `Sample lead created via seed script.`,
+        slaStatus: "Pending",
+      },
+    });
+  }
+  console.log(`${leadNames.length} leads created.`);
+
+  // ---- Deals ----
+  console.log("Seeding deals...");
+  const dealNames = [
+    "Enterprise CRM License", "SaaS Subscription Annual", "Custom Integration Project",
+    "Training & Consulting", "Support Contract Renewal", "Mobile App Development",
+    "Data Migration Service", "API Gateway Setup", "Cloud Infrastructure Audit",
+    "Security Compliance Review"
+  ];
+  const dealStatuses = ["New", "Contacted", "Qualified", "Proposal", "Negotiation", "Won", "Lost"];
+  for (let i = 0; i < dealNames.length; i++) {
+    const exec = execs[i % execs.length];
+    const customer = createdCustomers[i % createdCustomers.length];
+    const closeDate = new Date(now);
+    closeDate.setDate(closeDate.getDate() + 30 + i * 5);
+    await prisma.deal.create({
+      data: {
+        id: uuidv4(),
+        dealName: dealNames[i],
+        customerId: customer.id,
+        dealValue: 10000 + i * 2500,
+        expectedCloseDate: closeDate,
+        assignedUserId: exec.id,
+        status: dealStatuses[i % dealStatuses.length],
+        notes: `Sample deal created via seed script.`,
+      },
+    });
+  }
+  console.log(`${dealNames.length} deals created.`);
 
   console.log("\nDatabase seeded successfully! All models populated. ✓");
 }

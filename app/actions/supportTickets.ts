@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
-import { TicketPriority, TicketStatus } from "@prisma/client";
+type TicketPriority = "Low" | "Medium" | "High" | "Critical";
+type TicketStatus = "Open" | "InProgress" | "Resolved" | "Closed";
 
 /**
  * Create a new support ticket. Can be submitted by Customers or Employees.

@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
-import { CommunicationChannel, CommunicationDirection } from "@prisma/client";
+// Using string types instead of non-existent Prisma enums
+type CommunicationChannel = "Call" | "Meeting" | "Note" | "Email" | "WhatsApp";
+type CommunicationDirection = "Inbound" | "Outbound";
 import { checkRecordScope } from "@/lib/scopes";
 
 /**

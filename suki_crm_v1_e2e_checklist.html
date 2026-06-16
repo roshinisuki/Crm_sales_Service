@@ -1,0 +1,279 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.wrap{padding:1rem 0;font-family:var(--font-sans)}
+.top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem}
+.top-bar h2{font-size:16px;font-weight:500;color:var(--color-text-primary)}
+.progress-bar{height:6px;background:var(--color-background-secondary);border-radius:99px;margin-bottom:1.5rem;overflow:hidden}
+.progress-fill{height:100%;background:#1D9E75;border-radius:99px;transition:width 0.3s}
+.progress-label{font-size:12px;color:var(--color-text-secondary);margin-bottom:1rem;display:flex;justify-content:space-between}
+.section{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);margin-bottom:12px;overflow:hidden}
+.section-header{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none}
+.section-header:hover{background:var(--color-background-secondary)}
+.section-icon{font-size:16px;color:var(--color-text-secondary)}
+.section-title{font-size:14px;font-weight:500;color:var(--color-text-primary);flex:1}
+.section-badge{font-size:11px;padding:2px 8px;border-radius:99px;font-weight:500}
+.badge-pass{background:#EAF3DE;color:#3B6D11}
+.badge-warn{background:#FAEEDA;color:#854F0B}
+.badge-fail{background:#FCEBEB;color:#A32D2D}
+.badge-neutral{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.chevron{font-size:14px;color:var(--color-text-secondary);transition:transform 0.2s}
+.chevron.open{transform:rotate(180deg)}
+.section-body{border-top:0.5px solid var(--color-border-tertiary);padding:0}
+.test-row{display:flex;align-items:flex-start;gap:12px;padding:10px 16px;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer}
+.test-row:last-child{border-bottom:none}
+.test-row:hover{background:var(--color-background-secondary)}
+.check-btn{width:20px;height:20px;border-radius:4px;border:0.5px solid var(--color-border-secondary);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;margin-top:1px;transition:all 0.15s;background:var(--color-background-primary)}
+.check-btn.pass{background:#1D9E75;border-color:#1D9E75;color:#fff}
+.check-btn.fail{background:#E24B4A;border-color:#E24B4A;color:#fff}
+.test-content{flex:1}
+.test-title{font-size:13px;color:var(--color-text-primary);line-height:1.4}
+.test-desc{font-size:12px;color:var(--color-text-secondary);margin-top:3px;line-height:1.5}
+.test-url{font-size:11px;color:var(--color-text-secondary);font-family:var(--font-mono);margin-top:3px;opacity:0.7}
+.test-actions{display:flex;gap:6px;margin-top:2px;flex-shrink:0}
+.btn-pass{font-size:11px;padding:2px 10px;border-radius:99px;border:0.5px solid #1D9E75;color:#1D9E75;background:transparent;cursor:pointer}
+.btn-pass:hover{background:#E1F5EE}
+.btn-fail{font-size:11px;padding:2px 10px;border-radius:99px;border:0.5px solid #E24B4A;color:#E24B4A;background:transparent;cursor:pointer}
+.btn-fail:hover{background:#FCEBEB}
+.summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:1.5rem}
+.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;text-align:center}
+.metric-val{font-size:22px;font-weight:500;color:var(--color-text-primary)}
+.metric-val.green{color:#1D9E75}
+.metric-val.red{color:#E24B4A}
+.metric-val.amber{color:#BA7517}
+.metric-label{font-size:11px;color:var(--color-text-secondary);margin-top:2px}
+.reset-btn{font-size:12px;padding:4px 12px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);color:var(--color-text-secondary);background:transparent;cursor:pointer}
+.reset-btn:hover{background:var(--color-background-secondary)}
+.done-banner{display:none;background:#E1F5EE;border:0.5px solid #5DCAA5;border-radius:var(--border-radius-md);padding:12px 16px;font-size:13px;color:#085041;margin-bottom:1rem;align-items:center;gap:8px}
+.done-banner.show{display:flex}
+</style>
+
+<div class="wrap">
+<h2 class="sr-only">SUKI CRM Variant 1 end-to-end test checklist</h2>
+
+<div class="top-bar">
+  <div style="font-size:16px;font-weight:500;color:var(--color-text-primary)">Variant 1 — E2E test checklist</div>
+  <button class="reset-btn" onclick="resetAll()"><i class="ti ti-refresh" aria-hidden="true"></i> Reset</button>
+</div>
+
+<div class="summary-grid">
+  <div class="metric"><div class="metric-val green" id="cnt-pass">0</div><div class="metric-label">Passed</div></div>
+  <div class="metric"><div class="metric-val red" id="cnt-fail">0</div><div class="metric-label">Failed</div></div>
+  <div class="metric"><div class="metric-val amber" id="cnt-todo">0</div><div class="metric-label">Remaining</div></div>
+  <div class="metric"><div class="metric-val" id="cnt-pct">0%</div><div class="metric-label">Complete</div></div>
+</div>
+
+<div class="progress-label"><span id="prog-text">0 of 0 tests done</span><span id="prog-pct2">0%</span></div>
+<div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+
+<div class="done-banner" id="done-banner">
+  <i class="ti ti-circle-check" style="font-size:18px" aria-hidden="true"></i>
+  All tests passed — Variant 1 is ready for QA handoff!
+</div>
+
+</div>
+
+<script>
+const sections = [
+  {
+    id:'auth', icon:'ti-lock', title:'Auth & Setup',
+    tests:[
+      {id:'a1', title:'Login works with valid credentials', desc:'Email + password login → redirects to /dashboard', url:'/login'},
+      {id:'a2', title:'Invalid credentials show error', desc:'Wrong password → error toast shown, no redirect', url:'/login'},
+      {id:'a3', title:'Sidebar shows Variant 1 menu only', desc:'All 11 modules visible with correct sub-items', url:'/dashboard'},
+      {id:'a4', title:'Existing pages still work', desc:'Leads, Accounts, Deals pages load without errors', url:'/leads, /accounts, /deals'},
+      {id:'a5', title:'CompanyId scoping works', desc:'User only sees data for their company', url:'all pages'},
+    ]
+  },
+  {
+    id:'contacts', icon:'ti-users', title:'Contacts module',
+    tests:[
+      {id:'c1', title:'Create a Technical contact', desc:'Link to a Customer → save → appears in /contacts list', url:'/contacts/new'},
+      {id:'c2', title:'Create a Purchase contact', desc:'Set contactType = Purchase → appears with correct badge', url:'/contacts/new'},
+      {id:'c3', title:'Filter by type works', desc:'/contacts?type=Technical shows only Technical contacts', url:'/contacts?type=Technical'},
+      {id:'c4', title:'Search by name works', desc:'Type part of a contact name → table filters live', url:'/contacts'},
+      {id:'c5', title:'Edit a contact', desc:'Change designation → save → updated on list page', url:'/contacts/[id]'},
+      {id:'c6', title:'Soft delete works', desc:'Delete contact → disappears from list → not in DB deletedAt=null', url:'/contacts/[id]'},
+      {id:'c7', title:'Is Primary flag works', desc:'Mark as primary → shown with primary badge', url:'/contacts/[id]'},
+      {id:'c8', title:'Pagination works', desc:'Add 21+ contacts → page 2 appears', url:'/contacts'},
+      {id:'c9', title:'contactCode auto-generated', desc:'New contact gets CON-0001, CON-0002 etc.', url:'/contacts/new'},
+    ]
+  },
+  {
+    id:'activities', icon:'ti-activity', title:'Activities module',
+    tests:[
+      {id:'ac1', title:'Create a Call linked to a Lead', desc:'Direction Inbound, 5 mins duration → appears in /activities?type=Call', url:'/activities/new'},
+      {id:'ac2', title:'Create a Meeting linked to a Customer', desc:'Date, agenda, outcome → appears in Meetings tab', url:'/activities/new'},
+      {id:'ac3', title:'Create a Note linked to a Deal', desc:'Note content → appears in Notes tab', url:'/activities/new'},
+      {id:'ac4', title:'Tab filter works', desc:'Switching tabs shows only that activity type', url:'/activities'},
+      {id:'ac5', title:'Edit activity works', desc:'Update outcome → saved correctly', url:'/activities/[id]'},
+      {id:'ac6', title:'Delete activity works', desc:'Remove a call → gone from list', url:'/activities/[id]'},
+    ]
+  },
+  {
+    id:'tasks', icon:'ti-checkbox', title:'Tasks module',
+    tests:[
+      {id:'t1', title:'Create a task with due date', desc:'TSK-0001 generated → appears in /tasks?status=Pending', url:'/tasks/new'},
+      {id:'t2', title:'Mark task complete', desc:'Click complete → status = Completed, completedAt set → moves to Completed tab', url:'/tasks/[id]'},
+      {id:'t3', title:'Overdue logic works', desc:'Task with past dueDate + Pending status → shows Overdue badge', url:'/tasks?status=Overdue'},
+      {id:'t4', title:'Priority filter works', desc:'High priority tasks shown with correct badge color', url:'/tasks'},
+      {id:'t5', title:'Assigned To filter works', desc:'Filter by user → only their tasks shown', url:'/tasks'},
+      {id:'t6', title:'Soft delete works', desc:'Delete task → gone from list', url:'/tasks/[id]'},
+      {id:'t7', title:'Cron overdue route works', desc:'GET /api/cron/tasks-overdue → updates past-due tasks to Overdue', url:'/api/cron/tasks-overdue'},
+    ]
+  },
+  {
+    id:'followups', icon:'ti-clock', title:'Follow-Ups module',
+    tests:[
+      {id:'f1', title:'Follow-up list loads', desc:'All company follow-ups shown with correct columns', url:'/followups'},
+      {id:'f2', title:'Filter by Pending works', desc:'/followups?status=Pending shows only pending items', url:'/followups?status=Pending'},
+      {id:'f3', title:'Filter by Completed works', desc:'/followups?status=Completed shows only completed items', url:'/followups?status=Completed'},
+      {id:'f4', title:'Mark complete works', desc:'Click mark complete → status=Completed, completedAt set, completedById = current user', url:'/followups'},
+      {id:'f5', title:'Overdue display works', desc:'nextMeetingDate < today AND Pending → shows Overdue tag', url:'/followups?status=Overdue'},
+      {id:'f6', title:'Reschedule works', desc:'Change nextMeetingDate → updates correctly', url:'/followups'},
+    ]
+  },
+  {
+    id:'pipeline', icon:'ti-git-branch', title:'Sales pipeline & Deals',
+    tests:[
+      {id:'p1', title:'Pipeline stages load', desc:'All Qualified/RequirementGathering/MeetingScheduled stages shown', url:'/pipeline'},
+      {id:'p2', title:'Move deal to next stage', desc:'Drag or select next stage → DealStageHistory entry created', url:'/pipeline'},
+      {id:'p3', title:'Won deal flow', desc:'Deal status = Won → appears in /deals?status=Won', url:'/deals?status=Won'},
+      {id:'p4', title:'Lost deal flow', desc:'Deal status = Lost → lostReason required → appears in /deals?status=Lost', url:'/deals?status=Lost'},
+      {id:'p5', title:'Active deals filter', desc:'/deals?status=Active shows only active deals', url:'/deals?status=Active'},
+    ]
+  },
+  {
+    id:'reports', icon:'ti-chart-bar', title:'Reports',
+    tests:[
+      {id:'r1', title:'Lead Report loads', desc:'Summary cards show correct counts for this company', url:'/reports/leads'},
+      {id:'r2', title:'Lead Report date filter works', desc:'Filter by date range → table updates correctly', url:'/reports/leads'},
+      {id:'r3', title:'Lead Report status filter works', desc:'Filter by status=SQL → only SQL leads shown', url:'/reports/leads'},
+      {id:'r4', title:'Lead Report CSV export', desc:'Click export → downloads a valid CSV with correct columns', url:'/reports/leads'},
+      {id:'r5', title:'Follow-Up Report loads', desc:'Summary cards show Pending/Completed/Overdue counts', url:'/reports/followups'},
+      {id:'r6', title:'Follow-Up Report filters work', desc:'Filter by assigned user → correct results', url:'/reports/followups'},
+      {id:'r7', title:'Follow-Up Report CSV export', desc:'CSV downloads with correct data', url:'/reports/followups'},
+    ]
+  },
+  {
+    id:'settings', icon:'ti-settings', title:'Settings',
+    tests:[
+      {id:'s1', title:'Lead Sources list loads', desc:'Default sources (Website, Referral etc.) shown', url:'/settings/lead-sources'},
+      {id:'s2', title:'Add a new lead source', desc:'Type name → save → appears in list', url:'/settings/lead-sources'},
+      {id:'s3', title:'Deactivate a lead source', desc:'Toggle inactive → disappears from Lead creation dropdown', url:'/settings/lead-sources'},
+      {id:'s4', title:'Lead form uses dynamic sources', desc:'New lead form shows sources from DB not hardcoded', url:'/leads/new'},
+      {id:'s5', title:'Roles page loads', desc:'All roles shown with user count per role', url:'/settings/roles'},
+      {id:'s6', title:'Change user role works', desc:'Change exec → manager → updates in DB → user sees correct access', url:'/settings/roles'},
+      {id:'s7', title:'Users page loads', desc:'All company users listed with role and status', url:'/settings/users'},
+    ]
+  },
+  {
+    id:'multitenancy', icon:'ti-building', title:'Multi-tenancy & security',
+    tests:[
+      {id:'m1', title:'Company data isolation', desc:'Login as user from Company A → cannot see Company B data', url:'all APIs'},
+      {id:'m2', title:'SalesExecutive cannot access admin settings', desc:'Role-based access — exec gets 403 on /settings/roles', url:'/settings/roles'},
+      {id:'m3', title:'Soft deleted records hidden everywhere', desc:'Deleted contacts/tasks don\'t appear in lists or reports', url:'all lists'},
+      {id:'m4', title:'Build passes with zero errors', desc:'npm run build completes without TypeScript or compile errors', url:'terminal'},
+    ]
+  }
+];
+
+const state = {};
+let openSections = new Set(['auth']);
+
+function renderAll() {
+  const wrap = document.querySelector('.wrap');
+  const existingSections = document.querySelectorAll('.section');
+  existingSections.forEach(el => el.remove());
+  
+  sections.forEach(sec => {
+    const el = document.createElement('div');
+    el.className = 'section';
+    el.id = 'sec-' + sec.id;
+    
+    const passCount = sec.tests.filter(t => state[t.id] === 'pass').length;
+    const failCount = sec.tests.filter(t => state[t.id] === 'fail').length;
+    const total = sec.tests.length;
+    const isOpen = openSections.has(sec.id);
+    
+    let badgeClass = 'badge-neutral', badgeText = `0 / ${total}`;
+    if (passCount === total) { badgeClass = 'badge-pass'; badgeText = `${total} / ${total} ✓`; }
+    else if (failCount > 0) { badgeClass = 'badge-fail'; badgeText = `${failCount} failed`; }
+    else if (passCount > 0) { badgeClass = 'badge-warn'; badgeText = `${passCount} / ${total}`; }
+    
+    el.innerHTML = `
+      <div class="section-header" onclick="toggleSection('${sec.id}')">
+        <i class="ti ${sec.icon} section-icon" aria-hidden="true"></i>
+        <span class="section-title">${sec.title}</span>
+        <span class="section-badge ${badgeClass}">${badgeText}</span>
+        <i class="ti ti-chevron-down chevron ${isOpen ? 'open' : ''}" aria-hidden="true"></i>
+      </div>
+      ${isOpen ? `<div class="section-body">${sec.tests.map(t => renderTest(t)).join('')}</div>` : ''}
+    `;
+    wrap.appendChild(el);
+  });
+  updateSummary();
+}
+
+function renderTest(t) {
+  const s = state[t.id] || 'none';
+  const checkIcon = s === 'pass' ? '<i class="ti ti-check" aria-hidden="true"></i>' : s === 'fail' ? '<i class="ti ti-x" aria-hidden="true"></i>' : '';
+  return `
+    <div class="test-row" id="row-${t.id}">
+      <div class="check-btn ${s === 'pass' ? 'pass' : s === 'fail' ? 'fail' : ''}" id="chk-${t.id}">${checkIcon}</div>
+      <div class="test-content">
+        <div class="test-title">${t.title}</div>
+        <div class="test-desc">${t.desc}</div>
+        <div class="test-url">${t.url}</div>
+      </div>
+      <div class="test-actions">
+        <button class="btn-pass" onclick="mark('${t.id}','pass',event)"><i class="ti ti-check" aria-hidden="true"></i> Pass</button>
+        <button class="btn-fail" onclick="mark('${t.id}','fail',event)"><i class="ti ti-x" aria-hidden="true"></i> Fail</button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleSection(id) {
+  if (openSections.has(id)) openSections.delete(id);
+  else openSections.add(id);
+  renderAll();
+}
+
+function mark(id, val, e) {
+  e.stopPropagation();
+  state[id] = state[id] === val ? 'none' : val;
+  const sec = sections.find(s => s.tests.some(t => t.id === id));
+  renderAll();
+  openSections.add(sec.id);
+  renderAll();
+}
+
+function updateSummary() {
+  const allTests = sections.flatMap(s => s.tests);
+  const total = allTests.length;
+  const passed = allTests.filter(t => state[t.id] === 'pass').length;
+  const failed = allTests.filter(t => state[t.id] === 'fail').length;
+  const todo = total - passed - failed;
+  const pct = total > 0 ? Math.round((passed / total) * 100) : 0;
+  
+  document.getElementById('cnt-pass').textContent = passed;
+  document.getElementById('cnt-fail').textContent = failed;
+  document.getElementById('cnt-todo').textContent = todo;
+  document.getElementById('cnt-pct').textContent = pct + '%';
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-text').textContent = `${passed + failed} of ${total} tests done`;
+  document.getElementById('prog-pct2').textContent = pct + '%';
+  
+  const banner = document.getElementById('done-banner');
+  if (passed === total && total > 0 && failed === 0) banner.classList.add('show');
+  else banner.classList.remove('show');
+}
+
+function resetAll() {
+  Object.keys(state).forEach(k => delete state[k]);
+  renderAll();
+}
+
+renderAll();
+</script>

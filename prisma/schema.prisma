@@ -67,6 +67,8 @@ model User {
   activationToken       String?   @db.NVarChar(Max)
   activationTokenExpiry DateTime?
   passwordSetAt         DateTime?
+  theme                 String    @default("ember")     // ember | ocean | forest | obsidian
+  themeMode             String    @default("light")     // light | dark
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -155,6 +157,7 @@ model Customer {
   deals             Deal[]
   callLogs          CallLog[]
   communicationLogs CommunicationLog[]
+  contacts          Contact[]
   invoices          Invoice[]
   supportTickets    SupportTicket[]
   proposals         Proposal[]
@@ -638,22 +641,40 @@ model LeadOwnerHistory {
 }
 
 model CommunicationLog {
-  id           String                 @id @default(uuid())
+  id           String    @id @default(uuid())
   customerId   String?
-  customer     Customer?              @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   leadId       String?
-  lead         Lead?                  @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  channel String
-  direction String
-  status       String // e.g. "Sent", "Delivered", "Failed"
-  content      String                 @db.NVarChar(Max)
+  lead         Lead?     @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealId       String?
+  channel      String // "Call" | "Meeting" | "Note" | "Email" | "WhatsApp"
+  direction    String // "Inbound" | "Outbound"
+  status       String // e.g. "Completed", "Scheduled", "NoAnswer", "Delivered", "Failed"
+  content      String    @db.NVarChar(Max)
   sentByUserId String?
-  sentByUser   User?                  @relation(fields: [sentByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  sentAt       DateTime               @default(now())
+  sentByUser   User?     @relation(fields: [sentByUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sentAt       DateTime  @default(now())
+
+  // Call/Meeting specific fields
+  duration     Int?      // minutes
+  location     String?   // for meetings
+  mode         String?   // "In-person" | "Virtual"
+  agenda       String?   @db.NVarChar(Max)
+  outcome      String?   @db.NVarChar(Max)
+  meetingDate  DateTime?
+
+  // Multi-Tenancy
+  companyId String?
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
 
   @@index([customerId])
   @@index([leadId])
   @@index([sentByUserId])
+  @@index([channel])
+  @@index([companyId])
 }
 
 model Invoice {
@@ -781,6 +802,16 @@ model Company {
   auditLogs       AuditLog[]
   notes           Note[]
   subscriptions   Subscription[]
+  leadSources     LeadSource[]
+}
+
+model LeadSource {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt DateTime @default(now())
 }
 
 model Note {
@@ -803,27 +834,44 @@ model Note {
 }
 
 model Contact {
-  id        String   @id @default(uuid())
-  name      String
-  email     String?
-  phone     String?
-  company   String?
-  title     String?
-  status    String   @default("Active")
-  notes     String?  @db.NVarChar(Max)
-  ownerId   String
-  User      User     @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String    @id @default(uuid())
+  contactCode String?
+  name        String
+  email       String?
+  phone       String?
+  company     String?
+  title       String?
+  designation String?
+  status      String    @default("Active")
+  contactType String    @default("Technical") // Technical | Purchase | Finance | Management
+  isPrimary   Boolean   @default(false)
+  notes       String?   @db.NVarChar(Max)
+  customerId  String?
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ownerId     String
+  User        User      @relation(fields: [ownerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Multi-Tenancy
+  companyId String?
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
 
   Task Task[]
 
   @@index([ownerId])
   @@index([status])
+  @@index([customerId])
+  @@index([contactType])
+  @@index([companyId])
 }
 
 model Task {
   id          String    @id @default(uuid())
+  taskCode    String?
   title       String
   description String?   @db.NVarChar(Max)
   status      String    @default("Open")
@@ -836,7 +884,15 @@ model Task {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  // Multi-Tenancy
+  companyId String?
+
+  // Soft Delete
+  deletedAt   DateTime?
+  deletedById String?
+
   @@index([assignedTo])
   @@index([contactId])
   @@index([status])
+  @@index([companyId])
 }

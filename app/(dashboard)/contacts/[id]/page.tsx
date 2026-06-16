@@ -2,19 +2,16 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import { getCustomerByIdAction } from "@/app/actions/customers";
+import { getContactByIdAction, updateContactAction } from "@/app/actions/contacts";
+import { getCustomersAction } from "@/app/actions/customers";
 import { useToast } from "@/components/ToastProvider";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Timeline } from "@/components/ui/Timeline";
 import { NotePanel } from "@/components/ui/NotePanel";
-import { getInitials, getAvatarColor, formatDateTime, formatCurrency, cn } from "@/lib/ui-utils";
-import {
-  ArrowLeft, Briefcase, Phone, Mail, MapPin, Building2,
-  CalendarClock, User, Clock, AlertTriangle, CheckCircle2,
-  History, MessagesSquare, FileText
-} from "lucide-react";
+import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
+import { getInitials, getAvatarColor, formatDateTime, cn } from "@/lib/ui-utils";
+import { ArrowLeft, Phone, Mail, Building2, Tag, Save, Pencil, X, Check, User, Calendar } from "lucide-react";
 
-type Tab = "overview" | "deals" | "communications";
+const CONTACT_TYPES = ["Technical", "Purchase", "Finance", "Management"];
 
 export default function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -24,14 +21,33 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   const [contact, setContact] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>("overview");
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+
+  const [form, setForm] = useState<any>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getCustomerByIdAction(contactId);
+      const res = await getContactByIdAction(contactId);
       if (res.success && res.data) {
         setContact(res.data);
+        setForm({
+          name: res.data.name,
+          email: res.data.email ?? "",
+          phone: res.data.phone ?? "",
+          company: res.data.company ?? "",
+          title: res.data.title ?? "",
+          designation: res.data.designation ?? "",
+          contactType: res.data.contactType ?? "Technical",
+          isPrimary: res.data.isPrimary ?? false,
+          status: res.data.status ?? "Active",
+          notes: res.data.notes ?? "",
+          customerId: res.data.customerId ?? null,
+        });
       } else {
         toast.error("Contact not found.");
         router.push("/contacts");
@@ -42,6 +58,42 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   }, [contactId, router, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadCustomers = async (query: string) => {
+    if (query.length < 2) return;
+    const res = await getCustomersAction({ search: query });
+    if (res.success && res.data) setCustomers(res.data);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await updateContactAction(contactId, {
+        name: form.name,
+        email: form.email || undefined,
+        phone: form.phone || undefined,
+        company: form.company || undefined,
+        title: form.title || undefined,
+        designation: form.designation || undefined,
+        contactType: form.contactType,
+        isPrimary: form.isPrimary,
+        status: form.status,
+        notes: form.notes || undefined,
+        customerId: form.customerId,
+      });
+      if (res.success) {
+        toast.success("Contact updated");
+        setEditing(false);
+        load();
+      } else {
+        toast.error(res.message || "Update failed");
+      }
+    } catch {
+      toast.error("An error occurred");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -59,55 +111,10 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
   const initials = getInitials(contact.name);
   const avatarColor = getAvatarColor(contact.name);
 
-  // Compile communications timeline
-  const followUps = contact.followUps || [];
-  const calls = contact.callLogs || [];
-  const visits = contact.marketingVisits || [];
-  const inboundVisits = contact.customerVisits || [];
-
-  const allCommunications = [
-    ...followUps.map((f: any) => ({
-      id: `f-${f.id}`,
-      type: "Follow-up",
-      title: `Follow-up — ${f.status}`,
-      description: f.remarks || f.notes || "No notes provided.",
-      timestamp: f.nextMeetingDate || f.createdAt,
-      color: f.status === "Completed" ? "green" : f.status === "Overdue" ? "red" : "brand",
-    })),
-    ...calls.map((c: any) => ({
-      id: `c-${c.id}`,
-      type: "Call",
-      title: `Phone Call — ${c.callType} (${c.callOutcome})`,
-      description: c.summary || "No call summary.",
-      timestamp: c.timestamp,
-      color: c.callOutcome === "Interested" ? "green" : "slate",
-    })),
-    ...visits.map((v: any) => ({
-      id: `v-${v.id}`,
-      type: "Visit",
-      title: `Field Visit — ${v.visitPurpose}`,
-      description: v.discussionSummary || "No visit summary.",
-      timestamp: v.createdAt,
-      color: "brand",
-    })),
-    ...inboundVisits.map((v: any) => ({
-      id: `iv-${v.id}`,
-      type: "Inbound Visit",
-      title: `Office Visit — ${v.purpose}`,
-      description: `Hosted by ${v.host?.name || "Unknown"}`,
-      timestamp: v.createdAt,
-      color: "brand",
-    }))
-  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
   return (
     <div className="page-shell max-w-5xl mx-auto">
-      {/* Back */}
       <div>
-        <button
-          onClick={() => router.push("/contacts")}
-          className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 font-medium transition-colors mb-4"
-        >
+        <button onClick={() => router.push("/contacts")} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 font-medium transition-colors mb-4">
           <ArrowLeft size={16} /> Back to Contacts
         </button>
       </div>
@@ -115,204 +122,127 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
       {/* Header card */}
       <div className="crm-card p-6 border-t-4 border-t-[var(--primary)]">
         <div className="flex flex-col sm:flex-row sm:items-start gap-5">
-          {/* Avatar */}
           <div className={cn("w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-black shrink-0 shadow-sm text-white", avatarColor)}>
             {initials}
           </div>
-
-          {/* Info */}
           <div className="flex-1 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">{contact.name}</h1>
               <StatusBadge status={contact.status} showDot size="md" />
+              {contact.isPrimary && <span className="text-[10px] bg-[var(--primary)]/10 text-[var(--primary)] px-2 py-0.5 rounded font-bold">Primary</span>}
             </div>
             <div className="flex flex-wrap items-center gap-4 mt-3">
-              {contact.email && (
-                <div className="flex items-center gap-1.5 text-slate-500 text-sm">
-                  <Mail size={13} className="text-slate-400" /> {contact.email}
-                </div>
-              )}
-              {contact.phone && (
-                <div className="flex items-center gap-1.5 text-slate-500 text-sm">
-                  <Phone size={13} className="text-slate-400" /> {contact.phone}
-                </div>
-              )}
-              {contact.city && (
-                <div className="flex items-center gap-1.5 text-slate-500 text-sm">
-                  <MapPin size={13} className="text-slate-400" /> {contact.city}
-                </div>
-              )}
-              {contact.leadSource && (
-                <div className="flex items-center gap-1.5 text-slate-500 text-sm border-l border-slate-200 pl-4">
-                  <Building2 size={13} className="text-slate-400" /> {contact.leadSource}
-                </div>
-              )}
+              {contact.email && <div className="flex items-center gap-1.5 text-slate-500 text-sm"><Mail size={13} className="text-slate-400" /> {contact.email}</div>}
+              {contact.phone && <div className="flex items-center gap-1.5 text-slate-500 text-sm"><Phone size={13} className="text-slate-400" /> {contact.phone}</div>}
+              {contact.company && <div className="flex items-center gap-1.5 text-slate-500 text-sm"><Building2 size={13} className="text-slate-400" /> {contact.company}</div>}
             </div>
             <div className="flex flex-wrap items-center gap-4 mt-2">
-              <div className="flex items-center gap-1.5 text-slate-400 text-xs">
-                Code: <span className="font-mono font-semibold text-slate-600">{contact.customerCode}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-slate-400 text-xs">
-                Origin: <span className="font-semibold text-slate-600">{contact.convertedFromLead ? "Lead Conversion" : "Direct Entry"}</span>
-              </div>
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs">Code: <span className="font-mono font-semibold text-slate-600">{contact.contactCode}</span></div>
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs">Type: <span className="font-semibold text-slate-600">{contact.contactType}</span></div>
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs">Created: <span className="font-semibold text-slate-600">{formatDateTime(contact.createdAt)}</span></div>
             </div>
           </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex items-center gap-6 mt-6 border-t border-slate-100 pt-4">
-          {(["overview", "deals", "communications"] as Tab[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                "text-sm font-semibold capitalize pb-2 border-b-2 transition-colors flex items-center gap-1.5",
-                tab === t
-                  ? "border-[var(--primary)] text-[var(--primary)]"
-                  : "border-transparent text-slate-400 hover:text-slate-600",
-              )}
-            >
-              {t === "deals" && <Briefcase size={13} />}
-              {t === "communications" && <MessagesSquare size={13} />}
-              {t === "overview" ? "Overview" :
-               t === "deals" ? `Deals (${contact.deals?.length || 0})` :
-               `Communications (${allCommunications.length})`}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Overview Tab ── */}
-      {tab === "overview" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-          {/* Contact Details */}
-          <div className="space-y-5">
-            <div className="crm-card p-5">
-              <h3 className="text-sm font-bold text-slate-700 mb-4">Contact Information</h3>
-              <dl className="space-y-3">
-                {[
-                  { label: "Full Name",     value: contact.name },
-                  { label: "Email Address", value: contact.email || "—" },
-                  { label: "Phone Number",  value: contact.phone || "—" },
-                  { label: "City",          value: contact.city || "—" },
-                  { label: "Lead Source",   value: contact.leadSource || "—" },
-                  { label: "Status",        value: <StatusBadge status={contact.status} /> },
-                  { label: "Contact Code",  value: <span className="font-mono">{contact.customerCode}</span> },
-                  { label: "Created On",    value: formatDateTime(contact.createdAt) },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex items-start justify-between gap-2">
-                    <dt className="text-xs font-semibold text-slate-400 shrink-0">{label}</dt>
-                    <dd className="text-xs font-semibold text-slate-700 text-right">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-
-            {/* Subscriptions (if any) */}
-            {contact.subscriptions && contact.subscriptions.length > 0 && (
-              <div className="crm-card p-5">
-                <h3 className="text-sm font-bold text-slate-700 mb-4">Active Subscriptions</h3>
-                <div className="space-y-3">
-                  {contact.subscriptions.map((sub: any) => (
-                    <div key={sub.id} className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-slate-800">{sub.planName}</span>
-                        <StatusBadge status={sub.status} />
-                      </div>
-                      <div className="text-xs text-slate-500 mt-2 flex justify-between">
-                        <span>Renews: {new Date(sub.endDate).toLocaleDateString()}</span>
-                        <span className="font-medium text-slate-700">{formatCurrency(sub.amount)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+          <div className="shrink-0">
+            {!editing ? (
+              <button onClick={() => setEditing(true)} className="btn-secondary text-xs flex items-center gap-1.5"><Pencil size={13} /> Edit</button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button onClick={() => setEditing(false)} className="btn-secondary text-xs flex items-center gap-1.5"><X size={13} /> Cancel</button>
+                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs flex items-center gap-1.5"><Save size={13} /> {saving ? "Saving…" : "Save"}</button>
               </div>
             )}
           </div>
-
-          {/* Notes Integration */}
-          <div>
-            <NotePanel entityType="CONTACT" entityId={contact.id} />
-          </div>
         </div>
-      )}
+      </div>
 
-      {/* ── Deals Tab ── */}
-      {tab === "deals" && (
-        <div className="crm-card mt-5 overflow-hidden">
-          <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-700">Associated Deals</h3>
-            <span className="text-xs text-slate-400 bg-slate-50 rounded-lg px-2 py-1 font-semibold border border-slate-100">
-              {contact.deals?.length || 0} Total
-            </span>
-          </div>
-          
-          {(!contact.deals || contact.deals.length === 0) ? (
-            <div className="text-center py-10">
-              <Briefcase size={32} className="text-slate-200 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-400">No deals associated yet</p>
-              <p className="text-xs text-slate-300 mt-0.5">When deals are created for this contact, they will appear here.</p>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+        {/* Details / Edit Form */}
+        <div className="crm-card p-6">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">Contact Information</h3>
+          {!editing ? (
+            <dl className="space-y-3">
+              {[
+                { label: "Name", value: contact.name },
+                { label: "Email", value: contact.email || "—" },
+                { label: "Phone", value: contact.phone || "—" },
+                { label: "Company", value: contact.company || "—" },
+                { label: "Title", value: contact.title || "—" },
+                { label: "Designation", value: contact.designation || "—" },
+                { label: "Contact Type", value: contact.contactType },
+                { label: "Customer", value: contact.customer ? contact.customer.name : "—" },
+                { label: "Status", value: <StatusBadge status={contact.status} size="sm" /> },
+                { label: "Notes", value: contact.notes || "—" },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex items-start justify-between gap-2">
+                  <dt className="text-xs font-semibold text-slate-400 shrink-0">{label}</dt>
+                  <dd className="text-xs font-semibold text-slate-700 text-right">{value}</dd>
+                </div>
+              ))}
+            </dl>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase tracking-wider border-b border-slate-100">
-                  <tr>
-                    <th className="px-5 py-3">Deal Name</th>
-                    <th className="px-5 py-3">Stage</th>
-                    <th className="px-5 py-3">Value</th>
-                    <th className="px-5 py-3">Created</th>
-                    <th className="px-5 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {contact.deals.map((deal: any) => (
-                    <tr key={deal.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => router.push(`/deals/${deal.id}`)}>
-                      <td className="px-5 py-3 font-semibold text-slate-700">{deal.dealName}</td>
-                      <td className="px-5 py-3">
-                        <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded font-medium border border-slate-200">
-                          {deal.stage}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 font-semibold text-emerald-600">{formatCurrency(deal.dealValue)}</td>
-                      <td className="px-5 py-3 text-slate-500">{new Date(deal.createdAt).toLocaleDateString()}</td>
-                      <td className="px-5 py-3 text-right">
-                        <button className="text-[var(--primary)] text-xs font-semibold hover:underline">View</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-4">
+              <FormField label="Name" required><Input value={form.name} onChange={(e) => setForm((f: any) => ({ ...f, name: e.target.value }))} /></FormField>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Email"><Input type="email" value={form.email} onChange={(e) => setForm((f: any) => ({ ...f, email: e.target.value }))} /></FormField>
+                <FormField label="Phone"><Input value={form.phone} onChange={(e) => setForm((f: any) => ({ ...f, phone: e.target.value }))} /></FormField>
+                <FormField label="Company"><Input value={form.company} onChange={(e) => setForm((f: any) => ({ ...f, company: e.target.value }))} /></FormField>
+                <FormField label="Title"><Input value={form.title} onChange={(e) => setForm((f: any) => ({ ...f, title: e.target.value }))} /></FormField>
+                <FormField label="Designation"><Input value={form.designation} onChange={(e) => setForm((f: any) => ({ ...f, designation: e.target.value }))} /></FormField>
+                <FormField label="Contact Type">
+                  <Select value={form.contactType} onChange={(e) => setForm((f: any) => ({ ...f, contactType: e.target.value }))}>
+                    {CONTACT_TYPES.map((t) => (<option key={t} value={t}>{t}</option>))}
+                  </Select>
+                </FormField>
+                <FormField label="Status">
+                  <Select value={form.status} onChange={(e) => setForm((f: any) => ({ ...f, status: e.target.value }))}>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </Select>
+                </FormField>
+              </div>
+
+              {/* Customer selector */}
+              <FormField label="Linked Customer">
+                {form.customerId ? (
+                  <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
+                    <span className="text-sm text-slate-700">{contact.customer?.name || "Customer"}</span>
+                    <button onClick={() => setForm((f: any) => ({ ...f, customerId: null }))} className="text-xs text-red-500 hover:underline">Remove</button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input type="text" placeholder="Search customers..." value={customerSearch} onChange={(e) => { setCustomerSearch(e.target.value); loadCustomers(e.target.value); setShowCustomerSearch(true); }} className="w-full px-3 py-2 text-sm rounded-xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[var(--primary)]" />
+                    {showCustomerSearch && customers.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        {customers.map((c) => (
+                          <button key={c.id} onClick={() => { setForm((f: any) => ({ ...f, customerId: c.id })); setShowCustomerSearch(false); setCustomerSearch(""); }} className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0">
+                            <span className="font-medium">{c.name}</span>
+                            <span className="text-xs text-slate-400 ml-2">{c.customerCode}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </FormField>
+
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" className="sr-only" checked={form.isPrimary} onChange={(e) => setForm((f: any) => ({ ...f, isPrimary: e.target.checked }))} />
+                <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${form.isPrimary ? "bg-[var(--primary)] border-[var(--primary)]" : "border-slate-300 bg-white"}`}>
+                  {form.isPrimary && <Check size={12} className="text-white" />}
+                </div>
+                <span className="text-sm text-slate-600">Is Primary Contact</span>
+              </label>
+
+              <FormField label="Notes"><Textarea value={form.notes} onChange={(e) => setForm((f: any) => ({ ...f, notes: e.target.value }))} rows={3} /></FormField>
             </div>
           )}
         </div>
-      )}
 
-      {/* ── Communications Tab ── */}
-      {tab === "communications" && (
-        <div className="crm-card p-5 mt-5">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-sm font-bold text-slate-700">Communication Timeline</h3>
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--primary)]" /> Action</span>
-              <span className="flex items-center gap-1 ml-2"><span className="w-2 h-2 rounded-full bg-green-500" /> Success</span>
-              <span className="flex items-center gap-1 ml-2"><span className="w-2 h-2 rounded-full bg-red-500" /> Overdue</span>
-            </div>
-          </div>
-
-          {allCommunications.length === 0 ? (
-            <div className="text-center py-10">
-              <MessagesSquare size={32} className="text-slate-200 mx-auto mb-3" />
-              <p className="text-sm font-semibold text-slate-400">No communications recorded</p>
-              <p className="text-xs text-slate-300 mt-0.5">Calls, visits, and follow-ups will populate this timeline.</p>
-            </div>
-          ) : (
-            <div className="pl-2">
-              <Timeline events={allCommunications} />
-            </div>
-          )}
+        {/* Notes Panel */}
+        <div>
+          <NotePanel entityType="CONTACT" entityId={contact.id} />
         </div>
-      )}
+      </div>
     </div>
   );
 }

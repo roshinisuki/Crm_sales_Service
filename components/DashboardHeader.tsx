@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
-import { logoutAction } from "@/app/actions/auth";
+import { logoutAction, saveUserThemeAction, saveUserThemeModeAction } from "@/app/actions/auth";
 import { getInitials } from "@/lib/ui-utils";
 import { Search, Bell, ChevronDown, Menu, Settings, User, LogOut, Check, Trash2 } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
@@ -41,38 +41,58 @@ export default function DashboardHeader({
   const toast = useToast();
   const now = useClock();
 
-  // Theme
-  const [activeTheme, setActiveTheme] = useState("ember");
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Theme — initialize from user profile (DB), fallback to localStorage, default to ember/light
+  const [activeTheme, setActiveTheme] = useState(() => {
+    if (typeof window === "undefined") return user?.theme || "ember";
+    return user?.theme || localStorage.getItem("crm-theme-color") || "ember";
+  });
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === "undefined") return (user?.themeMode || "light") === "dark";
+    return (user?.themeMode || localStorage.getItem("crm-theme-mode") || "light") === "dark";
+  });
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("crm-theme-color") || "ember";
-    const savedMode = localStorage.getItem("crm-theme-mode") || "light";
-    setActiveTheme(savedTheme);
-    setIsDarkMode(savedMode === "dark");
-    document.documentElement.setAttribute("data-theme", `${savedTheme}-${savedMode}`);
-    if (savedMode === "dark") {
+    const mode = isDarkMode ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", `${activeTheme}-${mode}`);
+    if (isDarkMode) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, []);
+  }, [activeTheme, isDarkMode]);
 
-  const changeTheme = (t: string) => {
+  const changeTheme = async (t: string) => {
     setActiveTheme(t);
-    localStorage.setItem("crm-theme-color", t);
+    localStorage.setItem("crm-theme-color", t); // cache
     document.documentElement.setAttribute("data-theme", `${t}-${isDarkMode ? "dark" : "light"}`);
+
+    // Persist to user profile (DB)
+    if (user?.id) {
+      const res = await saveUserThemeAction(t);
+      if (!res.success) {
+        toast.warning("Theme saved locally only");
+      }
+    }
   };
 
-  const toggleMode = () => {
+  const toggleMode = async () => {
     const next = !isDarkMode;
     setIsDarkMode(next);
-    localStorage.setItem("crm-theme-mode", next ? "dark" : "light");
-    document.documentElement.setAttribute("data-theme", `${activeTheme}-${next ? "dark" : "light"}`);
+    const mode = next ? "dark" : "light";
+    localStorage.setItem("crm-theme-mode", mode); // cache
+    document.documentElement.setAttribute("data-theme", `${activeTheme}-${mode}`);
     if (next) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
+    }
+
+    // Persist to user profile (DB)
+    if (user?.id) {
+      const res = await saveUserThemeModeAction(mode);
+      if (!res.success) {
+        toast.warning("Theme mode saved locally only");
+      }
     }
   };
 

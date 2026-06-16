@@ -11,7 +11,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
-import { DealStatus } from "@prisma/client";
+type DealStatus = string;
 
 type TransitionContext = {
   /** ID of the user performing the transition (or "system" for cron jobs) */

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getLeadsAction, createLeadAction, updateLeadAction, deleteLeadAction } from "@/app/actions/leads";
+import { getLeadSourcesAction } from "@/app/actions/leadSources";
 import { getUsersAction } from "@/app/actions/users";
 import { Lead, User } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
@@ -45,6 +46,7 @@ export default function LeadsPage() {
 
   const [leads,      setLeads]      = useState<Lead[]>([]);
   const [executives, setExecutives] = useState<User[]>([]);
+  const [dbLeadSources, setDbLeadSources] = useState<any[]>([]);
   const [loading,    setLoading]    = useState(true);
 
   const [search,      setSearch]      = useState("");
@@ -96,8 +98,15 @@ export default function LeadsPage() {
     }
   };
 
+  const loadLeadSources = async () => {
+    const res = await getLeadSourcesAction(true);
+    if (res.success && res.data) {
+      setDbLeadSources(res.data);
+    }
+  };
+
   useEffect(() => { loadLeads(); }, [search, statusFilter, slaFilter]);
-  useEffect(() => { loadExecutives(); }, [user]);
+  useEffect(() => { loadExecutives(); loadLeadSources(); }, [user]);
 
   // ── Filtered data ─────────────────────────────────────────────────────────
 
@@ -548,7 +557,10 @@ export default function LeadsPage() {
                 onChange={e => setFormData(p => ({ ...p, leadSource: e.target.value }))}
               >
                 <option value="">Select source...</option>
-                {LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                {dbLeadSources.length > 0 
+                  ? dbLeadSources.map(s => <option key={s.id} value={s.name}>{s.name}</option>)
+                  : LEAD_SOURCES.map(s => <option key={s} value={s}>{s}</option>)
+                }
               </Select>
             </FormField>
 

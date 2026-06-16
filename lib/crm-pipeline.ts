@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { CustomerStatus, LeadStatus } from "@prisma/client";
+type CustomerStatus = "Prospect" | "ActiveCustomer" | "Renewed" | "Churned";
+type LeadStatus = "New" | "Contacted" | "Qualified" | "Proposal" | "Negotiation" | "Won" | "Lost";
 
 export async function processVisitOutcome(
   visitId: string,

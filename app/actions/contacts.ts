@@ -13,8 +13,20 @@ export interface ContactInput {
   phone?: string;
   company?: string;
   title?: string;
+  designation?: string;
   status?: string;
+  contactType?: string;
+  isPrimary?: boolean;
   notes?: string;
+  customerId?: string | null;
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+async function generateContactCode(): Promise<string> {
+  const count = await prisma.contact.count();
+  const next = count + 1;
+  return `CON-${String(next).padStart(4, "0")}`;
 }
 
 // ─── READ ────────────────────────────────────────────────────────────────────
@@ -22,6 +34,8 @@ export interface ContactInput {
 export async function getContactsAction(params?: {
   search?: string;
   status?: string;
+  contactType?: string;
+  customerId?: string;
 }) {
   try {
     const user = await verifyAuth();
@@ -29,12 +43,15 @@ export async function getContactsAction(params?: {
       return { success: false, message: "Unauthorized" };
     }
 
-    const { search = "", status = "" } = params || {};
+    const { search = "", status = "", contactType = "", customerId = "" } = params || {};
 
     const contacts = await prisma.contact.findMany({
       where: {
+        deletedAt: null,
         ownerId: user.id,
         ...(status ? { status } : {}),
+        ...(contactType ? { contactType } : {}),
+        ...(customerId ? { customerId } : {}),
         ...(search
           ? {
               OR: [
@@ -46,6 +63,7 @@ export async function getContactsAction(params?: {
           : {}),
       },
       include: {
+        customer: { select: { id: true, name: true, customerCode: true } },
         Task: { select: { id: true, status: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -66,8 +84,9 @@ export async function getContactByIdAction(id: string) {
     }
 
     const contact = await prisma.contact.findUnique({
-      where: { id },
+      where: { id, deletedAt: null },
       include: {
+        customer: { select: { id: true, name: true, customerCode: true } },
         Task: {
           include: { User: { select: { id: true, name: true } } },
           orderBy: { createdAt: "desc" },
@@ -95,17 +114,25 @@ export async function createContactAction(input: ContactInput) {
       return { success: false, message: "Unauthorized" };
     }
 
+    const contactCode = await generateContactCode();
+
     const contact = await prisma.contact.create({
       data: {
         id: nanoid(),
+        contactCode,
         name: input.name,
         email: input.email ?? null,
         phone: input.phone ?? null,
         company: input.company ?? null,
         title: input.title ?? null,
+        designation: input.designation ?? null,
         status: input.status ?? "Active",
+        contactType: input.contactType ?? "Technical",
+        isPrimary: input.isPrimary ?? false,
         notes: input.notes ?? null,
+        customerId: input.customerId ?? null,
         ownerId: user.id,
+        companyId: user.companyId ?? null,
       },
     });
 
@@ -126,7 +153,7 @@ export async function updateContactAction(id: string, input: Partial<ContactInpu
       return { success: false, message: "Unauthorized" };
     }
 
-    const existing = await prisma.contact.findUnique({ where: { id } });
+    const existing = await prisma.contact.findUnique({ where: { id, deletedAt: null } });
     if (!existing || existing.ownerId !== user.id) {
       return { success: false, message: "Contact not found." };
     }
@@ -139,8 +166,12 @@ export async function updateContactAction(id: string, input: Partial<ContactInpu
         ...(input.phone !== undefined && { phone: input.phone }),
         ...(input.company !== undefined && { company: input.company }),
         ...(input.title !== undefined && { title: input.title }),
+        ...(input.designation !== undefined && { designation: input.designation }),
         ...(input.status !== undefined && { status: input.status }),
+        ...(input.contactType !== undefined && { contactType: input.contactType }),
+        ...(input.isPrimary !== undefined && { isPrimary: input.isPrimary }),
         ...(input.notes !== undefined && { notes: input.notes }),
+        ...(input.customerId !== undefined && { customerId: input.customerId }),
       },
     });
 
@@ -152,7 +183,7 @@ export async function updateContactAction(id: string, input: Partial<ContactInpu
   }
 }
 
-// ─── DELETE ──────────────────────────────────────────────────────────────────
+// ─── DELETE (Soft) ───────────────────────────────────────────────────────────
 
 export async function deleteContactAction(id: string) {
   try {
@@ -161,12 +192,15 @@ export async function deleteContactAction(id: string) {
       return { success: false, message: "Unauthorized" };
     }
 
-    const existing = await prisma.contact.findUnique({ where: { id } });
+    const existing = await prisma.contact.findUnique({ where: { id, deletedAt: null } });
     if (!existing || existing.ownerId !== user.id) {
       return { success: false, message: "Contact not found." };
     }
 
-    await prisma.contact.delete({ where: { id } });
+    await prisma.contact.update({
+      where: { id },
+      data: { deletedAt: new Date(), deletedById: user.id },
+    });
     revalidatePath("/contacts");
     return { success: true };
   } catch (error) {

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
-import { InvoiceStatus } from "@prisma/client";
+type InvoiceStatus = "Unpaid" | "Paid" | "Overdue" | "Cancelled";
 
 /**
  * Create a new invoice.

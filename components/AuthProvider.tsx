@@ -10,6 +10,8 @@ export interface UserProfile {
   name: string;
   role: Role;
   isActive: boolean;
+  theme?: string;
+  themeMode?: string;
 }
 
 interface AuthContextType {

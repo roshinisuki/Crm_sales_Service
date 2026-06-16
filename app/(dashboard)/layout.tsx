@@ -20,7 +20,7 @@ type NavItem = { href: string; label: string; icon: React.ReactNode; end?: boole
 
 // ─── NavLink ──────────────────────────────────────────────────────────────────
 
-function NavLink({ item, active, onClick }: { item: NavItem; active: boolean; onClick?: () => void }) {
+function NavLink({ item, active, onClick, collapsed }: { item: NavItem; active: boolean; onClick?: () => void; collapsed?: boolean }) {
   return (
     <Link
       href={item.href}
@@ -31,6 +31,8 @@ function NavLink({ item, active, onClick }: { item: NavItem; active: boolean; on
           ? "bg-[var(--sidebar-active-bg)] text-white font-semibold"
           : "text-white hover:bg-white/[0.06]",
       )}
+      title={collapsed ? item.label : undefined}
+      aria-label={collapsed ? item.label : undefined}
     >
       {/* Active indicator */}
       {active && (
@@ -40,6 +42,11 @@ function NavLink({ item, active, onClick }: { item: NavItem; active: boolean; on
         {item.icon}
       </span>
       <span className="nav-label whitespace-nowrap transition-all duration-300 overflow-hidden">{item.label}</span>
+
+      {/* Tooltip for collapsed state */}
+      {collapsed && (
+        <span className="sidebar-tooltip">{item.label}</span>
+      )}
     </Link>
   );
 }
@@ -266,12 +273,14 @@ function SidebarContent({
   loading,
   handleLogout,
   onNavClick,
+  isCollapsed,
 }: {
   pathname: string;
   user: any;
   loading: boolean;
   handleLogout: () => void;
   onNavClick?: () => void;
+  isCollapsed?: boolean;
 }) {
   const isActive = (item: NavItem) =>
     item.end ? pathname === item.href : pathname.startsWith(item.href);
@@ -279,9 +288,10 @@ function SidebarContent({
   // Submenu definitions (Phase 1 CRM Navigation Architecture)
   const leadSubItems = [
     { href: "/leads", label: "All Leads" },
-    { href: "/leads?status=FollowupDue", label: "Follow-up Due" },
+    { href: "/leads?status=New", label: "New Leads" },
+    { href: "/leads?followUp=due", label: "Follow-up Due" },
     { href: "/leads?status=Qualified", label: "Sales Qualified Leads (SQL)" },
-    { href: "/leads?status=Overdue", label: "Overdue Leads" },
+    { href: "/leads?slaStatus=Breached", label: "Overdue Leads" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
 
@@ -340,12 +350,11 @@ function SidebarContent({
     }
   ];
 
-  const customerSubItems = [
-    { href: "/customers", label: "All Customers" },
-    { href: "/customers?status=Active", label: "Active Customers" },
-    { href: "/customers?status=RenewalDue", label: "Renewal Due" },
-    { href: "/customers?status=Renewed", label: "Renewed" },
-    { href: "/customers?status=Expired", label: "Expired" },
+  const accountsSubItems = [
+    { href: "/customer-master", label: "All Accounts" },
+    { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
+    { href: "/customer-master?status=Prospect", label: "Prospect Accounts" },
+    { href: "/customer-master?status=Churned", label: "Inactive Accounts" },
   ];
   
   const userManagementSubItems = [
@@ -368,15 +377,27 @@ function SidebarContent({
 
   return (
     <div className="flex flex-col h-full">
-      {/* ── Logo ── */}
-      <div className="px-5 pt-6 pb-5 shrink-0 border-b border-white/[0.06]">
+      {/* ── Logo / Brand ── */}
+      <div className={cn("shrink-0 border-b border-white/[0.06] flex items-center", isCollapsed ? "justify-center px-2 py-3" : "px-4 py-3.5")}>
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 flex items-center justify-center shrink-0">
-            <img src="/logo.png" alt="SUKI CRM" className="w-12 h-12 object-contain" onError={(e: any) => { e.target.style.display='none'; }} />
+          {/* Logo image with fallback */}
+          <div className="w-9 h-9 rounded-lg bg-[var(--primary)] flex items-center justify-center shrink-0 overflow-hidden">
+            <img
+              src="/logo.png"
+              alt="SUKI CRM"
+              className="w-full h-full object-contain"
+              onError={(e: any) => {
+                e.target.style.display = 'none';
+                e.target.parentElement.querySelector('.logo-fallback')?.classList.remove('hidden');
+              }}
+            />
+            <span className="logo-fallback hidden text-white font-black text-sm">S</span>
           </div>
-          <div className="nav-label transition-all duration-300 overflow-hidden whitespace-nowrap">
-            <p className="text-white text-[15px] font-black leading-tight tracking-wide">SUKI CRM</p>
-            <p className="text-white text-[10px] font-medium tracking-wide mt-0.5">Customer Relationship</p>
+
+          {/* Brand text — hidden when collapsed */}
+          <div className="nav-label transition-all duration-300 overflow-hidden whitespace-nowrap leading-none">
+            <p className="text-white text-[14px] font-black tracking-wide leading-tight">SUKI CRM</p>
+            <p className="text-white/50 text-[10px] font-medium tracking-wide leading-tight mt-0.5">Customer Relationship</p>
           </div>
         </div>
       </div>
@@ -385,26 +406,26 @@ function SidebarContent({
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5">
         
         {/* ── Dashboard ── */}
-        <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} />, end: true }} active={pathname === "/dashboard"} onClick={onNavClick} />
+        <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} />, end: true }} active={pathname === "/dashboard"} onClick={onNavClick} collapsed={isCollapsed} />
 
         {/* ── Internal CRM staff nav (Admin, SalesManager, SalesExecutive) ── */}
         {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
           <>
             <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} />
             <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} />
-            <NavLink item={{ href: "/contacts", label: "Contacts", icon: <ContactRound size={17} /> }} active={pathname.startsWith("/contacts")} onClick={onNavClick} />
-            <NavLink item={{ href: "/tasks", label: "Tasks", icon: <ListTodo size={17} /> }} active={pathname.startsWith("/tasks")} onClick={onNavClick} />
+            <NavLink item={{ href: "/contacts", label: "Contacts", icon: <ContactRound size={17} /> }} active={pathname.startsWith("/contacts")} onClick={onNavClick} collapsed={isCollapsed} />
+            <NavLink item={{ href: "/tasks", label: "Tasks", icon: <ListTodo size={17} /> }} active={pathname.startsWith("/tasks")} onClick={onNavClick} collapsed={isCollapsed} />
             <ExpandableNavSection label="Visits" icon={<MapPin size={17} />} subItems={visitSubItems} pathname={pathname} onNavClick={onNavClick} />
             <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} />
             
             {/* The multi-level Sales Pipeline */}
             <ExpandableGroup label="Sales Pipeline" icon={<TrendingUp size={17} />} sections={salesPipelineSections} pathname={pathname} onNavClick={onNavClick} />
 
-            <NavLink item={{ href: "/forecast", label: "Forecast", icon: <LineChart size={17} /> }} active={pathname.startsWith("/forecast")} onClick={onNavClick} />
+            <NavLink item={{ href: "/forecast", label: "Forecast", icon: <LineChart size={17} /> }} active={pathname.startsWith("/forecast")} onClick={onNavClick} collapsed={isCollapsed} />
             
-            <ExpandableNavSection label="Customers" icon={<BookUser size={17} />} subItems={customerSubItems} pathname={pathname} onNavClick={onNavClick} />
+            <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} />
             
-            <NavLink item={{ href: "/reports", label: "Reports", icon: <PieChart size={17} /> }} active={pathname.startsWith("/reports")} onClick={onNavClick} />
+            <NavLink item={{ href: "/reports", label: "Reports", icon: <PieChart size={17} /> }} active={pathname.startsWith("/reports")} onClick={onNavClick} collapsed={isCollapsed} />
           </>
         )}
 
@@ -414,16 +435,16 @@ function SidebarContent({
             <div className="pt-3 pb-1">
               <p className="nav-label px-3 text-[10px] font-bold text-white/30 uppercase tracking-widest overflow-hidden whitespace-nowrap">Platform Admin</p>
             </div>
-            <NavLink item={{ href: "/admin/companies", label: "Companies", icon: <Building2 size={17} /> }} active={pathname.startsWith("/admin/companies")} onClick={onNavClick} />
-            <NavLink item={{ href: "/admin/system-configs", label: "System Configs", icon: <Settings size={17} /> }} active={pathname.startsWith("/admin/system-configs")} onClick={onNavClick} />
+            <NavLink item={{ href: "/admin/companies", label: "Companies", icon: <Building2 size={17} /> }} active={pathname.startsWith("/admin/companies")} onClick={onNavClick} collapsed={isCollapsed} />
+            <NavLink item={{ href: "/admin/system-configs", label: "System Configs", icon: <Settings size={17} /> }} active={pathname.startsWith("/admin/system-configs")} onClick={onNavClick} collapsed={isCollapsed} />
           </>
         )}
 
         {/* ── Customer portal nav ── */}
         {!loading && user?.role === "Customer" && (
           <>
-            <NavLink item={{ href: "/subscription", label: "My Subscriptions", icon: <Briefcase size={17} /> }} active={pathname.startsWith("/subscription")} onClick={onNavClick} />
-            <NavLink item={{ href: "/customer/support", label: "Support Tickets", icon: <CheckSquare size={17} /> }} active={pathname.startsWith("/customer/support")} onClick={onNavClick} />
+            <NavLink item={{ href: "/subscription", label: "My Subscriptions", icon: <Briefcase size={17} /> }} active={pathname.startsWith("/subscription")} onClick={onNavClick} collapsed={isCollapsed} />
+            <NavLink item={{ href: "/customer/support", label: "Support Tickets", icon: <CheckSquare size={17} /> }} active={pathname.startsWith("/customer/support")} onClick={onNavClick} collapsed={isCollapsed} />
           </>
         )}
 
@@ -434,7 +455,7 @@ function SidebarContent({
               <p className="nav-label px-3 text-[10px] font-bold text-white/40 uppercase tracking-widest overflow-hidden whitespace-nowrap">System Management</p>
             </div>
             <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} />
-            <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} />
+            <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={isCollapsed} />
             <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} />
           </>
         )}
@@ -445,7 +466,7 @@ function SidebarContent({
             <div className="pt-4 pb-2 border-t border-white/[0.06] mt-4">
               <p className="nav-label px-3 text-[10px] font-bold text-white/40 uppercase tracking-widest overflow-hidden whitespace-nowrap">Settings</p>
             </div>
-            <NavLink item={{ href: "/settings?tab=notifications", label: "Notifications", icon: <Settings size={17} /> }} active={pathname.startsWith("/settings")} onClick={onNavClick} />
+            <NavLink item={{ href: "/settings?tab=notifications", label: "Notifications", icon: <Settings size={17} /> }} active={pathname.startsWith("/settings")} onClick={onNavClick} collapsed={isCollapsed} />
           </>
         )}
       </nav>
@@ -469,13 +490,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     const saved = localStorage.getItem("crm-sidebar-collapsed");
     if (saved === "true") setIsCollapsed(true);
-
-    const savedMode = localStorage.getItem("crm-theme-mode") || "light";
-    if (savedMode === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
   }, []);
 
   const toggleCollapse = () => {
@@ -502,14 +516,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* ── Desktop Sidebar ── */}
       <aside
-        className={cn("hidden md:flex shrink-0 flex-col h-full z-20 shadow-xl transition-[width,min-width] duration-300 ease-in-out group", isCollapsed ? "collapsed" : "")}
-        style={{ width: isCollapsed ? "var(--sidebar-collapsed, 52px)" : "var(--sidebar-width, 220px)", background: "var(--sidebar-bg)" }}
+        className={cn("sidebar-container hidden md:flex shrink-0 flex-col h-full z-20 shadow-xl transition-[width] duration-300 ease-in-out group", isCollapsed ? "collapsed" : "")}
+        style={{ width: isCollapsed ? "72px" : "240px", background: "var(--sidebar-bg)" }}
+        role="navigation"
+        aria-label="Main navigation"
       >
         <SidebarContent
           pathname={pathname}
           user={user}
           loading={loading}
           handleLogout={handleLogout}
+          isCollapsed={isCollapsed}
         />
       </aside>
 

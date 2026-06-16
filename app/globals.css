@@ -766,15 +766,74 @@ body {
 }
 
 /* ─── Sidebar Collapsed State ────────────────────────────────────────────────── */
+/* Full width: 240px, Collapsed: 72px */
 .collapsed .nav-label {
   opacity: 0;
   width: 0;
   padding-left: 0;
   padding-right: 0;
   margin-left: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, width 0.25s ease;
 }
 .collapsed .nav-icon {
   margin: 0 auto;
+  transition: margin 0.25s ease;
+}
+
+/* Tooltip for collapsed sidebar items */
+.sidebar-tooltip {
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%) scale(0.95);
+  padding: 6px 12px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.sidebar-tooltip::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-width: 4px 4px 4px 0;
+  border-color: transparent #1f2937 transparent transparent;
+}
+
+.group:hover .sidebar-tooltip {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+/* Ensure collapsed menu items are centered */
+aside.collapsed nav a,
+aside.collapsed nav button {
+  justify-content: center;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* Smooth width transition on sidebar */
+aside.sidebar-container {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus ring for toggle button */
+.sidebar-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary), 0 0 0 4px rgba(255,255,255,0.2);
 }
 
 /* ─── Explicit Theme Utilities ──────────────────────────────────────────────── */

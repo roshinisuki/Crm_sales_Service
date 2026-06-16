@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getCustomersAction, createCustomerAction, updateCustomerAction, deleteCustomersAction } from "@/app/actions/customers";
 import { getUsersAction } from "@/app/actions/users";
 import { Customer, User } from "@/types";
@@ -45,7 +45,8 @@ export default function CustomerMasterPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const searchParams = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "");
   const [leadSourceFilter, setLeadSourceFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { user } = useAuth();
@@ -97,6 +98,10 @@ export default function CustomerMasterPage() {
       }
     }
   };
+
+  useEffect(() => {
+    setStatusFilter(searchParams.get("status") || "");
+  }, [searchParams]);
 
   useEffect(() => {
     loadCustomers();

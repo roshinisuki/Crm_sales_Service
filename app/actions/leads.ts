@@ -5,7 +5,8 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, computeDiff, inferSeverity } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
 import { revalidatePath } from "next/cache";
-import { LeadStatus, LeadSource } from "@prisma/client";
+type LeadStatus = "New" | "Contacted" | "Qualified" | "Proposal" | "Negotiation" | "Won" | "Lost";
+type LeadSource = "Website" | "Referral" | "SocialMedia" | "Email" | "Event" | "ColdCall" | "Partner" | "Other";
 import { buildScope, checkRecordScope } from "@/lib/scopes";
 
 /**

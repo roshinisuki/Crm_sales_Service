@@ -83,7 +83,7 @@ export default function SubscriptionsPage() {
         getCustomersAction(),
       ]);
       if (subRes.success) setSubscriptions(subRes.data || []);
-      if (custRes.success) setCustomers(custRes.data || []);
+      if (custRes.success) setCustomers((custRes.data || []) as Customer[]);
     } catch (err) {
       console.error(err);
     } finally {

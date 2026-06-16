@@ -505,6 +505,8 @@ export async function getMeAction() {
         isActive: true,
         isFirstLogin: true,
         lastLoginAt: true,
+        theme: true,
+        themeMode: true,
       },
     });
 
@@ -519,9 +521,92 @@ export async function getMeAction() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// THEME PERSISTENCE (per-user profile)
+// ═══════════════════════════════════════════════════════════════
+
+export async function saveUserThemeAction(theme: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload) {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    const validThemes = ["ember", "ocean", "forest", "obsidian"];
+    if (!validThemes.includes(theme)) {
+      return { success: false, message: "Invalid theme" };
+    }
+
+    await prisma.user.update({
+      where: { id: userPayload.id },
+      data: { theme },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("saveUserThemeAction error:", error);
+    return { success: false, message: "Failed to save theme" };
+  }
+}
+
+export async function saveUserThemeModeAction(mode: string) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload) {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    const validModes = ["light", "dark"];
+    if (!validModes.includes(mode)) {
+      return { success: false, message: "Invalid theme mode" };
+    }
+
+    await prisma.user.update({
+      where: { id: userPayload.id },
+      data: { themeMode: mode },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("saveUserThemeModeAction error:", error);
+    return { success: false, message: "Failed to save theme mode" };
+  }
+}
+
 // Legacy alias
 export async function loginAction(data: { email: string; password: string }) {
   return loginWithPassword(data.email, data.password, false);
+}
+
+/** Admin unlocks a locked user account (resets loginAttempts and lockedUntil) */
+export async function unlockAccountAction(email: string) {
+  try {
+    const adminPayload = await verifyAuth();
+    if (!adminPayload || !["Admin", "SuperAdmin"].includes(adminPayload.role)) {
+      return { success: false, message: "Unauthorized: Admin only." };
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findFirst({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user) {
+      return { success: false, message: "User not found." };
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { loginAttempts: 0, lockedUntil: null },
+    });
+
+    await logAudit(adminPayload.id, "AUTH", "UNLOCK_ACCOUNT", `Admin unlocked account for ${user.email}`);
+
+    return { success: true, message: `Account ${user.email} has been unlocked.` };
+  } catch (error) {
+    console.error("unlockAccountAction error:", error);
+    return { success: false, message: "Failed to unlock account." };
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
