@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { SummaryCard } from "@/components/ui/SummaryCard";
 import { Users, PhoneCall, CheckCircle2, XCircle, Clock, CalendarCheck, Briefcase, TrendingUp, DollarSign } from "lucide-react";
@@ -18,6 +19,7 @@ function Skeleton({ className }: { className?: string }) {
 
 export default function AdminDashboard({ dashboardData, salesData, user, loadData, dateRange, setDateRange }: any) {
   const loading = !dashboardData;
+  const { formatCurrency } = useCurrency();
 
   // Modal Open States
   const [isInboundOpen, setIsInboundOpen] = useState(false);
@@ -92,7 +94,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
         />
         <SummaryCard 
           label="Revenue" 
-          value={salesData?.kpis?.pipelineRevenue ? `$${(salesData.kpis.pipelineRevenue / 1000).toFixed(1)}K` : "$0.0K"} 
+          value={salesData?.kpis?.pipelineRevenue ? formatCurrency(salesData.kpis.pipelineRevenue) : formatCurrency(0)} 
           icon={<DollarSign size={18} />} 
           variant="light" 
           trend={{ value: "-1.5%", up: false }}

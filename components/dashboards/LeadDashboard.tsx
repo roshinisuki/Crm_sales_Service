@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { SummaryCard } from "@/components/ui/SummaryCard";
 import { 
@@ -14,6 +15,7 @@ import CheckOutModal from "@/components/CheckOutModal";
 import { SalesFunnelChart, RevenueTrendChart, LeadSourcesTable, AgentLeaderboard, WorkspaceOverviewLineChart, SalesPipelineWidget, RecentLeadsTableWidget } from "./SalesWidgets";
 
 export default function LeadDashboard({ dashboardData: data, salesData, user, loadData, dateRange, setDateRange }: any) {
+  const { formatCurrency } = useCurrency();
   // Modal States
   const [isInboundOpen, setIsInboundOpen] = useState(false);
   const [isOutboundOpen, setIsOutboundOpen] = useState(false);
@@ -140,7 +142,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
         />
         <SummaryCard 
           label="Revenue" 
-          value={salesData?.kpis?.pipelineRevenue ? `$${(salesData.kpis.pipelineRevenue / 1000).toFixed(1)}K` : "$0.0K"} 
+          value={salesData?.kpis?.pipelineRevenue ? formatCurrency(salesData.kpis.pipelineRevenue) : formatCurrency(0)} 
           icon={<DollarSign size={18} />} 
           variant="light" 
           trend={{ value: "-1.5%", up: false }}

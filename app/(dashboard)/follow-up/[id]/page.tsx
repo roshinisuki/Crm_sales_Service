@@ -88,35 +88,14 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
 
   const handleCompleteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!outcomeRemarks.trim()) {
-      toast.error("Outcome completion remarks are required");
-      return;
-    }
-    setFormLoading(true);
-
-    try {
-      const res = await completeFollowUpAction({
-        id: followUp.id,
-        customerStatus: newCustomerStatus,
-        completionNotes: outcomeRemarks,
-        remarks: outcomeRemarks,
-        nextMeetingDate: scheduleNext ? nextFollowUpTimeComplete : undefined,
-        nextMeetingNotes: scheduleNext ? nextFollowUpNotesComplete : undefined,
-        nextMeetingPriority: scheduleNext ? nextFollowUpPriorityComplete : undefined,
-      });
-
-      if (res.success) {
-        setIsCompleteOpen(false);
-        toast.success("Follow-up marked completed successfully");
-        loadFollowUp();
-      } else {
-        toast.error(res.message || "Failed to complete follow-up");
-      }
-    } catch {
-      toast.error("Failed to complete follow-up");
-    } finally {
-      setFormLoading(false);
-    }
+    if (!followUp) return;
+    // Redirect to activity form — follow-up completion requires a logged activity.
+    // The activity form will call completeFollowUpWithActivityAction (source of truth).
+    const params = new URLSearchParams({ followUpId: followUp.id });
+    if (followUp.leadId) params.set("leadId", followUp.leadId);
+    if (followUp.customerId) params.set("customerId", followUp.customerId);
+    setIsCompleteOpen(false);
+    router.push(`/activities/new?${params.toString()}`);
   };
 
   if (loading) {

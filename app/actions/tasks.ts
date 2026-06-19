@@ -14,6 +14,8 @@ export interface TaskInput {
   priority?: string;
   dueDate?: string | null;
   contactId?: string | null;
+  dealId?: string | null;
+  assignedTo?: string | null;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -132,7 +134,8 @@ export async function createTaskAction(input: TaskInput) {
         priority: input.priority ?? "Medium",
         dueDate: input.dueDate ? new Date(input.dueDate) : null,
         contactId: input.contactId ?? null,
-        assignedTo: user.id,
+        dealId: input.dealId ?? null,
+        assignedTo: input.assignedTo || user.id,
         companyId: user.companyId ?? null,
       },
     });
@@ -178,6 +181,7 @@ export async function updateTaskAction(id: string, input: Partial<TaskInput> & {
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
         }),
         ...(input.contactId !== undefined && { contactId: input.contactId }),
+        ...(input.dealId !== undefined && { dealId: input.dealId }),
       },
     });
 

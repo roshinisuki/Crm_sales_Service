@@ -56,6 +56,16 @@ async function main() {
   }
   console.log("Default lead sources seeded.");
 
+  // ---- Company ----
+  console.log("Seeding default company...");
+  const defaultCompany = await prisma.company.create({
+    data: {
+      id: uuidv4(),
+      name: "Suki Software Solutions Pvt. Ltd.",
+    },
+  });
+  console.log("Default company created.");
+
   // ---- Users ----
   console.log("Seeding users...");
   const passwordHash = await bcrypt.hash("password123", 10);
@@ -77,6 +87,7 @@ async function main() {
         passwordHash,
         role: u.role,
         isActive: true,
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -114,6 +125,7 @@ async function main() {
         phone: c.phone,
         city: c.city,
         status: c.status,
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -140,6 +152,7 @@ async function main() {
         endDate,
         status: subStatuses[i % subStatuses.length],
         notes: `Subscription ${i + 1} notes.`,
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -168,6 +181,7 @@ async function main() {
         outcome: visitOutcomes[i % visitOutcomes.length],
         meetingSummary: `Discussed requirements and next steps for ${customer.name}.`,
         status: i < 8 ? "CHECKED_OUT" : "CHECKED_IN",
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -193,6 +207,7 @@ async function main() {
         purpose: visitPurposes[i % visitPurposes.length],
         outcome: visitOutcomes[i % visitOutcomes.length],
         status: i < 7 ? "CHECKED_OUT" : "CHECKED_IN",
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -215,6 +230,7 @@ async function main() {
         nextMeetingDate: nextMeeting,
         remarks: `Follow up with ${customer.name} regarding proposal.`,
         status: followUpStatuses[i % followUpStatuses.length],
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -396,6 +412,7 @@ async function main() {
         leadSource: ld.source,
         notes: ld.notes,
         slaStatus: "Pending",
+        companyId: defaultCompany.id,
       },
     });
     createdLeads.push({ id: leadId, name: ld.name });
@@ -437,6 +454,7 @@ async function main() {
         nextMeetingDate: meetingDate,
         remarks: fu.remarks,
         status: fu.status,
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -467,6 +485,7 @@ async function main() {
         assignedUserId: exec.id,
         status: dealStatuses[i % dealStatuses.length],
         notes: `Sample deal created via seed script.`,
+        companyId: defaultCompany.id,
       },
     });
   }
@@ -515,6 +534,7 @@ async function main() {
         location: log.location ?? null,
         mode: log.mode ?? null,
         outcome: log.outcome ?? null,
+        companyId: defaultCompany.id,
       },
     });
   }
@@ -543,6 +563,7 @@ async function main() {
         createdById: exec.id,
         entityType: note.entityType,
         entityId,
+        companyId: defaultCompany.id,
       },
     });
   }
@@ -578,6 +599,7 @@ async function main() {
         nextMeetingDate: meetingDate,
         remarks: fu.remarks,
         status: fu.status,
+        companyId: defaultCompany.id,
         updatedAt: now,
       },
     });
@@ -615,10 +637,43 @@ async function main() {
         dueDate,
         contactId: contact?.id ?? null,
         assignedTo: exec.id,
+        companyId: defaultCompany.id,
       },
     });
   }
   console.log(`${extraTasks.length} additional tasks created.`);
+
+  // ---- Pipeline Stages (Variant 2) ----
+  console.log("Seeding default pipeline stages...");
+  const defaultStages = [
+    { name: 'New Lead', order: 1, color: '#378ADD' },
+    { name: 'Qualified', order: 2, color: '#10B981' },
+    { name: 'Requirement Gathering', order: 3, color: '#F59E0B' },
+    { name: 'Technical Discussion', order: 4, color: '#8B5CF6' },
+    { name: 'Meeting Scheduled', order: 5, color: '#EC4899' },
+    { name: 'Demo Conducted', order: 6, color: '#06B6D4' },
+    { name: 'Proposal Sent', order: 7, color: '#84CC16' },
+    { name: 'Won', order: 8, color: '#22C55E' },
+    { name: 'Lost', order: 9, color: '#EF4444' },
+  ];
+  
+  // Get all companies (should be just one in this setup, but we'll handle multiple)
+  const companies = await prisma.company.findMany();
+  for (const company of companies) {
+    for (const stage of defaultStages) {
+      await prisma.pipelineStage.create({
+        data: {
+          id: uuidv4(),
+          name: stage.name,
+          order: stage.order,
+          color: stage.color,
+          isActive: true,
+          companyId: company.id,
+        },
+      });
+    }
+  }
+  console.log(`${defaultStages.length} pipeline stages seeded for ${companies.length} company/companies.`);
 
   console.log("\nDatabase seeded successfully! All models populated. ✓");
 }

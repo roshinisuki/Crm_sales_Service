@@ -47,6 +47,18 @@ export function formatDateTime(date: string | Date | null | undefined): string {
   return d.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-export function formatCurrency(value: number, currency = "INR"): string {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
+/**
+ * Format a currency amount.
+ *
+ * NOTE: For multi-currency display, use `useCurrency().formatCurrency()` from
+ * CurrencyProvider instead — it applies exchange rate conversion automatically.
+ * This function is for server-side formatting or when conversion is not needed.
+ *
+ * @param value - Amount in the specified currency
+ * @param currency - ISO currency code (default: INR)
+ * @param locale - Locale for formatting (default: en-IN)
+ */
+export function formatCurrency(value: number, currency = "INR", locale = "en-IN"): string {
+  if (!value || isNaN(value)) return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0 }).format(0);
+  return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 }

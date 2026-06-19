@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
+import { createNoteAction as createNoteActionCanonical } from "@/app/actions/notes";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -12,6 +13,7 @@ import { nanoid } from "nanoid";
 export interface CallInput {
   customerId?: string | null;
   leadId?: string | null;
+  dealId?: string | null;
   direction: string; // "Inbound" | "Outbound"
   duration?: number | null;
   content: string; // notes/outcome
@@ -21,6 +23,7 @@ export interface CallInput {
 export interface MeetingInput {
   customerId?: string | null;
   leadId?: string | null;
+  dealId?: string | null;
   meetingDate: string;
   location?: string | null;
   mode?: string | null; // "In-person" | "Virtual"
@@ -36,6 +39,23 @@ export interface NoteInput {
   content: string;
 }
 
+export interface EmailInput {
+  customerId?: string | null;
+  leadId?: string | null;
+  subject: string;
+  body: string;
+  direction?: string;
+  status?: string;
+}
+
+export interface WhatsAppInput {
+  customerId?: string | null;
+  leadId?: string | null;
+  content: string;
+  direction?: string;
+  status?: string;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMMUNICATION LOG (Calls + Meetings)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -44,6 +64,7 @@ export async function getActivitiesAction(params?: {
   channel?: string;
   leadId?: string;
   customerId?: string;
+  dealId?: string;
   search?: string;
 }) {
   try {
@@ -52,13 +73,14 @@ export async function getActivitiesAction(params?: {
       return { success: false, message: "Unauthorized" };
     }
 
-    const { channel = "", leadId = "", customerId = "", search = "" } = params || {};
+    const { channel = "", leadId = "", customerId = "", dealId = "", search = "" } = params || {};
 
     const where: any = { deletedAt: null };
 
     if (channel) where.channel = channel;
     if (leadId) where.leadId = leadId;
     if (customerId) where.customerId = customerId;
+    if (dealId) where.dealId = dealId;
     if (search) {
       where.OR = [
         { content: { contains: search } },
@@ -124,6 +146,7 @@ export async function createCallAction(input: CallInput) {
         channel: "Call",
         customerId: input.customerId ?? null,
         leadId: input.leadId ?? null,
+        dealId: input.dealId ?? null,
         direction: input.direction ?? "Outbound",
         duration: input.duration ?? null,
         content: input.content,
@@ -155,6 +178,7 @@ export async function createMeetingAction(input: MeetingInput) {
         channel: "Meeting",
         customerId: input.customerId ?? null,
         leadId: input.leadId ?? null,
+        dealId: input.dealId ?? null,
         direction: "Outbound",
         meetingDate: input.meetingDate ? new Date(input.meetingDate) : null,
         location: input.location ?? null,
@@ -174,6 +198,68 @@ export async function createMeetingAction(input: MeetingInput) {
   } catch (error) {
     console.error("createMeetingAction error:", error);
     return { success: false, message: "Failed to create meeting log." };
+  }
+}
+
+export async function createEmailAction(input: EmailInput) {
+  try {
+    const user = await verifyAuth();
+    if (!user || user.role === "Customer") {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    const content = `Subject: ${input.subject}\n\nBody: ${input.body}`;
+
+    const log = await prisma.communicationLog.create({
+      data: {
+        id: nanoid(),
+        channel: "Email",
+        customerId: input.customerId ?? null,
+        leadId: input.leadId ?? null,
+        direction: input.direction ?? "Outbound",
+        content,
+        status: input.status ?? "Sent",
+        sentByUserId: user.id,
+        sentAt: new Date(),
+        companyId: user.companyId ?? null,
+      },
+    });
+
+    revalidatePath("/activities");
+    return { success: true, data: log };
+  } catch (error) {
+    console.error("createEmailAction error:", error);
+    return { success: false, message: "Failed to create email log." };
+  }
+}
+
+export async function createWhatsAppAction(input: WhatsAppInput) {
+  try {
+    const user = await verifyAuth();
+    if (!user || user.role === "Customer") {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    const log = await prisma.communicationLog.create({
+      data: {
+        id: nanoid(),
+        channel: "WhatsApp",
+        customerId: input.customerId ?? null,
+        leadId: input.leadId ?? null,
+        direction: input.direction ?? "Outbound",
+        content: input.content,
+        status: input.status ?? "Sent",
+        sentByUserId: user.id,
+        sentAt: new Date(),
+        companyId: user.companyId ?? null,
+      },
+    });
+
+    revalidatePath("/activities");
+    return { success: true, data: log };
+  } catch (error) {
+    console.error("createWhatsAppAction error:", error);
+    return { success: false, message: "Failed to create WhatsApp log." };
   }
 }
 
@@ -282,29 +368,8 @@ export async function getNotesAction(params?: {
 }
 
 export async function createNoteAction(input: NoteInput) {
-  try {
-    const user = await verifyAuth();
-    if (!user || user.role === "Customer") {
-      return { success: false, message: "Unauthorized" };
-    }
-
-    const note = await prisma.note.create({
-      data: {
-        id: nanoid(),
-        content: input.content,
-        entityType: input.entityType,
-        entityId: input.entityId,
-        createdById: user.id,
-        companyId: user.companyId ?? null,
-      },
-    });
-
-    revalidatePath("/activities");
-    return { success: true, data: note };
-  } catch (error) {
-    console.error("createNoteAction error:", error);
-    return { success: false, message: "Failed to create note." };
-  }
+  // Delegate to the canonical note creation function in notes.ts
+  return createNoteActionCanonical(input.entityType as any, input.entityId, input.content);
 }
 
 export async function updateNoteAction(id: string, input: { content?: string }) {

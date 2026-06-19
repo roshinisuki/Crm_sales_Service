@@ -1,23 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createTaskAction } from "@/app/actions/tasks";
-import { getContactsAction } from "@/app/actions/contacts";
+import { getUsersAction } from "@/app/actions/users";
+import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
-import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
-import { ArrowLeft, Save, CheckSquare } from "lucide-react";
+import { FormField, Input, Select } from "@/components/ui/FormField";
+import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
+import { ArrowLeft, Save, CheckSquare, Building2 } from "lucide-react";
 import Link from "next/link";
 
-const TASK_STATUSES = ["Open", "InProgress", "Done", "Overdue", "Cancelled"];
 const TASK_PRIORITIES = ["Low", "Medium", "High", "Urgent"];
 
-export default function NewTaskPage() {
-  const router = useRouter();
+function NewTaskPageInner() {
+  const searchParams = useSearchParams();
   const toast = useToast();
+  const { user } = useAuth();
+
+  const urlDealId = searchParams.get("dealId") || "";
+  const urlLeadId = searchParams.get("leadId") || "";
+
   const [saving, setSaving] = useState(false);
-  const [contacts, setContacts] = useState<any[]>([]);
+  const [executives, setExecutives] = useState<any[]>([]);
+
+  // Success overlay
+  const [overlay, setOverlay] = useState<{ open: boolean; message: string; primary: SuccessAction; secondary?: SuccessAction; alternate?: SuccessAction }>({
+    open: false, message: "", primary: { label: "", href: "" },
+  });
 
   const [form, setForm] = useState({
     title: "",
@@ -25,18 +36,36 @@ export default function NewTaskPage() {
     status: "Open",
     priority: "Medium",
     dueDate: "",
-    contactId: "",
+    assignedTo: "",
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const loadContacts = async () => {
-    const res = await getContactsAction();
-    if (res.success && res.data) setContacts(res.data);
+  useEffect(() => {
+    if (user && (user.role === "Admin" || user.role === "SalesManager")) {
+      getUsersAction().then(res => {
+        if (res.success && res.data) {
+          setExecutives((res.data as any[]).filter(
+            (u: any) => u.role === "SalesExecutive" || u.role === "SalesManager"
+          ));
+        }
+      });
+    }
+  }, [user]);
+
+  const validate = (): boolean => {
+    const e: Record<string, string> = {};
+    if (form.title.trim().length < 3) e.title = "Title must be at least 3 characters";
+    if (!form.priority) e.priority = "Priority is required";
+    if (!form.assignedTo && user?.role !== "SalesExecutive") e.assignedTo = "Assigned To is required";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  useState(() => { loadContacts(); });
-
   const handleSave = async () => {
-    if (!form.title.trim()) { toast.error("Title is required"); return; }
+    if (!validate()) {
+      toast.error("Please fix the validation errors.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await createTaskAction({
@@ -45,17 +74,27 @@ export default function NewTaskPage() {
         status: form.status,
         priority: form.priority,
         dueDate: form.dueDate || null,
-        contactId: form.contactId || null,
+        assignedTo: form.assignedTo || null,
       });
       if (res.success) {
-        toast.success("Task created");
-        router.push("/tasks");
+        toast.success("Task created successfully!");
+        const taskCode = (res.data as any)?.taskCode || "TSK-0001";
+
+        setOverlay({
+          open: true,
+          message: `Task ${taskCode}: ${form.title} assigned successfully`,
+          primary: { label: "View Pending Tasks", href: "/tasks?status=Pending", icon: <CheckSquare size={16} /> },
+          secondary: urlDealId
+            ? { label: "Back to Opportunity", href: `/sales-pipeline/${urlDealId}` }
+            : { label: "View All Tasks", href: "/tasks" },
+          alternate: urlLeadId ? { label: "Back to Lead", href: `/leads/${urlLeadId}` } : undefined,
+        });
       } else {
         toast.error(res.message || "Failed to create task");
+        setSaving(false);
       }
     } catch {
       toast.error("An error occurred");
-    } finally {
       setSaving(false);
     }
   };
@@ -75,32 +114,59 @@ export default function NewTaskPage() {
             <h2 className="text-lg font-semibold text-slate-800">Task Details</h2>
           </div>
 
+          {/* Auto-filled linked entity */}
+          {urlDealId && (
+            <FormField label="Linked Opportunity (auto-filled)">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm">
+                <Building2 size={14} className="text-slate-400" />
+                <span className="font-semibold text-slate-700">Opportunity ID: {urlDealId}</span>
+              </div>
+            </FormField>
+          )}
+
           <FormField label="Title" required>
-            <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Follow up with Acme Corp" />
+            <Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Prepare Proposal" />
+            {errors.title && <p className="text-xs text-red-500 mt-1">{errors.title}</p>}
           </FormField>
 
           <FormField label="Description">
-            <Textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="Optional details..." rows={3} />
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Optional details..."
+              rows={3}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+            />
           </FormField>
 
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Status">
-              <Select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-                {TASK_STATUSES.map((s) => (<option key={s} value={s}>{s}</option>))}
-              </Select>
-            </FormField>
-            <FormField label="Priority">
+            <FormField label="Priority" required>
               <Select value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value }))}>
                 {TASK_PRIORITIES.map((p) => (<option key={p} value={p}>{p}</option>))}
               </Select>
+              {errors.priority && <p className="text-xs text-red-500 mt-1">{errors.priority}</p>}
             </FormField>
             <FormField label="Due Date">
-              <Input type="date" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
+              <Input type="datetime-local" value={form.dueDate} onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))} />
             </FormField>
-            <FormField label="Linked Contact">
-              <Select value={form.contactId} onChange={(e) => setForm((f) => ({ ...f, contactId: e.target.value }))}>
-                <option value="">— None —</option>
-                {contacts.map((c) => (<option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ""}</option>))}
+            <FormField label="Assigned To" required>
+              {user?.role === "SalesExecutive" ? (
+                <Input value={user.name || "You (default)"} disabled className="bg-slate-50 text-slate-500" />
+              ) : (
+                <Select value={form.assignedTo} onChange={(e) => setForm((f) => ({ ...f, assignedTo: e.target.value }))}>
+                  <option value="">Select user...</option>
+                  {executives.map(ex => (
+                    <option key={ex.id} value={ex.id}>{ex.name} — {ex.role}</option>
+                  ))}
+                </Select>
+              )}
+              {errors.assignedTo && <p className="text-xs text-red-500 mt-1">{errors.assignedTo}</p>}
+            </FormField>
+            <FormField label="Status">
+              <Select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
+                <option value="Open">Open</option>
+                <option value="InProgress">In Progress</option>
+                <option value="Done">Done</option>
               </Select>
             </FormField>
           </div>
@@ -113,6 +179,23 @@ export default function NewTaskPage() {
           </div>
         </div>
       </div>
+
+      <SuccessOverlay
+        open={overlay.open}
+        message={overlay.message}
+        primary={overlay.primary}
+        secondary={overlay.secondary}
+        alternate={overlay.alternate}
+        onClose={() => setOverlay(o => ({ ...o, open: false }))}
+      />
     </PageShell>
+  );
+}
+
+export default function NewTaskPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-sm text-slate-400">Loading...</div>}>
+      <NewTaskPageInner />
+    </Suspense>
   );
 }

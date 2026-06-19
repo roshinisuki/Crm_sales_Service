@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
+import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { logoutAction } from "@/app/actions/auth";
 import { useEffect, useState } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
@@ -11,7 +12,8 @@ import { cn } from "@/lib/ui-utils";
 import {
   LayoutDashboard, Users, CalendarClock, Briefcase, BookUser,
   CheckSquare, Settings, LogOut, Menu, X, TrendingUp, Building,
-  ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo
+  ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo,
+  Package, FileText, DollarSign, MessageSquare, Clock, Target, Layers, MapPin
 } from "lucide-react";
 
 // ─── Nav definitions ─────────────────────────────────────────────────────────
@@ -178,11 +180,14 @@ function SidebarContent({
   onNavClick?: () => void;
   collapsed?: boolean;
 }) {
+  const isVariant2 = (user?.variant || user?.company?.variant || 1) >= 2;
+  const isVariant3 = (user?.variant || user?.company?.variant || 1) >= 3;
+
   const leadSubItems = [
     { href: "/leads", label: "All Leads" },
     { href: "/leads?status=New", label: "New Leads" },
-    { href: "/leads?followUp=due", label: "Follow-up Due" },
-    { href: "/leads?status=SQL", label: "Sales Qualified Leads (SQL)" },
+    { href: "/leads?followUp=due", label: "Follow-Up Due" },
+    { href: "/leads?status=SQL", label: "SQL" },
     { href: "/leads?status=FollowUpDue", label: "Overdue Leads" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
@@ -199,53 +204,208 @@ function SidebarContent({
     { href: "/contacts?type=Purchase", label: "Purchase Contacts" },
   ];
 
-  const activitySubItems = [
+  const activitySubItems = isVariant2 ? [
+    { href: "/activities?type=Call", label: "Calls" },
+    { href: "/activities?type=Meeting", label: "Meetings" },
+    { href: "/activities?type=Note", label: "Notes" },
+    { href: "/activities?type=Email", label: "Emails" },
+    { href: "/activities?type=WhatsApp", label: "WhatsApp" },
+    { href: "/timeline", label: "Timeline" },
+  ] : [
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
     { href: "/activities?type=Note", label: "Notes" },
   ];
 
-  const taskSubItems = [
+  const taskSubItems = isVariant2 ? [
     { href: "/tasks", label: "All Tasks" },
     { href: "/tasks?status=Pending", label: "Pending" },
     { href: "/tasks?status=Completed", label: "Completed" },
     { href: "/tasks?status=Overdue", label: "Overdue" },
+    { href: "/tasks?status=Cancelled", label: "Cancelled" },
+  ] : [
+    { href: "/tasks?status=Pending", label: "Pending Tasks" },
+    { href: "/tasks?status=Completed", label: "Completed Tasks" },
+    { href: "/tasks?status=Overdue", label: "Overdue Tasks" },
   ];
 
-  const followUpSubItems = [
+  const followUpSubItems = isVariant2 ? [
     { href: "/follow-up", label: "All Follow Ups" },
+    { href: "/follow-up?status=Pending", label: "Pending" },
+    { href: "/follow-up?status=Completed", label: "Completed" },
+    { href: "/follow-up?status=Overdue", label: "Overdue" },
+    { href: "/follow-up?status=Cancelled", label: "Cancelled" },
+  ] : [
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
   ];
 
-  const salesPipelineSubItems = [
+  const salesPipelineSubItems = isVariant2 ? [
+    { href: "/sales-pipeline", label: "All Opportunities" },
+    { href: "/sales-pipeline?stage=SalesOpportunity", label: "Qualified" },
+    { href: "/sales-pipeline?stage=RequirementGathering", label: "Requirement Gathering" },
+    { href: "/sales-pipeline?stage=TechnicalDiscussion", label: "Technical Discussion" },
+    { href: "/sales-pipeline?stage=DemoConducted", label: "Demo Conducted" },
+    { href: "/sales-pipeline?stage=MeetingScheduled", label: "Meeting Scheduled" },
+    { href: "/sales-pipeline?stage=Overdue", label: "Overdue" },
+    { href: "/sales-pipeline?stage=Rejected", label: "Rejected" },
+  ] : [
     { href: "/sales-pipeline", label: "All Opportunities" },
     { href: "/sales-pipeline?stage=SalesOpportunity", label: "Qualified" },
     { href: "/sales-pipeline?stage=RequirementGathering", label: "Requirement Gathering" },
     { href: "/sales-pipeline?stage=MeetingScheduled", label: "Meeting Scheduled" },
   ];
 
-  const dealSubItems = [
+  const dealSubItems = isVariant2 ? [
+    { href: "/deals?status=Active", label: "Active Deals" },
+    { href: "/deals?status=Won", label: "Won Deals" },
+    { href: "/deals?status=Lost", label: "Lost Deals" },
+    { href: "/deals?status=OnHold", label: "On Hold Deals" },
+  ] : [
     { href: "/deals?status=Active", label: "Active Deals" },
     { href: "/deals?status=Won", label: "Won Deals" },
     { href: "/deals?status=Lost", label: "Lost Deals" },
   ];
 
-  const reportsSubItems = [
+  const reportsSubItemsV3 = isVariant3 ? [
+    { href: "/reports/samples", label: "Sample Report" },
+    { href: "/reports/negotiations", label: "Negotiation Report" },
+    { href: "/reports/purchase-orders", label: "Purchase Order Report" },
+    { href: "/reports/po-conversion", label: "PO Conversion Report" },
+  ] : [];
+
+  const settingsSubItemsV3 = isVariant3 ? [
+    { href: "/settings/approval-matrix", label: "Approval Matrix" },
+    { href: "/settings/notification-rules", label: "Notification Rules" },
+    { href: "/settings/email-templates", label: "Email Templates" },
+    { href: "/settings/whatsapp-templates", label: "WhatsApp Templates" },
+    { href: "/settings/document-types", label: "Document Types" },
+    { href: "/settings/sample-config", label: "Sample Configuration" },
+  ] : [];
+
+  const reportsSubItems = isVariant2 ? [
     { href: "/reports", label: "All Reports" },
+    { href: "/reports?type=lead", label: "Lead Report" },
+    { href: "/reports?type=followup", label: "Follow-Up Report" },
+    { href: "/reports/opportunities", label: "Opportunity Report" },
+    { href: "/reports/rfq", label: "RFQ Report" },
+    { href: "/reports/quotations", label: "Quotation Report" },
+    { href: "/reports/sales-performance", label: "Sales Performance Report" },
+    { href: "/reports/visits", label: "Visit Report" },
+    { href: "/reports/forecast", label: "Forecast Report" },
+    ...(isVariant3 ? reportsSubItemsV3 : []),
+  ] : [
     { href: "/reports?type=lead", label: "Lead Report" },
     { href: "/reports?type=followup", label: "Follow-Up Report" },
   ];
 
-  const userManagementSubItems = [
+  const userManagementSubItems = isVariant2 ? [
     { href: "/user-master", label: "Users" },
     { href: "/settings?tab=permissions", label: "Roles & Permissions" },
     { href: "/settings?tab=approval-matrix", label: "Approval Matrix" },
+  ] : [
+    { href: "/user-master", label: "Users" },
+    { href: "/settings?tab=permissions", label: "Roles & Permissions" },
   ];
 
-  const settingsSubItems = [
+  const settingsSubItems = isVariant2 ? [
     { href: "/settings/lead-sources", label: "Lead Sources" },
+    { href: "/settings/pipeline-stages", label: "Pipeline Stages" },
+    { href: "/settings/product-categories", label: "Product Categories" },
+    { href: "/settings/custom-fields", label: "Custom Fields" },
+    ...(isVariant3 ? settingsSubItemsV3 : []),
+  ] : [
+    { href: "/settings/lead-sources", label: "Lead Sources" },
+  ];
+
+  // Variant 2 navigation items
+  const customerVisitsSubItems = [
+    { href: "/visits?status=PLANNED", label: "Planned Visits" },
+    { href: "/visits?status=COMPLETED", label: "Completed Visits" },
+    { href: "/visits?status=MISSED", label: "Missed Visits" },
+    { href: "/visits/reports", label: "Visit Reports" },
+  ];
+
+  const productCatalogueSubItems = [
+    { href: "/catalogue/categories", label: "Categories" },
+    { href: "/catalogue/products", label: "Products" },
+    { href: "/catalogue/specifications", label: "Specifications" },
+    { href: "/catalogue/products?view=datasheets", label: "Datasheets" },
+    { href: "/catalogue/products?view=brochures", label: "Brochures" },
+  ];
+
+  const rfqSubItems = [
+    { href: "/rfq?status=New", label: "New RFQ" },
+    { href: "/rfq?status=UnderReview", label: "Under Review" },
+    { href: "/rfq?status=CostingPending", label: "Costing Pending" },
+    { href: "/rfq?status=QuotationCreated", label: "Quotation Created" },
+    { href: "/rfq?status=Closed", label: "Closed RFQ" },
+  ];
+
+  const quotationSubItems = [
+    { href: "/quotations?status=Draft", label: "Draft" },
+    { href: "/quotations?status=Sent", label: "Sent" },
+    { href: "/quotations?status=UnderReview", label: "Under Review" },
+    { href: "/quotations?status=Accepted", label: "Accepted" },
+    { href: "/quotations?status=Rejected", label: "Rejected" },
+    { href: "/quotations?status=Expired", label: "Expired" },
+  ];
+
+  const forecastSubItems = [
+    { href: "/forecast?type=Revenue", label: "Revenue Forecast" },
+    { href: "/forecast?type=Opportunity", label: "Opportunity Forecast" },
+    { href: "/forecast?type=Sales", label: "Sales Forecast" },
+    { href: "/forecast/target-vs-achievement", label: "Target vs Achievement" },
+  ];
+
+  // ─── Variant 3 navigation items ───
+  const sampleMgmtSubItems = [
+    { href: "/samples", label: "All Samples" },
+    { href: "/samples?status=New", label: "New Requests" },
+    { href: "/samples?status=UnderReview", label: "Under Review" },
+    { href: "/samples?status=SentToCustomer", label: "Sent to Customer" },
+    { href: "/samples?status=Approved", label: "Approved" },
+    { href: "/samples?status=Rejected", label: "Rejected" },
+    { href: "/samples?status=Revision", label: "Revision Requested" },
+  ];
+
+  const negotiationMgmtSubItems = [
+    { href: "/negotiations", label: "All Negotiations" },
+    { href: "/negotiations?status=Active", label: "Active" },
+    { href: "/negotiations?status=PriceRevision", label: "Price Revision" },
+    { href: "/negotiations?status=CommercialDiscussion", label: "Commercial Discussion" },
+    { href: "/negotiations?status=PendingApproval", label: "Pending Approval" },
+    { href: "/negotiations?status=Won", label: "Won" },
+    { href: "/negotiations?status=Lost", label: "Lost" },
+  ];
+
+  const purchaseOrderMgmtSubItems = [
+    { href: "/purchase-orders", label: "All Purchase Orders" },
+    { href: "/purchase-orders?status=New", label: "New" },
+    { href: "/purchase-orders?status=UnderValidation", label: "Under Validation" },
+    { href: "/purchase-orders?status=Approved", label: "Approved" },
+    { href: "/purchase-orders?status=Rejected", label: "Rejected" },
+    { href: "/purchase-orders?status=Closed", label: "Closed" },
+  ];
+
+  const documentMgmtSubItems = [
+    { href: "/documents", label: "All Documents" },
+    { href: "/documents?type=Drawing", label: "Drawings" },
+    { href: "/documents?type=TechnicalSpec", label: "Technical Specs" },
+    { href: "/documents?type=NDA", label: "NDAs" },
+    { href: "/documents?type=Quotation", label: "Quotations" },
+    { href: "/documents?type=PurchaseOrder", label: "Purchase Orders" },
+    { href: "/documents?type=Agreement", label: "Agreements" },
+    { href: "/documents?type=Brochure", label: "Brochures" },
+  ];
+
+  const approvalCenterSubItems = [
+    { href: "/approvals", label: "All Approvals" },
+    { href: "/approvals?type=Quotation", label: "Quotation Approvals" },
+    { href: "/approvals?type=Discount", label: "Discount Approvals" },
+    { href: "/approvals?type=Negotiation", label: "Negotiation Approvals" },
+    { href: "/approvals?type=PO", label: "PO Approvals" },
   ];
 
   return (
@@ -266,7 +426,17 @@ function SidebarContent({
 
       {/* ── Navigation ── */}
       <nav className={cn("flex-1 overflow-y-auto py-4 space-y-0.5", collapsed ? "px-1.5" : "px-3")}>
+        {!collapsed && process.env.NODE_ENV === "development" && (
+          <div className="px-3.5 pb-2 text-[10px] text-gray-500">
+            Variant: {user?.variant || user?.company?.variant || 1}
+          </div>
+        )}
         <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} />, end: true }} active={pathname === "/dashboard"} onClick={onNavClick} collapsed={collapsed} />
+        
+        {/* Sales Manager Dashboard - Variant 2 only */}
+        {!loading && (user?.role === "Admin" || user?.role === "SalesManager") && isVariant2 && (
+          <NavLink item={{ href: "/dashboard/manager", label: "Sales Manager Dashboard", icon: <TrendingUp size={17} />, end: true }} active={pathname === "/dashboard/manager"} onClick={onNavClick} collapsed={collapsed} />
+        )}
 
         {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
           <>
@@ -284,6 +454,36 @@ function SidebarContent({
             <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
             <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
             <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+            
+            {/* Variant 2 sections */}
+            {isVariant2 && (<>
+                {!collapsed && (
+                  <div className="pt-5 pb-1.5">
+                    <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Variant 2</p>
+                  </div>
+                )}
+                <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Product Catalogue" icon={<Package size={17} />} subItems={productCatalogueSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="RFQ Management" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Quotation Management" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Forecast" icon={<Target size={17} />} subItems={forecastSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+              </>
+            )}
+
+            {/* Variant 3 sections — Manufacturing CRM */}
+            {isVariant3 && (<>
+                {!collapsed && (
+                  <div className="pt-5 pb-1.5">
+                    <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Manufacturing</p>
+                  </div>
+                )}
+                <ExpandableNavSection label="Sample Management" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Negotiation Mgmt" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Purchase Order Mgmt" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Document Mgmt" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Approval Center" icon={<ShieldCheck size={17} />} subItems={approvalCenterSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+              </>
+            )}
           </>
         )}
 
@@ -315,12 +515,21 @@ function SidebarContent({
           <>
             {!collapsed && (
               <div className="pt-5 pb-1.5">
-                <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>System Management</p>
+                <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Settings</p>
               </div>
             )}
-            <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
-            <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={collapsed} />
-            <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+            {isVariant2 ? (
+              <>
+                <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+                <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={collapsed} />
+                <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+              </>
+            ) : (
+              <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={[
+                ...userManagementSubItems,
+                ...settingsSubItems,
+              ]} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+            )}
           </>
         )}
 
@@ -412,7 +621,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <DashboardHeader pageTitle={pageTitle} user={user} toggleSidebar={toggleSidebar} />
 
         <div className="flex-1 overflow-auto p-4 md:p-5 lg:p-7 pb-24 md:pb-8">
-          {children}
+          <CurrencyProvider>
+            {children}
+          </CurrencyProvider>
         </div>
 
         {user && ["SalesExecutive", "SalesManager"].includes(user.role) && (

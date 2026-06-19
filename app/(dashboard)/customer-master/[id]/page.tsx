@@ -4,7 +4,8 @@ import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getCustomerByIdAction, updateCustomerAction } from "@/app/actions/customers";
 import { createFollowUpAction } from "@/app/actions/followUps";
-import { createCallLogAction, getCallLogsAction } from "@/app/actions/calls";
+import { createCallAction } from "@/app/actions/activities";
+import { getCallLogsAction } from "@/app/actions/calls";
 import { createDealAction, updateDealAction, updateDealStatusAction, deleteDealAction } from "@/app/actions/deals";
 import { getUsersAction } from "@/app/actions/users";
 import { useAuth } from "@/components/AuthProvider";
@@ -158,10 +159,14 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
   const handleLogCall = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingCall(true);
-    const res = await createCallLogAction({
+    const res = await createCallAction({
       customerId: customerId,
-      notes: callNotes,
-      duration: callDuration ? parseInt(callDuration, 10) : undefined
+      leadId: null,
+      dealId: null,
+      direction: "Outbound",
+      duration: callDuration ? parseInt(callDuration, 10) : undefined,
+      content: callNotes,
+      status: "Completed",
     });
 
     if (res.success) {

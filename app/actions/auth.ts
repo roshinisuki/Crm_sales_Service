@@ -33,13 +33,13 @@ const passwordSchema = z
   .regex(/[!@#$%^&*]/, "Must contain a special character (!@#$%^&*)");
 
 // ─── JWT Cookie Setter ────────────────────────────────────────────────────────
-async function issueAuthCookie(user: { id: string; email: string; role: string; companyId?: string | null }, rememberMe = false) {
+async function issueAuthCookie(user: { id: string; email: string; role: string; companyId?: string | null; variant?: number | null }, rememberMe = false) {
   // rememberMe=true → 7 days; default → 8 hours
   const expiresIn = rememberMe ? "7d" : "8h";
   const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 8 * 60 * 60;
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, companyId: user.companyId },
+    { id: user.id, email: user.email, role: user.role, companyId: user.companyId, variant: user.variant || 1 },
     JWT_SECRET,
     { expiresIn }
   );
@@ -159,7 +159,17 @@ export async function loginWithPassword(email: string, password: string, remembe
       data: { loginAttempts: 0, lockedUntil: null, lastLoginAt: new Date(), rememberMe },
     });
 
-    await issueAuthCookie(user, rememberMe);
+    // Fetch company variant for the auth cookie
+    let variant = 1;
+    if (user.companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: { variant: true },
+      });
+      if (company) variant = company.variant || 1;
+    }
+
+    await issueAuthCookie({ ...user, variant }, rememberMe);
     await logAudit(user.id, "AUTH", "LOGIN", `Successful login for ${user.email}`);
 
     const redirectUrl = getRoleRedirect(user.role);
@@ -460,7 +470,17 @@ export async function completeCustomerActivation(token: string, password: string
       },
     });
 
-    await issueAuthCookie(user, false);
+    // Fetch company variant for the auth cookie
+    let variant = 1;
+    if (user.companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: user.companyId },
+        select: { variant: true },
+      });
+      if (company) variant = company.variant || 1;
+    }
+
+    await issueAuthCookie({ ...user, variant }, false);
     await logAudit(user.id, "AUTH", "CUSTOMER_ACTIVATION_COMPLETE", `Customer portal activated for ${user.email}`);
 
     revalidatePath("/customer/portal");
@@ -507,6 +527,14 @@ export async function getMeAction() {
         lastLoginAt: true,
         theme: true,
         themeMode: true,
+        companyId: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            variant: true,
+          },
+        },
       },
     });
 
@@ -514,7 +542,7 @@ export async function getMeAction() {
       return { success: false, message: "User not found or inactive" };
     }
 
-    return { success: true, data: { ...user, lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null } };
+    return { success: true, data: { ...user, lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null, variant: user.company?.variant || 1 } };
   } catch (error) {
     console.error("getMeAction error:", error);
     return { success: false, message: "Internal server error" };
@@ -570,6 +598,31 @@ export async function saveUserThemeModeAction(mode: string) {
   } catch (error) {
     console.error("saveUserThemeModeAction error:", error);
     return { success: false, message: "Failed to save theme mode" };
+  }
+}
+
+export async function updateCompanyVariantAction(variant: number) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || !["Admin", "SalesManager", "SuperAdmin"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized: Admin or Sales Manager only" };
+    }
+
+    if (!userPayload.companyId) {
+      return { success: false, message: "No company associated" };
+    }
+
+    const validVariant = Math.max(1, Math.min(3, Number(variant) || 1));
+
+    await prisma.company.update({
+      where: { id: userPayload.companyId },
+      data: { variant: validVariant },
+    });
+
+    return { success: true, message: `Company switched to Variant ${validVariant}` };
+  } catch (error) {
+    console.error("updateCompanyVariantAction error:", error);
+    return { success: false, message: "Failed to update company variant" };
   }
 }
 

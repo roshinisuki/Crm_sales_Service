@@ -30,6 +30,13 @@ export default async function RootLayout({
 
   return (
     <html lang="en" data-theme={dataTheme} className={isDark ? "dark" : ""}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__CRM_VARIANT__ = ${process.env.NEXT_PUBLIC_CRM_VARIANT || "1"};`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <ToastProvider>
           <AuthProvider initialUser={initialUser as any}>{children}</AuthProvider>

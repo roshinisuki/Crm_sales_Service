@@ -12,6 +12,12 @@ export interface UserProfile {
   isActive: boolean;
   theme?: string;
   themeMode?: string;
+  variant?: number;
+  company?: {
+    id: string;
+    name: string;
+    variant?: number;
+  } | null;
 }
 
 interface AuthContextType {

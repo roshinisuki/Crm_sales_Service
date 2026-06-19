@@ -14,16 +14,20 @@ export async function getForecastDataAction() {
   // eslint-disable-next-line no-unreachable
   try {
     const userPayload = await verifyAuth();
-    if (!userPayload || userPayload.role === "Customer") {
+    if (!userPayload) {
+      return { success: false, message: "Unauthorized" };
+    }
+    const user = userPayload!;
+    if (user!.role === "Customer") {
       return { success: false, message: "Unauthorized" };
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if (user!.role === "SuperAdmin" && (!user!.supportMode || !user!.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
-    const scope = buildScope(userPayload, "Deal");
+    const scope = buildScope(userPayload!, "Deal");
 
     // Define standard probabilities for weighted revenue forecasting (BRD V1 stages)
     const stageProbabilities: Record<string, number> = {

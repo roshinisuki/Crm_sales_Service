@@ -15,10 +15,11 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
+import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
 import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import {
   Plus, Search, Download, Eye, Pencil, Trash2, Filter,
-  Users, Phone, CheckCircle, XCircle,
+  Users, Phone, CheckCircle, XCircle, PhoneCall, CalendarClock,
 } from "lucide-react";
 
 const LEAD_STATUSES = ["New", "Contacted", "FollowUpDue", "SQL", "Qualified", "Converted", "Lost"];
@@ -56,6 +57,21 @@ export default function LeadsPage() {
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({
     isOpen: false, title: "", message: "", action: () => {},
   });
+
+  // Success overlay for guided flow after lead creation
+  const [successOverlay, setSuccessOverlay] = useState<{ open: boolean; message: string; primary: SuccessAction; secondary?: SuccessAction; alternate?: SuccessAction }>({
+    open: false, message: "", primary: { label: "", href: "" },
+  });
+
+  // Unified handler for both "Log First Call" (post lead creation) and
+  // "Mark Contacted" (lead details). Both UI entry points navigate to the
+  // lead detail page with ?action=contact, which auto-opens the Call Log
+  // modal. The lead status is NOT updated until the user fills call details
+  // and saves (see contactLeadAction in the details page).
+  const handleLeadContact = (leadId: string) => {
+    if (!leadId) return;
+    router.push(`/leads/${leadId}?action=contact`);
+  };
 
   const statusParam  = searchParams ? searchParams.get("status") : null;
   const followUpParam = searchParams ? searchParams.get("followUp") : null;
@@ -163,7 +179,15 @@ export default function LeadsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) { setFormError("Lead Name is required"); return; }
+    // Validation
+    const errors: string[] = [];
+    if (!formData.name.trim()) errors.push("Lead Name is required");
+    if (!formData.phone.trim() && !formData.email.trim()) errors.push("Either Phone or Email is required");
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.push("Invalid email format");
+    if (formData.phone && formData.phone.replace(/\D/g, "").length < 10) errors.push("Phone number must be at least 10 digits");
+    if (!formData.city.trim()) errors.push("City is required");
+    if (!formData.leadSource) errors.push("Lead Source is required");
+    if (errors.length > 0) { setFormError(errors.join(", ")); return; }
     setFormLoading(true);
     setFormError("");
 
@@ -193,6 +217,21 @@ export default function LeadsPage() {
       setIsModalOpen(false);
       toast.success(formData.id ? "Lead updated successfully." : "Lead created successfully.");
       loadLeads();
+      // Show SuccessOverlay for new leads (not edits)
+      if (!formData.id) {
+        const newLead = res.data as any;
+        setSuccessOverlay({
+          open: true,
+          message: `Lead ${newLead?.leadCode || ""} created for ${formData.name}`,
+          primary: {
+            label: "Log First Call",
+            icon: <PhoneCall size={16} />,
+            onClick: () => handleLeadContact(newLead?.id || ""),
+          },
+          secondary: { label: "Create Follow-Up Now", href: `/follow-up/new?leadId=${newLead?.id || ""}`, icon: <CalendarClock size={16} /> },
+          alternate: { label: "View All Leads", href: "/leads?status=New" },
+        });
+      }
     } else {
       setFormError(res.message || "Operation failed");
     }
@@ -218,10 +257,10 @@ export default function LeadsPage() {
 
   const exportCSV = () => {
     if (filtered.length === 0) { toast.error("No data to export."); return; }
-    const headers = ["S.No", "Lead Name", "Phone", "Email", "City", "Status", "Lead Source", "Created On"];
+    const headers = ["S.No", "Lead Code", "Lead Name", "Phone", "Email", "City", "Status", "Lead Source", "SLA Status", "Created On"];
     const rows = filtered.map((l, i) => [
-      i + 1, l.name, l.phone || "", l.email || "", l.city || "",
-      l.status, (l as any).leadSource || "", formatDate(l.createdAt),
+      i + 1, (l as any).leadCode || "", l.name, l.phone || "", l.email || "", l.city || "",
+      l.status, (l as any).leadSource || "", (l as any).slaStatus || "", formatDate(l.createdAt),
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -361,11 +400,14 @@ export default function LeadsPage() {
             <thead>
               <tr>
                 <th className="crm-th">S.No</th>
+                <th className="crm-th">Lead Code</th>
                 <th className="crm-th">Lead Name</th>
                 <th className="crm-th">Company Name</th>
                 <th className="crm-th">Phone No</th>
                 <th className="crm-th">Email ID</th>
+                <th className="crm-th">Source</th>
                 <th className="crm-th">Status</th>
+                <th className="crm-th">SLA</th>
                 <th className="crm-th">Assigned To</th>
                 <th className="crm-th">Created On</th>
                 <th className="crm-th text-right">Action</th>
@@ -374,7 +416,7 @@ export default function LeadsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="crm-td text-center py-12">
+                  <td colSpan={12} className="crm-td text-center py-12">
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <div className="spinner-brand" />
                       <span className="text-xs font-medium">Loading leads...</span>
@@ -383,7 +425,7 @@ export default function LeadsPage() {
                 </tr>
               ) : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="crm-td text-center py-16">
+                  <td colSpan={12} className="crm-td text-center py-16">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
                         <Users size={28} className="text-slate-300" />
@@ -411,6 +453,9 @@ export default function LeadsPage() {
                       {(page - 1) * 10 + idx + 1}
                     </td>
                     <td className="crm-td">
+                      <span className="text-xs font-mono font-bold text-theme-secondary bg-surface-2 px-2 py-0.5 rounded-md">{l.leadCode || "—"}</span>
+                    </td>
+                    <td className="crm-td">
                       <div className="flex items-center gap-2.5">
                         <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0", getAvatarColor(l.name))}>
                           {getInitials(l.name)}
@@ -421,8 +466,24 @@ export default function LeadsPage() {
                     <td className="crm-td text-theme-secondary text-sm">{l.city || "—"}</td>
                     <td className="crm-td text-theme-secondary text-sm font-mono text-xs">{l.phone || "—"}</td>
                     <td className="crm-td text-theme-muted text-xs">{l.email || "—"}</td>
+                    <td className="crm-td text-theme-secondary text-xs">{(l as any).leadSource || "—"}</td>
                     <td className="crm-td">
                       <StatusBadge status={l.status} />
+                    </td>
+                    <td className="crm-td">
+                      {(() => {
+                        const sla = (l as any).slaStatus;
+                        if (l.status !== "New" && sla === "Met") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Met</span>;
+                        if (sla === "Breached") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 animate-pulse">Breached</span>;
+                        if (sla === "Pending" && (l as any).slaResponseDeadline) {
+                          const deadline = new Date((l as any).slaResponseDeadline);
+                          const minsLeft = Math.floor((deadline.getTime() - Date.now()) / 60000);
+                          if (minsLeft <= 0) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 animate-pulse">Breached</span>;
+                          if (minsLeft <= 5) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{minsLeft}m left</span>;
+                          return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{minsLeft}m</span>;
+                        }
+                        return <span className="text-xs text-slate-400">—</span>;
+                      })()}
                     </td>
                     <td className="crm-td text-theme-secondary text-sm">{l.assignedUser?.name || "Unassigned"}</td>
                     <td className="crm-td text-theme-muted text-xs whitespace-nowrap">{formatDate(l.createdAt)}</td>
@@ -596,6 +657,15 @@ export default function LeadsPage() {
         onConfirm={confirmState.action}
         onCancel={() => setConfirmState(p => ({ ...p, isOpen: false }))}
         isDestructive
+      />
+
+      <SuccessOverlay
+        open={successOverlay.open}
+        message={successOverlay.message}
+        primary={successOverlay.primary}
+        secondary={successOverlay.secondary}
+        alternate={successOverlay.alternate}
+        onClose={() => setSuccessOverlay(o => ({ ...o, open: false }))}
       />
     </PageShell>
   );

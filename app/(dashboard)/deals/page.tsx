@@ -6,6 +6,7 @@ import { getDealsAction, createDealAction, updateDealAction, deleteDealAction } 
 import { getCustomersAction } from "@/app/actions/customers";
 import { getUsersAction } from "@/app/actions/users";
 import { useAuth } from "@/components/AuthProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import PageContainer from "@/components/PageContainer";
@@ -14,7 +15,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
-import { getInitials, getAvatarColor, formatDate, formatCurrency, cn } from "@/lib/ui-utils";
+import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import { Plus, Search, Download, Eye, Pencil, Trash2, Briefcase, TrendingUp, CheckCircle, XCircle } from "lucide-react";
 const STAGES = ["Active", "Won", "Lost"];
 const emptyForm = {
@@ -26,6 +27,7 @@ export default function DealsPage() {
   const router = useRouter();
   const toast  = useToast();
   const { user: currentUser } = useAuth();
+  const { formatCurrency } = useCurrency();
   const searchParams = useSearchParams();
 
   const [deals,     setDeals]     = useState<any[]>([]);

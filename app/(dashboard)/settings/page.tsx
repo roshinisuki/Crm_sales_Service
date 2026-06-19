@@ -7,7 +7,9 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { PageShell } from "@/components/ui/PageShell";
 import { getSystemConfigsAction, updateSystemConfigsAction } from "@/app/actions/systemConfigs";
+import { getCurrencySettingsAction, updatePreferredCurrencyAction, updateBaseCurrencyAction, refreshRatesAction, getExchangeRatesAction } from "@/app/actions/currency";
 import { getUsersAction } from "@/app/actions/users";
+import { updateCompanyVariantAction } from "@/app/actions/auth";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -87,6 +89,9 @@ export default function SettingsPage() {
     notifyOnCallLog: true
   });
 
+  const [companyVariant, setCompanyVariant] = useState<number>(user?.company?.variant || user?.variant || 1);
+  const [updatingVariant, setUpdatingVariant] = useState(false);
+
   // Lead Ingestion configurations states
   const [users, setUsers] = useState<any[]>([]);
   const [leadsApiKey, setLeadsApiKey] = useState("");
@@ -94,6 +99,13 @@ export default function SettingsPage() {
   const [leadsAssignmentMode, setLeadsAssignmentMode] = useState("ROUND_ROBIN");
   const [leadsDefaultAssigneeId, setLeadsDefaultAssigneeId] = useState("");
   const [savingLeads, setSavingLeads] = useState(false);
+
+  // Currency settings
+  const [preferredCurrency, setPreferredCurrency] = useState("INR");
+  const [baseCurrency, setBaseCurrency] = useState("INR");
+  const [savingCurrency, setSavingCurrency] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState<any[]>([]);
+  const [refreshingRates, setRefreshingRates] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
   const apiUrl = `${origin}/api/leads`;
@@ -177,7 +189,67 @@ export default function SettingsPage() {
         setLeadsDefaultAssigneeId(res.data.leads_default_assignee_id);
       }
     });
+
+    // Load currency settings
+    getCurrencySettingsAction().then((res) => {
+      if (res.success && res.data) {
+        setPreferredCurrency(res.data.preferredCurrency);
+        setBaseCurrency(res.data.baseCurrency);
+      }
+    });
+    getExchangeRatesAction().then((res) => {
+      if (res.success && res.data) setExchangeRates(res.data);
+    });
   }, []);
+
+  const handleSaveCurrency = async () => {
+    setSavingCurrency(true);
+    try {
+      const res = await updatePreferredCurrencyAction(preferredCurrency);
+      if (res.success) {
+        toast.success("Currency preference saved. All amounts will now display in " + preferredCurrency + ".");
+      } else {
+        toast.error(res.message || "Failed to save currency preference.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred.");
+    } finally {
+      setSavingCurrency(false);
+    }
+  };
+
+  const handleSaveBaseCurrency = async () => {
+    setSavingCurrency(true);
+    try {
+      const res = await updateBaseCurrencyAction(baseCurrency);
+      if (res.success) {
+        toast.success(res.message);
+      } else {
+        toast.error(res.message || "Failed to update base currency.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred.");
+    } finally {
+      setSavingCurrency(false);
+    }
+  };
+
+  const handleRefreshRates = async () => {
+    setRefreshingRates(true);
+    try {
+      const res = await refreshRatesAction(baseCurrency);
+      if (res.success) {
+        toast.success("Exchange rates refreshed successfully.");
+        setExchangeRates(res.data || []);
+      } else {
+        toast.error(res.message || "Failed to refresh rates.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred.");
+    } finally {
+      setRefreshingRates(false);
+    }
+  };
 
   const handleSaveLeadsConfig = async () => {
     setSavingLeads(true);
@@ -292,13 +364,42 @@ export default function SettingsPage() {
     }
   };
 
+  const canAccessSettings = user?.role === "Admin" || user?.role === "SalesManager";
+
   useEffect(() => {
-    if (!authLoading && user?.role !== "Admin") {
+    if (!authLoading && !canAccessSettings) {
       router.replace("/dashboard");
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, canAccessSettings]);
 
-  if (authLoading || user?.role !== "Admin") return null;
+  useEffect(() => {
+    if (user?.company?.variant) {
+      setCompanyVariant(user.company.variant);
+    } else if (user?.variant) {
+      setCompanyVariant(user.variant);
+    }
+  }, [user?.company?.variant, user?.variant]);
+
+  const handleUpdateVariant = async (variant: number) => {
+    setUpdatingVariant(true);
+    try {
+      const res = await updateCompanyVariantAction(variant);
+      if (res.success) {
+        toast.success(res.message);
+        setCompanyVariant(variant);
+        // Reload the page to apply new variant to sidebar
+        window.location.reload();
+      } else {
+        toast.error(res.message || "Failed to switch variant");
+      }
+    } catch (err) {
+      toast.error("An error occurred while switching variant");
+    } finally {
+      setUpdatingVariant(false);
+    }
+  };
+
+  if (authLoading || !canAccessSettings) return null;
 
   return (
     <PageShell
@@ -330,11 +431,44 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Currency Display</label>
-              <select className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer">
-                <option>INR (₹)</option>
-                <option>USD ($)</option>
-                <option>EUR (€)</option>
+              <select
+                value={preferredCurrency}
+                onChange={e => setPreferredCurrency(e.target.value)}
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              >
+                <option value="INR">INR (₹)</option>
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
               </select>
+              <button
+                onClick={handleSaveCurrency}
+                disabled={savingCurrency}
+                className="mt-2 px-3 py-1.5 text-xs font-bold text-white bg-[#D44D4D] rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                {savingCurrency ? "Saving..." : "Save Currency"}
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">CRM Variant</label>
+              <div className="flex gap-2">
+                {[1, 2, 3].map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => handleUpdateVariant(v)}
+                    disabled={updatingVariant || companyVariant === v}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
+                      companyVariant === v
+                        ? "bg-[#D44D4D] text-white"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    } disabled:opacity-70`}
+                  >
+                    Variant {v}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-slate-500 mt-1.5">
+                Switching reloads the page and changes the sidebar modules.
+              </p>
             </div>
             <button
               onClick={handleSave}

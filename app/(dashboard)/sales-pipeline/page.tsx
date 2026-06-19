@@ -4,10 +4,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getDealsAction } from "@/app/actions/deals";
 import { useToast } from "@/components/ToastProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { SummaryCard } from "@/components/ui/SummaryCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { formatCurrency, formatDate } from "@/lib/ui-utils";
+import { formatDate } from "@/lib/ui-utils";
 import { Search, Filter, Briefcase, TrendingUp, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
 const STAGES = {
@@ -20,6 +21,7 @@ export default function SalesOpportunitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
+  const { formatCurrency } = useCurrency();
   
   const initialStage = searchParams.get("stage") || "";
   

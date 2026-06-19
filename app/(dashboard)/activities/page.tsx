@@ -12,18 +12,20 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { Search, Filter, Plus, Phone, Video, StickyNote, Eye, Pencil, Trash2, Clock, Calendar, User, MessageSquare } from "lucide-react";
 import { formatDate, cn } from "@/lib/ui-utils";
 
-type TabType = "calls" | "meetings" | "notes";
+type TabType = "calls" | "meetings" | "notes" | "emails" | "whatsapp";
 
 const TAB_CONFIG: Record<TabType, { label: string; icon: React.ReactNode; channel: string }> = {
   calls: { label: "Calls", icon: <Phone size={16} />, channel: "Call" },
   meetings: { label: "Meetings", icon: <Video size={16} />, channel: "Meeting" },
   notes: { label: "Notes", icon: <StickyNote size={16} />, channel: "Note" },
+  emails: { label: "Emails", icon: <MessageSquare size={16} />, channel: "Email" },
+  whatsapp: { label: "WhatsApp", icon: <MessageSquare size={16} />, channel: "WhatsApp" },
 };
 
 function normalizeTab(val: string | null): TabType {
   const map: Record<string, TabType> = {
-    calls: "calls", meetings: "meetings", notes: "notes",
-    Call: "calls", Meeting: "meetings", Note: "notes",
+    calls: "calls", meetings: "meetings", notes: "notes", emails: "emails", whatsapp: "whatsapp",
+    Call: "calls", Meeting: "meetings", Note: "notes", Email: "emails", WhatsApp: "whatsapp",
   };
   return map[val || ""] || "calls";
 }
@@ -164,6 +166,8 @@ export default function ActivitiesPage() {
                   {activeTab === "calls" && <><th className="px-4 py-4">Date</th><th className="px-4 py-4">Linked To</th><th className="px-4 py-4">Direction</th><th className="px-4 py-4">Duration</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Notes</th><th className="px-4 py-4 text-right">Actions</th></>}
                   {activeTab === "meetings" && <><th className="px-4 py-4">Date</th><th className="px-4 py-4">Linked To</th><th className="px-4 py-4">Mode</th><th className="px-4 py-4">Location</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Agenda</th><th className="px-4 py-4 text-right">Actions</th></>}
                   {activeTab === "notes" && <><th className="px-4 py-4">Date</th><th className="px-4 py-4">Type</th><th className="px-4 py-4">Entity</th><th className="px-4 py-4">Content</th><th className="px-4 py-4">Created By</th><th className="px-4 py-4 text-right">Actions</th></>}
+                  {activeTab === "emails" && <><th className="px-4 py-4">Date</th><th className="px-4 py-4">Linked To</th><th className="px-4 py-4">Direction</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Content</th><th className="px-4 py-4 text-right">Actions</th></>}
+                  {activeTab === "whatsapp" && <><th className="px-4 py-4">Date</th><th className="px-4 py-4">Linked To</th><th className="px-4 py-4">Direction</th><th className="px-4 py-4">Status</th><th className="px-4 py-4">Content</th><th className="px-4 py-4 text-right">Actions</th></>}
                 </tr>
               </thead>
               <tbody>
@@ -182,7 +186,10 @@ export default function ActivitiesPage() {
                       {activeTab === "calls" && (
                         <>
                           <td className="px-4 py-4 text-xs">{formatDate(item.sentAt)}</td>
-                          <td className="px-4 py-4 text-xs">{item.customer?.name || item.lead?.name || "—"}</td>
+                          <td className="px-4 py-4 text-xs">
+                            {item.customer?.name || item.lead?.name || "—"}
+                            {item.followUpId && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">FU</span>}
+                          </td>
                           <td className="px-4 py-4"><span className="text-xs font-medium px-2 py-1 rounded-full bg-slate-100">{item.direction}</span></td>
                           <td className="px-4 py-4 text-xs">{item.duration ? `${item.duration} min` : "—"}</td>
                           <td className="px-4 py-4"><StatusBadge status={item.status} size="sm" /></td>
@@ -192,7 +199,10 @@ export default function ActivitiesPage() {
                       {activeTab === "meetings" && (
                         <>
                           <td className="px-4 py-4 text-xs">{item.meetingDate ? formatDate(item.meetingDate) : formatDate(item.sentAt)}</td>
-                          <td className="px-4 py-4 text-xs">{item.customer?.name || item.lead?.name || "—"}</td>
+                          <td className="px-4 py-4 text-xs">
+                            {item.customer?.name || item.lead?.name || "—"}
+                            {item.followUpId && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">FU</span>}
+                          </td>
                           <td className="px-4 py-4"><span className="text-xs font-medium px-2 py-1 rounded-full bg-slate-100">{item.mode || "—"}</span></td>
                           <td className="px-4 py-4 text-xs">{item.location || "—"}</td>
                           <td className="px-4 py-4"><StatusBadge status={item.status} size="sm" /></td>
@@ -206,6 +216,24 @@ export default function ActivitiesPage() {
                           <td className="px-4 py-4 text-xs font-mono text-slate-500">{(item.entityId || "").slice(0, 8)}...</td>
                           <td className="px-4 py-4 text-xs max-w-sm truncate">{item.content}</td>
                           <td className="px-4 py-4 text-xs">{item.createdBy?.name || "—"}</td>
+                        </>
+                      )}
+                      {activeTab === "emails" && (
+                        <>
+                          <td className="px-4 py-4 text-xs">{formatDate(item.sentAt)}</td>
+                          <td className="px-4 py-4 text-xs">{item.customer?.name || item.lead?.name || "—"}</td>
+                          <td className="px-4 py-4"><span className="text-xs font-medium px-2 py-1 rounded-full bg-slate-100">{item.direction}</span></td>
+                          <td className="px-4 py-4"><StatusBadge status={item.status} size="sm" /></td>
+                          <td className="px-4 py-4 text-xs max-w-xs truncate">{item.content}</td>
+                        </>
+                      )}
+                      {activeTab === "whatsapp" && (
+                        <>
+                          <td className="px-4 py-4 text-xs">{formatDate(item.sentAt)}</td>
+                          <td className="px-4 py-4 text-xs">{item.customer?.name || item.lead?.name || "—"}</td>
+                          <td className="px-4 py-4"><span className="text-xs font-medium px-2 py-1 rounded-full bg-slate-100">{item.direction}</span></td>
+                          <td className="px-4 py-4"><StatusBadge status={item.status} size="sm" /></td>
+                          <td className="px-4 py-4 text-xs max-w-xs truncate">{item.content}</td>
                         </>
                       )}
                       <td className="px-4 py-4 text-right">

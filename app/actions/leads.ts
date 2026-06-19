@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 type LeadStatus = "New" | "Contacted" | "FollowUpDue" | "SQL" | "Qualified" | "Converted" | "Lost";
 type LeadSource = "Website" | "Referral" | "SocialMedia" | "Email" | "Event" | "ColdCall" | "Partner" | "Other";
 import { buildScope, checkRecordScope } from "@/lib/scopes";
+import { nanoid } from "nanoid";
 
 /**
  * Fetch all leads based on filters.
@@ -257,6 +258,10 @@ export async function updateLeadAction(
     leadSource?: LeadSource;
     notes?: string;
     assignedUserId?: string;
+    budgetAsked?: string;
+    timelineAsked?: string;
+    isDecisionMaker?: boolean;
+    isGenuine?: boolean;
   }
 ) {
   try {
@@ -459,6 +464,156 @@ export async function updateLeadAction(
   } catch (error) {
     console.error("Update Lead Error:", error);
     return { success: false, message: "Failed to update lead." };
+  }
+}
+
+/**
+ * Unified "Contact Lead" action.
+ *
+ * Both "Log First Call" (shown after lead creation) and "Mark Contacted"
+ * (shown inside lead details) call this single function. They are only
+ * different UI entry points for the same business action.
+ *
+ * MANDATORY CALL LOG: The lead status is NOT updated unless a Call Activity
+ * is logged with user-provided details. The flow is:
+ *   1. User clicks "Mark Contacted" / "Log First Call"
+ *   2. Call Log form opens (pre-filled with leadId, type=Call, direction=Outbound)
+ *   3. User fills required call details & saves
+ *   4. This action creates the Call activity (CommunicationLog)
+ *   5. Only THEN is lead status updated: "New" -> "Contacted"
+ *
+ * Every contacted lead is guaranteed to have at least 1 call activity.
+ */
+export async function contactLeadAction(
+  leadId: string,
+  callData: {
+    content: string;            // call notes/outcome — REQUIRED
+    direction?: string;         // "Outbound" | "Inbound" (default: Outbound)
+    duration?: number | null;   // minutes
+    status?: string;            // "Completed" | "NoAnswer" | "Scheduled"
+  }
+) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || ["Customer"].includes(userPayload.role)) {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    // Tenant check: SuperAdmin supportMode check
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
+    const lead = await prisma.lead.findUnique({ where: { id: leadId } });
+    if (!lead) {
+      return { success: false, message: "Lead not found." };
+    }
+
+    // Access scope check
+    if (!checkRecordScope(userPayload, lead, "Lead")) {
+      return { success: false, message: "Unauthorized: Access denied." };
+    }
+
+    // Only allow transition from "New" to "Contacted"
+    if (lead.status !== "New") {
+      return { success: false, message: `Lead is already "${lead.status}". Only New leads can be marked as Contacted.` };
+    }
+
+    // MANDATORY: call notes/outcome must be provided — no silent status updates
+    if (!callData?.content?.trim()) {
+      return { success: false, message: "Call notes/outcome are required to mark a lead as Contacted." };
+    }
+
+    const now = new Date();
+    const isFirstResponse = !lead.firstRespondedAt;
+
+    // 1. Create the Call Activity FIRST (with user-provided details)
+    //    Status is NOT updated until the call log is persisted.
+    const activityLog = await prisma.communicationLog.create({
+      data: {
+        id: nanoid(),
+        channel: "Call",
+        leadId,
+        customerId: null,
+        dealId: null,
+        direction: callData.direction?.trim() || "Outbound",
+        duration: callData.duration ?? null,
+        content: callData.content.trim(),
+        status: callData.status?.trim() || "Completed",
+        sentByUserId: userPayload.id,
+        sentAt: now,
+        companyId: userPayload.companyId ?? null,
+      },
+    });
+
+    // 2. Only AFTER the call activity is saved, update lead status: New -> Contacted
+    const updated = await prisma.lead.update({
+      where: { id: leadId },
+      data: {
+        status: "Contacted",
+        lastInteractionAt: now,
+        ...(isFirstResponse ? { slaStatus: "Met", firstRespondedAt: now } : {}),
+      },
+    });
+
+    // 3. Audit trail (same shape as updateLeadAction)
+    const { before, after } = computeDiff(
+      { status: lead.status },
+      { status: updated.status }
+    );
+    await logAudit(
+      userPayload.id,
+      "LEADS",
+      "CONTACT_LEAD",
+      `Lead contacted: ${updated.name} (${updated.leadCode}) — status changed from New to Contacted${isFirstResponse ? " — SLA Met (first response recorded)" : ""}`,
+      {
+        resourceId:    leadId,
+        previousState: Object.keys(before).length ? before : null,
+        newState:      Object.keys(after).length  ? after  : null,
+        severity:      inferSeverity("update"),
+      }
+    );
+
+    // 4. Trigger the same notifications as other status changes
+    if (updated.assignedUserId) {
+      await dispatchNotification({
+        userId: updated.assignedUserId,
+        title: "Lead Contacted",
+        message: `Lead "${updated.name}" (${updated.leadCode}) has been marked as Contacted.`,
+        type: "lead",
+        link: `/leads/${leadId}`,
+      }).catch((e) => console.error("Notification failed", e));
+    }
+    const managers = await prisma.user.findMany({
+      where: {
+        role: { in: ["Admin", "SalesManager"] },
+        isActive: true,
+        companyId: userPayload.companyId,
+        id: { not: updated.assignedUserId ?? undefined },
+      },
+      select: { id: true },
+    });
+    if (managers.length > 0) {
+      await dispatchNotificationsToMany({
+        userIds: managers.map((m) => m.id),
+        title: "Lead Contacted",
+        message: `Lead "${updated.name}" (${updated.leadCode}) progressed to Contacted stage.`,
+        type: "lead",
+        link: `/leads/${leadId}`,
+      }).catch((e) => console.error("Notification failed", e));
+    }
+
+    revalidatePath("/leads");
+    revalidatePath(`/leads/${leadId}`);
+
+    return {
+      success: true,
+      message: "Lead marked as Contacted successfully.",
+      data: { lead: updated, activityLog },
+    };
+  } catch (error) {
+    console.error("Contact Lead Error:", error);
+    return { success: false, message: "Failed to mark lead as Contacted." };
   }
 }
 
@@ -743,7 +898,7 @@ export async function convertLeadToDealAction(
         data: { status: "Converted" }
       });
 
-      // 3. Create the Deal
+      // 3. Create the Deal (starts at SalesOpportunity stage, not Active)
       const deal = await tx.deal.create({
         data: {
           dealName,
@@ -751,7 +906,7 @@ export async function convertLeadToDealAction(
           dealValue: parseFloat(dealValue as any),
           expectedCloseDate: new Date(expectedCloseDate),
           assignedUserId: lead.assignedUserId || userPayload.id,
-          status: "Active",
+          status: "SalesOpportunity",
           companyId: userPayload.companyId,
         }
       });
@@ -761,12 +916,42 @@ export async function convertLeadToDealAction(
         data: {
           dealId: deal.id,
           fromStatus: null,
-          toStatus: "Active",
+          toStatus: "SalesOpportunity",
           changedById: userPayload.id
         }
       });
 
-      return { customer, deal };
+      // 5. Create a Contact record from lead data
+      const contact = await tx.contact.create({
+        data: {
+          name: lead.name,
+          email: lead.email,
+          phone: lead.phone,
+          company: customer.name,
+          status: "Active",
+          contactType: "Technical",
+          isPrimary: true,
+          customerId: customer.id,
+          ownerId: lead.assignedUserId || userPayload.id,
+          companyId: userPayload.companyId,
+        }
+      });
+
+      // 6. Seed OpportunityDetail with lead data
+      await tx.opportunityDetail.create({
+        data: {
+          dealId: deal.id,
+          companyName: lead.name,
+          email: lead.email,
+          phone: lead.phone,
+          contactPerson: lead.name,
+          budgetRange: lead.budgetAsked,
+          timeline: lead.timelineAsked,
+          decisionMaker: lead.isDecisionMaker ? lead.name : null,
+        }
+      });
+
+      return { customer, deal, contact };
     });
 
     await logAudit(
@@ -778,6 +963,9 @@ export async function convertLeadToDealAction(
 
     revalidatePath("/leads");
     revalidatePath("/deals");
+    revalidatePath("/sales-pipeline");
+    revalidatePath("/customer-master");
+    revalidatePath("/contacts");
     revalidatePath("/dashboard");
 
     return { success: true, message: "Lead successfully converted to Customer and Deal created.", dealId: result.deal.id };

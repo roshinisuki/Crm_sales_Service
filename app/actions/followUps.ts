@@ -20,6 +20,7 @@ const createSchema = z.object({
   sourceId: z.string().optional().nullable(),
   assignedUserId: z.string().optional().nullable(),
   autoCreated: z.boolean().default(false),
+  type: z.enum(["Call", "Meeting", "Note"]).optional().nullable(),
 }).refine(data => data.customerId || data.leadId, {
   message: "Either customerId or leadId must be provided",
   path: ["customerId"]
@@ -281,6 +282,7 @@ export async function createFollowUpAction(data: any) {
       sourceId: data.sourceId || null,
       assignedUserId: data.assignedUserId || data.assignedToId || userPayload.id,
       autoCreated: data.autoCreated || false,
+      type: data.type || null,
     });
 
     if (!parsedInput.success) {
@@ -324,6 +326,7 @@ export async function createFollowUpAction(data: any) {
         sourceType: validated.sourceType,
         sourceId: validated.sourceId,
         autoCreated: validated.autoCreated,
+        type: validated.type || null,
         status: "Pending",
         companyId: userPayload.companyId,
       },
@@ -548,6 +551,134 @@ export async function completeFollowUpAction(data: {
     nextMeetingNotes: data.nextMeetingNotes,
     nextMeetingPriority: data.nextMeetingPriority,
   });
+}
+
+/**
+ * Unified "Complete Follow-Up with Activity" action.
+ *
+ * A Follow-Up is incomplete without a matching Activity. This action:
+ *   1. Creates a CommunicationLog (Call/Meeting/Note) linked via followUpId
+ *   2. Marks the Follow-Up as Completed
+ *
+ * If the user exits the activity form without saving, the follow-up stays Pending.
+ * Every completed follow-up is guaranteed to have at least 1 linked activity.
+ */
+export async function completeFollowUpWithActivityAction(data: {
+  followUpId: string;
+  activityType: "Call" | "Meeting" | "Note";
+  content: string;
+  // Call-specific
+  direction?: string;
+  duration?: number | null;
+  status?: string;
+  // Meeting-specific
+  meetingDate?: string;
+  location?: string;
+  mode?: string;
+  agenda?: string;
+  outcome?: string;
+}) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || userPayload.role === "Customer") {
+      return { success: false, message: "Unauthorized" };
+    }
+
+    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+      return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
+    }
+
+    const { followUpId, activityType, content } = data;
+
+    if (!followUpId) return { success: false, message: "Follow-Up ID is required." };
+    if (!content?.trim()) return { success: false, message: "Activity content/notes are required." };
+
+    const followUp = await prisma.followUp.findUnique({
+      where: { id: followUpId },
+      include: { customer: true, lead: true },
+    });
+
+    if (!followUp) return { success: false, message: "Follow-Up not found." };
+
+    if (!checkRecordScope(userPayload, followUp, "FollowUp")) {
+      return { success: false, message: "Unauthorized: Access denied." };
+    }
+
+    if (userPayload.role === "SalesExecutive" && followUp.assignedUserId !== userPayload.id) {
+      return { success: false, message: "Unauthorized: You do not own this follow-up" };
+    }
+
+    if (followUp.status === "Completed") {
+      return { success: false, message: "Follow-Up has already been completed." };
+    }
+
+    // Validate activity type matches follow-up type (if set)
+    if (followUp.type && followUp.type !== activityType) {
+      return { success: false, message: `Activity type must be "${followUp.type}" to match this follow-up.` };
+    }
+
+    const now = new Date();
+
+    // 1. Create the CommunicationLog activity linked to the follow-up
+    const activityLog = await prisma.communicationLog.create({
+      data: {
+        id: undefined,
+        channel: activityType,
+        customerId: followUp.customerId || null,
+        leadId: followUp.leadId || null,
+        dealId: null,
+        direction: data.direction || "Outbound",
+        duration: data.duration ?? null,
+        content: content.trim(),
+        status: data.status || "Completed",
+        sentByUserId: userPayload.id,
+        sentAt: now,
+        companyId: userPayload.companyId ?? null,
+        // Meeting-specific fields
+        location: data.location || null,
+        mode: data.mode || null,
+        agenda: data.agenda || null,
+        outcome: data.outcome || null,
+        meetingDate: data.meetingDate ? new Date(data.meetingDate) : null,
+        // Critical link: followUpId
+        followUpId,
+      },
+    });
+
+    // 2. Mark the Follow-Up as Completed
+    const updatedFollowUp = await prisma.followUp.update({
+      where: { id: followUpId },
+      data: {
+        status: "Completed",
+        completedAt: now,
+        completedById: userPayload.id,
+        completionNotes: content.trim(),
+        notes: content.trim(),
+      },
+    });
+
+    await logAudit(
+      userPayload.id,
+      "follow-up",
+      "complete",
+      `Follow-up ${followUpId} completed with ${activityType} activity ${activityLog.id}.`
+    );
+
+    revalidatePath("/dashboard");
+    revalidatePath("/follow-up");
+    revalidatePath("/activities");
+    if (followUp.leadId) revalidatePath(`/leads/${followUp.leadId}`);
+    if (followUp.customerId) revalidatePath(`/customers/${followUp.customerId}`);
+
+    return {
+      success: true,
+      message: `Follow-up completed with ${activityType} activity logged.`,
+      data: { followUp: updatedFollowUp, activityLog },
+    };
+  } catch (error) {
+    console.error("Complete Follow-Up With Activity Error:", error);
+    return { success: false, message: "Failed to complete follow-up with activity." };
+  }
 }
 
 export async function cancelFollowUpAction(data: { id: string; notes?: string; moveBackToLeads?: boolean }) {

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler } from "chart.js";
 import { Doughnut, Line } from "react-chartjs-2";
 import { cn } from "@/lib/ui-utils";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { Phone, Mail, Calendar, FileCheck, FileText, Clock, Rocket } from "lucide-react";
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler);
@@ -23,6 +24,7 @@ export const Ico = ({ d, size = 16, className }: { d: string; size?: number; cla
 
 export function SalesKpiCards({ kpis }: { kpis: any }) {
   if (!kpis) return null;
+  const { formatCurrency } = useCurrency();
   const conversionRate = kpis.conversionRate || 0;
   const radius = 24;
   const circumference = 2 * Math.PI * radius;
@@ -61,10 +63,10 @@ export function SalesKpiCards({ kpis }: { kpis: any }) {
       <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pipeline Value</p>
-          <h3 className="text-3xl font-black text-slate-800">${kpis.pipelineRevenue?.toLocaleString()}</h3>
+          <h3 className="text-3xl font-black text-slate-800">{formatCurrency(kpis.pipelineRevenue || 0)}</h3>
           <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-[#D44D4D] bg-red-50 px-2 py-0.5 rounded-md w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-[#D44D4D]" />
-            Closed: ${kpis.wonRevenue?.toLocaleString()}
+            Closed: {formatCurrency(kpis.wonRevenue || 0)}
           </p>
         </div>
         <div className="w-14 h-14 rounded-2xl bg-red-50 text-[#D44D4D] flex items-center justify-center shrink-0">
@@ -169,6 +171,7 @@ export function SalesFunnelChart({ funnel }: { funnel: any[] }) {
 
 export function RevenueTrendChart({ revenueTrend }: { revenueTrend: any[] }) {
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  const { formatCurrency, convertAmount } = useCurrency();
   if (!revenueTrend || revenueTrend.length === 0) return null;
 
   const maxTrendRevenue = Math.max(...revenueTrend.map((t: any) => t.revenue), 1000);
@@ -224,11 +227,11 @@ export function RevenueTrendChart({ revenueTrend }: { revenueTrend: any[] }) {
                 {isHovered && <circle cx={pt.x} cy={pt.y} r="12" fill="#8B5CF6" fillOpacity="0.15" />}
                 <circle cx={pt.x} cy={pt.y} r={isHovered ? "6" : "5"} fill={isHovered ? "#FFFFFF" : "#8B5CF6"} stroke={isHovered ? "#8B5CF6" : "#FFFFFF"} strokeWidth={isHovered ? "3" : "2"} className="transition-all duration-150" />
                 <text x={pt.x} y={pt.y - 16} fontSize="10" fontWeight="black" fill="#8B5CF6" textAnchor="middle" className={`transition-opacity duration-150 ${isHovered ? "opacity-100 -translate-y-1" : "opacity-0"}`}>
-                  ${pt.val.toLocaleString()}
+                  {formatCurrency(pt.val)}
                 </text>
                 {!isHovered && (
                   <text x={pt.x} y={pt.y - 12} fontSize="9" fontWeight="bold" fill="#64748B" textAnchor="middle">
-                    ${Math.round(pt.val / 1000)}k
+                    {formatCurrency(convertAmount(pt.val)).replace(/\.00$/, '')}
                   </text>
                 )}
                 <text x={pt.x} y="195" fontSize="10" fontWeight="bold" fill="#94A3B8" textAnchor="middle">{pt.label}</text>
@@ -242,6 +245,7 @@ export function RevenueTrendChart({ revenueTrend }: { revenueTrend: any[] }) {
 }
 
 export function LeadSourcesTable({ leadSources }: { leadSources: any[] }) {
+  const { formatCurrency } = useCurrency();
   return (
     <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm">
       <h3 className="text-sm font-bold text-slate-800 mb-6">Lead Source Conversions</h3>
@@ -271,7 +275,7 @@ export function LeadSourcesTable({ leadSources }: { leadSources: any[] }) {
                       <span className="font-bold text-slate-700">{ls.conversionRate}%</span>
                     </div>
                   </td>
-                  <td className="p-3 text-right font-black text-[#8B5CF6]">${ls.revenue?.toLocaleString()}</td>
+                  <td className="p-3 text-right font-black text-[#8B5CF6]">{formatCurrency(ls.revenue || 0)}</td>
                 </tr>
               ))}
             </tbody>
@@ -283,6 +287,7 @@ export function LeadSourcesTable({ leadSources }: { leadSources: any[] }) {
 }
 
 export function AgentLeaderboard({ agentPerformance }: { agentPerformance: any[] }) {
+  const { formatCurrency } = useCurrency();
   return (
     <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm">
       <h3 className="text-sm font-bold text-slate-800 mb-6">Executive Sales Leaderboard</h3>
@@ -304,7 +309,7 @@ export function AgentLeaderboard({ agentPerformance }: { agentPerformance: any[]
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm font-black text-slate-800">${agent.revenue?.toLocaleString()}</p>
+                <p className="text-sm font-black text-slate-800">{formatCurrency(agent.revenue || 0)}</p>
                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Revenue</p>
               </div>
             </div>
@@ -546,6 +551,7 @@ export function SalesPipelineWidget({
   subscriptions?: number,
   funnel?: any[]
 }) {
+  const { formatCurrency } = useCurrency();
   const total = (activeLeads + visits + subscriptions) || 1;
   const leadsPct = activeLeads / total;
   const visitsPct = visits / total;
@@ -624,7 +630,7 @@ export function SalesPipelineWidget({
     s.pct = (s.count / maxCount) * 85 + 15;
     const baseMult = [2.5, 4.5, 7.2, 12.0, 18.5];
     const val = s.count * baseMult[idx];
-    s.revenue = val > 0 ? `₹${val.toFixed(1)}L` : "₹0.0L";
+    s.revenue = val > 0 ? formatCurrency(val) : formatCurrency(0);
   });
 
   return (

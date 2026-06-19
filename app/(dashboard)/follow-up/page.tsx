@@ -366,35 +366,17 @@ export default function FollowUpsPage() {
 
   const handleCompleteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!outcomeRemarks.trim()) {
-      toast.error("Outcome completion remarks are required");
-      return;
-    }
-    setFormLoading(true);
-
-    try {
-      const res = await completeFollowUpAction({
-        id: activeFollowUp.id,
-        customerStatus: newCustomerStatus,
-        completionNotes: outcomeRemarks,
-        remarks: outcomeRemarks,
-        nextMeetingDate: scheduleNext ? nextFollowUpTimeComplete : undefined,
-        nextMeetingNotes: scheduleNext ? nextFollowUpNotesComplete : undefined,
-        nextMeetingPriority: scheduleNext ? nextFollowUpPriorityComplete : undefined,
-      });
-
-      if (res.success) {
-        setIsCompleteModalOpen(false);
-        toast.success("Follow-up marked completed successfully");
-        loadData();
-      } else {
-        toast.error(res.message || "Failed to complete follow-up");
-      }
-    } catch {
-      toast.error("Failed to complete follow-up");
-    } finally {
-      setFormLoading(false);
-    }
+    if (!activeFollowUp) return;
+    // Redirect to activity form — follow-up completion requires a logged activity.
+    // The activity form will call completeFollowUpWithActivityAction (source of truth).
+    const followUpId = activeFollowUp.id;
+    const leadId = activeFollowUp.leadId || "";
+    const customerId = activeFollowUp.customerId || "";
+    const params = new URLSearchParams({ followUpId });
+    if (leadId) params.set("leadId", leadId);
+    if (customerId) params.set("customerId", customerId);
+    setIsCompleteModalOpen(false);
+    router.push(`/activities/new?${params.toString()}`);
   };
 
   const handleCancelClick = async (followUpItem: any) => {
@@ -569,14 +551,14 @@ export default function FollowUpsPage() {
             <thead>
               <tr className="crm-tr border-b border-slate-100">
                 <th className="crm-th text-center">S.No</th>
-                <th className="crm-th">Lead Name</th>
+                <th className="crm-th">Lead / Customer</th>
                 <th className="crm-th">Company Name</th>
                 <th className="crm-th">Phone No</th>
                 <th className="crm-th">Assigned To</th>
                 <th className="crm-th">Follow-up Date</th>
                 <th className="crm-th">Status</th>
                 <th className="crm-th">Priority</th>
-                <th className="crm-th">Next Follow-up</th>
+                <th className="crm-th">Created On</th>
                 <th className="crm-th text-center">Action</th>
               </tr>
             </thead>
@@ -612,7 +594,19 @@ export default function FollowUpsPage() {
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${avatarColorClass}`}>
                             {initials}
                           </div>
-                          <span className="font-bold text-slate-800 text-sm block leading-tight">{f.customerName}</span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800 text-sm block leading-tight">{f.customerName || f.leadName || "Unknown"}</span>
+                            {f.leadId && (
+                              <Link href={`/leads/${f.leadId}`} className="text-[10px] text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>
+                                Lead: {f.leadCode || "View"}
+                              </Link>
+                            )}
+                            {f.customerId && (
+                              <Link href={`/customer-master/${f.customerId}`} className="text-[10px] text-emerald-500 hover:underline" onClick={e => e.stopPropagation()}>
+                                Customer: {f.customerCode || "View"}
+                              </Link>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="crm-td text-slate-500 font-medium">
@@ -624,7 +618,7 @@ export default function FollowUpsPage() {
                       <td className="crm-td text-slate-600 font-medium">
                         {f.assignedUser?.name || "System"}
                       </td>
-                      <td className="crm-td text-slate-600 font-medium">
+                      <td className="crm-td text-slate-500 text-xs whitespace-nowrap">
                         {formatDate(f.nextMeetingDate)}
                       </td>
                       <td className="crm-td">
@@ -660,8 +654,8 @@ export default function FollowUpsPage() {
                           {f.priority || "Medium"}
                         </span>
                       </td>
-                      <td className="crm-td text-slate-500 font-medium">
-                        {isCompleted ? formatDate(f.nextMeetingDate) : formatDate(f.dueDate || f.nextMeetingDate)}
+                      <td className="crm-td text-slate-500 text-xs whitespace-nowrap">
+                        {f.createdAt ? formatDate(f.createdAt) : "—"}
                       </td>
                       <td className="crm-td">
                         <div className="flex items-center justify-center gap-2.5 text-slate-400">

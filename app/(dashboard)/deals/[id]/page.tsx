@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { getDealByIdAction, requestDiscountAction, resolveDiscountAction } from "@/app/actions/deals";
 import { useAuth } from "@/components/AuthProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { useToast } from "@/components/ToastProvider";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Timeline } from "@/components/ui/Timeline";
 import { NotePanel } from "@/components/ui/NotePanel";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea } from "@/components/ui/FormField";
-import { getInitials, getAvatarColor, formatDateTime, formatCurrency, cn } from "@/lib/ui-utils";
+import { getInitials, getAvatarColor, formatDateTime, cn } from "@/lib/ui-utils";
 import { ArrowLeft, Briefcase, User, CalendarClock, DollarSign, History, AlertCircle, Percent, Check, X } from "lucide-react";
 
 export default function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -19,6 +20,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
 
   const [deal, setDeal] = useState<any>(null);
   const [loading, setLoading] = useState(true);

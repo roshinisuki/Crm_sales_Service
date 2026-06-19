@@ -15,30 +15,6 @@ datasource db {
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model User {
@@ -46,7 +22,8 @@ model User {
   email                 String    @unique
   name                  String
   passwordHash          String
-  role                  String      @default("SalesExecutive")
+  role                  String    @default("SalesExecutive")
+  department            String? // Sales | Technical | Production | Quality | Management — Variant 3
   userType              String    @default("internal") // "internal" | "customer"
   phone                 String?
   profilePhoto          String?   @db.NVarChar(Max)
@@ -67,8 +44,9 @@ model User {
   activationToken       String?   @db.NVarChar(Max)
   activationTokenExpiry DateTime?
   passwordSetAt         DateTime?
-  theme                 String    @default("ember")     // ember | ocean | forest | obsidian
-  themeMode             String    @default("light")     // light | dark
+  theme                 String    @default("ember") // ember | ocean | forest | obsidian
+  themeMode             String    @default("light") // light | dark
+  preferredCurrency     String    @default("INR") // INR | USD | EUR — display currency preference
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
@@ -118,6 +96,28 @@ model User {
   Contact Contact[]
   Task    Task[]
 
+  // Variant 2 relations
+  createdQuotations Quotation[]     @relation("CreatedQuotations")
+  forecastEntries   ForecastEntry[]
+  rfqs              RFQ[]           @relation("AssignedRFQs")
+
+  // Variant 3 relations
+  assignedSamples        SampleRequest[]       @relation("AssignedSamples")
+  approvedSamples        SampleRequest[]       @relation("ApprovedSamples")
+  rejectedSamples        SampleRequest[]       @relation("RejectedSamples")
+  sampleDeletedBy        SampleRequest[]       @relation("SampleDeletedBy")
+  assignedNegotiations   Negotiation[]         @relation("AssignedNegotiations")
+  approvedNegotiations   Negotiation[]         @relation("ApprovedNegotiations")
+  negotiationDeletedBy   Negotiation[]         @relation("NegotiationDeletedBy")
+  negotiationRevisions   NegotiationRevision[] @relation("NegotiationRevisions")
+  assignedPurchaseOrders PurchaseOrder[]       @relation("AssignedPurchaseOrders")
+  approvedPurchaseOrders PurchaseOrder[]       @relation("ApprovedPurchaseOrders")
+  purchaseOrderDeletedBy PurchaseOrder[]       @relation("PurchaseOrderDeletedBy")
+  documents              CRMDocument[]         @relation("UploadedDocuments")
+  documentDeletedBy      CRMDocument[]         @relation("DocumentDeletedBy")
+  approvalRequests       ApprovalRequest[]     @relation("ApprovalRequestRequestedBy")
+  approvalResolvedBy     ApprovalRequest[]     @relation("ApprovalRequestResolvedBy")
+
   @@index([role])
   @@index([isActive])
   @@index([userType])
@@ -125,22 +125,22 @@ model User {
 }
 
 model Customer {
-  id                String                   @id @default(uuid())
-  customerCode      String                   @unique
+  id                String    @id @default(uuid())
+  customerCode      String    @unique
   name              String
-  email             String?                  @unique
+  email             String?   @unique
   phone             String?
   city              String?
-  status            String           @default("Prospect")
+  status            String    @default("Prospect")
   assignedUserId    String?
-  assignedUser      User?                    @relation("AssignedCustomers", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  onboardingStatus  String @default("Pending")
+  assignedUser      User?     @relation("AssignedCustomers", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  onboardingStatus  String    @default("Pending")
   onboardedAt       DateTime?
   onboardedById     String?
-  onboardedBy       User?                    @relation("OnboardedCustomers", fields: [onboardedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  onboardedBy       User?     @relation("OnboardedCustomers", fields: [onboardedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   convertedFromLead String?
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Multi-Tenancy
   companyId String?
@@ -162,6 +162,16 @@ model Customer {
   supportTickets    SupportTicket[]
   proposals         Proposal[]
 
+  // Variant 2 relations
+  rfqs       RFQ[]
+  quotations Quotation[]
+
+  // Variant 3 relations
+  samples        SampleRequest[]
+  negotiations   Negotiation[]
+  purchaseOrders PurchaseOrder[]
+  documents      CRMDocument[]
+
   // Keep leadSource for history if converted
   leadSource String?
 
@@ -172,16 +182,16 @@ model Customer {
 }
 
 model Subscription {
-  id         String             @id @default(uuid())
+  id         String   @id @default(uuid())
   customerId String
-  customer   Customer           @relation(fields: [customerId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id])
   planName   String
   startDate  DateTime
   endDate    DateTime
-  status     String @default("Active")
-  notes      String?            @db.NVarChar(Max)
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  status     String   @default("Active")
+  notes      String?  @db.NVarChar(Max)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Renewal Alert Sentinels (prevent duplicate notifications)
   renewalAlertSent30 Boolean @default(false)
@@ -314,7 +324,7 @@ model AuditLog {
   // Phase 2: State-Diff Audit Fields
   resourceId    String? // ID of the entity that changed (lead ID, customer ID, etc.)
   previousState String? @db.NVarChar(Max) // Snapshot of entity before the change
-  newState String? @db.NVarChar(Max) // Snapshot of entity after the change
+  newState      String? @db.NVarChar(Max) // Snapshot of entity after the change
   ipAddress     String? // Client IP address extracted from request headers
   userAgent     String? @db.NVarChar(Max) // Browser/client user agent string
   severity      String  @default("INFO") // INFO | WARN | HIGH | CRITICAL
@@ -346,18 +356,18 @@ model PasswordResetToken {
 }
 
 model FollowUp {
-  id              String         @id @default(uuid())
+  id              String    @id @default(uuid())
   customerId      String?
-  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   leadId          String?
-  lead            Lead?          @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lead            Lead?     @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   assignedUserId  String
-  assignedUser    User           @relation("AssignedFollowUps", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignedUser    User      @relation("AssignedFollowUps", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   nextMeetingDate DateTime
-  remarks         String?        @db.NVarChar(Max)
-  status          String @default("Pending")
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  remarks         String?   @db.NVarChar(Max)
+  status          String    @default("Pending")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // New fields for inbound/outbound workflow integration
   visitId     String?
@@ -376,6 +386,10 @@ model FollowUp {
   priority        String    @default("Medium") // Low, Medium, High
   escalationLevel Int       @default(0)
   autoCreated     Boolean   @default(false)
+  type            String? // "Call" | "Meeting" | "Note" — links to activity type
+
+  // Activities linked to this follow-up
+  communicationLogs CommunicationLog[]
 
   // Multi-Tenancy
   companyId String?
@@ -392,6 +406,7 @@ model FollowUp {
   @@index([nextMeetingDate])
   @@index([completedById])
   @@index([companyId])
+  @@index([type])
 }
 
 model Notification {
@@ -421,10 +436,6 @@ model NotificationPreference {
   user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-
-
-
-
 model Deal {
   id                String             @id @default(uuid())
   dealName          String
@@ -435,7 +446,7 @@ model Deal {
   assignedUserId    String?
   assignedUser      User?              @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   notes             String?            @db.NVarChar(Max)
-  status            String         @default("Active")
+  status            String             @default("Active")
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   stageHistories    DealStageHistory[]
@@ -448,11 +459,19 @@ model Deal {
   discountApprovedById String?
   discountApprovedBy   User?   @relation("ApprovedDiscounts", fields: [discountApprovedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  lostReason      String?           @db.NVarChar(Max)
-  approvalRemarks String?           @db.NVarChar(Max)
-  approvalHistory ApprovalHistory[]
-  proposals       Proposal[]
+  lostReason        String?            @db.NVarChar(Max)
+  approvalRemarks   String?            @db.NVarChar(Max)
+  approvalHistory   ApprovalHistory[]
+  proposals         Proposal[]
   opportunityDetail OpportunityDetail?
+
+  // Variant 2 relations
+  quotations Quotation[]
+  tasks      Task[]
+
+  // Variant 3 relations
+  negotiations   Negotiation[]
+  purchaseOrders PurchaseOrder[]
 
   // Multi-Tenancy
   companyId String?
@@ -478,30 +497,30 @@ model OpportunityDetail {
   deal   Deal   @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   // ── Requirement Gathering (Discovery) Fields ──
-  currentChallenges    String? @db.NVarChar(Max)
-  painPoints           String? @db.NVarChar(Max)
-  painPointsList       String? @db.NVarChar(Max) // JSON string of checkboxes
-  
-  requiredFeatures     String? @db.NVarChar(Max) // Legacy
-  modulesRequired      String? @db.NVarChar(Max) // JSON string of checkboxes
-  
+  currentChallenges String? @db.NVarChar(Max)
+  painPoints        String? @db.NVarChar(Max)
+  painPointsList    String? @db.NVarChar(Max) // JSON string of checkboxes
+
+  requiredFeatures String? @db.NVarChar(Max) // Legacy
+  modulesRequired  String? @db.NVarChar(Max) // JSON string of checkboxes
+
   deploymentType       String? // Cloud SaaS, On-Premise
   integrationsRequired String? @db.NVarChar(Max) // JSON string of checkboxes
-  
-  userCountSales       Int?
-  userCountManagers    Int?
-  userCountAdmins      Int?
 
-  budgetRange          String?
-  timeline             String?
-  procurementProcess   String?
-  
-  decisionMaker       String?
-  influencer          String?
-  budgetOwner         String?
-  expectedGoLive      DateTime?
-  
-  currentVendor       String?
+  userCountSales    Int?
+  userCountManagers Int?
+  userCountAdmins   Int?
+
+  budgetRange        String?
+  timeline           String?
+  procurementProcess String?
+
+  decisionMaker  String?
+  influencer     String?
+  budgetOwner    String?
+  expectedGoLive DateTime?
+
+  currentVendor        String?
   competitorsEvaluated String? @db.NVarChar(Max)
 
   // ── Pre-Sales Review Fields ──
@@ -518,25 +537,78 @@ model OpportunityDetail {
   meetingDate         DateTime?
   meetingStatus       String?
   meetingDuration     Int?
-  meetingParticipants String? @db.NVarChar(Max)
-  meetingLocation     String? @db.NVarChar(Max)
-  meetingAgenda       String? @db.NVarChar(Max)
-  meetingOutcome      String? @db.NVarChar(Max)
+  meetingParticipants String?   @db.NVarChar(Max)
+  meetingLocation     String?   @db.NVarChar(Max)
+  meetingAgenda       String?   @db.NVarChar(Max)
+  meetingOutcome      String?   @db.NVarChar(Max)
 
   // ── Demo Conducted Fields ──
   demoType            String?
   demoDate            DateTime?
   demoPresenter       String?
   demoDuration        Int?
-  demoAttendees       String? @db.NVarChar(Max)
+  demoAttendees       String?   @db.NVarChar(Max)
   demoCustomerRating  String?
   demoInterestLevel   String?
-  demoQuestionsRaised String? @db.NVarChar(Max)
+  demoQuestionsRaised String?   @db.NVarChar(Max)
 
   // ── Rejected Demo Fields ──
   demoRejectionReason  String?
   demoRejectionRemarks String? @db.NVarChar(Max)
   demoCompetitorName   String?
+
+  // ── Business Requirements Fields ──
+  businessNeed        String? @db.NVarChar(Max)
+  expectedOutcome     String? @db.NVarChar(Max)
+  requiredDepartments String? @db.NVarChar(Max)
+  numberOfUsers       Int?
+  urgencyPriority     String?
+  businessGoals       String? @db.NVarChar(Max)
+  successCriteria     String? @db.NVarChar(Max)
+
+  // ── Technical Requirements Fields ──
+  existingSoftwareStack String? @db.NVarChar(Max)
+  securityCompliance    String? @db.NVarChar(Max)
+  userRolesPermissions  String? @db.NVarChar(Max)
+  reportingRequirements String? @db.NVarChar(Max)
+  dataMigrationRequired String?
+  customizationNeeded   String? @db.NVarChar(Max)
+  apiThirdPartyReqs     String? @db.NVarChar(Max)
+  technicalConstraints  String? @db.NVarChar(Max)
+  itTeamNotes           String? @db.NVarChar(Max)
+
+  // ── Commercial Info Fields ──
+  expectedBudget       Float?
+  finalDiscussedBudget Float?
+  pricingModel         String?
+  licenseCount         Int?
+  paymentTerms         String?
+  billingCycle         String?
+  competitorInfo       String? @db.NVarChar(Max)
+  commercialRisks      String? @db.NVarChar(Max)
+  discountRequested    Float?
+  proposalValue        Float?
+  negotiationNotes     String? @db.NVarChar(Max)
+  probability          Int?
+
+  // ── Internal Notes Fields ──
+  internalSalesNotes String? @db.NVarChar(Max)
+  presalesNotes      String? @db.NVarChar(Max)
+  objections         String? @db.NVarChar(Max)
+  followUpSummary    String? @db.NVarChar(Max)
+  risksBlockers      String? @db.NVarChar(Max)
+  nextSteps          String? @db.NVarChar(Max)
+  managementNotes    String? @db.NVarChar(Max)
+
+  // ── Customer Info (editable) ──
+  companyName          String?
+  industry             String?
+  contactPerson        String?
+  email                String?
+  phone                String?
+  employeeCount        Int?
+  approvalProcess      String? @db.NVarChar(Max)
+  buyingAuthorityNotes String? @db.NVarChar(Max)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -579,26 +651,32 @@ model SystemConfig {
 }
 
 model Lead {
-  id             String     @id @default(uuid())
-  leadCode       String     @unique
+  id             String   @id @default(uuid())
+  leadCode       String   @unique
   name           String
-  email          String?    @unique
+  email          String?  @unique
   phone          String?
   city           String?
-  status         String @default("New")
+  status         String   @default("New")
   assignedUserId String?
-  assignedUser   User?      @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  leadSource     String @default("Website")
-  notes          String?    @db.NVarChar(Max)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  assignedUser   User?    @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leadSource     String   @default("Website")
+  notes          String?  @db.NVarChar(Max)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // SLA Tracking Fields
-  slaStatus           String @default("Pending")
+  slaStatus           String    @default("Pending")
   slaResponseDeadline DateTime? // Set to createdAt + 15 min on ingestion
   firstRespondedAt    DateTime? // Set when status first moves away from New
   escalationLevel     Int       @default(0) // 0=None, 1=48h Manager Alert, 2=72h Auto-Reassign
   lastInteractionAt   DateTime  @default(now())
+
+  // Qualification Fields (for SQL promotion)
+  budgetAsked     String?
+  timelineAsked   String?
+  isDecisionMaker Boolean @default(false)
+  isGenuine       Boolean @default(false)
 
   // Multi-Tenancy
   companyId String?
@@ -656,12 +734,16 @@ model CommunicationLog {
   sentAt       DateTime  @default(now())
 
   // Call/Meeting specific fields
-  duration     Int?      // minutes
-  location     String?   // for meetings
-  mode         String?   // "In-person" | "Virtual"
-  agenda       String?   @db.NVarChar(Max)
-  outcome      String?   @db.NVarChar(Max)
-  meetingDate  DateTime?
+  duration    Int? // minutes
+  location    String? // for meetings
+  mode        String? // "In-person" | "Virtual"
+  agenda      String?   @db.NVarChar(Max)
+  outcome     String?   @db.NVarChar(Max)
+  meetingDate DateTime?
+
+  // Follow-Up linking — each activity can be linked to a follow-up
+  followUpId String?
+  followUp   FollowUp? @relation(fields: [followUpId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   // Multi-Tenancy
   companyId String?
@@ -675,38 +757,39 @@ model CommunicationLog {
   @@index([sentByUserId])
   @@index([channel])
   @@index([companyId])
+  @@index([followUpId])
 }
 
 model Invoice {
-  id            String        @id @default(uuid())
-  invoiceNumber String        @unique
+  id            String    @id @default(uuid())
+  invoiceNumber String    @unique
   customerId    String
-  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
   amount        Float
-  status        String @default("Unpaid")
-  issueDate     DateTime      @default(now())
+  status        String    @default("Unpaid")
+  issueDate     DateTime  @default(now())
   dueDate       DateTime
   paidAt        DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([customerId])
   @@index([status])
 }
 
 model SupportTicket {
-  id             String         @id @default(uuid())
-  ticketNumber   String         @unique
+  id             String   @id @default(uuid())
+  ticketNumber   String   @unique
   customerId     String
-  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   title          String
-  description    String         @db.NVarChar(Max)
-  priority       String @default("Medium")
+  description    String   @db.NVarChar(Max)
+  priority       String   @default("Medium")
   status         String   @default("Open")
   assignedUserId String?
-  assignedUser   User?          @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  assignedUser   User?    @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([customerId])
   @@index([status])
@@ -765,16 +848,20 @@ model ProposalVersion {
 
 model ApprovalHistory {
   id              String    @id @default(uuid())
-  dealId          String
-  deal            Deal      @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealId          String?
+  deal            Deal?     @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   requestedById   String
   requestedBy     User      @relation("RequestedApprovals", fields: [requestedById], references: [id])
   resolvedById    String?
   resolvedBy      User?     @relation("ResolvedApprovals", fields: [resolvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  discountPercent Float
+  discountPercent Float     @default(0)
   status          String // Pending, Approved, Rejected
   remarks         String?   @db.NVarChar(Max)
-  previousStatus  String?   // Deal status captured before locking (for exact rollback on rejection)
+  previousStatus  String? // Deal status captured before locking (for exact rollback on rejection)
+  // Variant 3 — generic approval fields
+  approvalType    String? // Discount | Negotiation | PO | Quotation
+  entityType      String? // Deal | Negotiation | PurchaseOrder | Quotation
+  entityId        String?
   createdAt       DateTime  @default(now())
   resolvedAt      DateTime?
 
@@ -783,26 +870,44 @@ model ApprovalHistory {
   deletedById String?
 
   @@index([dealId])
+  @@index([entityType, entityId])
+  @@index([approvalType])
+  @@index([status])
 }
 
 model Company {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String   @unique
+  variant      Int      @default(1) // CRM variant: 1, 2, 3...
+  baseCurrency String   @default("INR") // Base currency for all transactions (INR | USD | EUR)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  users           User[]
-  leads           Lead[]
-  customers       Customer[]
-  deals           Deal[]
-  proposals       Proposal[]
-  followUps       FollowUp[]
-  marketingVisits MarketingVisit[]
-  customerVisits  CustomerVisit[]
-  auditLogs       AuditLog[]
-  notes           Note[]
-  subscriptions   Subscription[]
-  leadSources     LeadSource[]
+  users             User[]
+  leads             Lead[]
+  customers         Customer[]
+  deals             Deal[]
+  proposals         Proposal[]
+  followUps         FollowUp[]
+  marketingVisits   MarketingVisit[]
+  customerVisits    CustomerVisit[]
+  auditLogs         AuditLog[]
+  notes             Note[]
+  subscriptions     Subscription[]
+  leadSources       LeadSource[]
+  products          Product[]
+  productCategories ProductCategory[]
+  rfqs              RFQ[]
+  quotations        Quotation[]
+  forecastEntries   ForecastEntry[]
+  pipelineStages    PipelineStage[]
+  SampleRequest     SampleRequest[]
+  Negotiation       Negotiation[]
+  PurchaseOrder     PurchaseOrder[]
+  CRMDocument       CRMDocument[]
+  ApprovalRequest   ApprovalRequest[]
+  emailTemplates    EmailTemplate[]
+  whatsappTemplates WhatsAppTemplate[]
 }
 
 model LeadSource {
@@ -826,7 +931,7 @@ model Note {
   deletedAt   DateTime?
   deletedById String?
   companyId   String?
-  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([entityType, entityId])
   @@index([createdById])
@@ -862,6 +967,15 @@ model Contact {
 
   Task Task[]
 
+  // Variant 2 relations
+  rfqs       RFQ[]
+  quotations Quotation[]
+
+  // Variant 3 relations
+  negotiations   Negotiation[]
+  purchaseOrders PurchaseOrder[]
+  samples        SampleRequest[]
+
   @@index([ownerId])
   @@index([status])
   @@index([customerId])
@@ -879,6 +993,8 @@ model Task {
   dueDate     DateTime?
   contactId   String?
   Contact     Contact?  @relation(fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealId      String?
+  Deal        Deal?     @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   assignedTo  String
   User        User      @relation(fields: [assignedTo], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt   DateTime  @default(now())
@@ -893,6 +1009,486 @@ model Task {
 
   @@index([assignedTo])
   @@index([contactId])
+  @@index([dealId])
   @@index([status])
+  @@index([companyId])
+}
+
+// ─── Variant 2 Models ─────────────────────────────────────────────────────
+
+model ProductCategory {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  isActive    Boolean   @default(true)
+  companyId   String?
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([isActive])
+}
+
+model Product {
+  id                 String                 @id @default(uuid())
+  productCode        String                 @unique
+  name               String
+  categoryId         String?
+  category           ProductCategory?       @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  description        String?                @db.NVarChar(Max)
+  unit               String?
+  basePrice          Float?
+  isActive           Boolean                @default(true)
+  datasheetUrl       String?                @db.NVarChar(Max)
+  brochureUrl        String?                @db.NVarChar(Max)
+  // Variant 3 fields
+  productType        String? // FinishedGood | RawMaterial | Component | SubAssembly | Consumable
+  minOrderQuantity   Float?
+  companyId          String?
+  company            Company?               @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  specifications     ProductSpecification[]
+  rfqs               RFQ[]
+  quotationItems     QuotationItem[]
+  // Variant 3 relations
+  samples            SampleRequest[]
+  purchaseOrderItems PurchaseOrderItem[]
+  deletedAt          DateTime?
+  deletedById        String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  @@index([companyId])
+  @@index([categoryId])
+  @@index([isActive])
+}
+
+model ProductSpecification {
+  id           String   @id @default(uuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  specKey      String
+  specValue    String
+  unit         String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([productId])
+}
+
+model RFQ {
+  id                   String          @id @default(uuid())
+  rfqCode              String          @unique
+  customerId           String
+  customer             Customer        @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contactId            String?
+  contact              Contact?        @relation(fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productId            String?
+  product              Product?        @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status               String          @default("New")
+  receivedDate         DateTime        @default(now())
+  requirementDetails   String?         @db.NVarChar(Max)
+  targetPrice          Float?
+  deliveryDate         DateTime?
+  quantity             Float?
+  assignedUserId       String?
+  assignedUser         User?           @relation("AssignedRFQs", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notes                String?         @db.NVarChar(Max)
+  // Variant 3 field
+  expectedDeliveryDate DateTime?
+  companyId            String?
+  company              Company?        @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deletedAt            DateTime?
+  deletedById          String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  quotations           Quotation[]
+  // Variant 3 relations
+  samples              SampleRequest[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([companyId])
+}
+
+model Quotation {
+  id                 String          @id @default(uuid())
+  quotationCode      String          @unique
+  rfqId              String?
+  rfq                RFQ?            @relation(fields: [rfqId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerId         String
+  customer           Customer        @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contactId          String?
+  contact            Contact?        @relation(fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealId             String?
+  deal               Deal?           @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status             String          @default("Draft")
+  validUntil         DateTime
+  totalAmount        Float           @default(0)
+  discountPercent    Float           @default(0)
+  finalAmount        Float           @default(0)
+  termsAndConditions String?         @db.NVarChar(Max)
+  sentAt             DateTime?
+  acceptedAt         DateTime?
+  rejectedAt         DateTime?
+  rejectionReason    String?         @db.NVarChar(Max)
+  createdById        String
+  createdBy          User            @relation("CreatedQuotations", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  companyId          String?
+  company            Company?        @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  items              QuotationItem[]
+  deletedAt          DateTime?
+  deletedById        String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  // Variant 3 relations
+  negotiations       Negotiation[]
+  purchaseOrders     PurchaseOrder[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([companyId])
+  @@index([rfqId])
+}
+
+model QuotationItem {
+  id          String    @id @default(uuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product?  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  description String
+  quantity    Float
+  unitPrice   Float
+  totalPrice  Float
+  notes       String?
+
+  @@index([quotationId])
+}
+
+model ForecastEntry {
+  id             String   @id @default(uuid())
+  month          Int
+  year           Int
+  forecastType   String
+  targetAmount   Float
+  achievedAmount Float    @default(0)
+  assignedUserId String?
+  assignedUser   User?    @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notes          String?
+  companyId      String?
+  company        Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([year, month])
+  @@index([assignedUserId])
+}
+
+model PipelineStage {
+  id        String   @id @default(uuid())
+  name      String
+  order     Int
+  color     String   @default("#378ADD")
+  isActive  Boolean  @default(true)
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([order])
+}
+
+// ─── Exchange Rate Cache ──────────────────────────────────────────────────────
+// Stores daily exchange rates fetched from external API.
+// Rates are relative to base currency (e.g., 1 INR = 0.012 USD).
+// Updated daily via cron or on-demand when stale.
+
+model ExchangeRate {
+  id            String   @id @default(uuid())
+  baseCurrency  String // e.g., "INR"
+  quoteCurrency String // e.g., "USD"
+  rate          Float // 1 baseCurrency = rate quoteCurrency
+  fetchedAt     DateTime @default(now()) // when the rate was fetched from API
+  source        String   @default("exchangerate-api") // API source identifier
+
+  @@unique([baseCurrency, quoteCurrency])
+  @@index([baseCurrency])
+  @@index([fetchedAt])
+}
+
+// ============================================================
+// VARIANT 3 — Manufacturing CRM Models
+// ============================================================
+
+model SampleRequest {
+  id               String    @id @default(uuid())
+  sampleCode       String    @unique
+  customerId       String
+  customer         Customer  @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contactId        String?
+  contact          Contact?  @relation(fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productId        String
+  product          Product   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rfqId            String?
+  rfq              RFQ?      @relation(fields: [rfqId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status           String    @default("New") // New | UnderReview | SentToCustomer | Approved | Rejected | Revision
+  requestDate      DateTime  @default(now())
+  sentDate         DateTime?
+  approvedDate     DateTime?
+  rejectedDate     DateTime?
+  revisionDate     DateTime?
+  quantity         Float
+  specifications   String?   @db.NVarChar(Max)
+  customerFeedback String?   @db.NVarChar(Max)
+  revisionNotes    String?   @db.NVarChar(Max)
+  trackingNumber   String?
+  assignedUserId   String?
+  assignedUser     User?     @relation("AssignedSamples", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedById     String?
+  approvedBy       User?     @relation("ApprovedSamples", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rejectedById     String?
+  rejectedBy       User?     @relation("RejectedSamples", fields: [rejectedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  companyId        String?
+  company          Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deletedAt        DateTime?
+  deletedById      String?
+  deletedBy        User?     @relation("SampleDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([customerId])
+  @@index([productId])
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([companyId])
+}
+
+model Negotiation {
+  id                String                @id @default(uuid())
+  negotiationCode   String                @unique
+  quotationId       String?
+  quotation         Quotation?            @relation(fields: [quotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealId            String?
+  deal              Deal?                 @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerId        String
+  customer          Customer              @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contactId         String?
+  contact           Contact?              @relation(fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status            String                @default("Active") // Active | PriceRevision | CommercialDiscussion | PendingApproval | Won | Lost
+  initialAmount     Float
+  revisedAmount     Float?
+  finalAmount       Float?
+  discountRequested Float                 @default(0)
+  discountApproved  Float?
+  customerDemands   String?               @db.NVarChar(Max)
+  internalNotes     String?               @db.NVarChar(Max)
+  outcome           String? // Won | Lost | Pending
+  closedAt          DateTime?
+  assignedUserId    String?
+  assignedUser      User?                 @relation("AssignedNegotiations", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedById      String?
+  approvedBy        User?                 @relation("ApprovedNegotiations", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  companyId         String?
+  company           Company?              @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revisions         NegotiationRevision[]
+  deletedAt         DateTime?
+  deletedById       String?
+  deletedBy         User?                 @relation("NegotiationDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  PurchaseOrder     PurchaseOrder[]
+
+  @@index([customerId])
+  @@index([quotationId])
+  @@index([dealId])
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([companyId])
+}
+
+model NegotiationRevision {
+  id              String      @id @default(uuid())
+  negotiationId   String
+  negotiation     Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  revisionNumber  Int
+  proposedAmount  Float
+  discountPercent Float       @default(0)
+  reason          String?     @db.NVarChar(Max)
+  status          String      @default("Pending") // Pending | Approved | Rejected
+  createdById     String
+  createdBy       User        @relation("NegotiationRevisions", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt       DateTime    @default(now())
+
+  @@index([negotiationId])
+}
+
+model PurchaseOrder {
+  id               String              @id @default(uuid())
+  poCode           String              @unique
+  customerId       String
+  customer         Customer            @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contactId        String?
+  contact          Contact?            @relation(fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  negotiationId    String?
+  negotiation      Negotiation?        @relation(fields: [negotiationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotationId      String?
+  quotation        Quotation?          @relation(fields: [quotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealId           String?
+  deal             Deal?               @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status           String              @default("New") // New | UnderValidation | Approved | Rejected | Closed
+  poNumber         String?
+  poDate           DateTime?
+  expectedDelivery DateTime?
+  actualDelivery   DateTime?
+  totalAmount      Float               @default(0)
+  discountPercent  Float               @default(0)
+  finalAmount      Float               @default(0)
+  paymentTerms     String?
+  deliveryTerms    String?
+  shippingAddress  String?             @db.NVarChar(Max)
+  billingAddress   String?             @db.NVarChar(Max)
+  notes            String?             @db.NVarChar(Max)
+  poDocumentUrl    String?             @db.NVarChar(Max)
+  specialInstructions String?          @db.NVarChar(Max)
+  validationChecklist String?          @db.NVarChar(Max) // JSON: {customerVerified, contactVerified, productsConfirmed, documentUploaded, amountMatches}
+  erpSyncStatus    String?             // Pending | Synced | Failed
+  erpReferenceNumber String?
+  erpSyncedAt      DateTime?
+  erpPayload       String?             @db.NVarChar(Max) // JSON string
+  erpResponse      String?             @db.NVarChar(Max) // JSON string
+  approvedAt       DateTime?
+  approvedById     String?
+  approvedBy       User?               @relation("ApprovedPurchaseOrders", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rejectionReason  String?             @db.NVarChar(Max)
+  assignedUserId   String?
+  assignedUser     User?               @relation("AssignedPurchaseOrders", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  companyId        String?
+  company          Company?            @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  items            PurchaseOrderItem[]
+  deletedAt        DateTime?
+  deletedById      String?
+  deletedBy        User?               @relation("PurchaseOrderDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([customerId])
+  @@index([negotiationId])
+  @@index([quotationId])
+  @@index([dealId])
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([companyId])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product?      @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  description     String
+  quantity        Float
+  unitPrice       Float
+  totalPrice      Float
+  notes           String?
+
+  @@index([purchaseOrderId])
+}
+
+model CRMDocument {
+  id           String    @id @default(uuid())
+  documentCode String    @unique
+  name         String
+  documentType String // Sample | Negotiation | PurchaseOrder | Quotation | RFQ | Customer | Product | Contract | Invoice | Other
+  entityType   String // SampleRequest | Negotiation | PurchaseOrder | Quotation | RFQ | Customer | Product | Deal
+  entityId     String
+  fileUrl      String    @db.NVarChar(Max)
+  fileSize     Int?
+  mimeType     String?
+  version      Int       @default(1)
+  description  String?   @db.NVarChar(Max)
+  tags         String?   @db.NVarChar(Max)
+  uploadedById String
+  uploadedBy   User      @relation("UploadedDocuments", fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  companyId    String?
+  company      Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deletedAt    DateTime?
+  deletedById  String?
+  deletedBy    User?     @relation("DocumentDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  Customer     Customer? @relation(fields: [customerId], references: [id])
+  customerId   String?
+
+  @@index([entityType, entityId])
+  @@index([documentType])
+  @@index([uploadedById])
+  @@index([companyId])
+}
+
+model ApprovalRequest {
+  id                String    @id @default(uuid())
+  approvalCode      String    @unique
+  approvalType      String // SampleApproval | NegotiationDiscount | PurchaseOrderApproval | DiscountApproval | Custom
+  entityType        String // SampleRequest | Negotiation | PurchaseOrder | Deal
+  entityId          String
+  status            String    @default("Pending") // Pending | Approved | Rejected | Cancelled | Escalated
+  requestedAmount   Float?
+  requestedDiscount Float?
+  justification     String?   @db.NVarChar(Max)
+  remarks           String?   @db.NVarChar(Max)
+  requestedById     String
+  requestedBy       User      @relation("ApprovalRequestRequestedBy", fields: [requestedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resolvedById      String?
+  resolvedBy        User?     @relation("ApprovalRequestResolvedBy", fields: [resolvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  resolvedAt        DateTime?
+  dueDate           DateTime?
+  priority          String    @default("Normal") // Low | Normal | High | Urgent
+  companyId         String?
+  company           Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([approvalType])
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([requestedById])
+  @@index([resolvedById])
+  @@index([companyId])
+}
+
+model EmailTemplate {
+  id        String    @id @default(uuid())
+  name      String
+  subject   String
+  body      String    @db.NVarChar(Max)
+  module    String    // "Quotation" | "PO" | "Negotiation" | "Sample" | "FollowUp"
+  isActive  Boolean   @default(true)
+  companyId String?
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([module])
+  @@index([companyId])
+}
+
+model WhatsAppTemplate {
+  id        String    @id @default(uuid())
+  name      String
+  message   String    @db.NVarChar(Max)
+  module    String    // "Quotation" | "PO" | "Negotiation" | "Sample" | "FollowUp"
+  isActive  Boolean   @default(true)
+  companyId String?
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([module])
   @@index([companyId])
 }

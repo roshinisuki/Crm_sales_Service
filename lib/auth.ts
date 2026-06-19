@@ -12,6 +12,7 @@ export interface TokenPayload {
   email: string;
   role: string;
   companyId?: string | null;
+  variant?: number;
   supportMode?: boolean;
   iat: number;
   exp: number;

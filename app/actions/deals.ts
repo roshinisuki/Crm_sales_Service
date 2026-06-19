@@ -300,9 +300,13 @@ export async function updateDealAction(data: {
 
     const { id, dealName, customerId, dealValue, expectedCloseDate, assignedUserId, notes, status } = data;
 
-    if (!id || !dealName || !customerId || !expectedCloseDate || dealValue === undefined || !status) {
+    if (!id || !dealName || !customerId || !expectedCloseDate || dealValue === undefined) {
       return { success: false, message: "Required fields are missing" };
     }
+
+    // NOTE: `status` is intentionally NOT updated here. All stage transitions
+    // must go through updateDealStatusAction() which has stage-gate validation.
+    // If a status change is needed, call updateDealStatusAction separately.
 
     const currentDeal = await prisma.deal.findUnique({ where: { id } });
     if (!currentDeal) {
@@ -329,13 +333,7 @@ export async function updateDealAction(data: {
       : assignedUserId || null;
 
     const result = await prisma.$transaction(async (tx) => {
-      // Get existing deal to check if status changed
-      const existingDeal = await tx.deal.findUnique({
-        where: { id },
-        select: { status: true }
-      });
-
-      // 1. Update the Deal
+      // 1. Update the Deal (status is NOT updated here — use updateDealStatusAction for stage changes)
       const deal = await tx.deal.update({
         where: { id },
         data: {
@@ -345,47 +343,22 @@ export async function updateDealAction(data: {
           expectedCloseDate: new Date(expectedCloseDate),
           assignedUserId: finalAssignedUserId,
           notes: notes || null,
-          status: status as any
         }
       });
 
-      // Log transition if changed
-      if (existingDeal && existingDeal.status !== status) {
-        await tx.dealStageHistory.create({
-          data: {
-            dealId: deal.id,
-            fromStatus: existingDeal.status,
-            toStatus: status,
-            changedById: userPayload.id
-          }
-        });
-      }
-
-      // 2. Automations: Deal Won -> Customer becomes ActiveCustomer
-      if (status === "Won") {
-        await tx.customer.update({
-          where: { id: customerId },
-          data: { status: "ActiveCustomer" }
-        });
-      }
-
       return deal;
     });
-
-    // Determine severity: Won/Lost = HIGH, other status changes = WARN, no status change = INFO
-    const isTerminalState = status === "Won" || status === "Lost";
-    const dealSeverity = isTerminalState ? "HIGH" : "WARN";
 
     await logAudit(
       userPayload.id,
       "Deal",
       "Update",
-      `Updated deal "${dealName}" (Value: ₹${dealValue}, Status: ${status})`,
+      `Updated deal "${dealName}" (Value: ₹${dealValue})`,
       {
         resourceId:    id,
-        previousState: { status: result.status !== status ? status : undefined, dealName, dealValue },
-        newState:      { status, dealName, dealValue },
-        severity:      dealSeverity,
+        previousState: { dealName: currentDeal.dealName, dealValue: currentDeal.dealValue },
+        newState:      { dealName, dealValue },
+        severity:      "INFO",
       }
     );
 
@@ -465,9 +438,23 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
 
       // Stage-gate Validation (BRD Variant 1 only)
       const details = existingDeal.opportunityDetail;
-      if (status === "MeetingScheduled") {
+      const currentStatus = existingDeal.status;
+
+      // MeetingScheduled: only validate meeting details if already in MeetingScheduled stage (re-save)
+      // When advancing FROM RequirementGathering, meeting details get filled AFTER entering this stage
+      if (status === "MeetingScheduled" && currentStatus === "MeetingScheduled") {
         if (!details || !details.meetingDate || !details.meetingMode || !details.meetingParticipants || !details.meetingAgenda) {
           throw new Error("Validation Failed: Must complete Meeting Details (Date, Mode, Participants, Agenda).");
+        }
+      }
+      if (status === "ProposalSent") {
+        if (!details || !details.proposedSolution) {
+          throw new Error("Validation Failed: Must fill in Proposed Solution before sending proposal.");
+        }
+      }
+      if (status === "Negotiation") {
+        if (!details || !details.expectedBudget) {
+          throw new Error("Validation Failed: Must fill in Commercial Info (Expected Budget) before negotiation.");
         }
       }
 

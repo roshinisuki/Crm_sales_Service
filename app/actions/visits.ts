@@ -1141,6 +1141,8 @@ export async function getFollowUpsListAction() {
       return { success: false, message: followUpsRes.message || "Failed to fetch follow-ups" };
     }
 
+    const now = new Date();
+
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
@@ -1149,11 +1151,12 @@ export async function getFollowUpsListAction() {
 
     const normalized = (followUpsRes.data as any[]).map(f => {
       let badgeStatus: "UPCOMING" | "OVERDUE" | "TODAY" = "UPCOMING";
-      if (f.status === "Completed") {
+      if (f.status === "Completed" || f.status === "Cancelled") {
         badgeStatus = "UPCOMING";
       } else {
         const nextDate = new Date(f.nextMeetingDate);
-        if (nextDate < startOfToday) {
+        // Use current time (not midnight) for overdue detection
+        if (nextDate < now) {
           badgeStatus = "OVERDUE";
         } else if (nextDate >= startOfToday && nextDate <= endOfToday) {
           badgeStatus = "TODAY";
@@ -1164,9 +1167,14 @@ export async function getFollowUpsListAction() {
         id: f.id,
         customerId: f.customerId,
         customerName: f.customer?.name,
+        customer: f.customer || { phone: null } as any,
         customerCode: f.customer?.customerCode,
         customerStatus: f.customer?.status,
+        leadId: f.leadId,
+        leadName: f.lead?.name,
+        leadCode: f.lead?.leadCode,
         nextMeetingDate: f.nextMeetingDate,
+        createdAt: f.createdAt,
         notes: f.notes,
         remarks: f.remarks,
         completionNotes: f.completionNotes,
@@ -1174,6 +1182,7 @@ export async function getFollowUpsListAction() {
         completedById: f.completedById,
         completedBy: f.completedBy,
         assignedToName: f.user?.name,
+        assignedUser: { name: f.user?.name } as any,
         assignedUserId: f.assignedUserId,
         visitId: f.visitId,
         visitType: f.visitType,

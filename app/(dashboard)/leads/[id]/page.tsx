@@ -1,20 +1,24 @@
 "use client";
 import { useState, useEffect, useCallback, use } from "react";
-import { useRouter } from "next/navigation";
-import { getLeadByIdAction, convertLeadToDealAction, updateLeadAction } from "@/app/actions/leads";
-import { createFollowUpAction } from "@/app/actions/followUps";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { getLeadByIdAction, convertLeadToDealAction, updateLeadAction, contactLeadAction } from "@/app/actions/leads";
+import { createFollowUpAction, completeFollowUpAction } from "@/app/actions/followUps";
 import { getNotesAction, createNoteAction } from "@/app/actions/notes";
+import { getActivitiesAction } from "@/app/actions/activities";
 import { getUsersAction } from "@/app/actions/users";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
-import { FormField, Input } from "@/components/ui/FormField";
+import { FormField, Input, Select } from "@/components/ui/FormField";
+import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
 import { getInitials, getAvatarColor, formatDate, formatDateTime, cn } from "@/lib/ui-utils";
+import { getLeadWorkflowActions, computeWorkflowState } from "@/lib/workflow-actions";
 import {
   ArrowLeft, Briefcase, Phone, Mail, MapPin, Building2,
   CalendarClock, User, Plus, CheckCircle2, PhoneCall,
-  MessageSquare, FileText, XCircle,
+  MessageSquare, FileText, XCircle, Zap,
 } from "lucide-react";
 
 type Tab = "overview" | "followups" | "activities";
@@ -23,12 +27,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const resolvedParams = use(params);
   const leadId = resolvedParams.id;
   const router    = useRouter();
+  const searchParams = useSearchParams();
   const toast     = useToast();
   const { user }  = useAuth();
 
-  const [lead,     setLead]     = useState<any>(null);
-  const [followups, setFollowups] = useState<any[]>([]);
-  const [notes,     setNotes]     = useState<any[]>([]);
+  const [lead,       setLead]       = useState<any>(null);
+  const [followups,  setFollowups]  = useState<any[]>([]);
+  const [notes,      setNotes]      = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
 
   // Executives list for assignment dropdown
   const [executives, setExecutives] = useState<any[]>([]);
@@ -36,7 +42,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   // Follow-up add modal
   const [fuModal,      setFuModal]      = useState(false);
   const [fuDate,       setFuDate]       = useState("");
-  const [fuType,       setFuType]       = useState<"Call" | "Meeting">("Call");
+  const [fuType,       setFuType]       = useState<"Call" | "Meeting" | "Note">("Call");
   const [fuNotes,      setFuNotes]      = useState("");
   const [fuAssignedTo, setFuAssignedTo] = useState("");
   const [fuPriority,   setFuPriority]   = useState<"High" | "Medium" | "Low">("Medium");
@@ -56,6 +62,42 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [expectedCloseDate,  setExpectedCloseDate]  = useState("");
   const [converting,  setConverting]  = useState(false);
   const [markingLost, setMarkingLost] = useState(false);
+  const [qualifying, setQualifying] = useState(false);
+
+  // Qualification fields
+  const [budgetAsked, setBudgetAsked] = useState("");
+  const [timelineAsked, setTimelineAsked] = useState("");
+  const [isDecisionMaker, setIsDecisionMaker] = useState(false);
+  const [isGenuine, setIsGenuine] = useState(false);
+  const [sqlSaving, setSqlSaving] = useState(false);
+  const [qualModalOpen, setQualModalOpen] = useState(false);
+
+  // Success overlay for guided flow
+  const [successOverlay, setSuccessOverlay] = useState<{ open: boolean; message: string; primary: SuccessAction; secondary?: SuccessAction; alternate?: SuccessAction }>({
+    open: false, message: "", primary: { label: "", href: "" },
+  });
+
+  // Call Log modal state
+  const [callLogModal, setCallLogModal] = useState(false);
+  const [callForm, setCallForm] = useState({ direction: "Outbound", duration: "15", status: "Completed", content: "" });
+  const [callSaving, setCallSaving] = useState(false);
+
+  // Follow-up prompt after call log
+  const [fuPromptModal, setFuPromptModal] = useState(false);
+  const [fuFromCallLog, setFuFromCallLog] = useState(false);
+
+  // Next action suggestions after "still in discussion"
+  const [nextActionModal, setNextActionModal] = useState(false);
+
+  // Complete follow-up modal state
+  const [completeFuModal, setCompleteFuModal] = useState(false);
+  const [activeFollowUp, setActiveFollowUp] = useState<any>(null);
+  const [completeRemarks, setCompleteRemarks] = useState("");
+  const [completeLeadStatus, setCompleteLeadStatus] = useState("Contacted");
+  const [completeSaving, setCompleteSaving] = useState(false);
+
+  // Post-complete suggestion modal
+  const [postCompleteModal, setPostCompleteModal] = useState(false);
 
   // Load executives for assignment
   useEffect(() => {
@@ -90,11 +132,211 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     const res = await convertLeadToDealAction(lead.id, dealName, val, expectedCloseDate);
     if (res.success && res.dealId) {
       toast.success("Lead converted to Deal successfully!");
-      router.push(`/deals/${res.dealId}`);
+      router.push(`/sales-pipeline/${res.dealId}`);
     } else {
       toast.error(res.message || "Failed to convert lead.");
       setConverting(false);
     }
+  };
+
+  // Unified handler for both "Mark Contacted" (lead details) and "Log First Call"
+  // (post lead creation). Both UI entry points open the Call Log modal first.
+  // The lead status is NOT updated here — it only changes after the user fills
+  // the call details and saves (see handleSaveCallLog -> contactLeadAction).
+  const [contacting, setContacting] = useState(false);
+  const handleLeadContact = (leadId: string) => {
+    if (!leadId || contacting) return;
+    // Open the Call Log modal pre-filled with lead context
+    setCallForm({ direction: "Outbound", duration: "15", status: "Completed", content: "" });
+    setCallLogModal(true);
+  };
+
+  // Save call log via the unified contactLeadAction — creates the Call activity
+  // AND updates lead status to Contacted in a single atomic operation.
+  // Status only changes AFTER the call log is saved with user-provided details.
+  const handleSaveCallLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!callForm.content.trim()) { toast.error("Please enter call notes/outcome."); return; }
+    setCallSaving(true);
+    const res = await contactLeadAction(lead.id, {
+      content: callForm.content,
+      direction: callForm.direction,
+      duration: callForm.duration ? parseInt(callForm.duration) : null,
+      status: callForm.status,
+    });
+    if (res.success) {
+      toast.success("Call logged & lead marked as Contacted!");
+      setCallLogModal(false);
+      load();
+      setFuPromptModal(true);
+    } else {
+      toast.error(res.message || "Failed to log call.");
+    }
+    setCallSaving(false);
+  };
+
+  // After follow-up prompt: "No, still in discussion" → show next actions
+  // (Lead is already Contacted from contactLeadAction — no status update needed)
+  const handleNoFollowUp = () => {
+    setFuPromptModal(false);
+    setNextActionModal(true);
+  };
+
+  // After follow-up prompt: "Yes, schedule follow-up" → open follow-up form
+  const handleYesFollowUp = () => {
+    setFuPromptModal(false);
+    setFuFromCallLog(true);
+    setFuModal(true);
+  };
+
+  // Open complete follow-up modal
+  const openCompleteFuModal = (f: any) => {
+    setActiveFollowUp(f);
+    setCompleteRemarks("");
+    setCompleteLeadStatus(lead?.status || "Contacted");
+    setCompleteFuModal(true);
+  };
+
+  // Save complete follow-up
+  const handleCompleteFollowUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!completeRemarks.trim()) { toast.error("Please enter outcome remarks."); return; }
+    setCompleteSaving(true);
+    const res = await completeFollowUpAction({
+      id: activeFollowUp.id,
+      customerStatus: completeLeadStatus,
+      completionNotes: completeRemarks,
+      remarks: completeRemarks,
+    });
+    if (res.success) {
+      toast.success("Follow-up completed!");
+      setCompleteFuModal(false);
+      load();
+      setPostCompleteModal(true);
+    } else {
+      toast.error(res.message || "Failed to complete follow-up.");
+    }
+    setCompleteSaving(false);
+  };
+
+  // Post-complete suggestion handlers
+  const handlePostCompleteSQL = async () => {
+    setPostCompleteModal(false);
+    const res = await updateLeadAction(lead.id, { status: "SQL" });
+    if (res.success) { toast.success("Lead marked as SQL."); load(); }
+    else { toast.error(res.message || "Failed"); }
+  };
+  const handlePostCompleteQualify = async () => {
+    setPostCompleteModal(false);
+    if (!lead || qualifying) return;
+    setQualifying(true);
+    const res = await updateLeadAction(lead.id, { status: "Qualified" });
+    if (res.success) { toast.success("Lead qualified! Customer record created."); load(); }
+    else { toast.error(res.message || "Failed to qualify lead."); }
+    setQualifying(false);
+  };
+  const handlePostCompleteFollowUp = () => {
+    setPostCompleteModal(false);
+    setFuFromCallLog(false);
+    setFuModal(true);
+  };
+  const handlePostCompleteNote = () => {
+    setPostCompleteModal(false);
+    setNoteType("Note");
+    setNoteModal(true);
+  };
+  const handlePostCompleteLost = async () => {
+    setPostCompleteModal(false);
+    if (!lead || markingLost) return;
+    setMarkingLost(true);
+    const res = await updateLeadAction(lead.id, { status: "Lost" });
+    if (res.success) { toast.success("Lead marked as lost."); load(); }
+    else { toast.error(res.message || "Failed to update lead."); setMarkingLost(false); }
+  };
+  const handlePostCompleteDone = () => {
+    setPostCompleteModal(false);
+  };
+
+  // Next action handlers
+  const handleNextActionSQL = async () => {
+    setNextActionModal(false);
+    const res = await updateLeadAction(lead.id, { status: "SQL" });
+    if (res.success) { toast.success("Lead marked as SQL."); load(); }
+    else { toast.error(res.message || "Failed"); }
+  };
+  const handleNextActionNote = () => {
+    setNextActionModal(false);
+    setNoteType("Note");
+    setNoteModal(true);
+  };
+  const handleNextActionFollowUp = () => {
+    setNextActionModal(false);
+    setFuFromCallLog(false);
+    setFuModal(true);
+  };
+  const handleNextActionDone = () => {
+    setNextActionModal(false);
+  };
+
+  // After follow-up form saved from the guided flow, update lead status to Contacted
+  const handleGuidedFollowUpSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fuDate) { toast.error("Please select a date"); return; }
+    setFuSaving(true);
+    const res = await createFollowUpAction({
+      leadId: lead.id,
+      nextMeetingDate: fuDate,
+      remarks: `${fuType}: ${fuNotes}`.trim(),
+      notes: fuNotes || null,
+      priority: fuPriority,
+      assignedUserId: fuAssignedTo || lead.assignedUserId || undefined,
+      sourceType: "MANUAL",
+      type: fuType,
+    });
+    if (res.success) {
+      // Also update lead status to Contacted
+      await updateLeadAction(lead.id, { status: "Contacted" });
+      toast.success("Follow-up scheduled! Log the activity now.");
+      setFuModal(false); setFuDate(""); setFuType("Call"); setFuNotes(""); setFuPriority("Medium");
+      load();
+      // MANDATORY: redirect to activity form to log the actual interaction
+      const newFollowUpId = res.data?.id || "";
+      router.push(`/activities/new?type=${fuType.toLowerCase()}&leadId=${lead.id}&followUpId=${newFollowUpId}`);
+    } else {
+      toast.error(res.message || "Failed to add follow-up.");
+    }
+    setFuSaving(false);
+  };
+
+  // Mark as SQL with qualification fields
+  const handleMarkSQL = async () => {
+    if (!lead) return;
+    if (!budgetAsked.trim() || !timelineAsked.trim() || !isDecisionMaker) {
+      toast.error("Please fill Budget, Timeline, and confirm Decision Maker before marking as SQL.");
+      return;
+    }
+    setSqlSaving(true);
+    const res = await updateLeadAction(lead.id, {
+      status: "SQL",
+      budgetAsked,
+      timelineAsked,
+      isDecisionMaker,
+      isGenuine,
+    });
+    if (res.success) {
+      toast.success("Lead qualified as SQL!");
+      load();
+      setSuccessOverlay({
+        open: true,
+        message: `Lead is now Sales Qualified (SQL). Budget: ₹${budgetAsked}, Timeline: ${timelineAsked}`,
+        primary: { label: "Convert Lead", href: `/leads/${lead.id}#convert`, icon: <Briefcase size={16} /> },
+        secondary: { label: "View SQL Leads", href: "/leads?status=SQL" },
+        alternate: { label: "Add More Activities", href: `/activities/new?leadId=${lead.id}` },
+      });
+    } else {
+      toast.error(res.message || "Failed to mark as SQL.");
+    }
+    setSqlSaving(false);
   };
 
   const handleMarkLost = async () => {
@@ -103,6 +345,19 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     const res = await updateLeadAction(lead.id, { status: "Lost" });
     if (res.success) { toast.success("Lead marked as lost."); load(); }
     else { toast.error(res.message || "Failed to update lead."); setMarkingLost(false); }
+  };
+
+  const handleQualify = async () => {
+    if (!lead || qualifying) return;
+    setQualifying(true);
+    const res = await updateLeadAction(lead.id, { status: "Qualified" });
+    if (res.success) {
+      toast.success("Lead qualified! Customer record created.");
+      load();
+    } else {
+      toast.error(res.message || "Failed to qualify lead.");
+    }
+    setQualifying(false);
   };
 
   const handleAddFollowUp = async (e: React.FormEvent) => {
@@ -117,11 +372,15 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       priority: fuPriority,
       assignedUserId: fuAssignedTo || lead.assignedUserId || undefined,
       sourceType: "MANUAL",
+      type: fuType,
     });
     if (res.success) {
-      toast.success("Follow-up added!");
+      toast.success("Follow-up scheduled! Log the activity now.");
       setFuModal(false); setFuDate(""); setFuType("Call"); setFuNotes(""); setFuPriority("Medium");
       load();
+      // MANDATORY: redirect to activity form to log the actual interaction
+      const newFollowUpId = res.data?.id || "";
+      router.push(`/activities/new?type=${fuType.toLowerCase()}&leadId=${lead.id}&followUpId=${newFollowUpId}`);
     } else {
       toast.error(res.message || "Failed to add follow-up.");
       setFuSaving(false);
@@ -147,14 +406,22 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [res, notesRes] = await Promise.all([
+      const [res, notesRes, activitiesRes] = await Promise.all([
         getLeadByIdAction(leadId),
         getNotesAction("LEAD", leadId),
+        getActivitiesAction({ leadId }),
       ]);
       if (res.success && res.data) {
         setLead(res.data);
         setFollowups((res.data as any).followUps || []);
         setNotes(notesRes.success ? (notesRes.data || []) : []);
+        setActivities(activitiesRes.success ? (activitiesRes.data || []) : []);
+        // Pre-fill qualification fields
+        const ld = res.data as any;
+        if (ld.budgetAsked) setBudgetAsked(ld.budgetAsked);
+        if (ld.timelineAsked) setTimelineAsked(ld.timelineAsked);
+        if (ld.isDecisionMaker) setIsDecisionMaker(true);
+        if (ld.isGenuine) setIsGenuine(true);
       } else {
         toast.error("Lead not found.");
         router.push("/leads");
@@ -165,6 +432,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   }, [leadId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-open Call Log modal when arriving via "Log First Call" (?action=contact)
+  useEffect(() => {
+    if (searchParams?.get("action") === "contact" && lead && lead.status === "New" && !callLogModal) {
+      handleLeadContact(lead.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, lead]);
 
   if (loading) {
     return (
@@ -184,6 +459,86 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const isConverted = lead.status === "Converted";
   const isLost      = lead.status === "Lost";
 
+  // Centralized workflow state + actions
+  const wfState = computeWorkflowState(lead, followups);
+  const wfActions = getLeadWorkflowActions(wfState);
+
+  const handleWorkflowAction = (actionId: string) => {
+    switch (actionId) {
+      case "log-first-call":
+        handleLeadContact(lead.id);
+        break;
+      case "mark-lost":
+        handleMarkLost();
+        break;
+      case "create-followup":
+      case "add-followup":
+        setFuDate(""); setFuType("Call"); setFuNotes(""); setFuPriority("Medium");
+        setFuAssignedTo(lead.assignedUserId || ""); setFuSaving(false); setFuFromCallLog(false); setFuModal(true);
+        break;
+      case "log-followup-activity": {
+        // Find the pending follow-up and redirect to activity form
+        const pendingFu = followups.find((f: any) => f.status === "Pending" || f.status === "Overdue");
+        if (pendingFu) {
+          const fuType = (pendingFu.type || "Call").toLowerCase();
+          router.push(`/activities/new?type=${fuType}&leadId=${lead.id}&followUpId=${pendingFu.id}`);
+        } else {
+          toast.error("No pending follow-up found.");
+        }
+        break;
+      }
+      case "reschedule-followup": {
+        const pendingFu = followups.find((f: any) => f.status === "Pending" || f.status === "Overdue");
+        if (pendingFu) {
+          router.push(`/follow-up/${pendingFu.id}`);
+        } else {
+          toast.error("No pending follow-up to reschedule.");
+        }
+        break;
+      }
+      case "start-qualification":
+      case "mark-sql":
+        setQualModalOpen(true);
+        break;
+      case "add-activity":
+      case "add-sql-activity":
+        setNoteText(""); setNoteType("Note"); setNoteSaving(false); setNoteModal(true);
+        break;
+      case "convert-lead":
+        openConvertModal();
+        break;
+      case "view-sql-leads":
+        router.push("/leads?status=SQL");
+        break;
+      case "view-opportunity":
+        router.push("/deals");
+        break;
+      case "view-account":
+        router.push("/customers");
+        break;
+      case "view-contact":
+        router.push("/customers");
+        break;
+      default:
+        break;
+    }
+  };
+
+  // Icon mapping for workflow actions
+  const wfIcon = (iconName?: string) => {
+    switch (iconName) {
+      case "PhoneCall": return <PhoneCall size={13} />;
+      case "CalendarClock": return <CalendarClock size={13} />;
+      case "CheckCircle2": return <CheckCircle2 size={13} />;
+      case "Briefcase": return <Briefcase size={14} />;
+      case "FileText": return <FileText size={13} />;
+      case "XCircle": return <XCircle size={14} />;
+      case "Building2": return <Building2 size={14} />;
+      case "User": return <User size={14} />;
+      default: return null;
+    }
+  };
+
   const TABS: { key: Tab; label: string }[] = [
     { key: "overview",   label: "Overview" },
     { key: "followups",  label: `Follow Ups (${followups.length})` },
@@ -202,19 +557,27 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <ArrowLeft size={16} /> Back to Leads
         </button>
         <div className="flex items-center gap-2">
-          {!isConverted && !isLost && (
+          {/* Danger button (Mark Lost) */}
+          {wfActions.danger && !isConverted && !isLost && (
             <button
-              onClick={handleMarkLost}
+              onClick={() => handleWorkflowAction(wfActions.danger!.id)}
               disabled={markingLost}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
             >
-              <XCircle size={14} />
-              {markingLost ? "Marking..." : "Mark Lost"}
+              {wfIcon(wfActions.danger.icon)}
+              {markingLost ? "Marking..." : wfActions.danger.label}
             </button>
           )}
-          {!isConverted && (
-            <button onClick={openConvertModal} className="btn-primary text-sm flex items-center gap-1.5">
-              <Briefcase size={14} /> Convert to Deal
+          {/* Primary CTA from workflow config */}
+          {wfActions.primary && !isConverted && (
+            <button
+              onClick={() => handleWorkflowAction(wfActions.primary!.id)}
+              disabled={wfActions.primary.disabled || markingLost || contacting || qualifying}
+              title={wfActions.primary.disabledReason}
+              className="btn-primary text-sm flex items-center gap-1.5 disabled:opacity-40"
+            >
+              {wfIcon(wfActions.primary.icon)}
+              {wfActions.primary.label}
             </button>
           )}
           {isConverted && (
@@ -225,6 +588,54 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
+      {/* ── Guided Workflow Banner ── */}
+      {!isConverted && !isLost && (
+        <div className="crm-card p-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+              wfActions.stage === "New" ? "bg-blue-100 text-blue-600" :
+              wfActions.stage === "Contacted" || wfActions.stage === "FollowUpPending" || wfActions.stage === "FollowUpDone" || wfActions.stage === "FollowUpDue" ? "bg-amber-100 text-amber-600" :
+              wfActions.stage === "SQL" || wfActions.stage === "Qualification" ? "bg-purple-100 text-purple-600" :
+              wfActions.stage === "Qualified" ? "bg-emerald-100 text-emerald-600" :
+              "bg-slate-100 text-slate-500"
+            )}>
+              <Zap size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-700">Lead Status: {lead.status}</p>
+              <p className="text-xs text-slate-500">{wfActions.stageDescription}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Primary action from workflow config */}
+            {wfActions.primary && (
+              <button
+                onClick={() => handleWorkflowAction(wfActions.primary!.id)}
+                disabled={wfActions.primary.disabled || contacting || qualifying}
+                title={wfActions.primary.disabledReason}
+                className="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {wfIcon(wfActions.primary.icon)}
+                {contacting ? "Contacting..." : qualifying ? "Qualifying..." : wfActions.primary.label}
+              </button>
+            )}
+            {/* Secondary actions from workflow config */}
+            {wfActions.secondary.map((action) => (
+              <button
+                key={action.id}
+                onClick={() => handleWorkflowAction(action.id)}
+                disabled={action.disabled}
+                title={action.disabledReason}
+                className="text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors px-2 py-1 disabled:opacity-40"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Lead Summary Card ── */}
       <div className="crm-card p-6">
         <div className="flex items-start gap-4">
@@ -234,6 +645,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-xl font-extrabold text-slate-900">{lead.name}</h1>
+              <span className="text-xs font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">{lead.leadCode}</span>
               <StatusBadge status={lead.status} showDot size="md" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2.5 mt-4">
@@ -300,6 +712,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-5">
             {[
               { label: "Full Name",   value: lead.name },
+              { label: "Lead Code",   value: lead.leadCode },
               { label: "Email",       value: lead.email || "—" },
               { label: "Phone",       value: lead.phone || "—" },
               { label: "Lead Source", value: lead.leadSource || "—" },
@@ -307,6 +720,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               { label: "Assigned To", value: lead.assignedUser?.name || "Unassigned" },
               { label: "Created",     value: formatDate(lead.createdAt) },
               { label: "Status",      value: <StatusBadge status={lead.status} /> },
+              { label: "SLA Status",  value: (() => {
+                const sla = lead.slaStatus;
+                if (sla === "Met") return <span className="text-emerald-600 font-bold">Met</span>;
+                if (sla === "Breached") return <span className="text-red-600 font-bold">Breached</span>;
+                if (sla === "Pending" && lead.slaResponseDeadline) {
+                  const minsLeft = Math.floor((new Date(lead.slaResponseDeadline).getTime() - Date.now()) / 60000);
+                  if (minsLeft <= 0) return <span className="text-red-600 font-bold">Breached</span>;
+                  return <span className="text-amber-600 font-bold">{minsLeft} min remaining</span>;
+                }
+                return "—";
+              })() },
             ].map(({ label, value }) => (
               <div key={label}>
                 <dt className="text-xs font-semibold text-slate-400 mb-1">{label}</dt>
@@ -364,7 +788,20 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold text-slate-700">{f.status}</span>
-                      <span className="text-xs text-slate-400 shrink-0">{formatDate(f.nextMeetingDate)}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400 shrink-0">{formatDate(f.nextMeetingDate)}</span>
+                        {f.status !== "Completed" && f.status !== "Cancelled" && (
+                          <button
+                            onClick={() => {
+                              const fuType = (f.type || "Call").toLowerCase();
+                              router.push(`/activities/new?type=${fuType}&leadId=${lead.id}&followUpId=${f.id}`);
+                            }}
+                            className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                          >
+                            Log Activity
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {(f.remarks || f.notes) && (
                       <p className="text-xs text-slate-500 mt-1">{f.remarks || f.notes}</p>
@@ -381,52 +818,449 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       {tab === "activities" && (
         <div className="crm-card p-5">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-bold text-slate-700">Notes &amp; Activities</h3>
-            <button
-              onClick={() => { setNoteText(""); setNoteType("Note"); setNoteSaving(false); setNoteModal(true); }}
-              className="btn-primary text-xs flex items-center gap-1.5"
-            >
-              <Plus size={13} /> Add Activity
-            </button>
+            <h3 className="text-sm font-bold text-slate-700">Activities &amp; Notes</h3>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/activities/new?leadId=${leadId}&type=call`}
+                className="btn-secondary text-xs flex items-center gap-1.5"
+              >
+                <PhoneCall size={13} /> Log Call
+              </Link>
+              <button
+                onClick={() => { setNoteText(""); setNoteType("Note"); setNoteSaving(false); setNoteModal(true); }}
+                className="btn-primary text-xs flex items-center gap-1.5"
+              >
+                <Plus size={13} /> Add Note
+              </button>
+            </div>
           </div>
-          {notes.length === 0 ? (
+
+          {/* CommunicationLog activities (Calls, Meetings, Emails, WhatsApp) */}
+          {activities.length > 0 && (
+            <>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Logged Activities</p>
+              <div className="space-y-3 mb-5">
+                {activities.map((a: any) => {
+                  const isCall    = a.channel === "Call";
+                  const isMeeting = a.channel === "Meeting";
+                  const isEmail   = a.channel === "Email";
+                  return (
+                    <div key={a.id} className="flex items-start gap-3 p-4 rounded-xl bg-blue-50/40 border border-blue-100">
+                      {isCall ? (
+                        <PhoneCall size={14} className="text-blue-500 mt-0.5 shrink-0" />
+                      ) : isMeeting ? (
+                        <MessageSquare size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                      ) : isEmail ? (
+                        <Mail size={14} className="text-purple-500 mt-0.5 shrink-0" />
+                      ) : (
+                        <FileText size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{a.channel}</span>
+                          {a.direction && <span className="text-[10px] text-slate-400">{a.direction}</span>}
+                          {a.duration && <span className="text-[10px] text-slate-400">{a.duration} min</span>}
+                          {a.followUpId && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">Follow-Up</span>}
+                        </div>
+                        <p className="text-sm text-slate-700 leading-relaxed">{a.content || a.agenda || "—"}</p>
+                        {a.outcome && <p className="text-xs text-slate-500 mt-1">Outcome: {a.outcome}</p>}
+                        <p className="text-xs text-slate-400 mt-1.5">
+                          {a.sentByUser?.name || "System"} &middot; {formatDateTime(a.sentAt)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {/* Notes */}
+          {notes.length > 0 && (
+            <>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2">Notes</p>
+              <div className="space-y-3">
+                {notes.map((n: any) => {
+                  const isCall    = n.content?.startsWith("[Call]");
+                  const isMeeting = n.content?.startsWith("[Meeting]");
+                  return (
+                    <div key={n.id} className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                      {isCall ? (
+                        <PhoneCall size={14} className="text-blue-400 mt-0.5 shrink-0" />
+                      ) : isMeeting ? (
+                        <MessageSquare size={14} className="text-emerald-400 mt-0.5 shrink-0" />
+                      ) : (
+                        <FileText size={14} className="text-slate-400 mt-0.5 shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-slate-700 leading-relaxed">{n.content}</p>
+                        <p className="text-xs text-slate-400 mt-1.5">
+                          {n.createdBy?.name || "System"} &middot; {formatDate(n.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {activities.length === 0 && notes.length === 0 && (
             <div className="text-center py-12">
               <FileText size={36} className="text-slate-200 mx-auto mb-3" />
               <p className="text-sm font-semibold text-slate-400">No activities recorded</p>
               <p className="text-xs text-slate-300 mt-1">Log a call, meeting, or note to track interactions</p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {notes.map((n: any) => {
-                const isCall    = n.content?.startsWith("[Call]");
-                const isMeeting = n.content?.startsWith("[Meeting]");
-                return (
-                  <div key={n.id} className="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                    {isCall ? (
-                      <PhoneCall size={14} className="text-blue-400 mt-0.5 shrink-0" />
-                    ) : isMeeting ? (
-                      <MessageSquare size={14} className="text-emerald-400 mt-0.5 shrink-0" />
-                    ) : (
-                      <FileText size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-700 leading-relaxed">{n.content}</p>
-                      <p className="text-xs text-slate-400 mt-1.5">
-                        {n.createdBy?.name || "System"} &middot; {formatDate(n.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           )}
         </div>
       )}
 
+      {/* ── Qualification Modal (Mark as SQL) ── */}
+      <Modal
+        open={qualModalOpen}
+        onClose={() => setQualModalOpen(false)}
+        title="Qualify Lead as SQL"
+        subtitle="Fill in qualification details to promote this lead."
+        footer={
+          <>
+            <button type="button" onClick={() => setQualModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
+            <button
+              type="button"
+              onClick={handleMarkSQL}
+              disabled={sqlSaving || !budgetAsked.trim() || !timelineAsked.trim() || !isDecisionMaker}
+              className="btn-primary text-sm flex items-center gap-1.5 disabled:opacity-40"
+            >
+              {sqlSaving ? "Saving…" : <><CheckCircle2 size={14} /> Mark as SQL</>}
+            </button>
+          </>
+        }
+      >
+        <div className="p-6 space-y-4">
+          <FormField label="Budget Asked (₹)" required>
+            <Input
+              type="text"
+              value={budgetAsked}
+              onChange={e => setBudgetAsked(e.target.value)}
+              placeholder="e.g. 500000"
+            />
+            {!budgetAsked.trim() && <p className="text-xs text-amber-500 mt-1">Required for SQL</p>}
+          </FormField>
+          <FormField label="Timeline Asked" required>
+            <Input
+              type="text"
+              value={timelineAsked}
+              onChange={e => setTimelineAsked(e.target.value)}
+              placeholder="e.g. Within 1 month"
+            />
+            {!timelineAsked.trim() && <p className="text-xs text-amber-500 mt-1">Required for SQL</p>}
+          </FormField>
+          <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isDecisionMaker}
+                onChange={e => setIsDecisionMaker(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
+              />
+              <span className="text-sm text-slate-700">Yes, the contact is the Decision Maker</span>
+            </label>
+            {!isDecisionMaker && <p className="text-xs text-amber-500 ml-7">Required for SQL</p>}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isGenuine}
+                onChange={e => setIsGenuine(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
+              />
+              <span className="text-sm text-slate-700">Lead is Genuine (verified requirement)</span>
+            </label>
+          </div>
+          <div className={`p-3 rounded-xl text-xs ${budgetAsked.trim() && timelineAsked.trim() && isDecisionMaker ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-amber-50 text-amber-600 border border-amber-100"}`}>
+            {budgetAsked.trim() && timelineAsked.trim() && isDecisionMaker
+              ? "✓ All qualification criteria met. Ready to mark as SQL!"
+              : "⚠ Fill Budget, Timeline, and confirm Decision Maker to enable SQL promotion."}
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Success Overlay (guided flow) ── */}
+      <SuccessOverlay
+        open={successOverlay.open}
+        message={successOverlay.message}
+        primary={successOverlay.primary}
+        secondary={successOverlay.secondary}
+        alternate={successOverlay.alternate}
+        onClose={() => setSuccessOverlay(o => ({ ...o, open: false }))}
+      />
+
+      {/* ── Complete Follow-up Modal ── */}
+      <Modal
+        open={completeFuModal}
+        onClose={() => setCompleteFuModal(false)}
+        title="Complete Follow-up"
+        subtitle={`Follow-up for: ${lead?.name || ""}`}
+        footer={
+          <>
+            <button type="button" onClick={() => setCompleteFuModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button type="submit" form="complete-fu-form" disabled={completeSaving} className="btn-primary text-sm">
+              {completeSaving ? <><span className="spinner-brand" /> Saving...</> : "Complete Follow-up"}
+            </button>
+          </>
+        }
+      >
+        <form id="complete-fu-form" onSubmit={handleCompleteFollowUp} className="p-6 space-y-4">
+          <FormField label="Update Lead Status To">
+            <Select value={completeLeadStatus} onChange={e => setCompleteLeadStatus(e.target.value)}>
+              <option value="Contacted">Contacted — still in discussion</option>
+              <option value="SQL">SQL — Sales Qualified Lead</option>
+              <option value="Qualified">Qualified — ready to convert</option>
+              <option value="Lost">Lost — no longer interested</option>
+            </Select>
+          </FormField>
+          <FormField label="Outcome Remarks" required>
+            <textarea
+              value={completeRemarks}
+              onChange={e => setCompleteRemarks(e.target.value)}
+              placeholder="What was the outcome of this follow-up? What was discussed?"
+              rows={4}
+              required
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+            />
+          </FormField>
+        </form>
+      </Modal>
+
+      {/* ── Post-Complete Suggestion Modal ── */}
+      <Modal
+        open={postCompleteModal}
+        onClose={() => setPostCompleteModal(false)}
+        title="Follow-up Completed — What's Next?"
+        subtitle="Choose your next action for this lead."
+        footer={
+          <button type="button" onClick={handlePostCompleteDone} className="btn-secondary text-sm">
+            Done — I'll handle it later
+          </button>
+        }
+      >
+        <div className="p-6 space-y-3">
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-100 mb-2">
+            <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-emerald-800">Follow-up completed!</p>
+              <p className="text-xs text-emerald-600 mt-0.5">The follow-up has been marked as completed and lead status updated.</p>
+            </div>
+          </div>
+
+          <button
+            onClick={handlePostCompleteSQL}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-purple-800">Mark as SQL</p>
+              <p className="text-xs text-purple-600">Promote to Sales Qualified Lead for deeper sales engagement</p>
+            </div>
+          </button>
+
+          <button
+            onClick={handlePostCompleteQualify}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+              <Zap size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-emerald-800">Qualify Lead</p>
+              <p className="text-xs text-emerald-600">Mark as Qualified and auto-create a Customer record</p>
+            </div>
+          </button>
+
+          <button
+            onClick={handlePostCompleteFollowUp}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <CalendarClock size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-800">Schedule Another Follow-up</p>
+              <p className="text-xs text-amber-600">Need another call or meeting? Schedule it now</p>
+            </div>
+          </button>
+
+          <button
+            onClick={handlePostCompleteNote}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+              <FileText size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-blue-800">Add Note</p>
+              <p className="text-xs text-blue-600">Record additional details about this follow-up</p>
+            </div>
+          </button>
+
+          <button
+            onClick={handlePostCompleteLost}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+              <XCircle size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-red-800">Mark Lost</p>
+              <p className="text-xs text-red-600">Lead is no longer interested — close as lost</p>
+            </div>
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── Call Log Modal (mandatory flow from "Mark Contacted" / "Log First Call") ── */}
+      <Modal
+        open={callLogModal}
+        onClose={() => setCallLogModal(false)}
+        title="Log Call Activity"
+        subtitle={`Required to mark as Contacted: ${lead?.name || ""} (${lead?.leadCode || ""})`}
+        footer={
+          <>
+            <button type="button" onClick={() => setCallLogModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button type="submit" form="call-log-form" disabled={callSaving} className="btn-primary text-sm">
+              {callSaving ? <><span className="spinner-brand" /> Saving...</> : "Save Call Log"}
+            </button>
+          </>
+        }
+      >
+        <form id="call-log-form" onSubmit={handleSaveCallLog} className="p-6 space-y-4">
+          {/* Auto-filled lead name — no manual search needed */}
+          <FormField label="Linked Lead">
+            <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700">
+              {lead?.name} <span className="text-xs font-mono text-slate-400 ml-1">{lead?.leadCode}</span>
+            </div>
+          </FormField>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <FormField label="Direction">
+              <Select value={callForm.direction} onChange={e => setCallForm(f => ({ ...f, direction: e.target.value }))}>
+                <option value="Outbound">Outbound</option>
+                <option value="Inbound">Inbound</option>
+              </Select>
+            </FormField>
+            <FormField label="Duration (minutes)">
+              <Input type="number" value={callForm.duration} onChange={e => setCallForm(f => ({ ...f, duration: e.target.value }))} placeholder="15" />
+            </FormField>
+            <FormField label="Status">
+              <Select value={callForm.status} onChange={e => setCallForm(f => ({ ...f, status: e.target.value }))}>
+                <option value="Completed">Completed</option>
+                <option value="NoAnswer">No Answer</option>
+                <option value="Scheduled">Scheduled</option>
+              </Select>
+            </FormField>
+          </div>
+          <FormField label="Notes / Outcome" required>
+            <textarea
+              value={callForm.content}
+              onChange={e => setCallForm(f => ({ ...f, content: e.target.value }))}
+              placeholder="What was discussed? What was the outcome?"
+              rows={4}
+              required
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+            />
+          </FormField>
+        </form>
+      </Modal>
+
+      {/* ── Follow-up Prompt Modal (after call log saved) ── */}
+      <Modal
+        open={fuPromptModal}
+        onClose={() => setFuPromptModal(false)}
+        title="Call Logged — Next Step?"
+        subtitle="Does this lead need a follow-up?"
+        footer={
+          <>
+            <button type="button" onClick={handleNoFollowUp} className="btn-secondary text-sm">
+              No, still in discussion
+            </button>
+            <button type="button" onClick={handleYesFollowUp} className="btn-primary text-sm flex items-center gap-1.5">
+              <CalendarClock size={14} /> Yes, Schedule Follow-up
+            </button>
+          </>
+        }
+      >
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+            <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
+            <div>
+              <p className="text-sm font-bold text-emerald-800">Call logged successfully!</p>
+              <p className="text-xs text-emerald-600 mt-0.5">The call activity has been recorded in the timeline.</p>
+            </div>
+          </div>
+          <p className="text-sm text-slate-600">
+            Would you like to schedule a follow-up for this lead? If the prospect is interested,
+            you can schedule a call or meeting right now.
+          </p>
+        </div>
+      </Modal>
+
+      {/* ── Next Action Modal (after "still in discussion") ── */}
+      <Modal
+        open={nextActionModal}
+        onClose={() => setNextActionModal(false)}
+        title="What's Next?"
+        subtitle="Lead is now Contacted. Choose your next action."
+        footer={
+          <button type="button" onClick={handleNextActionDone} className="btn-secondary text-sm">
+            Done — I'll handle it later
+          </button>
+        }
+      >
+        <div className="p-6 space-y-3">
+          <button
+            onClick={handleNextActionSQL}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+              <CheckCircle2 size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-purple-800">Mark as SQL</p>
+              <p className="text-xs text-purple-600">Promote this lead to Sales Qualified Lead for deeper sales engagement</p>
+            </div>
+          </button>
+
+          <button
+            onClick={handleNextActionNote}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+              <FileText size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-blue-800">Add Note</p>
+              <p className="text-xs text-blue-600">Record additional details about this discussion</p>
+            </div>
+          </button>
+
+          <button
+            onClick={handleNextActionFollowUp}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <CalendarClock size={20} />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-800">Schedule Follow-up</p>
+              <p className="text-xs text-amber-600">Changed your mind? Schedule a follow-up call or meeting now</p>
+            </div>
+          </button>
+        </div>
+      </Modal>
+
       {/* ── Add Follow-up Modal ── */}
       <Modal
         open={fuModal}
-        onClose={() => setFuModal(false)}
+        onClose={() => { setFuModal(false); setFuFromCallLog(false); }}
         title="Add Follow-up"
         subtitle="Schedule a call or meeting follow-up for this lead."
         footer={
@@ -438,7 +1272,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </>
         }
       >
-        <form id="add-followup-form" onSubmit={handleAddFollowUp} className="p-6 space-y-4">
+        <form id="add-followup-form" onSubmit={fuFromCallLog ? handleGuidedFollowUpSave : handleAddFollowUp} className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Date & Time" required>
               <Input type="datetime-local" value={fuDate} onChange={e => setFuDate(e.target.value)} required />
@@ -451,6 +1285,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               >
                 <option value="Call">Call</option>
                 <option value="Meeting">Meeting</option>
+                <option value="Note">Note</option>
               </select>
             </FormField>
           </div>

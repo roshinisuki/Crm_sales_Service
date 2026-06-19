@@ -4,12 +4,13 @@ import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { getProposalByIdAction, advanceProposalStatusAction, updateProposalAction } from "@/app/actions/proposals";
 import { useAuth } from "@/components/AuthProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { useToast } from "@/components/ToastProvider";
 import { Timeline } from "@/components/ui/Timeline";
 import { NotePanel } from "@/components/ui/NotePanel";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea } from "@/components/ui/FormField";
-import { formatCurrency, formatDate, cn } from "@/lib/ui-utils";
+import { formatDate, cn } from "@/lib/ui-utils";
 import { ArrowLeft, FileText, CheckCircle, XCircle, Send, Clock, FileEdit, RefreshCw, ExternalLink, Eye } from "lucide-react";
 
 const formatStatus = (status: string) => status.replace(/([A-Z])/g, ' $1').trim();
@@ -20,6 +21,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter();
   const toast = useToast();
   const { user } = useAuth();
+  const { formatCurrency } = useCurrency();
 
   const [proposal, setProposal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
