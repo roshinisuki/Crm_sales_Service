@@ -104,7 +104,7 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
       {/* Logo Section */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 flex items-center justify-center shrink-0 rounded-lg bg-[var(--primary)]">
+          <div className="w-10 h-10 flex items-center justify-center shrink-0 rounded-lg">
             <Logo theme={logoTheme} variant="mark-only" size={24} />
           </div>
           {!collapsed && (
@@ -133,7 +133,7 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
         {/* Main Navigation */}
         <div className="space-y-1">
           {!collapsed && (
-            <p className="px-3 text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2 animate-in fade-in slide-in-from-left-2 duration-200">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-2 animate-in fade-in slide-in-from-left-2 duration-200" style={{ color: "var(--sidebar-heading)" }}>
               Main
             </p>
           )}
@@ -151,7 +151,7 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
         {/* Secondary Navigation */}
         <div className="space-y-1">
           {!collapsed && (
-            <p className="px-3 text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2 animate-in fade-in slide-in-from-left-2 duration-200">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-2 animate-in fade-in slide-in-from-left-2 duration-200" style={{ color: "var(--sidebar-heading)" }}>
               Management
             </p>
           )}
@@ -201,25 +201,26 @@ function NavLink({
       className={cn(
         "group relative flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200",
         active
-          ? "bg-[var(--sidebar-active-bg)] text-white font-semibold"
-          : "text-white/70 hover:text-white hover:bg-white/[0.06]",
+          ? "text-white font-semibold"
+          : "",
         collapsed ? "justify-center" : ""
       )}
-      onMouseEnter={() => collapsed && onHover(item.label)}
-      onMouseLeave={() => onHover(null)}
+      style={active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-text-act)" } : { color: "var(--sidebar-text)" }}
+      onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
+      onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
       title={collapsed ? item.label : undefined}
     >
       {/* Active indicator */}
       {active && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[var(--primary)] rounded-r-full" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ background: "var(--sidebar-text-act)" }} />
       )}
 
       {/* Icon */}
       <span
         className={cn(
           "shrink-0 transition-colors",
-          active ? "text-[var(--primary)]" : "text-white/70 group-hover:text-white"
         )}
+        style={{ color: active ? "var(--sidebar-text-act)" : "var(--sidebar-heading)" }}
       >
         {item.icon}
       </span>

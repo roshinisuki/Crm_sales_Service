@@ -33,16 +33,14 @@ function NavLink({ item, active, onClick, collapsed }: { item: NavItem; active: 
       title={collapsed ? item.label : undefined}
       className={cn(
         "relative rounded-lg text-sm font-medium transition-colors group",
-        active
-          ? "font-semibold"
-          : "hover:bg-white/5",
+        active && "font-semibold",
         collapsed ? "flex items-center justify-center px-2 py-2" : "flex items-center gap-3 px-3 py-2",
       )}
       style={active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-text-act)" } : { color: "var(--sidebar-text)" }}
-      onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text-act)"; } }}
-      onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text)"; } }}
+      onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
+      onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
     >
-      <span className={cn("transition-colors shrink-0")} style={{ color: active ? "var(--sidebar-active)" : "var(--sidebar-heading)" }}>
+      <span className={cn("transition-colors shrink-0")} style={{ color: active ? "var(--sidebar-text-act)" : "var(--sidebar-heading)" }}>
         {item.icon}
       </span>
       {!collapsed && <span className="whitespace-nowrap overflow-hidden">{item.label}</span>}
@@ -89,8 +87,10 @@ function ExpandableNavSection({
       <div className="relative group">
         <button
           title={label}
-          className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+          className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg text-sm font-medium transition-colors"
           style={{ color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)" }}
+          onMouseEnter={e => { if (!isSectionActive) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
+          onMouseLeave={e => { if (!isSectionActive) e.currentTarget.style.background = "transparent"; }}
         >
           <span style={{ color: isSectionActive ? "var(--sidebar-active)" : "var(--sidebar-heading)" }}>{icon}</span>
         </button>
@@ -104,8 +104,8 @@ function ExpandableNavSection({
               <Link key={sub.href} href={sub.href} onClick={onNavClick}
                 className="block px-3 py-1.5 text-[12px] rounded-md mx-1 transition-colors"
                 style={isActive ? { color: "var(--sidebar-active)", fontWeight: 600, background: "rgba(255,255,255,0.04)" } : { color: "var(--sidebar-text)" }}
-                onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = "var(--sidebar-text-act)"; }}
-                onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = "var(--sidebar-text)"; }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
               >
                 {sub.label}
               </Link>
@@ -121,9 +121,11 @@ function ExpandableNavSection({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 group",
+          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors group",
         )}
         style={{ color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)" }}
+        onMouseEnter={e => { if (!isSectionActive) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
+        onMouseLeave={e => { if (!isSectionActive) e.currentTarget.style.background = "transparent"; }}
       >
         <div className="flex items-center gap-3">
           <span className={cn("transition-colors shrink-0")} style={{ color: isSectionActive ? "var(--sidebar-active)" : "var(--sidebar-heading)" }}>
@@ -153,8 +155,8 @@ function ExpandableNavSection({
                   ? { color: "var(--sidebar-active)", fontWeight: 600, background: "rgba(255,255,255,0.04)" }
                   : { color: "var(--sidebar-text)" }
                 }
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; } }}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; } }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
               >
                 {sub.label}
               </Link>
@@ -627,6 +629,42 @@ function SidebarContent({
           </>
         )}
       </nav>
+
+      {/* ── User Profile Card ── */}
+      <div className={cn("shrink-0 border-t border-white/[0.07] p-3", collapsed && "px-1.5")}>
+        <div
+          className={cn(
+            "flex items-center gap-3 rounded-xl p-2 transition-colors",
+            collapsed && "justify-center",
+          )}
+          style={{ background: "var(--sidebar-active-bg)" }}
+        >
+          <div
+            className="w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-[13px] font-bold"
+            style={{ background: "rgba(255,255,255,0.15)", color: "#FFFFFF" }}
+          >
+            {(user?.name || user?.email || "U").charAt(0).toUpperCase()}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-[12.5px] font-semibold text-white truncate leading-tight">
+                {user?.name || "User"}
+              </p>
+              <p className="text-[10.5px] text-white/70 truncate leading-tight">My account</p>
+            </div>
+          )}
+          {!collapsed && (
+            <button
+              onClick={handleLogout}
+              className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Log out"
+              title="Log out"
+            >
+              <LogOut size={15} />
+            </button>
+          )}
+        </div>
+      </div>
 
     </>
   );

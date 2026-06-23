@@ -13,7 +13,7 @@ export function getLogoTheme(colorKey: string, _isDark: boolean): LogoTheme {
   // Never override the accent color in dark mode.
   // The sidebar background is always dark — orange/blue/green stays visible.
   // theme="dark" (all-white logo) is only used explicitly on the login page.
-  if (colorKey === "obsidian" || colorKey === "neutral") return "neutral";
+  if (colorKey === "obsidian" || colorKey === "neutral") return "dark";
   if (colorKey === "forest"   || colorKey === "green")   return "green";
   if (colorKey === "ocean"    || colorKey === "blue")    return "blue";
   return "orange"; // ember / orange / fallback
