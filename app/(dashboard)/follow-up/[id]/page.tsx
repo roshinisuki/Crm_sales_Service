@@ -156,7 +156,7 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
           <div className="bg-white border border-slate-200/60 p-6 rounded-2xl shadow-xs">
             <div className="flex items-start gap-4">
               {/* Initials Circle */}
-              <div className="w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-black shrink-0 shadow-xs">
+              <div className="w-12 h-12 rounded-full bg-[var(--primary)] text-white flex items-center justify-center text-sm font-black shrink-0 shadow-xs">
                 {(customer?.name || "U").substring(0, 2).toUpperCase()}
               </div>
 
@@ -505,7 +505,7 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-md cursor-pointer"
+                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-md cursor-pointer"
                 >
                   Complete
                 </button>

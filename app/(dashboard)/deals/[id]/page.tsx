@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+import { CRMSpinner } from "@/components/CRMSpinner";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -102,12 +103,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="spinner-brand" />
-          <p className="text-sm font-medium">Loading deal details...</p>
-        </div>
-      </div>
+      <div className="flex items-center justify-center h-64"><CRMSpinner size={40} label="Loading deal details..." /></div>
     );
   }
 
@@ -270,7 +266,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
         footer={
           <>
             <button type="button" onClick={() => setIsDiscountModalOpen(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleRequestDiscount} disabled={isSubmitting} className="btn-primary text-sm flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
+            <button onClick={handleRequestDiscount} disabled={isSubmitting} className="btn-primary text-sm flex items-center gap-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)]">
               {isSubmitting ? <span className="spinner-white w-4 h-4" /> : <Percent size={14} />} Request
             </button>
           </>
@@ -311,7 +307,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
             <button 
               onClick={handleResolveDiscount} 
               disabled={isSubmitting} 
-              className={cn("text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm flex items-center gap-2", approvalForm.approved ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700")}
+              className={cn("text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm flex items-center gap-2", approvalForm.approved ? "bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "bg-rose-600 hover:bg-rose-700")}
             >
               {isSubmitting ? <span className="spinner-white w-4 h-4" /> : approvalForm.approved ? <Check size={16} /> : <X size={16} />} 
               Confirm {approvalForm.approved ? "Approval" : "Rejection"}
@@ -333,3 +329,4 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
     </div>
   );
 }
+

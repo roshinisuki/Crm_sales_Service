@@ -164,7 +164,7 @@ export default function GuidedWorkflowBanner({
       actions = (
         <button
           onClick={() => router.push(`/follow-up?action=create&leadId=${entityId}`)}
-          className="btn-primary text-xs flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+          className="btn-primary text-xs flex items-center gap-1.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
         >
           <Calendar size={14} /> Move to Follow-Up <ArrowRight size={12} />
         </button>
@@ -211,7 +211,7 @@ export default function GuidedWorkflowBanner({
               }`
             )
           }
-          className="btn-primary text-xs flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+          className="btn-primary text-xs flex items-center gap-1.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
         >
           <Plus size={14} /> Create Deal <ArrowRight size={12} />
         </button>
@@ -256,7 +256,7 @@ export default function GuidedWorkflowBanner({
           <button
             onClick={handleMarkDealWon}
             disabled={loading}
-            className="btn-primary text-xs flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+            className="btn-primary text-xs flex items-center gap-1.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
           >
             <CheckCircle size={14} /> Mark Won
           </button>

@@ -162,7 +162,7 @@ export default function LeadSourcesSettingsPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-[#C2601A] hover:bg-[#A84F16] text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer disabled:opacity-50"
               >
                 <Plus size={14} /> {submitting ? "Adding..." : "Add Lead Source"}
               </button>

@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+import { CRMSpinner } from "@/components/CRMSpinner";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -79,12 +80,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="spinner-brand" />
-          <p className="text-sm font-medium">Loading activity...</p>
-        </div>
-      </div>
+      <div className="flex items-center justify-center h-64"><CRMSpinner size={40} label="Loading activity..." /></div>
     );
   }
 
@@ -116,7 +112,7 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
             ) : (
               <>
                 <button onClick={() => setEditing(false)} className="btn-secondary text-xs flex items-center gap-1.5"><X size={13} /> Cancel</button>
-                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs flex items-center gap-1.5"><Save size={13} /> {saving ? "Saving…" : "Save"}</button>
+                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs flex items-center gap-1.5"><Save size={13} /> {saving ? "Savingâ€¦" : "Save"}</button>
               </>
             )}
           </div>
@@ -127,19 +123,19 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
             <dl className="space-y-3">
               {[
                 { label: "Channel", value: activity.channel },
-                { label: "Linked To", value: activity.customer?.name || activity.lead?.name || "—" },
+                { label: "Linked To", value: activity.customer?.name || activity.lead?.name || "â€”" },
                 { label: "Direction", value: activity.direction },
-                ...(isCall ? [{ label: "Duration", value: activity.duration ? `${activity.duration} min` : "—" }] : []),
+                ...(isCall ? [{ label: "Duration", value: activity.duration ? `${activity.duration} min` : "â€”" }] : []),
                 ...(isMeeting ? [
-                  { label: "Meeting Date", value: activity.meetingDate ? formatDateTime(activity.meetingDate) : "—" },
-                  { label: "Mode", value: activity.mode || "—" },
-                  { label: "Location", value: activity.location || "—" },
-                  { label: "Agenda", value: activity.agenda || "—" },
-                  { label: "Outcome", value: activity.outcome || "—" },
+                  { label: "Meeting Date", value: activity.meetingDate ? formatDateTime(activity.meetingDate) : "â€”" },
+                  { label: "Mode", value: activity.mode || "â€”" },
+                  { label: "Location", value: activity.location || "â€”" },
+                  { label: "Agenda", value: activity.agenda || "â€”" },
+                  { label: "Outcome", value: activity.outcome || "â€”" },
                 ] : []),
                 { label: "Status", value: <StatusBadge status={activity.status} size="sm" /> },
-                { label: "Content", value: activity.content || "—" },
-                { label: "Created By", value: activity.sentByUser?.name || "—" },
+                { label: "Content", value: activity.content || "â€”" },
+                { label: "Created By", value: activity.sentByUser?.name || "â€”" },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-start justify-between gap-2">
                   <dt className="text-xs font-semibold text-slate-400 shrink-0">{label}</dt>
@@ -174,3 +170,4 @@ export default function ActivityDetailPage({ params }: { params: Promise<{ id: s
     </div>
   );
 }
+

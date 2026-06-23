@@ -156,7 +156,7 @@ export default function NotificationRulesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Notification Rules</h1>
           <p className="text-sm text-gray-500 mt-0.5">Configure which notifications are sent for each business event</p>
         </div>
-        <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+        <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50">
           <Ico d={icons.save} size={16} /> {saving ? "Saving..." : "Save Rules"}
         </button>
       </div>

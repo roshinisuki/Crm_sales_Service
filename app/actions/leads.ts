@@ -262,6 +262,7 @@ export async function updateLeadAction(
     timelineAsked?: string;
     isDecisionMaker?: boolean;
     isGenuine?: boolean;
+    lostReason?: string;
   }
 ) {
   try {
@@ -382,6 +383,32 @@ export async function updateLeadAction(
           toUserId: data.assignedUserId!,
           changedById: userPayload.id,
           reason: "Manual reassignment by CRM user",
+        }
+      });
+    }
+
+    // BUG-030/031: Create activity log entry for status transitions (SQL, Qualified, Lost)
+    const statusTransition = data.status && data.status !== lead.status;
+    if (statusTransition && ["SQL", "Qualified", "Lost"].includes(data.status!)) {
+      const transitionMessages: Record<string, string> = {
+        SQL: `Lead qualified as SQL — Budget: ${updated.budgetAsked || "N/A"}, Timeline: ${updated.timelineAsked || "N/A"}, Decision Maker: ${updated.isDecisionMaker ? "Yes" : "No"}`,
+        Qualified: "Lead marked as Qualified — Customer record created automatically",
+        Lost: `Lead marked as Lost${data.lostReason ? ` — Reason: ${data.lostReason}` : ""}`,
+      };
+      await prisma.communicationLog.create({
+        data: {
+          id: nanoid(),
+          channel: "Note",
+          leadId: id,
+          customerId: null,
+          dealId: null,
+          direction: "N/A",
+          duration: null,
+          content: transitionMessages[data.status!],
+          status: "Completed",
+          sentByUserId: userPayload.id,
+          sentAt: now,
+          companyId: userPayload.companyId ?? null,
         }
       });
     }

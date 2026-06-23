@@ -13,6 +13,10 @@ async function main() {
   await prisma.communicationLog.deleteMany({});
   await prisma.note.deleteMany({});
   await prisma.task.deleteMany({});
+  await prisma.purchaseOrder.deleteMany({});
+  await prisma.negotiation.deleteMany({});
+  await prisma.quotation.deleteMany({});
+  await prisma.sampleRequest.deleteMany({});
   await prisma.contact.deleteMany({});
   await prisma.followUp.deleteMany({});        // references Lead & Customer
   await prisma.dealStageHistory.deleteMany({});
@@ -30,9 +34,36 @@ async function main() {
   await prisma.notification.deleteMany({});
   await prisma.notificationPreference.deleteMany({});
   await prisma.passwordResetToken.deleteMany({});
+  await prisma.territoryAccount.deleteMany({});
+  await prisma.salesTarget.deleteMany({});
+  await prisma.territory.deleteMany({});
+  await prisma.keyAccount.deleteMany({});
+  await prisma.rFQ.deleteMany({});
+  await prisma.invoice.deleteMany({});
+  await prisma.supportTicket.deleteMany({});
+  await prisma.lostDealAnalysis.deleteMany({});
+  await prisma.lossReason.deleteMany({});
+  await prisma.competitorProduct.deleteMany({});
+  await prisma.competitor.deleteMany({});
+  await prisma.forecastEntry.deleteMany({});
   await prisma.customer.deleteMany({});        // referenced by Deal, FollowUp, Visit
-  await prisma.user.deleteMany({});            // referenced by almost everything
+  await prisma.cRMDocument.deleteMany({});
+  await prisma.approvalRequest.deleteMany({});
+  await prisma.productSpecification.deleteMany({});
+  await prisma.product.deleteMany({});
+  await prisma.productCategory.deleteMany({});
+  await prisma.quotationItem.deleteMany({});
+  await prisma.negotiationRevision.deleteMany({});
+  await prisma.purchaseOrderItem.deleteMany({});
+  await prisma.proposalVersion.deleteMany({});
+  await prisma.pipelineStage.deleteMany({});
+  await prisma.exchangeRate.deleteMany({});
+  await prisma.emailTemplate.deleteMany({});
+  await prisma.whatsAppTemplate.deleteMany({});
   await prisma.leadSource.deleteMany({});
+  await prisma.user.deleteMany({});            // referenced by almost everything, but references Company
+  await prisma.company.deleteMany({});
+  await prisma.systemConfig.deleteMany({});
 
   // ---- Lead Sources ----
   console.log("Seeding lead sources...");

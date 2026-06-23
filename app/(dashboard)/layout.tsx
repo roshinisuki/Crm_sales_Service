@@ -8,6 +8,8 @@ import { logoutAction } from "@/app/actions/auth";
 import { useEffect, useState } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
 import MobileBottomNav from "@/components/MobileBottomNav";
+import Logo from "@/components/Logo";
+import { useLogoTheme } from "@/lib/use-logo-theme";
 import { cn } from "@/lib/ui-utils";
 import {
   LayoutDashboard, Users, CalendarClock, Briefcase, BookUser,
@@ -34,7 +36,7 @@ function NavLink({ item, active, onClick, collapsed }: { item: NavItem; active: 
         active
           ? "font-semibold"
           : "hover:bg-white/5",
-        collapsed ? "flex items-center justify-center px-2 py-2.5" : "flex items-center gap-3 px-3.5 py-2.5",
+        collapsed ? "flex items-center justify-center px-2 py-2" : "flex items-center gap-3 px-3 py-2",
       )}
       style={active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-text-act)" } : { color: "var(--sidebar-text)" }}
       onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text-act)"; } }}
@@ -181,16 +183,22 @@ function SidebarContent({
   onNavClick?: () => void;
   collapsed?: boolean;
 }) {
+  const logoTheme = useLogoTheme({ initialColor: user?.theme, initialIsDark: user?.themeMode === "dark" });
   const isVariant2 = (user?.variant || user?.company?.variant || 1) >= 2;
   const isVariant3 = (user?.variant || user?.company?.variant || 1) >= 3;
   const isVariant4 = (user?.variant || user?.company?.variant || 1) >= 4;
 
-  const leadSubItems = [
+  const leadSubItems = isVariant2 ? [
     { href: "/leads", label: "All Leads" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?followUp=due", label: "Follow-Up Due" },
     { href: "/leads?status=SQL", label: "SQL" },
     { href: "/leads?status=FollowUpDue", label: "Overdue Leads" },
+    { href: "/leads?status=Lost", label: "Lost Leads" },
+  ] : [
+    { href: "/leads", label: "All Leads" },
+    { href: "/leads?status=New", label: "New Leads" },
+    { href: "/leads?followUp=due", label: "Today's Follow-up" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
 
@@ -202,7 +210,6 @@ function SidebarContent({
   ] : [
     { href: "/customer-master", label: "All Accounts" },
     { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
-    { href: "/customer-master?status=Prospect", label: "Prospect Accounts" },
   ];
 
   const contactsSubItems = isVariant2 ? [
@@ -213,8 +220,6 @@ function SidebarContent({
     { href: "/contacts?type=Management", label: "Management Contacts" },
   ] : [
     { href: "/contacts", label: "All Contacts" },
-    { href: "/contacts?type=Technical", label: "Technical Contacts" },
-    { href: "/contacts?type=Purchase", label: "Purchase Contacts" },
   ];
 
   const activitySubItems = isVariant2 ? [
@@ -227,6 +232,7 @@ function SidebarContent({
   ] : [
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
+    { href: "/activities?type=Email", label: "Emails" },
     { href: "/activities?type=Note", label: "Notes" },
   ];
 
@@ -237,9 +243,9 @@ function SidebarContent({
     { href: "/tasks?status=Overdue", label: "Overdue" },
     { href: "/tasks?status=Cancelled", label: "Cancelled" },
   ] : [
-    { href: "/tasks?status=Pending", label: "Pending Tasks" },
-    { href: "/tasks?status=Completed", label: "Completed Tasks" },
-    { href: "/tasks?status=Overdue", label: "Overdue Tasks" },
+    { href: "/tasks?status=Pending", label: "Pending" },
+    { href: "/tasks?status=Completed", label: "Completed" },
+    { href: "/tasks?status=Overdue", label: "Overdue" },
   ];
 
   const followUpSubItems = isVariant2 ? [
@@ -249,6 +255,7 @@ function SidebarContent({
     { href: "/follow-up?status=Overdue", label: "Overdue" },
     { href: "/follow-up?status=Cancelled", label: "Cancelled" },
   ] : [
+    { href: "/follow-up", label: "All follow ups" },
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
@@ -268,6 +275,8 @@ function SidebarContent({
     { href: "/sales-pipeline?stage=SalesOpportunity", label: "Qualified" },
     { href: "/sales-pipeline?stage=RequirementGathering", label: "Requirement Gathering" },
     { href: "/sales-pipeline?stage=MeetingScheduled", label: "Meeting Scheduled" },
+    { href: "/sales-pipeline?stage=Overdue", label: "Overdue" },
+    { href: "/sales-pipeline?stage=Rejected", label: "Rejected" },
   ];
 
   const dealSubItems = isVariant2 ? [
@@ -320,6 +329,8 @@ function SidebarContent({
   ] : [
     { href: "/reports/leads", label: "Lead Report" },
     { href: "/reports/followups", label: "Follow-Up Report" },
+    { href: "/reports/opportunities", label: "Opportunity Report" },
+    { href: "/reports/quotations", label: "Quotation Report" },
   ];
 
   const userManagementSubItems = isVariant2 ? [
@@ -339,6 +350,7 @@ function SidebarContent({
     ...(isVariant3 ? settingsSubItemsV3 : []),
   ] : [
     { href: "/settings/lead-sources", label: "Lead Sources" },
+    { href: "/settings/email-templates", label: "Email Templates" },
   ];
 
   // Variant 2 navigation items
@@ -365,13 +377,18 @@ function SidebarContent({
     { href: "/rfq?status=Closed", label: "Closed RFQ" },
   ];
 
-  const quotationSubItems = [
+  const quotationSubItems = isVariant3 ? [
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=UnderReview", label: "Under Review" },
     { href: "/quotations?status=Accepted", label: "Accepted" },
     { href: "/quotations?status=Rejected", label: "Rejected" },
     { href: "/quotations?status=Expired", label: "Expired" },
+  ] : [
+    { href: "/quotations?status=Draft", label: "Draft" },
+    { href: "/quotations?status=Sent", label: "Sent" },
+    { href: "/quotations?status=Accepted", label: "Accepted" },
+    { href: "/quotations?status=Rejected", label: "Rejected" },
   ];
 
   const forecastSubItems = [
@@ -462,21 +479,18 @@ function SidebarContent({
   return (
     <>
       {/* ── Logo / Brand ── */}
-      <div className={cn("shrink-0 flex flex-col gap-1 border-b border-white/[0.07]", collapsed ? "px-2 pt-5 pb-4 items-center" : "px-5 pt-6 pb-5")}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center shrink-0">
-            <img src="/logo.png" alt="SUKI CRM" className="w-full h-full object-contain" />
-          </div>
-          {!collapsed && (
-            <div>
-              <p className="text-white text-lg font-bold leading-tight tracking-wide">SUKI CRM</p>
-            </div>
+      <div className={cn("shrink-0 flex flex-col gap-1 border-b border-white/[0.07]", collapsed ? "px-1.5 pt-3 pb-3 items-center" : "px-3 pt-3 pb-3")}>
+        <div className="flex items-center">
+          {collapsed ? (
+            <Logo theme={logoTheme} variant="mark-only" size={24} />
+          ) : (
+            <Logo theme={logoTheme} variant="full" size={32} />
           )}
         </div>
       </div>
 
       {/* ── Navigation ── */}
-      <nav className={cn("flex-1 overflow-y-auto py-4 space-y-0.5", collapsed ? "px-1.5" : "px-3")}>
+      <nav className={cn("flex-1 overflow-y-auto py-4 space-y-1", collapsed ? "px-1.5" : "px-3")}>
         {!collapsed && process.env.NODE_ENV === "development" && (
           <div className="px-3.5 pb-2 text-[10px] text-gray-500">
             Variant: {user?.variant || user?.company?.variant || 1}
@@ -515,7 +529,7 @@ function SidebarContent({
             {isVariant4 && (
               <ExpandableNavSection label="Competitor Mgmt" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
             )}
-            {isVariant2 && (
+            {!isVariant3 && (
               <ExpandableNavSection label="Quotation Management" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
             )}
             {isVariant3 && (
@@ -525,7 +539,9 @@ function SidebarContent({
               <ExpandableNavSection label="Purchase Order Mgmt" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
             )}
 
-            <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+            {isVariant2 && (
+              <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
+            )}
             <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
             <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} />
 
@@ -569,7 +585,7 @@ function SidebarContent({
         {!loading && user?.role === "Customer" && (
           <>
             {!collapsed && (
-              <div className="pt-5 pb-1.5">
+              <div className="pt-4 pb-1.5">
                 <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Portal</p>
               </div>
             )}
@@ -581,7 +597,7 @@ function SidebarContent({
         {!loading && ["Admin", "SalesManager"].includes(user?.role ?? "") && (
           <>
             {!collapsed && (
-              <div className="pt-5 pb-1.5">
+              <div className="pt-4 pb-1.5">
                 <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Settings</p>
               </div>
             )}
@@ -603,7 +619,7 @@ function SidebarContent({
         {!loading && user?.role === "SalesExecutive" && (
           <>
             {!collapsed && (
-              <div className="pt-4 pb-2 border-t border-white/[0.07] mt-4">
+              <div className="pt-4 pb-1.5 border-t border-white/[0.07] mt-3">
                 <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Settings</p>
               </div>
             )}
@@ -612,29 +628,6 @@ function SidebarContent({
         )}
       </nav>
 
-      {/* ── User / Logout ── */}
-      <div className="p-3 border-t border-white/[0.07] shrink-0">
-        <div onClick={handleLogout} className={cn("flex items-center rounded-lg hover:bg-white/5 cursor-pointer transition-colors group", collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5")}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black tracking-wider border shrink-0 shadow-sm" style={{ background: "rgba(255,255,255,0.08)", color: "var(--sidebar-text)", borderColor: "rgba(255,255,255,0.12)" }}>
-            {(() => {
-              const name = user?.name || "System Admin";
-              const cleanName = name.replace(/[^a-zA-Z\s]/g, " ").trim();
-              const parts = cleanName.split(/\s+/);
-              if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
-              return (parts[0][0] + (parts[parts.length - 1][0] || "")).toUpperCase();
-            })()}
-          </div>
-          {!collapsed && (
-            <>
-              <div className="flex-1 overflow-hidden">
-                <p className="text-xs font-semibold leading-tight truncate" style={{ color: "var(--sidebar-text-act)" }}>{user?.name || "Loading..."}</p>
-                <p className="text-[10px] leading-tight truncate" style={{ color: "var(--sidebar-heading)" }}>{user?.role || "..."}</p>
-              </div>
-              <LogOut size={16} className="transition-colors shrink-0" style={{ color: "var(--sidebar-heading)" }} />
-            </>
-          )}
-        </div>
-      </div>
     </>
   );
 }
@@ -670,7 +663,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside
         className={cn(
           "shrink-0 flex flex-col h-full z-20 shadow-xl border-r border-white/[0.07] transition-all duration-300 ease-in-out overflow-hidden",
-          isCollapsed ? "w-[72px]" : "w-[260px]"
+          isCollapsed ? "w-[72px]" : "w-[220px]"
         )}
         style={{ background: "var(--sidebar-bg)" }}
       >
@@ -687,7 +680,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <DashboardHeader pageTitle={pageTitle} user={user} toggleSidebar={toggleSidebar} />
 
-        <div className="flex-1 overflow-auto p-4 md:p-5 lg:p-7 pb-24 md:pb-8">
+        <div className="flex-1 overflow-auto p-5 md:p-6 lg:p-8 pb-20 md:pb-6">
           <CurrencyProvider>
             {children}
           </CurrencyProvider>

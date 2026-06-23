@@ -127,7 +127,7 @@ export default function DocumentTypesSettingsPage() {
                   value={dt.label}
                   onChange={(e) => updateType(dt.id, "label", e.target.value)}
                   placeholder="e.g. Warranty Card"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                 />
               </div>
               <div>
@@ -137,7 +137,7 @@ export default function DocumentTypesSettingsPage() {
                   value={dt.value}
                   onChange={(e) => updateType(dt.id, "value", e.target.value)}
                   placeholder="e.g. Warranty"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                 />
               </div>
               <div>
@@ -145,7 +145,7 @@ export default function DocumentTypesSettingsPage() {
                 <select
                   value={dt.entityType}
                   onChange={(e) => updateType(dt.id, "entityType", e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                 >
                   {entityTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -163,7 +163,7 @@ export default function DocumentTypesSettingsPage() {
           <button onClick={addType} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">
             <Plus size={16} /> Add Document Type
           </button>
-          <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] disabled:opacity-50 cursor-pointer">
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 cursor-pointer">
             <Save size={16} /> {saving ? "Saving..." : "Save Configuration"}
           </button>
         </div>

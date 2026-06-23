@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+import { CRMSpinner } from "@/components/CRMSpinner";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -82,12 +83,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="spinner-brand" />
-          <p className="text-sm font-medium">Loading task...</p>
-        </div>
-      </div>
+      <div className="flex items-center justify-center h-64"><CRMSpinner size={40} label="Loading task..." /></div>
     );
   }
 
@@ -118,7 +114,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             ) : (
               <>
                 <button onClick={() => setEditing(false)} className="btn-secondary text-xs flex items-center gap-1.5"><X size={13} /> Cancel</button>
-                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs flex items-center gap-1.5"><Save size={13} /> {saving ? "Saving…" : "Save"}</button>
+                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs flex items-center gap-1.5"><Save size={13} /> {saving ? "Savingâ€¦" : "Save"}</button>
               </>
             )}
           </div>
@@ -129,11 +125,11 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             <dl className="space-y-3">
               {[
                 { label: "Title", value: task.title },
-                { label: "Description", value: task.description || "—" },
+                { label: "Description", value: task.description || "â€”" },
                 { label: "Priority", value: <span className={cn("inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full", task.priority === "Low" ? "bg-slate-100 text-slate-500" : task.priority === "Medium" ? "bg-blue-50 text-blue-600" : task.priority === "High" ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600")}><Tag size={10} /> {task.priority}</span> },
-                { label: "Due Date", value: task.dueDate ? <div className={cn("flex items-center gap-1.5 text-xs", isOverdue ? "text-red-500" : "text-slate-500")}><CalendarClock size={12} /> {formatDate(task.dueDate)} {isOverdue && <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full font-bold">Overdue</span>}</div> : "—" },
-                { label: "Assigned To", value: <div className="flex items-center gap-1.5 text-xs text-slate-500"><User2 size={12} /> {task.User?.name || "—"}</div> },
-                { label: "Linked Contact", value: task.Contact ? <div className="flex items-center gap-1.5 text-xs text-slate-500"><User2 size={12} /> {task.Contact.name}</div> : "—" },
+                { label: "Due Date", value: task.dueDate ? <div className={cn("flex items-center gap-1.5 text-xs", isOverdue ? "text-red-500" : "text-slate-500")}><CalendarClock size={12} /> {formatDate(task.dueDate)} {isOverdue && <span className="text-[10px] bg-red-50 text-red-500 px-1.5 py-0.5 rounded-full font-bold">Overdue</span>}</div> : "â€”" },
+                { label: "Assigned To", value: <div className="flex items-center gap-1.5 text-xs text-slate-500"><User2 size={12} /> {task.User?.name || "â€”"}</div> },
+                { label: "Linked Contact", value: task.Contact ? <div className="flex items-center gap-1.5 text-xs text-slate-500"><User2 size={12} /> {task.Contact.name}</div> : "â€”" },
                 { label: "Status", value: <StatusBadge status={task.status} size="sm" /> },
                 { label: "Created", value: formatDate(task.createdAt) },
               ].map(({ label, value }) => (
@@ -161,7 +157,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                 <FormField label="Due Date"><Input type="date" value={form.dueDate} onChange={(e) => setForm((f: any) => ({ ...f, dueDate: e.target.value }))} /></FormField>
                 <FormField label="Linked Contact">
                   <Select value={form.contactId} onChange={(e) => setForm((f: any) => ({ ...f, contactId: e.target.value }))}>
-                    <option value="">— None —</option>
+                    <option value="">â€” None â€”</option>
                     {contacts.map((c: any) => (<option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ""}</option>))}
                   </Select>
                 </FormField>
@@ -173,3 +169,4 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     </div>
   );
 }
+

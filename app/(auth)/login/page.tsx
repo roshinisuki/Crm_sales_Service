@@ -11,6 +11,8 @@ import {
   completeFirstLogin,
   loginWithPassword,
 } from "@/app/actions/auth";
+import Logo from "@/components/Logo";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 // ── Icons ───────────────────────────────────────────────────────────────────
 function EyeIcon({ visible }: { visible: boolean }) {
@@ -199,6 +201,10 @@ function ImageCarousel() {
 const inputClass =
   "w-full px-4 py-3 rounded-[8px] border border-[#2C2C2A] bg-[#1A1A1A] text-white text-[14px] placeholder:text-[#5F5E5A] focus:outline-none focus:border-[#E8732C] focus:ring-1 focus:ring-[#E8732C]/30 transition-all";
 
+// ── Login accent (static orange) ─────────────────────────────────────────────
+const ACCENT_HEX = "#E8620A";   // ember   --accent
+const ACCENT_HOVER = "#C55308";  // ember   --accent-hover
+
 // ════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ════════════════════════════════════════════════════════════════
@@ -219,10 +225,10 @@ function LoginContent() {
   const [rememberMe, setRememberMe] = useState(false);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
+  const { startLoading } = useGlobalLoading();
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
-
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useInactivityLogout(false);
@@ -307,6 +313,7 @@ function LoginContent() {
     const res = await completeFirstLogin(email.trim(), otp.join(""), password, rememberMe);
     setLoading(false);
     if (res && res.success && res.redirectUrl) {
+      startLoading("Signing you in...");
       window.location.href = res.redirectUrl;
     } else if (res && !res.success) { 
       setError(res.message ?? "Failed to activate account."); 
@@ -320,6 +327,7 @@ function LoginContent() {
     const res = await loginWithPassword(email.trim(), password, rememberMe);
     setLoading(false);
     if (res && res.success && res.redirectUrl) {
+      startLoading("Signing you in...");
       window.location.href = res.redirectUrl;
     } else if (res && !res.success) { 
       setError(res.message ?? "Login failed."); 
@@ -340,9 +348,9 @@ function LoginContent() {
       type="submit"
       disabled={loading}
       className="w-full mt-4 py-3.5 px-6 rounded-[8px] text-[14px] font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      style={{ backgroundColor: "#E8732C", color: "#0A0A0A" }}
-      onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d4641f"; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#E8732C"; }}
+      style={{ backgroundColor: ACCENT_HEX, color: "#0A0A0A" }}
+      onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.backgroundColor = ACCENT_HOVER; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ACCENT_HEX; }}
     >
       {loading ? <><Spinner />{loadingLabel}</> : <>{label}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></>}
     </button>
@@ -396,45 +404,39 @@ function LoginContent() {
 
   return (
     <main
-      className="min-h-screen flex"
-      style={{ backgroundColor: "#FFFFFF" }}
+      className="min-h-screen flex items-center justify-center p-4 lg:p-8"
+      style={{
+        backgroundColor: "#0D0D0D",
+        backgroundImage: "url('/login-bg.jpeg')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
     >
+      {/* Dark overlay on the outer page */}
+      <div className="fixed inset-0 bg-black/60 pointer-events-none" />
+
+      {/* Centered card container holding both panels */}
       <div
-        className="w-full flex overflow-hidden"
-        style={{
-          minHeight: "100vh",
-        }}
+        className="relative z-10 w-full flex overflow-hidden rounded-2xl shadow-2xl"
+        style={{ maxWidth: "960px", minHeight: "580px" }}
       >
-        {/* LEFT: Image Carousel (40%) */}
+        {/* LEFT: Image Carousel (55%) */}
         <div
           className="hidden lg:block relative flex-none"
-          style={{ width: "40%" }}
+          style={{ width: "55%" }}
         >
           <ImageCarousel />
         </div>
 
         {/* RIGHT: Form Panel */}
         <div
-          className="flex-1 flex items-center justify-center px-6 py-9 relative"
-          style={{ 
-            backgroundColor: "#FFFFFF",
-            backgroundImage: "url('/login-bg.jpeg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundAttachment: "fixed"
-          }}
+          className="flex-1 flex items-center justify-center px-6 py-10"
+          style={{ backgroundColor: "#0A0A0A" }}
         >
-          {/* Dark overlay */}
-          <div className="absolute inset-0 bg-black/40" />
-          
-          {/* Card container */}
-          <div className="relative z-10">
-          <div className="w-full max-w-[420px] p-8 rounded-lg border border-[#2C2C2A] bg-[#0A0A0A] shadow-sm flex flex-col">
+          <div className="w-full max-w-[380px] flex flex-col">
           {/* Logo mark */}
-          <div className="flex items-center gap-2 mb-8">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="SUKI CRM" className="w-6 h-6 object-contain opacity-80" />
-            <span className="text-[13px] text-white tracking-widest uppercase font-medium">SUKI CRM</span>
+          <div className="flex items-center mb-8">
+            <Logo theme="orange" variant="full" size={36} />
           </div>
 
           <Banners />
@@ -621,7 +623,6 @@ function LoginContent() {
             </>
           )}
           </div>
-          </div>
         </div>
       </div>
     </main>
@@ -631,7 +632,7 @@ function LoginContent() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <main className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#FFFFFF" }}>
+      <main className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#0D0D0D" }}>
         <div className="w-8 h-8 border-2 border-[#0A0A0A]/20 border-t-[#0A0A0A] rounded-full animate-spin" />
       </main>
     }>

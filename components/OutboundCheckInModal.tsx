@@ -120,7 +120,7 @@ export default function OutboundCheckInModal({
     }
   };
 
-  const inputCls = "w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] text-slate-700 font-medium transition-all";
+  const inputCls = "w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] text-slate-700 font-medium transition-all";
   const labelCls = "block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1";
 
   return (
@@ -229,7 +229,7 @@ export default function OutboundCheckInModal({
             <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={formLoading || locLoading} className="px-7 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 flex items-center gap-2 cursor-pointer">
+            <button type="submit" disabled={formLoading || locLoading} className="px-7 py-2.5 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-75 flex items-center gap-2 cursor-pointer">
               {formLoading ? (
                 <><span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />Recording...</>
               ) : "📍 Field Check-In"}

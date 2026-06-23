@@ -18,6 +18,7 @@ import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import { Plus, Search, Download, Eye, Pencil, Trash2, Briefcase, TrendingUp, CheckCircle, XCircle, PauseCircle } from "lucide-react";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 const STAGES = ["Active", "OnHold", "Won", "Lost"];
 const emptyForm = {
   id: "", dealName: "", customerId: "", dealValue: "",
@@ -37,6 +38,7 @@ export default function DealsPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [execs,     setExecs]     = useState<any[]>([]);
   const [loading,   setLoading]   = useState(true);
+  const { startLoading, stopLoading } = useGlobalLoading();
 
   const [search,      setSearch]      = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -55,10 +57,12 @@ export default function DealsPage() {
 
   const loadDeals = async () => {
     setLoading(true);
+    startLoading("Loading deals...");
     const res = await getDealsAction();
     if (res.success && res.data) setDeals(res.data);
     else toast.error("Failed to load deals.");
     setLoading(false);
+    stopLoading();
   };
 
   const loadDeps = async () => {
@@ -235,7 +239,7 @@ export default function DealsPage() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr><td colSpan={8} className="crm-td text-center py-12">
-                  <div className="flex flex-col items-center gap-2 text-slate-400"><div className="spinner-brand" /><span className="text-xs font-medium">Loading...</span></div>
+                  <span className="text-slate-400 text-sm">Loading...</span>
                 </td></tr>
               ) : paged.length === 0 ? (
                 <tr><td colSpan={8} className="crm-td text-center py-16">

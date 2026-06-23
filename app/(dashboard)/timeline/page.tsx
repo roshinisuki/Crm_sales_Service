@@ -118,14 +118,14 @@ export default function TimelinePage() {
 
           <div>
             <p className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Date Range</p>
-            <input type="date" value={filters.startDate} onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
-            <input type="date" value={filters.endDate} onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+            <input type="date" value={filters.startDate} onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+            <input type="date" value={filters.endDate} onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
           </div>
 
           {user?.role !== "SalesExecutive" && (
             <div>
               <p className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">User</p>
-              <select value={filters.userId} onChange={(e) => setFilters({ ...filters, userId: e.target.value })} className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 cursor-pointer">
+              <select value={filters.userId} onChange={(e) => setFilters({ ...filters, userId: e.target.value })} className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer">
                 <option value="">All Users</option>
                 {users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>

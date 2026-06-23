@@ -20,6 +20,7 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { PageShell } from "@/components/ui/PageShell";
 import { SummaryCard } from "@/components/ui/SummaryCard";
+import { StatusBadge, PriorityBadge } from "@/components/ui/StatusBadge";
 
 // Helpers for visual alignment
 function getCompanyName(customerName: string) {
@@ -56,8 +57,8 @@ const icons = {
 };
 
 const AVATAR_COLORS = [
-  "bg-blue-600 text-white",
-  "bg-emerald-600 text-white",
+  "bg-[var(--primary)] text-white",
+  "bg-[var(--primary)] text-white",
   "bg-amber-500 text-white",
   "bg-purple-600 text-white",
   "bg-teal-600 text-white",
@@ -443,7 +444,7 @@ export default function FollowUpsPage() {
       action={
         <button
           onClick={handleOpenAddDrawer}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#C2601A] text-white rounded-xl text-xs font-bold hover:bg-[#A84F16] transition-colors shadow-md cursor-pointer"
+          className="flex items-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl text-xs font-bold hover:bg-[var(--primary-hover)] transition-colors shadow-md cursor-pointer"
         >
           {icons.plus}
           Add Follow-up
@@ -622,37 +623,16 @@ export default function FollowUpsPage() {
                         {formatDate(f.nextMeetingDate)}
                       </td>
                       <td className="crm-td">
-                        {f.status === "Pending" && !isOverdue && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-amber-50 text-amber-700 border-amber-200">
-                            Pending
-                          </span>
-                        )}
-                        {isOverdue && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-red-50 text-red-700 border-red-200 animate-pulse">
-                            Overdue
-                          </span>
-                        )}
-                        {isCompleted && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-emerald-50 text-emerald-700 border-emerald-200">
-                            Completed
-                          </span>
-                        )}
-                        {f.status === "Cancelled" && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border bg-slate-100 text-slate-600 border-slate-200">
-                            Cancelled
-                          </span>
-                        )}
+                        {isOverdue
+                          ? <StatusBadge status="Overdue" pulse />
+                          : isCompleted
+                          ? <StatusBadge status="Completed" />
+                          : f.status === "Cancelled"
+                          ? <StatusBadge status="Cancelled" />
+                          : <StatusBadge status="Pending" />}
                       </td>
                       <td className="crm-td">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                          f.priority === "High"
-                            ? "bg-red-50 text-red-650 border-red-200"
-                            : f.priority === "Low"
-                            ? "bg-emerald-50 text-emerald-650 border-emerald-200"
-                            : "bg-orange-50 text-orange-650 border-orange-200"
-                        }`}>
-                          {f.priority || "Medium"}
-                        </span>
+                        <PriorityBadge priority={f.priority || "Medium"} />
                       </td>
                       <td className="crm-td text-slate-500 text-xs whitespace-nowrap">
                         {f.createdAt ? formatDate(f.createdAt) : "—"}
@@ -1198,7 +1178,7 @@ export default function FollowUpsPage() {
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-md cursor-pointer"
+                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-md cursor-pointer"
                 >
                   Complete
                 </button>

@@ -16,7 +16,7 @@ const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?
 
 const icons = {
   back: "M10 19l-7-7m0 0l7-7m-7 7h18",
-  edit: "M11 4H4a2 2 0 012-2v14a2 2 0 012 2 2h14a2 2 0 012-2V4a2 2 0 00-2-2m-6 12h6m-6-12h6",
+  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
   x: "M6 18L18 6M6 6l12 12",
   check: "M5 13l4 4L19 7",
   arrow: "M14 5l7 7m0 0l-7 7m7-7H3",
@@ -199,7 +199,7 @@ export default function RFQDetailPage() {
           <select
             value={rfq.status}
             onChange={(e) => handleStatusChange(e.target.value)}
-            className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
           >
             {statusOptions.map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -211,7 +211,7 @@ export default function RFQDetailPage() {
           <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-xl">
             <button
               onClick={() => router.push(`/quotations/new?rfqId=${rfq.id}&customerId=${rfq.customerId}&contactId=${rfq.contactId || ""}&productId=${rfq.productId || ""}`)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
             >
               <Ico d={icons.arrow} size={16} /> Create Quotation from this RFQ
             </button>
@@ -240,39 +240,39 @@ export default function RFQDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer</label>
-                <select value={editForm.customerId} onChange={(e) => setEditForm({ ...editForm, customerId: e.target.value, contactId: "" })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer">
+                <select value={editForm.customerId} onChange={(e) => setEditForm({ ...editForm, customerId: e.target.value, contactId: "" })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer">
                   {customers.map((c: any) => <option key={c.id} value={c.id}>{c.customerCode} - {c.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Contact</label>
-                <select value={editForm.contactId} onChange={(e) => setEditForm({ ...editForm, contactId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer">
+                <select value={editForm.contactId} onChange={(e) => setEditForm({ ...editForm, contactId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer">
                   <option value="">-- None --</option>
                   {contacts.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Product</label>
-                <select value={editForm.productId} onChange={(e) => setEditForm({ ...editForm, productId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer">
+                <select value={editForm.productId} onChange={(e) => setEditForm({ ...editForm, productId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer">
                   <option value="">-- None --</option>
                   {products.map((p: any) => <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Quantity</label>
-                <input type="number" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]" />
+                <input type="number" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Target Price</label>
-                <input type="number" step="0.01" value={editForm.targetPrice} onChange={(e) => setEditForm({ ...editForm, targetPrice: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]" />
+                <input type="number" step="0.01" value={editForm.targetPrice} onChange={(e) => setEditForm({ ...editForm, targetPrice: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Delivery Date</label>
-                <input type="date" value={editForm.deliveryDate} onChange={(e) => setEditForm({ ...editForm, deliveryDate: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]" />
+                <input type="date" value={editForm.deliveryDate} onChange={(e) => setEditForm({ ...editForm, deliveryDate: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Assigned To</label>
-                <select value={editForm.assignedUserId} onChange={(e) => setEditForm({ ...editForm, assignedUserId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer">
+                <select value={editForm.assignedUserId} onChange={(e) => setEditForm({ ...editForm, assignedUserId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer">
                   <option value="">-- None --</option>
                   {users.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
                 </select>
@@ -280,13 +280,13 @@ export default function RFQDetailPage() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Requirement Details</label>
-              <textarea value={editForm.requirementDetails} onChange={(e) => setEditForm({ ...editForm, requirementDetails: e.target.value })} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]" />
+              <textarea value={editForm.requirementDetails} onChange={(e) => setEditForm({ ...editForm, requirementDetails: e.target.value })} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Notes</label>
-              <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]" />
+              <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]" />
             </div>
-            <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer">
+            <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer">
               {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>

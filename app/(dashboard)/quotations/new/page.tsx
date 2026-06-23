@@ -127,42 +127,42 @@ export default function NewQuotationPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer *</label>
-            <input type="text" placeholder="Search customer..." value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all mb-2" />
-            <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value, contactId: "" })} required className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer">
+            <input type="text" placeholder="Search customer..." value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all mb-2" />
+            <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value, contactId: "" })} required className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer">
               <option value="">-- Select Customer --</option>
               {filteredCustomers.map((c: any) => <option key={c.id} value={c.id}>{c.customerCode} - {c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Contact</label>
-            <select value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} disabled={!form.customerId} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer disabled:opacity-50">
+            <select value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} disabled={!form.customerId} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer disabled:opacity-50">
               <option value="">-- Select Contact --</option>
               {contacts.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Link to RFQ</label>
-            <select value={form.rfqId} onChange={(e) => setForm({ ...form, rfqId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer">
+            <select value={form.rfqId} onChange={(e) => setForm({ ...form, rfqId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer">
               <option value="">-- None --</option>
               {rfqs.map((r: any) => <option key={r.id} value={r.id}>{r.rfqCode} - {r.customer?.name}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Link to Deal</label>
-            <select value={form.dealId} onChange={(e) => setForm({ ...form, dealId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer">
+            <select value={form.dealId} onChange={(e) => setForm({ ...form, dealId: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer">
               <option value="">-- None --</option>
               {deals.map((d: any) => <option key={d.id} value={d.id}>{d.dealName}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Valid Until *</label>
-            <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} required className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]" />
+            <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} required className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]" />
           </div>
         </div>
 
         <div>
           <label className="block text-sm font-semibold text-slate-700 mb-1.5">Terms & Conditions</label>
-          <textarea value={form.termsAndConditions} onChange={(e) => setForm({ ...form, termsAndConditions: e.target.value })} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]" />
+          <textarea value={form.termsAndConditions} onChange={(e) => setForm({ ...form, termsAndConditions: e.target.value })} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]" />
         </div>
 
         {/* Line Items */}
@@ -175,14 +175,14 @@ export default function NewQuotationPage() {
             {items.map((item, idx) => (
               <div key={idx} className="grid grid-cols-12 gap-2 items-start">
                 <div className="col-span-3">
-                  <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 cursor-pointer">
+                  <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer">
                     <option value="">-- Product --</option>
                     {products.map((p: any) => <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>)}
                   </select>
                 </div>
-                <div className="col-span-3"><input type="text" placeholder="Description" value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" /></div>
-                <div className="col-span-2"><input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" /></div>
-                <div className="col-span-2"><input type="number" step="0.01" placeholder="Unit Price" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" /></div>
+                <div className="col-span-3"><input type="text" placeholder="Description" value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
+                <div className="col-span-2"><input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
+                <div className="col-span-2"><input type="number" step="0.01" placeholder="Unit Price" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
                 <div className="col-span-1 text-right text-xs font-medium text-slate-700 py-2">{((parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0)).toFixed(2)}</div>
                 <div className="col-span-1 flex justify-end">{items.length > 1 && <button type="button" onClick={() => removeItem(idx)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 cursor-pointer"><Ico d={icons.x} size={14} /></button>}</div>
               </div>
@@ -195,13 +195,13 @@ export default function NewQuotationPage() {
           <div className="flex justify-between text-sm"><span className="text-slate-600">Grand Total</span><span className="font-medium text-slate-800">{formatCurrency(totalAmount)}</span></div>
           <div className="flex justify-between items-center text-sm">
             <span className="text-slate-600">Discount %</span>
-            <input type="number" step="0.01" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} className="w-24 px-2 py-1 rounded-lg bg-white border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+            <input type="number" step="0.01" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} className="w-24 px-2 py-1 rounded-lg bg-white border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
           </div>
-          <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-2"><span className="text-slate-800">Final Amount</span><span className="text-[#D44D4D]">{formatCurrency(finalAmount)}</span></div>
+          <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-2"><span className="text-slate-800">Final Amount</span><span className="text-[var(--primary)]">{formatCurrency(finalAmount)}</span></div>
         </div>
 
         <div className="flex gap-3">
-          <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer">{saving ? "Creating..." : "Create Quotation"}</button>
+          <button type="submit" disabled={saving} className="px-6 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer">{saving ? "Creating..." : "Create Quotation"}</button>
           <button type="button" onClick={() => router.push("/quotations")} className="px-6 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">Cancel</button>
         </div>
       </form>

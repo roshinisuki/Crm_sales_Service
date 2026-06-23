@@ -130,13 +130,13 @@ export default function NewNegotiationPage() {
               placeholder="Search customer..."
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all mb-2"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all mb-2"
             />
             <select
               value={form.customerId}
               onChange={(e) => setForm({ ...form, customerId: e.target.value, contactId: "" })}
               required
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">-- Select Customer --</option>
               {filteredCustomers.map((c: any) => (
@@ -151,7 +151,7 @@ export default function NewNegotiationPage() {
               value={form.contactId}
               onChange={(e) => setForm({ ...form, contactId: e.target.value })}
               disabled={!form.customerId}
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer disabled:opacity-50"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer disabled:opacity-50"
             >
               <option value="">-- Select Contact --</option>
               {contacts.map((c: any) => (
@@ -165,11 +165,11 @@ export default function NewNegotiationPage() {
             <select
               value={form.quotationId}
               onChange={(e) => setForm({ ...form, quotationId: e.target.value })}
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">-- None --</option>
               {filteredQuotations.map((q: any) => (
-                <option key={q.id} value={q.id}>{q.quotationCode} - {q.finalAmount ? `$${q.finalAmount}` : ""}</option>
+                <option key={q.id} value={q.id}>{q.quotationCode} - {q.finalAmount ? q.finalAmount.toLocaleString() : ""}</option>
               ))}
             </select>
             <p className="text-xs text-slate-400 mt-1">Selecting a quotation auto-fills the initial amount.</p>
@@ -180,7 +180,7 @@ export default function NewNegotiationPage() {
             <select
               value={form.dealId}
               onChange={(e) => setForm({ ...form, dealId: e.target.value })}
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">-- None --</option>
               {filteredDeals.map((d: any) => (
@@ -199,7 +199,7 @@ export default function NewNegotiationPage() {
               onChange={(e) => setForm({ ...form, initialAmount: e.target.value })}
               placeholder="0.00"
               required
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
             />
           </div>
 
@@ -208,7 +208,7 @@ export default function NewNegotiationPage() {
             <select
               value={form.assignedUserId}
               onChange={(e) => setForm({ ...form, assignedUserId: e.target.value })}
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">-- Unassigned --</option>
               {users.map((u: any) => (
@@ -225,7 +225,7 @@ export default function NewNegotiationPage() {
             onChange={(e) => setForm({ ...form, customerDemands: e.target.value })}
             rows={3}
             placeholder="What the customer is asking for (price, terms, conditions)..."
-            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
           />
         </div>
 
@@ -236,7 +236,7 @@ export default function NewNegotiationPage() {
             onChange={(e) => setForm({ ...form, internalNotes: e.target.value })}
             rows={3}
             placeholder="Internal notes (not shared with customer)..."
-            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
           />
         </div>
 
@@ -244,7 +244,7 @@ export default function NewNegotiationPage() {
           <button type="button" onClick={() => router.push("/negotiations")} className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer disabled:opacity-60">
+          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
             {saving ? "Saving..." : "Create Negotiation"}
           </button>
         </div>

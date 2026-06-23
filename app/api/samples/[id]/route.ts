@@ -47,6 +47,11 @@ export async function PUT(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Sample not found" }, { status: 404 });
 
+  // B16: SalesRep can only modify samples assigned to them
+  if (user.role === "SalesRep" && existing.assignedUserId && existing.assignedUserId !== user.id) {
+    return NextResponse.json({ success: false, message: "You can only modify samples assigned to you" }, { status: 403 });
+  }
+
   if (body.status && !VALID_STATUSES.includes(body.status)) {
     return NextResponse.json({ success: false, message: "Invalid status" }, { status: 400 });
   }
@@ -110,6 +115,11 @@ export async function DELETE(
     where: { id, deletedAt: null, companyId: user.companyId },
   });
   if (!existing) return NextResponse.json({ success: false, message: "Sample not found" }, { status: 404 });
+
+  // B16: SalesRep can only delete samples assigned to them
+  if (user.role === "SalesRep" && existing.assignedUserId && existing.assignedUserId !== user.id) {
+    return NextResponse.json({ success: false, message: "You can only delete samples assigned to you" }, { status: 403 });
+  }
 
   await prisma.sampleRequest.update({
     where: { id },

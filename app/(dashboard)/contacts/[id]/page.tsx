@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+import { CRMSpinner } from "@/components/CRMSpinner";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -97,12 +98,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="spinner-brand" />
-          <p className="text-sm font-medium">Loading contact details...</p>
-        </div>
-      </div>
+      <div className="flex items-center justify-center h-64"><CRMSpinner size={40} label="Loading contact details..." /></div>
     );
   }
 
@@ -148,7 +144,7 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             ) : (
               <div className="flex items-center gap-2">
                 <button onClick={() => setEditing(false)} className="btn-secondary text-xs flex items-center gap-1.5"><X size={13} /> Cancel</button>
-                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs flex items-center gap-1.5"><Save size={13} /> {saving ? "Saving…" : "Save"}</button>
+                <button onClick={handleSave} disabled={saving} className="btn-primary text-xs flex items-center gap-1.5"><Save size={13} /> {saving ? "Savingâ€¦" : "Save"}</button>
               </div>
             )}
           </div>
@@ -163,15 +159,15 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
             <dl className="space-y-3">
               {[
                 { label: "Name", value: contact.name },
-                { label: "Email", value: contact.email || "—" },
-                { label: "Phone", value: contact.phone || "—" },
-                { label: "Company", value: contact.company || "—" },
-                { label: "Title", value: contact.title || "—" },
-                { label: "Designation", value: contact.designation || "—" },
+                { label: "Email", value: contact.email || "â€”" },
+                { label: "Phone", value: contact.phone || "â€”" },
+                { label: "Company", value: contact.company || "â€”" },
+                { label: "Title", value: contact.title || "â€”" },
+                { label: "Designation", value: contact.designation || "â€”" },
                 { label: "Contact Type", value: contact.contactType },
-                { label: "Customer", value: contact.customer ? contact.customer.name : "—" },
+                { label: "Customer", value: contact.customer ? contact.customer.name : "â€”" },
                 { label: "Status", value: <StatusBadge status={contact.status} size="sm" /> },
-                { label: "Notes", value: contact.notes || "—" },
+                { label: "Notes", value: contact.notes || "â€”" },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-start justify-between gap-2">
                   <dt className="text-xs font-semibold text-slate-400 shrink-0">{label}</dt>
@@ -246,3 +242,4 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
     </div>
   );
 }
+

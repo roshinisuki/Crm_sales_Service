@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { dispatchNotification } from "@/lib/notifications";
 
 // Approve / Reject an approval request
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,7 +26,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (!approval) return NextResponse.json({ success: false, message: "Pending approval not found" }, { status: 404 });
 
   // Verify company scope
-  if (approval.deal && approval.deal.companyId !== user.companyId) {
+  if (approval.companyId && approval.companyId !== user.companyId) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
   }
 
@@ -102,6 +103,64 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
   }
 
+  // Negotiation approval side effect
+  if (approval.approvalType === "Negotiation" && approval.entityType === "Negotiation") {
+    if (action === "approve") {
+      // Approve the pending revision and move negotiation to PriceRevision
+      const pendingRevision = await prisma.negotiationRevision.findFirst({
+        where: { negotiationId: approval.entityId!, status: "Pending" },
+        orderBy: { revisionNumber: "desc" },
+        take: 1,
+      });
+      if (pendingRevision) {
+        await prisma.negotiationRevision.update({
+          where: { id: pendingRevision.id },
+          data: { status: "Approved" },
+        });
+      }
+      await prisma.negotiation.update({
+        where: { id: approval.entityId! },
+        data: {
+          status: "PriceRevision",
+          discountApproved: approval.discountPercent,
+          approvedById: user.id,
+        },
+      });
+    } else {
+      // Reject: revert negotiation to previous status
+      const revertStatus = approval.previousStatus || "Active";
+      const pendingRevision = await prisma.negotiationRevision.findFirst({
+        where: { negotiationId: approval.entityId!, status: "Pending" },
+        orderBy: { revisionNumber: "desc" },
+        take: 1,
+      });
+      if (pendingRevision) {
+        await prisma.negotiationRevision.update({
+          where: { id: pendingRevision.id },
+          data: { status: "Rejected" },
+        });
+      }
+      await prisma.negotiation.update({
+        where: { id: approval.entityId! },
+        data: { status: revertStatus },
+      });
+    }
+  }
+
+  // B15: Notify the requester about the decision
+  if (approval.requestedById) {
+    await dispatchNotification({
+      userId: approval.requestedById,
+      title: `Approval ${newStatus}`,
+      message: `Your ${approval.approvalType} approval request has been ${newStatus.toLowerCase()}.`,
+      type: "approval",
+      link: approval.entityType === "Negotiation" ? `/negotiations/${approval.entityId}` :
+            approval.entityType === "PurchaseOrder" ? `/purchase-orders/${approval.entityId}` :
+            approval.entityType === "Quotation" ? `/quotations/${approval.entityId}` :
+            `/approvals`,
+    });
+  }
+
   return NextResponse.json({ success: true, data: updated });
 }
 
@@ -120,7 +179,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   });
 
   if (!approval) return NextResponse.json({ success: false, message: "Approval not found" }, { status: 404 });
-  if (approval.deal && approval.deal.companyId !== user.companyId) {
+  if (approval.companyId && approval.companyId !== user.companyId) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
   }
 

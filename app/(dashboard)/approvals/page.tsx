@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -53,6 +54,7 @@ export default function ApprovalsPage() {
   const [actionModal, setActionModal] = useState<{ isOpen: boolean; approval: any; action: "approve" | "reject" } | null>(null);
   const [remarks, setRemarks] = useState("");
   const [processing, setProcessing] = useState(false);
+  const { startLoading, stopLoading } = useGlobalLoading();
 
   const loadApprovals = async () => {
     setLoading(true);
@@ -60,9 +62,19 @@ export default function ApprovalsPage() {
       const params: any = {};
       if (activeTab) params.approvalType = activeTab;
       if (statusFilter) params.status = statusFilter;
-      const res = await fetch(`/api/approvals?${new URLSearchParams(params)}`);
-      const data = await res.json();
-      if (data.success) setApprovals(data.data);
+      let allData: any[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await fetch(`/api/approvals?${new URLSearchParams({ ...params, page: String(page) })}`);
+        const data = await res.json();
+        if (data.success) {
+          allData = allData.concat(data.data || []);
+          totalPages = data.totalPages || 1;
+        } else break;
+        page++;
+      }
+      setApprovals(allData);
     } catch {
       toast.error("Failed to load approvals");
     } finally {
@@ -85,6 +97,7 @@ export default function ApprovalsPage() {
   const handleAction = async () => {
     if (!actionModal) return;
     setProcessing(true);
+    startLoading(`Processing ${actionModal.action}al...`, "handshake");
     try {
       const res = await fetch(`/api/approvals/${actionModal.approval.id}`, {
         method: "PATCH",
@@ -104,6 +117,7 @@ export default function ApprovalsPage() {
       toast.error("Failed to update approval");
     } finally {
       setProcessing(false);
+      stopLoading();
     }
   };
 
@@ -122,7 +136,7 @@ export default function ApprovalsPage() {
             onClick={() => setActiveTab(t.value)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
               activeTab === t.value
-                ? "border-blue-600 text-blue-600"
+                ? "border-[var(--primary)] text-[var(--primary)]"
                 : "border-transparent text-gray-600 hover:text-gray-900"
             }`}
           >
@@ -140,7 +154,7 @@ export default function ApprovalsPage() {
               onClick={() => setStatusFilter(s)}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 statusFilter === s
-                  ? "bg-blue-600 text-white"
+                  ? "bg-[var(--primary)] text-white"
                   : "bg-gray-100 text-gray-700 hover:bg-gray-200"
               }`}
             >
@@ -157,7 +171,7 @@ export default function ApprovalsPage() {
             placeholder="Search approvals..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
           />
         </div>
       </div>
@@ -187,17 +201,17 @@ export default function ApprovalsPage() {
                 filtered.map((a: any) => (
                   <tr key={a.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
                         {a.approvalType || "—"}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       {a.deal ? (
-                        <Link href={`/deals/${a.deal.id}`} className="text-blue-600 hover:underline text-xs font-medium">
+                        <Link href={`/deals/${a.deal.id}`} className="text-[var(--primary)] hover:underline text-xs font-medium">
                           {a.deal.dealName}
                         </Link>
                       ) : a.entityType && entityLinkMap[a.entityType] ? (
-                        <Link href={entityLinkMap[a.entityType](a.entityId)} className="text-blue-600 hover:underline text-xs font-medium">
+                        <Link href={entityLinkMap[a.entityType](a.entityId)} className="text-[var(--primary)] hover:underline text-xs font-medium">
                           {a.entityType}
                         </Link>
                       ) : (
@@ -280,7 +294,7 @@ export default function ApprovalsPage() {
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                 placeholder="Add remarks for this decision..."
               />
             </div>
@@ -295,7 +309,7 @@ export default function ApprovalsPage() {
                 onClick={handleAction}
                 disabled={processing || (actionModal.action === "reject" && !remarks)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 ${
-                  actionModal.action === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+                  actionModal.action === "approve" ? "bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "bg-red-600 hover:bg-red-700"
                 }`}
               >
                 {processing ? "Processing..." : actionModal.action === "approve" ? "Confirm Approval" : "Confirm Rejection"}

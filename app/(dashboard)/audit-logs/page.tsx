@@ -290,7 +290,7 @@ export default function AuditLogsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight flex items-center gap-2">
-            <Shield size={28} className="text-[#D44D4D]" /> Audit Log
+            <Shield size={28} className="text-[var(--primary)]" /> Audit Log
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Full state-diff trail of every CRM action — with IP tracking, severity classification, and field-level change records.
@@ -305,7 +305,7 @@ export default function AuditLogsPage() {
           </button>
           <button
             onClick={loadLogs}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D44D4D] text-white rounded-xl text-sm font-medium hover:bg-[#C94F4F] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
           >
             <RefreshCw size={14} /> Refresh
           </button>
@@ -348,7 +348,7 @@ export default function AuditLogsPage() {
               placeholder="Search events, user, IP, resource..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -356,7 +356,7 @@ export default function AuditLogsPage() {
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">All Severity</option>
               <option value="INFO">INFO</option>
@@ -369,7 +369,7 @@ export default function AuditLogsPage() {
             <select
               value={moduleFilter}
               onChange={(e) => setModuleFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">All Modules</option>
               {["auth","user","customer","Customer","lead","LEADS","Deal","subscription","visit","visitor","follow-up"].map((m) => (
@@ -381,7 +381,7 @@ export default function AuditLogsPage() {
             <select
               value={actionFilter}
               onChange={(e) => setActionFilter(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">All Actions</option>
               <option value="create">Create</option>
@@ -394,10 +394,10 @@ export default function AuditLogsPage() {
 
             {/* Date range */}
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" />
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" />
             <span className="text-slate-400 text-xs">to</span>
             <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" />
+              className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" />
           </div>
         </div>
 
@@ -425,7 +425,7 @@ export default function AuditLogsPage() {
                 <tr>
                   <td colSpan={8} className="text-center py-12 text-sm text-slate-500">
                     <div className="flex items-center justify-center gap-2">
-                      <div className="w-4 h-4 rounded-full border-2 border-[#D44D4D] border-t-transparent animate-spin" />
+                      <div className="w-4 h-4 rounded-full border-2 border-[var(--primary)] border-t-transparent animate-spin" />
                       Loading audit events...
                     </div>
                   </td>

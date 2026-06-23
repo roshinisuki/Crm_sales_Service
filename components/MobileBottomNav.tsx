@@ -30,8 +30,8 @@ export default function MobileBottomNav({ setDrawerOpen }: { setDrawerOpen: (o: 
       {navItems.map((item) => {
         const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
         return (
-          <Link key={item.href} href={item.href} className={`flex flex-col items-center justify-center w-full py-3 gap-1 transition-colors ${isActive ? "text-[#C2601A] bg-[#1A1A1A]" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
-            <div className={`${isActive ? "bg-[#C2601A]/10 text-[#C2601A] p-1.5 rounded-full" : "p-1.5"}`}>
+          <Link key={item.href} href={item.href} className={`flex flex-col items-center justify-center w-full py-3 gap-1 transition-colors ${isActive ? "text-[var(--primary)] bg-[#1A1A1A]" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
+            <div className={`${isActive ? "bg-[var(--primary)]/10 text-[var(--primary)] p-1.5 rounded-full" : "p-1.5"}`}>
               {item.icon}
             </div>
             <span className="text-[10px] font-bold">{item.label}</span>

@@ -96,7 +96,7 @@ export default function NewProposalPage() {
                 value={form.customerId}
                 onChange={(e) => setForm({ ...form, customerId: e.target.value })}
                 required
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               >
                 <option value="">Select customer</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -107,7 +107,7 @@ export default function NewProposalPage() {
               <select
                 value={form.dealId}
                 onChange={(e) => setForm({ ...form, dealId: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               >
                 <option value="">Select deal (optional)</option>
                 {deals.map((d) => <option key={d.id} value={d.id}>{d.dealName}</option>)}
@@ -123,7 +123,7 @@ export default function NewProposalPage() {
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               required
               placeholder="Enter proposal title"
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
             />
           </div>
 
@@ -134,7 +134,7 @@ export default function NewProposalPage() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Enter proposal description and terms"
               rows={4}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 resize-none"
             />
           </div>
 
@@ -147,7 +147,7 @@ export default function NewProposalPage() {
                 value={form.value}
                 onChange={(e) => setForm({ ...form, value: e.target.value })}
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               />
             </div>
             <div>
@@ -157,7 +157,7 @@ export default function NewProposalPage() {
                 value={form.validUntil}
                 onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
                 required
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               />
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function NewProposalPage() {
               value={form.proposalPdfUrl}
               onChange={(e) => setForm({ ...form, proposalPdfUrl: e.target.value })}
               placeholder="https://..."
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
             />
           </div>
 
@@ -177,7 +177,7 @@ export default function NewProposalPage() {
             <button type="button" onClick={() => router.push("/proposals")} className="px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#D44D4D] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
+            <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50">
               <Save size={18} />
               {saving ? "Creating..." : "Create Proposal"}
             </button>

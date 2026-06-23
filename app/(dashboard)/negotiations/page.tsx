@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -38,6 +39,7 @@ export default function NegotiationListPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const toast = useToast();
+  const { formatCurrency } = useCurrency();
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
 
   const statusFilter = searchParams.get("status") || "";
@@ -47,9 +49,19 @@ export default function NegotiationListPage() {
     try {
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
-      const res = await fetch(`/api/negotiations?${new URLSearchParams(params)}`);
-      const data = await res.json();
-      if (data.success) setNegotiations(data.data);
+      let allData: any[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await fetch(`/api/negotiations?${new URLSearchParams({ ...params, page: String(page) })}`);
+        const data = await res.json();
+        if (data.success) {
+          allData = allData.concat(data.data || []);
+          totalPages = data.totalPages || 1;
+        } else break;
+        page++;
+      }
+      setNegotiations(allData);
     } catch {
       toast.error("Failed to load negotiations");
     } finally {
@@ -97,7 +109,7 @@ export default function NegotiationListPage() {
         </div>
         <button
           onClick={() => router.push("/negotiations/new")}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
         >
           <Ico d={icons.plus} size={16} /> New Negotiation
         </button>
@@ -106,7 +118,7 @@ export default function NegotiationListPage() {
       <div className="flex flex-wrap gap-2 mb-2">
         <button
           onClick={() => router.push("/negotiations")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[#D44D4D] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
         >
           All
         </button>
@@ -114,7 +126,7 @@ export default function NegotiationListPage() {
           <button
             key={s}
             onClick={() => router.push(`/negotiations?status=${s}`)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[#D44D4D] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
           >
             {s}
           </button>
@@ -128,7 +140,7 @@ export default function NegotiationListPage() {
           placeholder="Search by negotiation code or customer..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+          className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
         />
       </div>
 
@@ -156,8 +168,8 @@ export default function NegotiationListPage() {
                 <tr key={n.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                   <td className="px-4 py-3 text-sm font-medium text-slate-800">{n.negotiationCode}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{n.customer?.name || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{n.initialAmount?.toLocaleString(undefined, { style: "currency", currency: "USD" })}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{n.revisedAmount ? n.revisedAmount.toLocaleString(undefined, { style: "currency", currency: "USD" }) : "—"}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{n.initialAmount ? formatCurrency(n.initialAmount) : "—"}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{n.revisedAmount ? formatCurrency(n.revisedAmount) : "—"}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[n.status] || "bg-gray-100 text-gray-600"}`}>{n.status}</span>
                   </td>

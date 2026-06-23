@@ -177,7 +177,7 @@ export default function ProfilePage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 font-semibold"
                 />
               </div>
 
@@ -188,7 +188,7 @@ export default function ProfilePage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+1 (555) 000-0000"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 font-semibold"
                 />
               </div>
 
@@ -199,7 +199,7 @@ export default function ProfilePage() {
                   value={profilePhoto}
                   onChange={(e) => setProfilePhoto(e.target.value)}
                   placeholder="https://example.com/photo.jpg"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 font-semibold"
                 />
                 <p className="text-[10px] font-semibold text-slate-400 mt-1">Provide a direct link to an image to update your avatar.</p>
               </div>
@@ -209,7 +209,7 @@ export default function ProfilePage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2.5 bg-[#D44D4D] hover:bg-[#C94F4F] text-white font-bold text-xs rounded-xl transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
+                className="px-6 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-bold text-xs rounded-xl transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
               >
                 {saving ? "Saving Changes..." : "Save Profile"}
               </button>
@@ -238,7 +238,7 @@ export default function ProfilePage() {
                   required
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700"
                 />
               </div>
               <div>
@@ -249,7 +249,7 @@ export default function ProfilePage() {
                   minLength={8}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700"
                 />
               </div>
               <div>
@@ -260,7 +260,7 @@ export default function ProfilePage() {
                   minLength={8}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700"
                 />
               </div>
 
@@ -275,7 +275,7 @@ export default function ProfilePage() {
                 <button
                   type="submit"
                   disabled={passwordLoading}
-                  className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors disabled:opacity-75 shadow-sm cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-75 shadow-sm cursor-pointer"
                 >
                   {passwordLoading ? "Updating..." : "Update Password"}
                 </button>

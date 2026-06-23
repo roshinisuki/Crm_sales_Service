@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+import { CRMSpinner } from "@/components/CRMSpinner";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
@@ -51,7 +52,7 @@ const MODULES_LIST = ["Leads Management", "Contacts Management", "Sales Pipeline
 const PAIN_POINTS_LIST = ["No CRM System", "Manual Excel Tracking", "Poor Follow-up Tracking", "No Reporting", "No Customer Visibility", "Other"];
 const INTEGRATIONS_LIST = ["WhatsApp", "Email", "ERP", "Tally", "SAP", "API Integration", "Other"];
 const TIMELINE_OPTIONS = ["Immediate", "1 Month", "3 Months", "6 Months", "Later"];
-const BUDGET_OPTIONS = ["< ₹50,000", "₹50,000 - ₹2,00,000", "₹2,00,000 - ₹5,00,000", "₹5,00,000+"];
+const BUDGET_OPTIONS = ["< â‚¹50,000", "â‚¹50,000 - â‚¹2,00,000", "â‚¹2,00,000 - â‚¹5,00,000", "â‚¹5,00,000+"];
 
 // Wizard steps configuration
 const WIZARD_STEPS = [
@@ -248,7 +249,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
       } else if (nextStage === "Won") {
         setSuccessOverlay({
           open: true,
-          message: `🎉 Deal Won! Customer activated successfully.`,
+          message: `ðŸŽ‰ Deal Won! Customer activated successfully.`,
           primary: { label: "View Customer", href: `/customer-master/${deal?.customerId || ""}` },
           secondary: { label: "Create Onboarding Task", href: `/tasks/new?dealId=${dealId}` },
           alternate: { label: "Back to Pipeline", href: "/sales-pipeline" },
@@ -288,18 +289,13 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="spinner-brand" />
-          <p className="text-sm font-medium">Loading workspace...</p>
-        </div>
-      </div>
+      <div className="flex items-center justify-center h-64"><CRMSpinner size={40} label="Loading workspace..." /></div>
     );
   }
 
   if (!deal) return null;
 
-  // ── Requirement Gathering: validation, completion & document helpers ──
+  // â”€â”€ Requirement Gathering: validation, completion & document helpers â”€â”€
   const customerFallback: Record<string, any> = {
     companyName: deal.customer?.name,
     contactPerson: deal.customer?.contactPerson,
@@ -423,7 +419,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
       });
       // 3. Auto-create a reminder Task for the follow-up
       await createTaskAction({
-        title: `Follow-up meeting — ${deal?.dealName || "Deal"}`,
+        title: `Follow-up meeting â€” ${deal?.dealName || "Deal"}`,
         description: followUpForm.agenda || "Follow-up meeting scheduled from sales pipeline.",
         dueDate: followUpForm.date,
         dealId,
@@ -499,8 +495,8 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
 
   // Consolidated document data (used by both the View modal and PDF export)
   const buildDocSections = () => {
-    const f = (k: string) => { const v = fieldValue(k); return (v === null || v === undefined || String(v).trim() === "") ? "—" : String(v); };
-    const arr = (k: string) => { try { const a = JSON.parse(detailsForm[k] || "[]"); return a.length ? a.join(", ") : "—"; } catch { return "—"; } };
+    const f = (k: string) => { const v = fieldValue(k); return (v === null || v === undefined || String(v).trim() === "") ? "â€”" : String(v); };
+    const arr = (k: string) => { try { const a = JSON.parse(detailsForm[k] || "[]"); return a.length ? a.join(", ") : "â€”"; } catch { return "â€”"; } };
     return [
       { title: "Customer Info", rows: [
         ["Company Name", f("companyName")], ["Industry", f("industry")],
@@ -535,7 +531,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
       const margin = 40; let y = margin;
       doc.setFontSize(16); doc.text("Requirement Gathering Document", margin, y); y += 20;
       doc.setFontSize(10); doc.setTextColor(100);
-      doc.text(`${deal.dealName} — ${deal.customer?.name || ""}`, margin, y); y += 8;
+      doc.text(`${deal.dealName} â€” ${deal.customer?.name || ""}`, margin, y); y += 8;
       for (const s of buildDocSections()) {
         autoTable(doc, {
           startY: y,
@@ -577,8 +573,8 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">
                   {(STAGES as any)[deal.status] || deal.status}
                 </span>
-                <span>• {deal.customer?.name}</span>
-                <span>• {formatCurrency(deal.dealValue)}</span>
+                <span>â€¢ {deal.customer?.name}</span>
+                <span>â€¢ {formatCurrency(deal.dealValue)}</span>
               </div>
             </div>
           </div>
@@ -588,7 +584,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
             </div>
             <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-blue-600 transition-all duration-300" 
+                className="h-full bg-[var(--primary)] transition-all duration-300" 
                 style={{ width: `${completionPercent}%` }}
               />
             </div>
@@ -622,7 +618,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         isCompleted 
                           ? "bg-emerald-500 border-emerald-500 text-white" 
                           : isCurrent 
-                          ? "bg-blue-600 border-blue-600 text-white" 
+                          ? "bg-[var(--primary)] border-blue-600 text-white" 
                           : "bg-white border-slate-300 text-slate-400"
                       }`}>
                         {isCompleted ? <Check size={14} /> : <span className="text-xs font-bold">{idx + 1}</span>}
@@ -670,7 +666,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                     >
                       <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-colors ${
                         isViewing || isCurrent
-                          ? "bg-blue-600 text-white border-blue-600"
+                          ? "bg-[var(--primary)] text-white border-blue-600"
                           : isCompleted
                           ? "bg-emerald-500 text-white border-emerald-500"
                           : "bg-white text-slate-400 border-slate-300"
@@ -699,9 +695,9 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
           <div className="lg:col-span-2">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
 
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {/* REQUIREMENT GATHERING WIZARD (SalesOpportunity + RequirementGathering) */}
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {RG_WIZARD_STAGES.includes(deal.status) && (
                 <>
               <div className="p-6 min-h-[500px]">
@@ -988,7 +984,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                     </div>
 
                     <div className="grid grid-cols-2 gap-5">
-                      <FormField label="Expected Budget (₹)">
+                      <FormField label="Expected Budget (â‚¹)">
                         <Input type="number" value={detailsForm.expectedBudget ?? ""} onChange={e => setDetailsForm({...detailsForm, expectedBudget: parseInt(e.target.value) || null})} placeholder="e.g. 500000" />
                       </FormField>
                       <FormField label="Probability (%)">
@@ -1058,7 +1054,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                                     <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-xs font-bold uppercase">{act.channel}</span>
                                     <span className="text-xs text-slate-400">{formatDate(act.createdAt)}</span>
                                   </div>
-                                  <p className="text-sm text-slate-700 font-medium">{act.notes || act.subject || "—"}</p>
+                                  <p className="text-sm text-slate-700 font-medium">{act.notes || act.subject || "â€”"}</p>
                                   {act.meetingDate && (
                                     <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                                       <Clock size={12} /> {formatDate(act.meetingDate)}
@@ -1113,7 +1109,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <div className="flex justify-between"><span className="text-sm text-slate-600">Deal Value</span><span className="text-sm font-bold text-slate-900">{formatCurrency(deal.dealValue)}</span></div>
                         <div className="flex justify-between"><span className="text-sm text-slate-600">Stage</span><span className="text-sm font-bold text-slate-900">{(STAGES as any)[deal.status] || deal.status}</span></div>
                         <div className="flex justify-between"><span className="text-sm text-slate-600">Customer</span><span className="text-sm font-bold text-slate-900">{deal.customer?.name}</span></div>
-                        <div className="flex justify-between"><span className="text-sm text-slate-600">Probability</span><span className="text-sm font-bold text-slate-900">{detailsForm.probability ? detailsForm.probability + "%" : "—"}</span></div>
+                        <div className="flex justify-between"><span className="text-sm text-slate-600">Probability</span><span className="text-sm font-bold text-slate-900">{detailsForm.probability ? detailsForm.probability + "%" : "â€”"}</span></div>
                         <div className="flex justify-between"><span className="text-sm text-slate-600">Expected Close</span><span className="text-sm font-bold text-slate-900">{formatDate(deal.expectedCloseDate)}</span></div>
                         <div className="flex justify-between"><span className="text-sm text-slate-600">Created</span><span className="text-sm font-bold text-slate-900">{formatDate(deal.createdAt)}</span></div>
                       </div>
@@ -1146,11 +1142,11 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                       {isSubmitting ? "Saving..." : "Save Draft"}
                     </button>
                     {currentStep < WIZARD_STEPS.length - 1 ? (
-                      <button onClick={handleNextStep} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
+                      <button onClick={handleNextStep} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
                         {isSubmitting ? "Validating..." : "Save & Continue"} <ChevronRight size={16} />
                       </button>
                     ) : (
-                      <button onClick={() => setShowCompleteModal(true)} disabled={!allSectionsComplete || isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                      <button onClick={() => setShowCompleteModal(true)} disabled={!allSectionsComplete || isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
                         {isSubmitting ? "Submitting..." : "Submit"} <CheckCircle size={16} />
                       </button>
                     )}
@@ -1160,9 +1156,9 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 </>
               )}
 
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {/* MEETING SCHEDULED STAGE */}
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {pipelineStageView === "MeetingScheduled" && (
                 <div className="p-6 min-h-[500px]">
                   <div className="space-y-6">
@@ -1226,10 +1222,10 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                             <div key={meeting.id} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="text-xs font-bold text-slate-600">{formatDate(meeting.meetingDate)}</span>
-                                <span className="text-xs text-slate-400">•</span>
+                                <span className="text-xs text-slate-400">â€¢</span>
                                 <span className="text-xs font-medium text-slate-700">{meeting.status}</span>
                               </div>
-                              <p className="text-xs text-slate-600">{meeting.notes || meeting.agenda || "—"}</p>
+                              <p className="text-xs text-slate-600">{meeting.notes || meeting.agenda || "â€”"}</p>
                             </div>
                           ))
                         )}
@@ -1280,7 +1276,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <div className="space-y-3 animate-in fade-in p-4 bg-slate-50 rounded-xl border border-slate-200">
                           <p className="text-sm text-slate-600">Are you sure you want to mark this deal as Won?</p>
                           <div className="flex gap-2">
-                            <button onClick={() => handleAdvanceStage("Won")} disabled={isSubmitting} className="btn-primary text-sm flex-1 bg-emerald-600 hover:bg-emerald-700">Yes, Mark Won</button>
+                            <button onClick={() => handleAdvanceStage("Won")} disabled={isSubmitting} className="btn-primary text-sm flex-1 bg-[var(--primary)] hover:bg-[var(--primary-hover)]">Yes, Mark Won</button>
                             <button onClick={() => setMeetingOutcomeChoice("")} className="btn-secondary text-sm">Cancel</button>
                           </div>
                         </div>
@@ -1307,7 +1303,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <div className="space-y-2">
                           {dealActivities.length === 0 ? <p className="text-slate-400 text-sm text-center py-4">No activities logged.</p> : dealActivities.slice(0, 5).map(act => (
                             <div key={act.id} className="p-3 border border-slate-200 rounded-lg text-sm">
-                              <span className="font-bold text-slate-700">{act.channel}</span> — <span className="text-slate-600">{act.notes || act.subject || "—"}</span>
+                              <span className="font-bold text-slate-700">{act.channel}</span> â€” <span className="text-slate-600">{act.notes || act.subject || "â€”"}</span>
                             </div>
                           ))}
                         </div>
@@ -1340,7 +1336,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <Download size={14} /> Download PDF
                       </button>
                     </div>
-                    <button onClick={async () => { setIsSubmitting(true); await saveOpportunityDetailAction(dealId, detailsForm); await handleAdvanceStage("SolutionReview"); setIsSubmitting(false); }} disabled={isSubmitting || !detailsForm.meetingDate} className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                    <button onClick={async () => { setIsSubmitting(true); await saveOpportunityDetailAction(dealId, detailsForm); await handleAdvanceStage("SolutionReview"); setIsSubmitting(false); }} disabled={isSubmitting || !detailsForm.meetingDate} className="px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
                       {isSubmitting ? "Saving..." : "Save & Move to Solution Review"} <ChevronRight size={16} />
                     </button>
                   </div>
@@ -1348,9 +1344,9 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 </div>
               )}
 
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {/* SOLUTION REVIEW STAGE */}
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {pipelineStageView === "SolutionReview" && (
                 <div className="p-6 min-h-[500px]">
                   <div className="space-y-6">
@@ -1431,7 +1427,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <Download size={14} /> Download PDF
                       </button>
                     </div>
-                    <button onClick={async () => { setIsSubmitting(true); await saveOpportunityDetailAction(dealId, detailsForm); await handleAdvanceStage("ProposalSent"); setIsSubmitting(false); }} disabled={isSubmitting || !detailsForm.proposedSolution} className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
+                    <button onClick={async () => { setIsSubmitting(true); await saveOpportunityDetailAction(dealId, detailsForm); await handleAdvanceStage("ProposalSent"); setIsSubmitting(false); }} disabled={isSubmitting || !detailsForm.proposedSolution} className="px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
                       {isSubmitting ? "Saving..." : "Save & Send Proposal"} <ChevronRight size={16} />
                     </button>
                   </div>
@@ -1439,9 +1435,9 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 </div>
               )}
 
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {/* PROPOSAL SENT STAGE */}
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {pipelineStageView === "ProposalSent" && (
                 <div className="p-6 min-h-[500px]">
                   <div className="space-y-6">
@@ -1477,10 +1473,10 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                     <div className="bg-slate-50 rounded-xl p-5 space-y-3">
                       <h3 className="text-sm font-bold text-slate-900">Solution Summary</h3>
                       <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Proposed Solution</p><p className="font-medium text-slate-700">{detailsForm.proposedSolution || "—"}</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Scope</p><p className="font-medium text-slate-700">{detailsForm.scopeClassification || "—"}</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Duration</p><p className="font-medium text-slate-700">{detailsForm.estimatedDuration || "—"}</p></div>
-                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Budget</p><p className="font-medium text-slate-700">{detailsForm.budgetRange || "—"}</p></div>
+                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Proposed Solution</p><p className="font-medium text-slate-700">{detailsForm.proposedSolution || "â€”"}</p></div>
+                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Scope</p><p className="font-medium text-slate-700">{detailsForm.scopeClassification || "â€”"}</p></div>
+                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Duration</p><p className="font-medium text-slate-700">{detailsForm.estimatedDuration || "â€”"}</p></div>
+                        <div><p className="text-[10px] uppercase font-bold text-slate-400">Budget</p><p className="font-medium text-slate-700">{detailsForm.budgetRange || "â€”"}</p></div>
                       </div>
                     </div>
 
@@ -1499,7 +1495,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <div className="space-y-2">
                           {dealActivities.length === 0 ? <p className="text-slate-400 text-sm text-center py-4">No activities logged.</p> : dealActivities.slice(0, 5).map(act => (
                             <div key={act.id} className="p-3 border border-slate-200 rounded-lg text-sm">
-                              <span className="font-bold text-slate-700">{act.channel}</span> — <span className="text-slate-600">{act.notes || act.subject || "—"}</span>
+                              <span className="font-bold text-slate-700">{act.channel}</span> â€” <span className="text-slate-600">{act.notes || act.subject || "â€”"}</span>
                             </div>
                           ))}
                         </div>
@@ -1518,7 +1514,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <Download size={14} /> Download PDF
                       </button>
                     </div>
-                    <button onClick={() => handleAdvanceStage("Negotiation")} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
+                    <button onClick={() => handleAdvanceStage("Negotiation")} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
                       Move to Negotiation <ChevronRight size={16} />
                     </button>
                   </div>
@@ -1526,9 +1522,9 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 </div>
               )}
 
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {/* NEGOTIATION STAGE */}
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {pipelineStageView === "Negotiation" && (
                 <div className="p-6 min-h-[500px]">
                   <div className="space-y-6">
@@ -1544,14 +1540,14 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                       </summary>
                       <div className="px-5 pb-5 space-y-4 border-t border-slate-200">
                         <div className="grid grid-cols-2 gap-4 text-sm pt-4">
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Proposed Solution</p><p className="font-medium text-slate-700">{detailsForm.proposedSolution || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Scope</p><p className="font-medium text-slate-700">{detailsForm.scopeClassification || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Estimated Duration</p><p className="font-medium text-slate-700">{detailsForm.estimatedDuration || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Budget Range</p><p className="font-medium text-slate-700">{detailsForm.budgetRange || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Dev Effort</p><p className="font-medium text-slate-700">{detailsForm.devEffort || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Implementation Effort</p><p className="font-medium text-slate-700">{detailsForm.implementationEffort || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Timeline</p><p className="font-medium text-slate-700">{detailsForm.timeline || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Expected Budget</p><p className="font-medium text-slate-700">{detailsForm.expectedBudget ? formatCurrency(detailsForm.expectedBudget) : "—"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Proposed Solution</p><p className="font-medium text-slate-700">{detailsForm.proposedSolution || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Scope</p><p className="font-medium text-slate-700">{detailsForm.scopeClassification || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Estimated Duration</p><p className="font-medium text-slate-700">{detailsForm.estimatedDuration || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Budget Range</p><p className="font-medium text-slate-700">{detailsForm.budgetRange || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Dev Effort</p><p className="font-medium text-slate-700">{detailsForm.devEffort || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Implementation Effort</p><p className="font-medium text-slate-700">{detailsForm.implementationEffort || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Timeline</p><p className="font-medium text-slate-700">{detailsForm.timeline || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Expected Budget</p><p className="font-medium text-slate-700">{detailsForm.expectedBudget ? formatCurrency(detailsForm.expectedBudget) : "â€”"}</p></div>
                         </div>
                         {detailsForm.solutionNotes && (
                           <div><p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Solution Notes</p><p className="text-sm text-slate-600">{detailsForm.solutionNotes}</p></div>
@@ -1569,7 +1565,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
 
                     {/* Negotiation Details */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <FormField label="Expected Budget (₹)">
+                      <FormField label="Expected Budget (â‚¹)">
                         <Input type="number" value={detailsForm.expectedBudget ?? ""} onChange={e => setDetailsForm({...detailsForm, expectedBudget: parseInt(e.target.value) || null})} placeholder="e.g. 500000" />
                       </FormField>
                       <FormField label="Probability (%)">
@@ -1598,7 +1594,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <div className="space-y-2">
                           {dealActivities.length === 0 ? <p className="text-slate-400 text-sm text-center py-4">No activities logged.</p> : dealActivities.slice(0, 5).map(act => (
                             <div key={act.id} className="p-3 border border-slate-200 rounded-lg text-sm">
-                              <span className="font-bold text-slate-700">{act.channel}</span> — <span className="text-slate-600">{act.notes || act.subject || "—"}</span>
+                              <span className="font-bold text-slate-700">{act.channel}</span> â€” <span className="text-slate-600">{act.notes || act.subject || "â€”"}</span>
                             </div>
                           ))}
                         </div>
@@ -1634,7 +1630,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                       <button onClick={async () => { setIsSubmitting(true); await saveOpportunityDetailAction(dealId, detailsForm); setIsSubmitting(false); }} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg disabled:opacity-50">
                         {isSubmitting ? "Saving..." : "Save"}
                       </button>
-                      <button onClick={() => handleAdvanceStage("Won")} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
+                      <button onClick={() => handleAdvanceStage("Won")} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
                         Mark Won <CheckCircle size={16} />
                       </button>
                       <button onClick={() => handleAdvanceStage("Lost")} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg disabled:opacity-50 flex items-center gap-1">
@@ -1645,9 +1641,125 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 </div>
               )}
 
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+              {/* ACTIVE DEAL STAGE */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+              {deal.status === "Active" && (
+                <div className="p-6 min-h-[500px]">
+                  <div className="space-y-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 flex items-center gap-4">
+                      <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                        <Briefcase size={24} />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-bold text-blue-900">Active Deal</h2>
+                        <p className="text-sm text-blue-700 mt-1">This deal is active. Mark it as Won when closed, or Lost if it falls through.</p>
+                      </div>
+                    </div>
+
+                    {/* Requirement Gathering Summary (read-only) */}
+                    <details className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden" open>
+                      <summary className="px-5 py-3 cursor-pointer text-sm font-bold text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2">
+                        <FileText size={16} className="text-slate-400" /> Requirement Gathering Summary
+                      </summary>
+                      <div className="px-5 pb-5 border-t border-slate-200">
+                        {/* Step 1 - Customer Details */}
+                        <div className="pt-4">
+                          <p className="text-xs uppercase font-bold text-slate-400 mb-2">Step 1 â€” Customer Details</p>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Company</p><p className="font-medium text-slate-700">{detailsForm.companyName || deal.customer?.name || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Contact Person</p><p className="font-medium text-slate-700">{detailsForm.contactPerson || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Email</p><p className="font-medium text-slate-700">{detailsForm.email || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Phone</p><p className="font-medium text-slate-700">{detailsForm.phone || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Decision Maker</p><p className="font-medium text-slate-700">{detailsForm.decisionMaker || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Industry</p><p className="font-medium text-slate-700">{detailsForm.industry || "â€”"}</p></div>
+                          </div>
+                        </div>
+                        {/* Step 2 - Business Requirements */}
+                        <div className="pt-4 mt-4 border-t border-slate-100">
+                          <p className="text-xs uppercase font-bold text-slate-400 mb-2">Step 2 â€” Business Requirements</p>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Current Challenges</p><p className="font-medium text-slate-700">{detailsForm.currentChallenges || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Modules Required</p><p className="font-medium text-slate-700">{Array.isArray(detailsForm.modulesList) ? detailsForm.modulesList.join(", ") : "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Pain Points</p><p className="font-medium text-slate-700">{Array.isArray(detailsForm.painPointsList) ? detailsForm.painPointsList.join(", ") : "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Users</p><p className="font-medium text-slate-700">{detailsForm.userCount || "â€”"}</p></div>
+                          </div>
+                        </div>
+                        {/* Step 3 - Technical Assessment */}
+                        <div className="pt-4 mt-4 border-t border-slate-100">
+                          <p className="text-xs uppercase font-bold text-slate-400 mb-2">Step 3 â€” Technical Assessment</p>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Integrations</p><p className="font-medium text-slate-700">{Array.isArray(detailsForm.integrationsList) ? detailsForm.integrationsList.join(", ") : "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Data Migration</p><p className="font-medium text-slate-700">{detailsForm.dataMigration || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Hosting Preference</p><p className="font-medium text-slate-700">{detailsForm.hostingPreference || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Security Requirements</p><p className="font-medium text-slate-700">{detailsForm.securityRequirements || "â€”"}</p></div>
+                          </div>
+                        </div>
+                        {/* Step 4 - Commercial */}
+                        <div className="pt-4 mt-4 border-t border-slate-100">
+                          <p className="text-xs uppercase font-bold text-slate-400 mb-2">Step 4 â€” Commercial</p>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Budget Range</p><p className="font-medium text-slate-700">{detailsForm.budgetRange || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Timeline</p><p className="font-medium text-slate-700">{detailsForm.timeline || "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Expected Budget</p><p className="font-medium text-slate-700">{detailsForm.expectedBudget ? formatCurrency(detailsForm.expectedBudget) : "â€”"}</p></div>
+                            <div><p className="text-[10px] uppercase font-bold text-slate-400">Probability</p><p className="font-medium text-slate-700">{detailsForm.probability ? detailsForm.probability + "%" : "â€”"}</p></div>
+                          </div>
+                        </div>
+                      </div>
+                    </details>
+
+                    {/* Notes Panel */}
+                    <div>
+                      <NotePanel entityType="DEAL" entityId={deal.id} />
+                    </div>
+
+                    {/* Activities */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-slate-900">Activities</h3>
+                        <a href={`/activities/new?dealId=${dealId}&type=call`} className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"><Plus size={14} /> Log Activity</a>
+                      </div>
+                      <div className="space-y-2">
+                        {dealActivities.length === 0 ? <p className="text-slate-400 text-sm text-center py-4">No activities logged yet.</p> : dealActivities.map(act => (
+                          <div key={act.id} className="p-3 border border-slate-200 rounded-lg text-sm">
+                            <span className="font-bold text-slate-700">{act.channel}</span> â€” <span className="text-slate-600">{act.notes || act.subject || "â€”"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Tasks */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-bold text-slate-900">Tasks</h3>
+                        <a href={`/tasks/new?dealId=${dealId}`} className="text-sm font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1"><Plus size={14} /> Add Task</a>
+                      </div>
+                      <div className="space-y-2">
+                        {dealTasks.length === 0 ? <p className="text-slate-400 text-sm text-center py-4">No tasks created yet.</p> : dealTasks.map(task => (
+                          <div key={task.id} className="p-3 border border-slate-200 rounded-lg flex items-center justify-between text-sm">
+                            <span className="font-bold text-slate-700">{task.title}</span>
+                            <span className="text-xs text-slate-500">Due: {formatDate(task.dueDate)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="border-t border-slate-200 p-4 mt-6 flex items-center justify-end gap-2 bg-slate-50">
+                    <button onClick={() => handleAdvanceStage("Won")} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1">
+                      Mark Won <CheckCircle size={16} />
+                    </button>
+                    <button onClick={() => handleAdvanceStage("Lost")} disabled={isSubmitting} className="px-5 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg disabled:opacity-50 flex items-center gap-1">
+                      Mark Lost <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {/* WON / LOST STAGE */}
-              {/* ═══════════════════════════════════════════════════════ */}
+              {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
               {(deal.status === "Won" || deal.status === "Lost") && (
                 <div className="p-6 min-h-[500px]">
                   <div className="space-y-6">
@@ -1677,14 +1789,14 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                       </summary>
                       <div className="px-5 pb-5 space-y-4 border-t border-slate-200">
                         <div className="grid grid-cols-2 gap-4 text-sm pt-4">
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Proposed Solution</p><p className="font-medium text-slate-700">{detailsForm.proposedSolution || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Scope</p><p className="font-medium text-slate-700">{detailsForm.scopeClassification || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Estimated Duration</p><p className="font-medium text-slate-700">{detailsForm.estimatedDuration || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Budget Range</p><p className="font-medium text-slate-700">{detailsForm.budgetRange || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Dev Effort</p><p className="font-medium text-slate-700">{detailsForm.devEffort || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Implementation Effort</p><p className="font-medium text-slate-700">{detailsForm.implementationEffort || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Timeline</p><p className="font-medium text-slate-700">{detailsForm.timeline || "—"}</p></div>
-                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Expected Budget</p><p className="font-medium text-slate-700">{detailsForm.expectedBudget ? formatCurrency(detailsForm.expectedBudget) : "—"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Proposed Solution</p><p className="font-medium text-slate-700">{detailsForm.proposedSolution || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Scope</p><p className="font-medium text-slate-700">{detailsForm.scopeClassification || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Estimated Duration</p><p className="font-medium text-slate-700">{detailsForm.estimatedDuration || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Budget Range</p><p className="font-medium text-slate-700">{detailsForm.budgetRange || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Dev Effort</p><p className="font-medium text-slate-700">{detailsForm.devEffort || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Implementation Effort</p><p className="font-medium text-slate-700">{detailsForm.implementationEffort || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Timeline</p><p className="font-medium text-slate-700">{detailsForm.timeline || "â€”"}</p></div>
+                          <div><p className="text-[10px] uppercase font-bold text-slate-400">Expected Budget</p><p className="font-medium text-slate-700">{detailsForm.expectedBudget ? formatCurrency(detailsForm.expectedBudget) : "â€”"}</p></div>
                         </div>
                         {detailsForm.solutionNotes && (
                           <div><p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Solution Notes</p><p className="text-sm text-slate-600">{detailsForm.solutionNotes}</p></div>
@@ -1710,7 +1822,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                         <div className="space-y-2">
                           {dealActivities.length === 0 ? <p className="text-slate-400 text-sm text-center py-4">No activities logged.</p> : dealActivities.map(act => (
                             <div key={act.id} className="p-3 border border-slate-200 rounded-lg text-sm">
-                              <span className="font-bold text-slate-700">{act.channel}</span> — <span className="text-slate-600">{act.notes || act.subject || "—"}</span>
+                              <span className="font-bold text-slate-700">{act.channel}</span> â€” <span className="text-slate-600">{act.notes || act.subject || "â€”"}</span>
                             </div>
                           ))}
                         </div>
@@ -1765,7 +1877,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500">Probability</span>
-                  <span className="text-sm font-bold text-slate-900">{detailsForm.probability ? detailsForm.probability + "%" : "—"}</span>
+                  <span className="text-sm font-bold text-slate-900">{detailsForm.probability ? detailsForm.probability + "%" : "â€”"}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500">Expected Close</span>
@@ -1773,7 +1885,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-500">Assigned Rep</span>
-                  <span className="text-sm font-bold text-slate-900">{deal.assignedTo?.name || "—"}</span>
+                  <span className="text-sm font-bold text-slate-900">{deal.assignedUser?.name || "â€”"}</span>
                 </div>
               </div>
             </div>
@@ -1807,11 +1919,11 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
                 {PIPELINE_STAGES.map((key) => {
                   const currentIdx = PIPELINE_STAGES.indexOf(deal.status);
                   const stageIdx = PIPELINE_STAGES.indexOf(key);
-                  const isDone = currentIdx > stageIdx || deal.status === "Won";
+                  const isDone = currentIdx > stageIdx || deal.status === "Won" || deal.status === "Active";
                   const isActive = deal.status === key;
                   return (
                     <div key={key} className="relative flex items-center gap-3">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 ${isDone ? "bg-emerald-500 text-white" : isActive ? "bg-blue-600 text-white shadow-md ring-4 ring-blue-50" : "bg-slate-200 text-slate-400"}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 z-10 ${isDone ? "bg-emerald-500 text-white" : isActive ? "bg-[var(--primary)] text-white shadow-md ring-4 ring-blue-50" : "bg-slate-200 text-slate-400"}`}>
                         {isDone ? <Check size={12} strokeWidth={3} /> : <div className="w-2 h-2 rounded-full bg-current" />}
                       </div>
                       <span className={`text-sm ${isDone ? "text-slate-600 font-medium" : isActive ? "text-blue-800 font-bold" : "text-slate-400 font-medium"}`}>
@@ -2006,7 +2118,7 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
         </div>
       )}
 
-      {/* ── Success Overlay (guided stage progression) ── */}
+      {/* â”€â”€ Success Overlay (guided stage progression) â”€â”€ */}
       <SuccessOverlay
         open={successOverlay.open}
         message={successOverlay.message}
@@ -2019,3 +2131,4 @@ export default function OpportunityWorkspacePage({ params }: { params: Promise<{
     </div>
   );
 }
+

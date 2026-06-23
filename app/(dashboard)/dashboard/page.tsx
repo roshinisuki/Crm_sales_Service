@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
+import { CRMSpinner } from "@/components/CRMSpinner";
 import { getDashboardDataAction } from "@/app/actions/visits";
 import { getSalesAnalyticsAction } from "@/app/actions/analytics";
 
 import AdminDashboard from "@/components/dashboards/AdminDashboard";
 import ExecutiveDashboard from "@/components/dashboards/ExecutiveDashboard";
-import LeadDashboard from "@/components/dashboards/LeadDashboard";
+import SalesManagerDashboard from "@/components/dashboards/SalesManagerDashboard";
+import ManufacturingDashboard from "@/components/dashboards/ManufacturingDashboard";
 
 export default function DashboardRouter() {
   const { user, loading: authLoading } = useAuth();
@@ -15,10 +18,12 @@ export default function DashboardRouter() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [salesData, setSalesData] = useState<any>(null);
   const [dateRange, setDateRange] = useState("alltime");
+  const { startLoading, stopLoading } = useGlobalLoading();
 
   const loadData = async () => {
     if (!user) return;
     setLoading(true);
+    startLoading("Loading your workspace...");
     try {
       const [dashRes, salesRes] = await Promise.all([
         getDashboardDataAction(),
@@ -35,6 +40,7 @@ export default function DashboardRouter() {
       console.error("Failed to load unified dashboard data", err);
     } finally {
       setLoading(false);
+      stopLoading();
     }
   };
 
@@ -46,11 +52,8 @@ export default function DashboardRouter() {
 
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <div className="flex flex-col items-center gap-3">
-          <span className="w-8 h-8 rounded-full border-4 border-[#D44D4D] border-t-transparent animate-spin" />
-          <p className="text-sm font-bold text-slate-500">Loading your workspace...</p>
-        </div>
+      <div className="flex items-center justify-center h-[60vh]">
+        <CRMSpinner size={48} label="Loading your workspace..." />
       </div>
     );
   }
@@ -64,12 +67,18 @@ export default function DashboardRouter() {
     setDateRange,
   };
 
+  // B18: V3 Manufacturing users get the Manufacturing dashboard
+  const variant = (user as any)?.variant || (user as any)?.company?.variant || 1;
+  if (variant >= 3) {
+    return <ManufacturingDashboard />;
+  }
+
   if (user?.role === "SalesExecutive") {
     return <ExecutiveDashboard {...commonProps} />;
   }
 
   if (user?.role === "SalesManager") {
-    return <LeadDashboard {...commonProps} />;
+    return <SalesManagerDashboard {...commonProps} />;
   }
 
   if (user?.role === "Admin") {

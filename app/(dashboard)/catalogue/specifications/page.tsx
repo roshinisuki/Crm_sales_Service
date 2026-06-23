@@ -179,7 +179,7 @@ export default function SpecificationsPage() {
                     onClick={() => setSelectedProductId(product.id)}
                     className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors ${
                       selectedProductId === product.id
-                        ? "bg-[#D44D4D] text-white"
+                        ? "bg-[var(--primary)] text-white"
                         : "bg-white text-slate-700 hover:bg-slate-100"
                     }`}
                   >
@@ -212,26 +212,26 @@ export default function SpecificationsPage() {
                   value={specForm.specKey}
                   onChange={(e) => setSpecForm({ ...specForm, specKey: e.target.value })}
                   placeholder="Specification Key (e.g., Weight)"
-                  className="flex-1 px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                  className="flex-1 px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 <input
                   type="text"
                   value={specForm.specValue}
                   onChange={(e) => setSpecForm({ ...specForm, specValue: e.target.value })}
                   placeholder="Value (e.g., 10kg)"
-                  className="flex-1 px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                  className="flex-1 px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 <input
                   type="text"
                   value={specForm.unit}
                   onChange={(e) => setSpecForm({ ...specForm, unit: e.target.value })}
                   placeholder="Unit (e.g., kg)"
-                  className="w-32 px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                  className="w-32 px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#D44D4D] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   <Ico d={icons.plus} size={18} />
                   Add

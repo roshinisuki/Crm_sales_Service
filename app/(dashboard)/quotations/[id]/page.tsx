@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
+import { CURRENCY_SYMBOLS } from "@/lib/currency";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -16,7 +18,7 @@ const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?
 
 const icons = {
   back: "M10 19l-7-7m0 0l7-7m-7 7h18",
-  edit: "M11 4H4a2 2 0 012-2v14a2 2 0 012 2 2h14a2 2 0 012-2V4a2 2 0 00-2-2m-6 12h6m-6-12h6",
+  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
   x: "M6 18L18 6M6 6l12 12",
   copy: "M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z",
   send: "M12 19l9 2-9-18-9 18 9-2zm0 0v-8",
@@ -42,7 +44,8 @@ export default function QuotationDetailPage() {
   const id = params.id as string;
   const toast = useToast();
   const { user } = useAuth();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, preferredCurrency } = useCurrency();
+  const currencySymbol = CURRENCY_SYMBOLS[preferredCurrency as keyof typeof CURRENCY_SYMBOLS] || "Rs.";
 
   const [quotation, setQuotation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -55,6 +58,7 @@ export default function QuotationDetailPage() {
   const [editTerms, setEditTerms] = useState("");
   const [savingItems, setSavingItems] = useState(false);
   const searchParams = useSearchParams();
+  const { startLoading, stopLoading } = useGlobalLoading();
 
   const loadQuotation = async () => {
     setLoading(true);
@@ -151,12 +155,14 @@ export default function QuotationDetailPage() {
   };
 
   const handleAccept = async () => {
+    startLoading("Confirming quotation...", "handshake");
     try {
       const res = await fetch(`/api/quotations/${id}/accept`, { method: "POST" });
       const data = await res.json();
       if (data.success) { toast.success("Quotation accepted"); loadQuotation(); }
       else toast.error(data.message || "Failed");
     } catch { toast.error("Failed"); }
+    finally { stopLoading(); }
   };
 
   const handleReject = () => {
@@ -265,8 +271,8 @@ export default function QuotationDetailPage() {
           it.product?.productCode || "—",
           it.description,
           String(it.quantity),
-          `Rs. ${it.unitPrice.toFixed(2)}`,
-          `Rs. ${it.totalPrice.toFixed(2)}`,
+          `${currencySymbol} ${it.unitPrice.toFixed(2)}`,
+          `${currencySymbol} ${it.totalPrice.toFixed(2)}`,
         ]),
         theme: "striped",
         headStyles: { fillColor: [212, 77, 77], textColor: 255, fontSize: 9 },
@@ -281,15 +287,15 @@ export default function QuotationDetailPage() {
       const valueX = 555;
       doc.setFontSize(10);
       doc.text("Subtotal", labelX, y);
-      doc.text(`Rs. ${q.totalAmount.toFixed(2)}`, valueX, y, { align: "right" });
+      doc.text(`${currencySymbol} ${q.totalAmount.toFixed(2)}`, valueX, y, { align: "right" });
       y += 16;
       doc.text(`Discount (${q.discountPercent}%)`, labelX, y);
-      doc.text(`- Rs. ${(q.totalAmount - q.finalAmount).toFixed(2)}`, valueX, y, { align: "right" });
+      doc.text(`- ${currencySymbol} ${(q.totalAmount - q.finalAmount).toFixed(2)}`, valueX, y, { align: "right" });
       y += 18;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(12);
       doc.text("Final Amount", labelX, y);
-      doc.text(`Rs. ${q.finalAmount.toFixed(2)}`, valueX, y, { align: "right" });
+      doc.text(`${currencySymbol} ${q.finalAmount.toFixed(2)}`, valueX, y, { align: "right" });
       y += 24;
 
       // Terms
@@ -347,18 +353,18 @@ export default function QuotationDetailPage() {
           <div><h1 className="text-2xl font-bold text-slate-800">{quotation.quotationCode}</h1><p className="text-sm text-slate-500 mt-0.5">Quotation Details</p></div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {quotation.status === "Draft" && <button onClick={handleSend} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer"><Ico d={icons.send} size={15} /> Send Quotation</button>}
+          {quotation.status === "Draft" && <button onClick={handleSend} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.send} size={15} /> Send Quotation</button>}
           {["Sent", "UnderReview"].includes(quotation.status) && <>
-            <button onClick={handleAccept} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer"><Ico d={icons.check} size={15} /> Mark Accepted</button>
+            <button onClick={handleAccept} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.check} size={15} /> Mark Accepted</button>
             <button onClick={handleReject} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer"><Ico d={icons.x} size={15} /> Mark Rejected</button>
           </>}
           {quotation.status === "Accepted" && !quotation.dealId && (
-            <button onClick={handleCreateDeal} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer"><Ico d={icons.deal} size={15} /> Create Deal</button>
+            <button onClick={handleCreateDeal} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.deal} size={15} /> Create Deal</button>
           )}
           <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> Download PDF</button>
           <button onClick={handleDuplicate} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Duplicate</button>
           {quotation.status === "Draft" && !editMode && <button onClick={startEdit} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.edit} size={15} /> Edit</button>}
-          {quotation.status === "Draft" && editMode && <button onClick={handleSaveItems} disabled={savingItems} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-50"><Ico d={icons.check} size={15} /> {savingItems ? "Saving..." : "Save Changes"}</button>}
+          {quotation.status === "Draft" && editMode && <button onClick={handleSaveItems} disabled={savingItems} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-50"><Ico d={icons.check} size={15} /> {savingItems ? "Saving..." : "Save Changes"}</button>}
           {quotation.status === "Draft" && editMode && <button onClick={() => setEditMode(false)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>}
           <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 cursor-pointer"><Ico d={icons.x} size={15} /> Delete</button>
         </div>
@@ -381,7 +387,7 @@ export default function QuotationDetailPage() {
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-slate-800">Line Items</h2>
-          {editMode && <button onClick={addEditItem} className="text-sm font-medium text-[#D44D4D] hover:underline cursor-pointer">+ Add Item</button>}
+          {editMode && <button onClick={addEditItem} className="text-sm font-medium text-[var(--primary)] hover:underline cursor-pointer">+ Add Item</button>}
         </div>
         {editMode ? (
           <div className="p-4 space-y-3">
@@ -389,15 +395,15 @@ export default function QuotationDetailPage() {
               <div key={idx} className="grid grid-cols-12 gap-2 items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
                 <div className="col-span-5">
                   <label className="block text-xs font-semibold text-slate-500 mb-0.5">Description</label>
-                  <input type="text" value={item.description} onChange={(e) => updateEditItem(idx, "description", e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+                  <input type="text" value={item.description} onChange={(e) => updateEditItem(idx, "description", e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-500 mb-0.5">Qty</label>
-                  <input type="number" step="0.01" value={item.quantity} onChange={(e) => updateEditItem(idx, "quantity", e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+                  <input type="number" step="0.01" value={item.quantity} onChange={(e) => updateEditItem(idx, "quantity", e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-500 mb-0.5">Unit Price</label>
-                  <input type="number" step="0.01" value={item.unitPrice} onChange={(e) => updateEditItem(idx, "unitPrice", e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+                  <input type="number" step="0.01" value={item.unitPrice} onChange={(e) => updateEditItem(idx, "unitPrice", e.target.value)} className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-semibold text-slate-500 mb-0.5">Total</label>
@@ -411,15 +417,15 @@ export default function QuotationDetailPage() {
             <div className="grid grid-cols-2 gap-4 pt-3 border-t border-slate-100">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Discount (%)</label>
-                <input type="number" step="0.01" min="0" max="100" value={editDiscount} onChange={(e) => setEditDiscount(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+                <input type="number" step="0.01" min="0" max="100" value={editDiscount} onChange={(e) => setEditDiscount(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Valid Until</label>
-                <input type="date" value={editValidUntil} onChange={(e) => setEditValidUntil(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+                <input type="date" value={editValidUntil} onChange={(e) => setEditValidUntil(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Terms & Conditions</label>
-                <textarea value={editTerms} onChange={(e) => setEditTerms(e.target.value)} rows={2} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+                <textarea value={editTerms} onChange={(e) => setEditTerms(e.target.value)} rows={2} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
               </div>
             </div>
           </div>
@@ -453,7 +459,7 @@ export default function QuotationDetailPage() {
               <td className="px-4 py-2 text-right text-sm text-slate-600">-{formatCurrency(quotation.totalAmount - quotation.finalAmount)}</td>
             </tr><tr className="bg-slate-50">
               <td colSpan={5} className="px-4 py-3 text-right text-sm font-bold text-slate-800">Final Amount</td>
-              <td className="px-4 py-3 text-right text-sm font-bold text-[#D44D4D]">{formatCurrency(quotation.finalAmount)}</td>
+              <td className="px-4 py-3 text-right text-sm font-bold text-[var(--primary)]">{formatCurrency(quotation.finalAmount)}</td>
             </tr></tfoot>
           </table>
         )}
@@ -509,7 +515,7 @@ export default function QuotationDetailPage() {
             <h3 className="text-lg font-bold text-slate-800">{confirmState.title}</h3>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">{confirmState.inputLabel}</label>
-              <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+              <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setConfirmState({ isOpen: false, title: "", message: "", action: () => {} }); setRejectReason(""); }} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>

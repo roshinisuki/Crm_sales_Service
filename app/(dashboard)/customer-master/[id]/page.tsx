@@ -452,7 +452,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
           {currentUser?.role !== "Customer" && (
             <button 
               onClick={openCreateDealModal}
-              className="px-4 py-2 bg-[#D44D4D] hover:bg-[#C94F4F] text-white text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              className="px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
             >
               <Ico d={icons.plus} />
               New Deal
@@ -471,7 +471,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
             
             let colorClass = "bg-slate-100 text-slate-400 border-slate-200";
             if (isCompleted) colorClass = "bg-emerald-50 text-emerald-600 border-emerald-200";
-            if (isCurrent) colorClass = "bg-[#D44D4D] text-white border-[#C94F4F] shadow-md";
+            if (isCurrent) colorClass = "bg-[var(--primary)] text-white border-[#C94F4F] shadow-md";
             
             return (
               <React.Fragment key={status}>
@@ -505,7 +505,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
             onClick={() => setActiveTab(tab.id)}
             className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
               activeTab === tab.id
-                ? "border-[#D44D4D] text-[#D44D4D]"
+                ? "border-[var(--primary)] text-[var(--primary)]"
                 : "border-transparent text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -546,7 +546,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   <select
                     value={customer.leadSource || ""}
                     onChange={(e) => handleLeadSourceChange(e.target.value)}
-                    className="mt-1 block w-full pl-3 pr-10 py-1.5 text-sm bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#D44D4D] focus:border-[#D44D4D] rounded-xl font-medium text-slate-800 transition-all cursor-pointer"
+                    className="mt-1 block w-full pl-3 pr-10 py-1.5 text-sm bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] rounded-xl font-medium text-slate-800 transition-all cursor-pointer"
                   >
                     <option value="">Select source...</option>
                     {LEAD_SOURCES.map((source) => (
@@ -591,7 +591,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
             <div className="lg:col-span-1">
               <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 font-bold border-b border-slate-100 pb-3">
-                  <Ico d={icons.phone} size={18} className="text-[#D44D4D]" />
+                  <Ico d={icons.phone} size={18} className="text-[var(--primary)]" />
                   <h4>Quick Log Call</h4>
                 </div>
                 <form onSubmit={handleLogCall} className="space-y-4">
@@ -602,7 +602,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                       placeholder="e.g. 120"
                       value={callDuration}
                       onChange={(e) => setCallDuration(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#D44D4D] focus:border-[#D44D4D] rounded-xl"
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] rounded-xl"
                     />
                   </div>
                   <div>
@@ -613,7 +613,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                       value={callNotes}
                       required
                       onChange={(e) => setCallNotes(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[#D44D4D] focus:border-[#D44D4D] rounded-xl resize-none"
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] rounded-xl resize-none"
                     />
                   </div>
                   <button
@@ -770,7 +770,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                           {deal.stageHistories.map((hist: any) => (
                             <div key={hist.id} className="relative">
                               {/* Dot */}
-                              <span className="absolute -left-[22.5px] top-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-[#D44D4D] flex items-center justify-center shrink-0" />
+                              <span className="absolute -left-[22.5px] top-1 w-2.5 h-2.5 rounded-full bg-white border-2 border-[var(--primary)] flex items-center justify-center shrink-0" />
                               <div className="text-xs">
                                 <p className="font-semibold text-slate-750">
                                   {hist.fromStatus ? (
@@ -885,7 +885,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                     return (
                       <div key={f.id} className={`flex gap-4 p-4 rounded-xl border bg-slate-50/30 ${isOverdue ? "border-red-200 bg-red-50/[0.05]" : "border-slate-100"}`}>
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                          isCompleted ? "bg-emerald-100 text-emerald-600" : isOverdue ? "bg-red-100 text-red-600 animate-pulse" : "bg-red-100 text-[#D44D4D]"
+                          isCompleted ? "bg-emerald-100 text-emerald-600" : isOverdue ? "bg-red-100 text-red-600 animate-pulse" : "bg-red-100 text-[var(--primary)]"
                         }`}>
                           <Ico d={icons.clock} size={18} />
                         </div>
@@ -996,7 +996,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   required
                   value={followUpDate}
                   onChange={(e) => setFollowUpDate(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" 
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
                 />
               </div>
               <div>
@@ -1004,7 +1004,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                 <select
                   value={followUpPriority}
                   onChange={(e) => setFollowUpPriority(e.target.value as any)}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-800 font-semibold cursor-pointer"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-800 font-semibold cursor-pointer"
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
@@ -1017,7 +1017,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   <select
                     value={followUpAssigneeId}
                     onChange={(e) => setFollowUpAssigneeId(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-800 font-semibold cursor-pointer"
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-800 font-semibold cursor-pointer"
                   >
                     <option value="">Default (Self)</option>
                     {executives.map((exec) => (
@@ -1032,7 +1032,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   value={followUpNotes}
                   onChange={(e) => setFollowUpNotes(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none" 
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none" 
                   placeholder="What is this follow up regarding?"
                 />
               </div>
@@ -1047,7 +1047,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                 <button 
                   type="submit" 
                   disabled={savingFollowUp}
-                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
                 >
                   {savingFollowUp ? "Saving..." : "Schedule"}
                 </button>
@@ -1078,7 +1078,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   placeholder="e.g. Q3 Software Renewal"
                   value={dealName}
                   onChange={(e) => setDealName(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[#D44D4D] transition-all" 
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all" 
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1091,7 +1091,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                     placeholder="e.g. 5000"
                     value={dealValue}
                     onChange={(e) => setDealValue(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[#D44D4D] transition-all" 
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all" 
                   />
                 </div>
                 <div>
@@ -1101,7 +1101,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                     required
                     value={expectedCloseDate}
                     onChange={(e) => setExpectedCloseDate(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[#D44D4D] transition-all" 
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all" 
                   />
                 </div>
               </div>
@@ -1111,7 +1111,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   <select
                     value={dealStatus}
                     onChange={(e) => setDealStatus(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[#D44D4D] transition-all cursor-pointer"
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all cursor-pointer"
                   >
                     {DEAL_STATUSES.map((st) => (
                       <option key={st} value={st}>{st}</option>
@@ -1123,7 +1123,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   <select
                     value={assignedUserId}
                     onChange={(e) => setAssignedUserId(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[#D44D4D] transition-all cursor-pointer"
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all cursor-pointer"
                   >
                     <option value="">Unassigned</option>
                     {executives.map((exec) => (
@@ -1138,7 +1138,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                   value={dealNotes}
                   onChange={(e) => setDealNotes(e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[#D44D4D] transition-all resize-none" 
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-all resize-none" 
                   placeholder="Key details of the deal..."
                 />
               </div>
@@ -1153,7 +1153,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
                 <button 
                   type="submit" 
                   disabled={savingDeal}
-                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
                 >
                   {savingDeal ? "Saving..." : "Save Deal"}
                 </button>

@@ -199,7 +199,7 @@ export default function TargetAchievementPage() {
       ) : data.length === 0 ? (
         <div className="rounded-lg border bg-white p-12 text-center">
           <p className="text-sm text-gray-500 mb-3">No achievement data found for the selected filters.</p>
-          <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">Create a target</Link>
+          <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">Create a target</Link>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border">

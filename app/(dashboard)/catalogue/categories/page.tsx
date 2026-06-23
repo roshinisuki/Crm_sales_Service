@@ -194,7 +194,7 @@ export default function CategoriesPage() {
             placeholder="Search categories..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
         </div>
         <button
@@ -202,7 +202,7 @@ export default function CategoriesPage() {
             setFormData({ id: "", name: "", description: "", isActive: true });
             setIsModalOpen(true);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#D44D4D] text-white font-medium hover:opacity-90 transition-opacity"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity"
         >
           <Ico d={icons.plus} size={18} />
           Add Category
@@ -286,7 +286,7 @@ export default function CategoriesPage() {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                   placeholder="Category name"
                 />
               </div>
@@ -295,7 +295,7 @@ export default function CategoriesPage() {
                 <textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D] resize-none"
+                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
                   placeholder="Category description"
                   rows={3}
                 />
@@ -306,7 +306,7 @@ export default function CategoriesPage() {
                   id="isActive"
                   checked={formData.isActive}
                   onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  className="w-4 h-4 rounded border border-slate-300 bg-white text-[#D44D4D] focus:ring-2 focus:ring-[#D44D4D]"
+                  className="w-4 h-4 rounded border border-slate-300 bg-white text-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 <label htmlFor="isActive" className="text-sm text-slate-700">Active</label>
               </div>
@@ -321,7 +321,7 @@ export default function CategoriesPage() {
               <button
                 onClick={formData.id ? handleUpdate : handleCreate}
                 disabled={formLoading || !formData.name}
-                className="px-4 py-2 rounded-lg bg-[#D44D4D] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {formLoading ? "Saving..." : formData.id ? "Update" : "Create"}
               </button>

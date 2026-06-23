@@ -35,8 +35,8 @@ const entityTypes = [
   { value: "Deal", label: "Deal", api: "/api/deals", codeField: "dealName", nameField: "dealName" },
   { value: "RFQ", label: "RFQ", api: "/api/rfq", codeField: "rfqCode", nameField: "title" },
   { value: "PurchaseOrder", label: "Purchase Order", api: "/api/purchase-orders", codeField: "poCode", nameField: "poCode" },
-  { value: "Negotiation", label: "Negotiation", api: "/api/negotiations", codeField: "negoCode", nameField: "negoCode" },
-  { value: "Quotation", label: "Quotation", api: "/api/quotations", codeField: "quoteCode", nameField: "quoteCode" },
+  { value: "Negotiation", label: "Negotiation", api: "/api/negotiations", codeField: "negotiationCode", nameField: "negotiationCode" },
+  { value: "Quotation", label: "Quotation", api: "/api/quotations", codeField: "quotationCode", nameField: "quotationCode" },
   { value: "SampleRequest", label: "Sample Request", api: "/api/samples", codeField: "sampleCode", nameField: "sampleCode" },
 ];
 
@@ -86,8 +86,12 @@ export default function NewDocumentPage() {
     const selected = e.target.files?.[0];
     if (!selected) return;
     setFile(selected);
-    // For now, use a placeholder URL. In production this would upload to S3/blob storage.
-    setFileUrl(selected.name);
+    // Convert file to base64 data URL for storage
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFileUrl(reader.result as string);
+    };
+    reader.readAsDataURL(selected);
     if (!form.name) {
       setForm(f => ({ ...f, name: selected.name.replace(/\.[^/.]+$/, "") }));
     }
@@ -147,7 +151,7 @@ export default function NewDocumentPage() {
           {/* File Upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">File *</label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition-colors">
+            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-[var(--primary)]/40 transition-colors">
               <input
                 type="file"
                 id="file-upload"
@@ -156,7 +160,7 @@ export default function NewDocumentPage() {
               />
               <label htmlFor="file-upload" className="cursor-pointer">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
                     <Ico d={icons.upload} size={20} />
                   </div>
                   {file ? (
@@ -182,7 +186,7 @@ export default function NewDocumentPage() {
               type="text"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               placeholder="e.g. Customer NDA - Acme Corp"
             />
           </div>
@@ -193,7 +197,7 @@ export default function NewDocumentPage() {
             <select
               value={form.documentType}
               onChange={(e) => setForm({ ...form, documentType: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
             >
               {documentTypes.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
@@ -205,7 +209,7 @@ export default function NewDocumentPage() {
             <select
               value={form.entityType}
               onChange={(e) => setForm({ ...form, entityType: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
             >
               {entityTypes.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
             </select>
@@ -217,7 +221,7 @@ export default function NewDocumentPage() {
             <select
               value={form.entityId}
               onChange={(e) => setForm({ ...form, entityId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
             >
               <option value="">— Select —</option>
               {entities.map((ent: any) => {
@@ -242,7 +246,7 @@ export default function NewDocumentPage() {
             <select
               value={form.customerId}
               onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
             >
               <option value="">— None —</option>
               {customers.map((c: any) => (
@@ -258,7 +262,7 @@ export default function NewDocumentPage() {
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               placeholder="Optional notes about this document"
             />
           </div>
@@ -270,7 +274,7 @@ export default function NewDocumentPage() {
               type="text"
               value={form.tags}
               onChange={(e) => setForm({ ...form, tags: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
               placeholder="e.g. confidential, signed, draft"
             />
           </div>
@@ -280,14 +284,14 @@ export default function NewDocumentPage() {
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-5 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors"
             >
               {saving ? "Uploading..." : "Upload Document"}
             </button>
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-5 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+              className="px-5 py-2 border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50"
             >
               Cancel
             </button>

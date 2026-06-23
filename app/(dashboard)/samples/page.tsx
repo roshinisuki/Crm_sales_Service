@@ -48,11 +48,19 @@ export default function SampleListPage() {
     try {
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
-      const res = await fetch(`/api/samples?${new URLSearchParams(params)}`);
-      const data = await res.json();
-      if (data.success) {
-        setSamples(data.data);
+      let allData: any[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await fetch(`/api/samples?${new URLSearchParams({ ...params, page: String(page) })}`);
+        const data = await res.json();
+        if (data.success) {
+          allData = allData.concat(data.data || []);
+          totalPages = data.totalPages || 1;
+        } else break;
+        page++;
       }
+      setSamples(allData);
     } catch (err) {
       toast.error("Failed to load samples");
     } finally {
@@ -102,7 +110,7 @@ export default function SampleListPage() {
         </div>
         <button
           onClick={() => router.push("/samples/new")}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
         >
           <Ico d={icons.plus} size={16} /> New Sample Request
         </button>
@@ -111,7 +119,7 @@ export default function SampleListPage() {
       <div className="flex flex-wrap gap-2 mb-2">
         <button
           onClick={() => router.push("/samples")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[#D44D4D] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
         >
           All
         </button>
@@ -119,7 +127,7 @@ export default function SampleListPage() {
           <button
             key={s}
             onClick={() => router.push(`/samples?status=${s}`)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[#D44D4D] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
           >
             {s}
           </button>
@@ -133,7 +141,7 @@ export default function SampleListPage() {
           placeholder="Search by sample code, customer or product..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+          className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
         />
       </div>
 

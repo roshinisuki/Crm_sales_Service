@@ -10,10 +10,12 @@ import { Handshake, Clock, CheckCircle, Percent, Download, Search } from "lucide
 import { ReportFilterLayout, FilterField, filterInputClass } from "@/components/reports/ReportFilterLayout";
 
 const statusColors: Record<string, string> = {
-  Open: "bg-blue-50 text-blue-600",
-  InProgress: "bg-amber-50 text-amber-600",
-  Closed: "bg-emerald-50 text-emerald-600",
-  OnHold: "bg-slate-100 text-slate-600",
+  Active: "bg-blue-50 text-blue-600",
+  PriceRevision: "bg-amber-50 text-amber-600",
+  CommercialDiscussion: "bg-purple-50 text-purple-600",
+  PendingApproval: "bg-orange-50 text-orange-600",
+  Won: "bg-emerald-50 text-emerald-600",
+  Lost: "bg-red-50 text-red-600",
 };
 
 export default function NegotiationReportPage() {
@@ -44,27 +46,27 @@ export default function NegotiationReportPage() {
   const filtered = negotiations.filter((n: any) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    return n.negoCode?.toLowerCase().includes(q) || n.deal?.dealName?.toLowerCase().includes(q) || n.customer?.name?.toLowerCase().includes(q);
+    return n.negotiationCode?.toLowerCase().includes(q) || n.deal?.dealName?.toLowerCase().includes(q) || n.customer?.name?.toLowerCase().includes(q);
   });
 
   const totalNegotiations = filtered.length;
-  const closedCount = filtered.filter(n => n.status === "Closed").length;
-  const inProgressCount = filtered.filter(n => n.status === "InProgress").length;
+  const wonCount = filtered.filter(n => n.status === "Won").length;
+  const activeCount = filtered.filter(n => ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval"].includes(n.status)).length;
   const avgDiscount = filtered.length > 0
-    ? (filtered.reduce((sum, n) => sum + (n.finalDiscountPercent || 0), 0) / filtered.length).toFixed(1)
+    ? (filtered.reduce((sum, n) => sum + (n.discountApproved || n.discountRequested || 0), 0) / filtered.length).toFixed(1)
     : "0";
 
   const exportCSV = () => {
     if (filtered.length === 0) { toast.error("No data to export"); return; }
     const headers = ["Code", "Deal", "Customer", "Status", "Initial Price", "Final Price", "Discount %", "Created Date", "Closed Date"];
     const rows = filtered.map(n => [
-      n.negoCode || "",
+      n.negotiationCode || "",
       n.deal?.dealName || "",
       n.customer?.name || "",
       n.status || "",
-      n.initialPrice || 0,
-      n.finalPrice || 0,
-      n.finalDiscountPercent || 0,
+      n.initialAmount || 0,
+      n.finalAmount || 0,
+      n.discountApproved || n.discountRequested || 0,
       n.createdAt ? new Date(n.createdAt).toLocaleDateString() : "",
       n.closedAt ? new Date(n.closedAt).toLocaleDateString() : "",
     ]);
@@ -85,7 +87,7 @@ export default function NegotiationReportPage() {
       subtitle="Analyze negotiation outcomes and discount trends"
       breadcrumb={[{ label: "Reports", href: "/reports" }, { label: "Negotiation Report" }]}
       action={
-        <button onClick={exportCSV} disabled={filtered.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-colors shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+        <button onClick={exportCSV} disabled={filtered.length === 0} className="flex items-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-white rounded-xl text-xs font-bold hover:bg-[var(--primary-hover)] transition-colors shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
           <Download size={14} /> Export to CSV
         </button>
       }
@@ -94,15 +96,15 @@ export default function NegotiationReportPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard label="Total Negotiations" value={totalNegotiations} icon={<Handshake size={20} />} variant="orange" subtitle="All negotiations" />
-          <SummaryCard label="In Progress" value={inProgressCount} icon={<Clock size={20} />} variant="amber" subtitle="Active negotiations" />
-          <SummaryCard label="Closed" value={closedCount} icon={<CheckCircle size={20} />} variant="green" subtitle="Completed" />
+          <SummaryCard label="Active" value={activeCount} icon={<Clock size={20} />} variant="amber" subtitle="In progress" />
+          <SummaryCard label="Won" value={wonCount} icon={<CheckCircle size={20} />} variant="green" subtitle="Completed" />
           <SummaryCard label="Avg Discount" value={`${avgDiscount}%`} icon={<Percent size={20} />} variant="blue" subtitle="Across all deals" />
         </div>
 
         {/* Filters Panel */}
         <ReportFilterLayout
           title="Filter Negotiations"
-          stages={["Open", "InProgress", "Closed", "OnHold"]}
+          stages={["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Won", "Lost"]}
           activeStages={statusFilter ? [statusFilter] : []}
           onToggleStage={(s) => setStatusFilter(statusFilter === s ? "" : s)}
           stageLabel="Status"
@@ -143,15 +145,15 @@ export default function NegotiationReportPage() {
                 ) : (
                   filtered.map(n => (
                     <tr key={n.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{n.negoCode}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{n.negotiationCode}</td>
                       <td className="px-4 py-3 text-sm text-slate-900">{n.deal?.dealName || "—"}</td>
                       <td className="px-4 py-3 text-sm text-slate-700">{n.customer?.name || "—"}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[n.status] || "bg-slate-100 text-slate-600"}`}>{n.status}</span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatCurrency(Number(n.initialPrice || 0))}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatCurrency(Number(n.finalPrice || 0))}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{n.finalDiscountPercent || 0}%</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatCurrency(Number(n.initialAmount || 0))}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatCurrency(Number(n.finalAmount || 0))}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{n.discountApproved || n.discountRequested || 0}%</td>
                       <td className="px-4 py-3 text-sm text-slate-500">{n.createdAt ? new Date(n.createdAt).toLocaleDateString() : "—"}</td>
                     </tr>
                   ))

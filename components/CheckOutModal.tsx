@@ -23,7 +23,7 @@ interface CheckOutModalProps {
 const COMMON_OUTCOMES = [
   { value: "Follow-up Required",  label: "📅 Follow-up Required", color: "text-amber-700  bg-amber-50  border-amber-200" },
   { value: "Qualified Lead",      label: "✅ Qualified Lead",     color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
-  { value: "Proposal Needed",     label: "📋 Proposal Needed",    color: "text-[#D44D4D]   bg-red-50   border-red-200" },
+  { value: "Proposal Needed",     label: "📋 Proposal Needed",    color: "text-[var(--primary)]   bg-red-50   border-red-200" },
   { value: "Negotiation Ongoing", label: "🤝 Negotiation Ongoing", color: "text-purple-700 bg-purple-50 border-purple-200" },
   { value: "Closed Won",          label: "🏆 Closed Won",         color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
   { value: "Closed Lost",         label: "❌ Closed Lost",        color: "text-red-700    bg-red-50    border-red-200" },
@@ -127,7 +127,7 @@ export default function CheckOutModal({ isOpen, onClose, onSuccess, onCheckInNex
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           {/* Success header */}
-          <div className="bg-[#D44D4D] px-6 py-6 text-center">
+          <div className="bg-[var(--primary)] px-6 py-6 text-center">
             <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mx-auto mb-3">
               <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -146,7 +146,7 @@ export default function CheckOutModal({ isOpen, onClose, onSuccess, onCheckInNex
                   onClose();
                   onCheckInNext?.("Inbound");
                 }}
-                className="flex flex-col items-center justify-center bg-[#D44D4D] text-white p-5 rounded-2xl active:scale-95 transition-transform gap-2 cursor-pointer"
+                className="flex flex-col items-center justify-center bg-[var(--primary)] text-white p-5 rounded-2xl active:scale-95 transition-transform gap-2 cursor-pointer"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -269,7 +269,7 @@ export default function CheckOutModal({ isOpen, onClose, onSuccess, onCheckInNex
   };
 
   const labelCls = "block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1";
-  const inputCls = "w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] text-slate-700 font-medium transition-all";
+  const inputCls = "w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] text-slate-700 font-medium transition-all";
 
   return (
     <>
@@ -468,7 +468,7 @@ export default function CheckOutModal({ isOpen, onClose, onSuccess, onCheckInNex
               <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-200/80 transition-colors">
                 Cancel
               </button>
-              <button type="submit" disabled={formLoading} className="px-7 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 flex items-center gap-2 cursor-pointer">
+              <button type="submit" disabled={formLoading} className="px-7 py-2.5 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-75 flex items-center gap-2 cursor-pointer">
                 {formLoading ? (
                   <><span className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />Processing...</>
                 ) : (visit.visitType === "Inbound" ? "✓ End Visit" : "✓ Submit Check-Out")}

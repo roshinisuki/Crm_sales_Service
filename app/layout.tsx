@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/AuthProvider";
 import { ToastProvider } from "@/components/ToastProvider";
+import { GlobalLoadingProvider } from "@/components/GlobalLoadingProvider";
 import { getMeAction } from "@/app/actions/auth";
 
 const inter = { className: "font-sans" };
@@ -12,6 +13,11 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: " SUKI  Marketing CRM",
   description: "Internal CRM portal for  SUKI  Marketing teams",
+  icons: {
+    icon: "/tick-mark.svg",
+    shortcut: "/tick-mark.svg",
+    apple: "/tick-mark.svg",
+  },
 };
 
 export default async function RootLayout({
@@ -39,7 +45,11 @@ export default async function RootLayout({
       </head>
       <body className={inter.className}>
         <ToastProvider>
-          <AuthProvider initialUser={initialUser as any}>{children}</AuthProvider>
+          <AuthProvider initialUser={initialUser as any}>
+            <GlobalLoadingProvider>
+              {children}
+            </GlobalLoadingProvider>
+          </AuthProvider>
         </ToastProvider>
       </body>
     </html>

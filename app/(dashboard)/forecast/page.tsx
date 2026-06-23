@@ -14,7 +14,7 @@ const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?
   </svg>
 );
 
-const icons = { plus: "M12 4v16m8-8H4", edit: "M11 4H4a2 2 0 012-2v14a2 2 0 012 2 2h14a2 2 0 012-2V4a2 2 0 00-2-2m-6 12h6m-6-12h6", x: "M6 18L18 6M6 6l12 12", chart: "M9 19v-6m3 6V6m3 12v-4M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" };
+const icons = { plus: "M12 4v16m8-8H4", edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z", x: "M6 18L18 6M6 6l12 12", chart: "M9 19v-6m3 6V6m3 12v-4M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" };
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const forecastTypes = ["Revenue", "Opportunity", "Sales"];
@@ -78,14 +78,14 @@ export default function ForecastListPage() {
         <div><h1 className="text-2xl font-bold text-slate-800">Forecasting</h1><p className="text-sm text-slate-500 mt-0.5">Manage forecast targets and track achievement</p></div>
         <div className="flex gap-2">
           <button onClick={() => router.push("/forecast/target-vs-achievement")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.chart} size={16} /> Target vs Achievement</button>
-          <button onClick={() => router.push("/forecast/new")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] cursor-pointer"><Ico d={icons.plus} size={16} /> Add Forecast Entry</button>
+          <button onClick={() => router.push("/forecast/new")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.plus} size={16} /> Add Forecast Entry</button>
         </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex gap-3 flex-wrap items-end">
-        <div><label className="block text-xs font-semibold text-slate-600 mb-1">Year</label><input type="number" value={filters.year} onChange={(e) => setFilters({ ...filters, year: e.target.value })} className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" /></div>
-        <div><label className="block text-xs font-semibold text-slate-600 mb-1">Forecast Type</label><select value={filters.forecastType} onChange={(e) => setFilters({ ...filters, forecastType: e.target.value })} className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"><option value="">All</option>{forecastTypes.map(t => <option key={t}>{t}</option>)}</select></div>
-        <div><label className="block text-xs font-semibold text-slate-600 mb-1">Assigned User</label><select value={filters.assignedUserId} onChange={(e) => setFilters({ ...filters, assignedUserId: e.target.value })} className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20"><option value="">All Users</option>{users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+        <div><label className="block text-xs font-semibold text-slate-600 mb-1">Year</label><input type="number" value={filters.year} onChange={(e) => setFilters({ ...filters, year: e.target.value })} className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
+        <div><label className="block text-xs font-semibold text-slate-600 mb-1">Forecast Type</label><select value={filters.forecastType} onChange={(e) => setFilters({ ...filters, forecastType: e.target.value })} className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"><option value="">All</option>{forecastTypes.map(t => <option key={t}>{t}</option>)}</select></div>
+        <div><label className="block text-xs font-semibold text-slate-600 mb-1">Assigned User</label><select value={filters.assignedUserId} onChange={(e) => setFilters({ ...filters, assignedUserId: e.target.value })} className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"><option value="">All Users</option>{users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">

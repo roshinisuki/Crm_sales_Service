@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/ui-utils";
+import { CountUp, parseCountValue } from "./CountUp";
 
 interface SummaryCardProps {
   label: string;
@@ -142,11 +143,13 @@ export function SummaryCard({
   const v = variantMap[variant] || variantMap.light;
   const isUp = trend ? trend.up : true;
   const data = sparklineData || generateMockData(isUp);
+  const isNumeric = typeof value === "number" || /^\d/.test(String(value).replace(/[^\d.-]/g, ""));
+  const parsed = parseCountValue(value);
 
   return (
     <div
       className={cn(
-        "p-5 rounded-[18px] flex flex-col justify-between relative overflow-hidden min-h-[150px] transition-all duration-200 hover:-translate-y-1 hover:shadow-md border",
+        "p-5 rounded-[18px] flex flex-col justify-between relative overflow-hidden min-h-[150px] h-full transition-all duration-200 hover:-translate-y-1 hover:shadow-md border",
         v.card,
         onClick ? "cursor-pointer" : "",
         className
@@ -157,7 +160,18 @@ export function SummaryCard({
       <div className="z-10 relative flex justify-between items-start">
         <div>
           <p className={cn("text-[11px] font-bold uppercase tracking-wider mb-1.5", v.label)}>{label}</p>
-          <p className={cn("text-3xl font-bold tracking-tight", v.value)}>{value}</p>
+          <p className={cn("text-3xl font-bold tracking-tight", v.value)}>
+            {isNumeric ? (
+              <CountUp
+                end={parsed.end}
+                prefix={parsed.prefix}
+                suffix={parsed.suffix}
+                decimals={parsed.decimals}
+              />
+            ) : (
+              value
+            )}
+          </p>
         </div>
         {icon && (
           <div className={cn(

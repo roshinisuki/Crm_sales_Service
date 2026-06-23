@@ -281,7 +281,7 @@ export default function UserMasterPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={openCreateInternal}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D44D4D] text-white rounded-xl text-sm font-medium hover:bg-[#C94F4F] transition-colors shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors shadow-sm cursor-pointer"
           >
             <Ico d={icons.plus} size={16} />
             Add Internal User
@@ -316,7 +316,7 @@ export default function UserMasterPage() {
         <div className="kpi-overdue">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Internal Team</p>
-            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-[#D44D4D]">
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-[var(--primary)]">
               <Ico d={icons.user} size={18} />
             </div>
           </div>
@@ -378,7 +378,7 @@ export default function UserMasterPage() {
                 className={`px-5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${activeTab === "customer" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
               >
                 Customer Portal
-                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "customer" ? "bg-[#D44D4D] text-white" : "bg-slate-200 text-slate-500"}`}>
+                <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "customer" ? "bg-[var(--primary)] text-white" : "bg-slate-200 text-slate-500"}`}>
                   {customerUsers.length}
                 </span>
               </button>
@@ -394,7 +394,7 @@ export default function UserMasterPage() {
                 placeholder="Search by name, email, role…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all font-medium text-slate-700"
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all font-medium text-slate-700"
               />
             </div>
           </div>
@@ -493,7 +493,7 @@ export default function UserMasterPage() {
                       type="text" required value={intName}
                       onChange={e => setIntName(e.target.value)}
                       placeholder="e.g. Priya Sharma"
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700"
                     />
                   </div>
 
@@ -503,7 +503,7 @@ export default function UserMasterPage() {
                       type="email" required value={intEmail}
                       onChange={e => setIntEmail(e.target.value)}
                       placeholder="priya@sukisoftware.com"
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700"
                     />
                   </div>
 
@@ -512,7 +512,7 @@ export default function UserMasterPage() {
                     <select
                       value={intRole} required
                       onChange={e => setIntRole(e.target.value as typeof intRole)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 cursor-pointer"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 cursor-pointer"
                     >
                       <option value="SalesExecutive">Marketing Executive</option>
                       <option value="SalesManager">Marketing Lead</option>
@@ -537,7 +537,7 @@ export default function UserMasterPage() {
                     <select
                       value={custId} required
                       onChange={e => setCustId(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 cursor-pointer"
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 cursor-pointer"
                     >
                       <option value="">Select an active customer…</option>
                       {customers.filter(c => c.status === "Active" && !c.hasActivatedPortal && c.email).map(c => (
@@ -606,7 +606,7 @@ export default function UserMasterPage() {
                 form="modal-form"
                 type="submit"
                 disabled={formLoading || !!successMsg}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
               >
                 {formLoading
                   ? "Please wait…"

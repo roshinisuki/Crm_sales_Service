@@ -97,13 +97,13 @@
 }
 
 [data-theme="ember-dark"] {
-  --accent: #E8620A; --accent-hover: #FF771C; --accent-soft: rgba(232,98,10,0.2); --accent-text: #FF9B61; --accent-contrast: #FFFFFF;
-  --bg: #000000; --surface: #160e0a; --surface-2: #241710; --surface-offset: #29160C;
-  --border: #241710; --border-subtle: #1c110c;
-  --text-primary: #F9FAFB; --text-secondary: #9CA3AF; --text-muted: #6B7280;
-  --sidebar-bg: #120904; --sidebar-hover: rgba(255,255,255,0.08); --sidebar-active: #E8620A; --sidebar-active-bg: rgba(232,98,10,0.2);
-  --sidebar-text: #D1D5DB; --sidebar-text-act: #FFFFFF; --sidebar-heading: #6B7280;
-  --topbar-bg: #1F1109; --topbar-border: #2B190E;
+  --accent: #FF771C; --accent-hover: #FF8F3D; --accent-soft: rgba(255,119,28,0.22); --accent-text: #FFA876; --accent-contrast: #FFFFFF;
+  --bg: #000000; --surface: #131313; --surface-2: #1E1E1E; --surface-offset: #2A1A10;
+  --border: #2A2A2A; --border-subtle: #222222;
+  --text-primary: #F9FAFB; --text-secondary: #9CA3AF; --text-muted: #8B8B8B;
+  --sidebar-bg: #0D0D0D; --sidebar-hover: rgba(255,255,255,0.08); --sidebar-active: #FF771C; --sidebar-active-bg: rgba(255,119,28,0.2);
+  --sidebar-text: #D1D5DB; --sidebar-text-act: #FFFFFF; --sidebar-heading: #8B8B8B;
+  --topbar-bg: #1A1A1A; --topbar-border: #2A2A2A;
   --success: #10B981; --success-bg: rgba(16,185,129,0.2); --warning: #F59E0B; --warning-bg: rgba(245,158,11,0.2);
   --error: #EF4444; --error-bg: rgba(239,68,68,0.2); --info: #3B82F6; --info-bg: rgba(59,130,246,0.2);
   --card-shadow: 0 1px 2px 0 rgba(0,0,0,0.5); --card-shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5);
@@ -329,7 +329,7 @@ body {
   gap: 6px;
   padding: 9px 18px;
   background-color: var(--primary);
-  color: var(--accent-contrast);
+  color: var(--accent-contrast) !important;
   border-radius: 10px;
   font-size: 13px;
   font-weight: 600;
@@ -352,6 +352,17 @@ body {
     transform: none;
     box-shadow: none;
   }
+}
+
+/* Obsidian-dark: --primary is white, force dark text on primary buttons */
+[data-theme="obsidian-dark"] .btn-primary,
+[data-theme="obsidian-dark"] [class*="bg-[var(--primary)]"] {
+  color: var(--accent-contrast) !important;
+}
+[data-theme="obsidian-dark"] [class*="bg-[var(--primary)]"] svg,
+[data-theme="obsidian-dark"] [class*="bg-[var(--primary)]"] span {
+  color: var(--accent-contrast) !important;
+  stroke: var(--accent-contrast) !important;
 }
 
 @utility btn-secondary {
@@ -395,6 +406,37 @@ body {
   cursor: pointer;
 
   &:hover { background-color: var(--surface-2); color: var(--text-primary); }
+}
+
+@utility btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  background-color: #dc2626;
+  color: #ffffff;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 200ms ease;
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+
+  &:hover {
+    background-color: #b91c1c;
+    box-shadow: 0 4px 14px rgba(185, 28, 28, 0.25);
+    transform: translateY(-1px);
+  }
+  &:active { transform: translateY(0); }
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
 }
 
 /* ─── Input / Select ─────────────────────────────────────────────────────────── */
@@ -636,7 +678,7 @@ body {
 @utility page-shell {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
 }
 
 /* ─── Spinner ────────────────────────────────────────────────────────────────── */
@@ -993,5 +1035,84 @@ html.dark .hover\:bg-blue-50:hover {
 }
 html.dark .hover\:bg-rose-50:hover {
   background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Purple-themed elements (SQL qualification) */
+html.dark .bg-purple-50,
+html.dark .bg-purple-50\/60 {
+  background-color: rgba(168, 85, 247, 0.15) !important;
+  color: #C084FC !important;
+}
+html.dark .border-purple-100,
+html.dark .border-purple-200 {
+  border-color: rgba(168, 85, 247, 0.3) !important;
+}
+html.dark .text-purple-600,
+html.dark .text-purple-700,
+html.dark .text-purple-800 {
+  color: #C084FC !important;
+}
+html.dark .bg-purple-100 {
+  background-color: rgba(168, 85, 247, 0.2) !important;
+}
+html.dark .hover\:bg-purple-100:hover {
+  background-color: rgba(168, 85, 247, 0.25) !important;
+}
+
+/* Slate-300 text — brighter in dark mode for better contrast */
+html.dark .text-slate-300 {
+  color: var(--text-secondary) !important;
+}
+html.dark .text-slate-200 {
+  color: var(--text-secondary) !important;
+}
+
+/* Disabled buttons — higher opacity in dark mode for visibility */
+html.dark .disabled\:opacity-40:disabled {
+  opacity: 0.6 !important;
+}
+html.dark .disabled\:opacity-50:disabled {
+  opacity: 0.65 !important;
+}
+
+/* Modal close button — ensure visibility in dark mode */
+html.dark .bg-white\/80 {
+  background-color: var(--surface-2) !important;
+}
+
+/* Warning banner text — ensure readability in dark mode */
+html.dark .text-amber-600,
+html.dark .text-amber-700,
+html.dark .text-amber-800 {
+  color: #FBBF24 !important;
+}
+html.dark .text-amber-500 {
+  color: #FCD34D !important;
+}
+
+/* Indigo elements */
+html.dark .bg-indigo-50,
+html.dark .bg-indigo-50\/60 {
+  background-color: rgba(99, 102, 241, 0.15) !important;
+  color: #818CF8 !important;
+}
+html.dark .border-indigo-100,
+html.dark .border-indigo-200 {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+html.dark .text-indigo-500,
+html.dark .text-indigo-600,
+html.dark .text-indigo-700 {
+  color: #818CF8 !important;
+}
+
+/* Teal elements */
+html.dark .bg-teal-50,
+html.dark .bg-teal-50\/60 {
+  background-color: rgba(20, 184, 166, 0.15) !important;
+}
+html.dark .text-teal-500,
+html.dark .text-teal-600 {
+  color: #2DD4BF !important;
 }
 

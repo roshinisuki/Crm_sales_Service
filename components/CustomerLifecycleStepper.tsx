@@ -53,7 +53,7 @@ export default function CustomerLifecycleStepper({ currentStage }: { currentStag
                   className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 shadow-sm",
                     isDone
-                      ? "bg-emerald-600 text-white shadow-emerald-100"
+                      ? "bg-[var(--primary)] text-white shadow-emerald-100"
                       : isActive
                       ? "bg-[var(--primary)] text-white ring-4 ring-orange-100 scale-105"
                       : "bg-slate-100 text-slate-400"

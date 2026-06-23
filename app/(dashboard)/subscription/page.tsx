@@ -291,7 +291,7 @@ export default function SubscriptionsPage() {
         {user?.role !== "SalesExecutive" && (
           <button 
             onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-[#D44D4D] text-white rounded-xl text-sm font-medium hover:bg-[#C94F4F] transition-colors shadow-sm cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors shadow-sm cursor-pointer"
           >
             <Ico d={icons.plus} size={16} />
             Add Subscription
@@ -373,14 +373,14 @@ export default function SubscriptionsPage() {
               placeholder="Search by customer or plan..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <select 
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="Active">Active</option>
@@ -441,7 +441,7 @@ export default function SubscriptionsPage() {
                           <span>End: <span className="font-semibold text-slate-750">{new Date(s.endDate).toLocaleDateString()}</span></span>
                         </div>
                       ) : (
-                        <span className="inline-flex px-2 py-0.5 bg-red-50 text-[#D44D4D] rounded-md text-[10px] font-bold uppercase border border-red-100">Setup Required</span>
+                        <span className="inline-flex px-2 py-0.5 bg-red-50 text-[var(--primary)] rounded-md text-[10px] font-bold uppercase border border-red-100">Setup Required</span>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
@@ -471,7 +471,7 @@ export default function SubscriptionsPage() {
                       {user?.role !== "SalesExecutive" && s.status === "Pending" && !s.startDate && (
                         <button
                           onClick={() => handleCreateForApproved(s.customerId)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-50 border border-red-200 text-[#D44D4D] rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-50 border border-red-200 text-[var(--primary)] rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
                         >
                           ⚙️ Setup Plan
                         </button>
@@ -511,7 +511,7 @@ export default function SubscriptionsPage() {
                     value={formData.customerId}
                     onChange={(e) => setFormData({ ...formData, customerId: e.target.value })}
                     required
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
                   >
                     <option value="">Select a customer...</option>
                     {customers
@@ -534,7 +534,7 @@ export default function SubscriptionsPage() {
                     value={formData.planName}
                     onChange={(e) => setFormData({ ...formData, planName: e.target.value })}
                     placeholder="e.g. Enterprise Premium Annual" 
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" 
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -547,7 +547,7 @@ export default function SubscriptionsPage() {
                       required
                       value={formData.startDate}
                       onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700" 
                     />
                   </div>
                   <div>
@@ -559,7 +559,7 @@ export default function SubscriptionsPage() {
                       required
                       value={formData.endDate}
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700" 
                     />
                   </div>
                 </div>
@@ -569,7 +569,7 @@ export default function SubscriptionsPage() {
                     <select 
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
                     >
                       <option value="Active">Active</option>
                       <option value="Expired">Expired</option>
@@ -585,7 +585,7 @@ export default function SubscriptionsPage() {
                     value={formData.notes}
                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Any remarks about this subscription..."
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
                   />
                 </div>
               </div>
@@ -601,7 +601,7 @@ export default function SubscriptionsPage() {
                 <button 
                   type="submit" 
                   disabled={formLoading}
-                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
                 >
                   {formLoading ? "Saving..." : "Add Subscription"}
                 </button>
@@ -660,7 +660,7 @@ export default function SubscriptionsPage() {
                     value={renewPlanName}
                     onChange={(e) => setRenewPlanName(e.target.value)}
                     placeholder="e.g. Enterprise Premium Annual" 
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold" 
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 font-semibold" 
                   />
                 </div>
 
@@ -674,7 +674,7 @@ export default function SubscriptionsPage() {
                       required
                       value={renewStartDate}
                       onChange={(e) => setRenewStartDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold" 
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 font-semibold" 
                     />
                   </div>
                   <div>
@@ -686,7 +686,7 @@ export default function SubscriptionsPage() {
                       required
                       value={renewEndDate}
                       onChange={(e) => setRenewEndDate(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all text-slate-700 font-semibold" 
+                      className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all text-slate-700 font-semibold" 
                     />
                   </div>
                 </div>
@@ -698,7 +698,7 @@ export default function SubscriptionsPage() {
                     value={renewNotes}
                     onChange={(e) => setRenewNotes(e.target.value)}
                     placeholder="Provide details about payment terms, revised pricing, or contract adjustments..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none font-medium text-slate-700"
+                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none font-medium text-slate-700"
                   />
                 </div>
               </div>
@@ -714,7 +714,7 @@ export default function SubscriptionsPage() {
                 <button 
                   type="submit" 
                   disabled={formLoading}
-                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
+                  className="px-6 py-2 rounded-xl text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
                 >
                   {formLoading ? "Renewing..." : "Confirm Renewal"}
                 </button>

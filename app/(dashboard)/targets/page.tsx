@@ -87,7 +87,7 @@ export default function TargetsPage() {
             <Ico d={icons.chart} size={16} /> Achievement Tracking
           </Link>
           {canManage && (
-            <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+            <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
               <Ico d={icons.plus} size={16} /> Add Target
             </Link>
           )}
@@ -116,7 +116,7 @@ export default function TargetsPage() {
         <div className="rounded-lg border bg-white p-12 text-center">
           <p className="text-sm text-gray-500 mb-3">No {tab.toLowerCase()} targets found.</p>
           {canManage && (
-            <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+            <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
               <Ico d={icons.plus} size={16} /> Create your first target
             </Link>
           )}

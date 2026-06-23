@@ -132,7 +132,7 @@ export default function VisitDetailPage() {
           <button onClick={handleCheckIn} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.check} size={16} /> Check In</button>
         )}
         {visit.status === "CHECKED_IN" && (
-          <button onClick={() => setShowCheckout(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer"><Ico d={icons.check} size={16} /> Check Out</button>
+          <button onClick={() => setShowCheckout(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.check} size={16} /> Check Out</button>
         )}
         <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 cursor-pointer"><Ico d={icons.trash} size={16} /> Delete</button>
       </div>
@@ -144,15 +144,15 @@ export default function VisitDetailPage() {
             <h3 className="text-lg font-bold text-slate-800">Check Out</h3>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Meeting Summary *</label>
-              <textarea value={checkoutForm.meetingSummary} onChange={(e) => setCheckoutForm({ ...checkoutForm, meetingSummary: e.target.value })} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+              <textarea value={checkoutForm.meetingSummary} onChange={(e) => setCheckoutForm({ ...checkoutForm, meetingSummary: e.target.value })} rows={3} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Outcome</label>
-              <input type="text" value={checkoutForm.outcome} onChange={(e) => setCheckoutForm({ ...checkoutForm, outcome: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+              <input type="text" value={checkoutForm.outcome} onChange={(e) => setCheckoutForm({ ...checkoutForm, outcome: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer Decision</label>
-              <select value={checkoutForm.customerDecision} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerDecision: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 cursor-pointer">
+              <select value={checkoutForm.customerDecision} onChange={(e) => setCheckoutForm({ ...checkoutForm, customerDecision: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer">
                 <option value="">-- Select --</option>
                 <option>Interested</option><option>Needs Time</option><option>Rejected</option><option>Next Meeting</option>
               </select>
@@ -160,20 +160,20 @@ export default function VisitDetailPage() {
             {checkoutForm.customerDecision === "Rejected" && (
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Rejection Reason</label>
-                <input type="text" value={checkoutForm.rejectionReason} onChange={(e) => setCheckoutForm({ ...checkoutForm, rejectionReason: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+                <input type="text" value={checkoutForm.rejectionReason} onChange={(e) => setCheckoutForm({ ...checkoutForm, rejectionReason: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
               </div>
             )}
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Next Meeting Date</label>
-              <input type="date" value={checkoutForm.nextMeetingDate} onChange={(e) => setCheckoutForm({ ...checkoutForm, nextMeetingDate: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+              <input type="date" value={checkoutForm.nextMeetingDate} onChange={(e) => setCheckoutForm({ ...checkoutForm, nextMeetingDate: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Next Meeting Notes</label>
-              <textarea value={checkoutForm.nextMeetingNotes} onChange={(e) => setCheckoutForm({ ...checkoutForm, nextMeetingNotes: e.target.value })} rows={2} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" />
+              <textarea value={checkoutForm.nextMeetingNotes} onChange={(e) => setCheckoutForm({ ...checkoutForm, nextMeetingNotes: e.target.value })} rows={2} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
             </div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => setShowCheckout(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
-              <button onClick={handleCheckOut} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer">Complete Check Out</button>
+              <button onClick={handleCheckOut} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">Complete Check Out</button>
             </div>
           </div>
         </div>

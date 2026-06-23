@@ -9,6 +9,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -44,6 +45,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function CustomerMasterPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const { startLoading, stopLoading } = useGlobalLoading();
   const [search, setSearch] = useState("");
   const searchParams = useSearchParams();
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "");
@@ -73,6 +75,7 @@ export default function CustomerMasterPage() {
 
   const loadCustomers = async () => {
     setLoading(true);
+    startLoading("Loading customers...");
     try {
       const params: any = {};
       if (search) params.search = search;
@@ -87,6 +90,7 @@ export default function CustomerMasterPage() {
       console.error(err);
     } finally {
       setLoading(false);
+      stopLoading();
     }
   };
 
@@ -290,7 +294,7 @@ export default function CustomerMasterPage() {
           </button>
           <button 
             onClick={openCreateModal}
-            className="flex items-center gap-1.5 px-3 py-2 bg-[#D44D4D] text-white rounded-md text-[13px] font-medium hover:bg-[#C94F4F] transition-colors shadow-sm cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 bg-[var(--primary)] text-white rounded-md text-[13px] font-medium hover:bg-[var(--primary-hover)] transition-colors shadow-sm cursor-pointer"
           >
             <Ico d={icons.plus} size={16} />
             Create Customer
@@ -304,7 +308,7 @@ export default function CustomerMasterPage() {
         <div className="kpi-total">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Customers</p>
-            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-[#D44D4D]">
+            <div className="w-9 h-9 rounded-lg bg-white shadow-sm border border-slate-100 flex items-center justify-center text-[var(--primary)]">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" /></svg>
             </div>
           </div>
@@ -373,13 +377,13 @@ export default function CustomerMasterPage() {
                 placeholder="Search customers..." 
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full pl-9 pr-4 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
             <select 
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600 font-medium focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600 font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="Prospect">Prospect</option>
@@ -390,7 +394,7 @@ export default function CustomerMasterPage() {
             <select 
               value={leadSourceFilter}
               onChange={(e) => setLeadSourceFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600 font-medium focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+              className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600 font-medium focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
             >
               <option value="">All Lead Sources</option>
               <option value="Website">Website</option>
@@ -424,7 +428,7 @@ export default function CustomerMasterPage() {
                 <th className="crm-th w-10">
                   <input 
                     type="checkbox" 
-                    className="rounded border-slate-300 text-[#D44D4D] focus:ring-[#D44D4D]/50 cursor-pointer"
+                    className="rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
                     checked={customers.length > 0 && selectedIds.length === customers.length}
                     onChange={toggleAll}
                   />
@@ -439,8 +443,8 @@ export default function CustomerMasterPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-sm text-slate-500">
-                    Loading customer data...
+                  <td colSpan={6} className="text-center py-10 text-sm text-slate-400">
+                    Loading...
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
@@ -455,7 +459,7 @@ export default function CustomerMasterPage() {
                     <td className="crm-td">
                       <input 
                         type="checkbox" 
-                        className="rounded border-slate-300 text-[#D44D4D] focus:ring-[#D44D4D]/50 cursor-pointer"
+                        className="rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
                         checked={selectedIds.includes(c.id)}
                         onChange={() => toggleOne(c.id)}
                       />
@@ -463,7 +467,7 @@ export default function CustomerMasterPage() {
                     <td className="crm-td text-slate-500 font-medium">{c.customerCode}</td>
                     <td className="crm-td">
                       <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-red-100 text-[#D44D4D] flex items-center justify-center text-[10px] font-bold shrink-0">
+                        <div className="w-6 h-6 rounded-full bg-red-100 text-[var(--primary)] flex items-center justify-center text-[10px] font-bold shrink-0">
                           {c.name.substring(0, 2).toUpperCase()}
                         </div>
                         <div>
@@ -562,7 +566,7 @@ export default function CustomerMasterPage() {
                       value={formData.customerCode}
                       onChange={(e) => setFormData({ ...formData, customerCode: e.target.value })}
                       placeholder="e.g. RAM-101" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all disabled:opacity-60 cursor-not-allowed" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all disabled:opacity-60 cursor-not-allowed" 
                     />
                     <p className="text-xs text-slate-500 mt-1">Manual identifier code (cannot be changed once created).</p>
                   </div>
@@ -577,7 +581,7 @@ export default function CustomerMasterPage() {
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter customer name" 
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" 
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -588,7 +592,7 @@ export default function CustomerMasterPage() {
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="Email address" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
                     />
                   </div>
                   <div>
@@ -598,7 +602,7 @@ export default function CustomerMasterPage() {
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       placeholder="Phone number" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
                     />
                   </div>
                 </div>
@@ -610,7 +614,7 @@ export default function CustomerMasterPage() {
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       placeholder="City" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" 
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
                     />
                   </div>
                   <div>
@@ -618,7 +622,7 @@ export default function CustomerMasterPage() {
                     <select 
                       value={formData.status}
                       onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
                     >
                       <option value="Prospect">Prospect</option>
                       <option value="ActiveCustomer">Active Customer</option>
@@ -633,7 +637,7 @@ export default function CustomerMasterPage() {
                     <select 
                       value={formData.leadSource}
                       onChange={(e) => setFormData({ ...formData, leadSource: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
                     >
                       <option value="">Select Source</option>
                       <option value="Website">Website</option>
@@ -652,7 +656,7 @@ export default function CustomerMasterPage() {
                       <select 
                         value={formData.assignedUserId}
                         onChange={(e) => setFormData({ ...formData, assignedUserId: e.target.value })}
-                        className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                        className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
                       >
                         <option value="">Unassigned</option>
                         {executives.map(exec => (
@@ -675,7 +679,7 @@ export default function CustomerMasterPage() {
                 <button 
                   type="submit" 
                   disabled={formLoading}
-                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
+                  className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-75 cursor-pointer"
                 >
                   {formLoading ? "Saving..." : "Save Customer"}
                 </button>

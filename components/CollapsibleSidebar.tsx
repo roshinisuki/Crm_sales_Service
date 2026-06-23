@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/ui-utils";
+import Logo from "@/components/Logo";
+import { useLogoTheme } from "@/lib/use-logo-theme";
 import {
   LayoutDashboard,
   Users,
@@ -53,6 +55,7 @@ interface CollapsibleSidebarProps {
 
 export default function CollapsibleSidebar({ user, loading, onLogout }: CollapsibleSidebarProps) {
   const pathname = usePathname();
+  const logoTheme = useLogoTheme({ initialColor: user?.theme, initialIsDark: user?.themeMode === "dark" });
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("sidebar-collapsed") === "true";
@@ -93,16 +96,16 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
       ref={sidebarRef}
       className={cn(
         "flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-white/[0.06] transition-all duration-300 ease-in-out",
-        collapsed ? "w-[72px]" : "w-[240px]"
+        collapsed ? "w-[72px]" : "w-[220px]"
       )}
       role="navigation"
       aria-label="Main navigation"
     >
       {/* Logo Section */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-3 overflow-hidden">
           <div className="w-10 h-10 flex items-center justify-center shrink-0 rounded-lg bg-[var(--primary)]">
-            <img src="/logo.png" alt="SUKI" className="w-6 h-6 object-contain" onError={(e: any) => { e.target.style.display='none'; }} />
+            <Logo theme={logoTheme} variant="mark-only" size={24} />
           </div>
           {!collapsed && (
             <div className="overflow-hidden whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-200">
@@ -177,26 +180,6 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
         </div>
       </nav>
 
-      {/* User Profile */}
-      <div className="px-3 py-4 border-t border-white/[0.06]">
-        <div
-          className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200",
-            "bg-white/[0.04] hover:bg-white/[0.08]",
-            collapsed ? "justify-center" : ""
-          )}
-        >
-          <div className="w-8 h-8 rounded-full bg-[var(--primary)] flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {user?.name?.charAt(0) || "U"}
-          </div>
-          {!collapsed && (
-            <div className="overflow-hidden whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-200">
-              <p className="text-white text-[12px] font-medium">{user?.name || "User"}</p>
-              <p className="text-white/50 text-[10px]">{user?.role || "Staff"}</p>
-            </div>
-          )}
-        </div>
-      </div>
     </aside>
   );
 }
@@ -216,7 +199,7 @@ function NavLink({
     <Link
       href={item.href}
       className={cn(
-        "group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200",
+        "group relative flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200",
         active
           ? "bg-[var(--sidebar-active-bg)] text-white font-semibold"
           : "text-white/70 hover:text-white hover:bg-white/[0.06]",

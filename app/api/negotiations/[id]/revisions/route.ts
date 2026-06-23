@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { logAudit, extractAuditContext } from "@/lib/audit";
+import { dispatchNotification } from "@/lib/notifications";
 
 // Default discount threshold (%) above which approval is required.
-// In production this should come from the Approval Matrix settings.
+// Falls back to this if no Approval Matrix config is found.
 const DEFAULT_DISCOUNT_THRESHOLD = 5;
+
+async function getDiscountThreshold(companyId: string): Promise<number> {
+  const config = await prisma.systemConfig.findFirst({
+    where: { key: "approval_matrix_discount_threshold", companyId },
+  });
+  if (config) {
+    const val = parseFloat(config.value);
+    if (!isNaN(val)) return val;
+  }
+  return DEFAULT_DISCOUNT_THRESHOLD;
+}
 
 export async function POST(
   request: NextRequest,
@@ -37,8 +50,8 @@ export async function POST(
   const reason = body.reason || null;
   const nextRevisionNumber = (negotiation.revisions[0]?.revisionNumber || 0) + 1;
 
-  // Determine if approval is required based on discount threshold
-  const threshold = DEFAULT_DISCOUNT_THRESHOLD;
+  // Determine if approval is required based on discount threshold from Approval Matrix settings
+  const threshold = await getDiscountThreshold(user.companyId!);
   const requiresApproval = discountPercent > threshold;
 
   // Create the revision in a transaction along with status + approval request
@@ -66,21 +79,17 @@ export async function POST(
         },
       });
 
-      // Create an ApprovalRequest entry for the Approval Center
-      const approvalCount = await tx.approvalRequest.count({ where: { companyId: user.companyId } });
-      const approvalCode = `APR-${String(approvalCount + 1).padStart(4, "0")}`;
-      await tx.approvalRequest.create({
+      // Create an ApprovalHistory entry so it appears in the Approval Center
+      await tx.approvalHistory.create({
         data: {
-          approvalCode,
-          approvalType: "NegotiationDiscount",
+          approvalType: "Negotiation",
           entityType: "Negotiation",
           entityId: id,
           status: "Pending",
-          requestedAmount: proposedAmount,
-          requestedDiscount: discountPercent,
-          justification: reason,
+          discountPercent,
+          remarks: reason,
           requestedById: user.id,
-          priority: discountPercent > threshold * 2 ? "High" : "Normal",
+          previousStatus: negotiation.status,
           companyId: user.companyId,
         },
       });
@@ -115,6 +124,19 @@ export async function POST(
       },
     },
   });
+
+  // B15: Notify assigned user about the revision
+  if (updated?.assignedUserId) {
+    await dispatchNotification({
+      userId: updated.assignedUserId,
+      title: requiresApproval ? "Negotiation Revision Needs Approval" : "Negotiation Revision Created",
+      message: requiresApproval
+        ? `Revision #${nextRevisionNumber} for ${updated.negotiationCode} requires approval (discount ${discountPercent}%).`
+        : `Revision #${nextRevisionNumber} for ${updated.negotiationCode} was auto-approved.`,
+      type: "negotiation",
+      link: `/negotiations/${id}`,
+    });
+  }
 
   return NextResponse.json({
     success: true,

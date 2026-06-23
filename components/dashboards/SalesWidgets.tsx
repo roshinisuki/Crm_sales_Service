@@ -5,6 +5,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import { Doughnut, Line } from "react-chartjs-2";
 import { cn } from "@/lib/ui-utils";
 import { useCurrency } from "@/components/CurrencyProvider";
+import { CountUp, parseCountValue } from "@/components/ui/CountUp";
 import { Phone, Mail, Calendar, FileCheck, FileText, Clock, Rocket } from "lucide-react";
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler);
@@ -35,7 +36,7 @@ export function SalesKpiCards({ kpis }: { kpis: any }) {
       <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active Leads</p>
-          <h3 className="text-3xl font-black text-slate-800">{kpis.totalLeads}</h3>
+          <h3 className="text-3xl font-black text-slate-800"><CountUp end={kpis.totalLeads || 0} /></h3>
           <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-md w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             {kpis.qualifiedLeads} Qualified
@@ -49,7 +50,7 @@ export function SalesKpiCards({ kpis }: { kpis: any }) {
       <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active Deals</p>
-          <h3 className="text-3xl font-black text-slate-800">{kpis.openDeals}</h3>
+          <h3 className="text-3xl font-black text-slate-800"><CountUp end={kpis.openDeals || 0} /></h3>
           <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             In Pipeline
@@ -63,13 +64,13 @@ export function SalesKpiCards({ kpis }: { kpis: any }) {
       <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pipeline Value</p>
-          <h3 className="text-3xl font-black text-slate-800">{formatCurrency(kpis.pipelineRevenue || 0)}</h3>
-          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-[#D44D4D] bg-red-50 px-2 py-0.5 rounded-md w-fit">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#D44D4D]" />
+          <h3 className="text-3xl font-black text-slate-800">{(() => { const p = parseCountValue(formatCurrency(kpis.pipelineRevenue || 0)); return <CountUp end={p.end} prefix={p.prefix} decimals={p.decimals} />; })()}</h3>
+          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-[var(--primary)] bg-red-50 px-2 py-0.5 rounded-md w-fit">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
             Closed: {formatCurrency(kpis.wonRevenue || 0)}
           </p>
         </div>
-        <div className="w-14 h-14 rounded-2xl bg-red-50 text-[#D44D4D] flex items-center justify-center shrink-0">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 text-[var(--primary)] flex items-center justify-center shrink-0">
           <Ico d={SalesIcons.revenue} size={28} />
         </div>
       </div>
@@ -77,7 +78,7 @@ export function SalesKpiCards({ kpis }: { kpis: any }) {
       <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Conversion</p>
-          <h3 className="text-3xl font-black text-slate-800">{kpis.conversionRate}%</h3>
+          <h3 className="text-3xl font-black text-slate-800"><CountUp end={kpis.conversionRate || 0} suffix="%" decimals={1} /></h3>
           <p className="text-[10px] font-bold mt-1.5 text-slate-400">
             {kpis.wonDeals} Won / {(kpis.openDeals || 0) + (kpis.wonDeals || 0)} Total
           </p>
@@ -405,10 +406,13 @@ export function WorkspaceOverviewLineChart({
 
   const [accentColor, setAccentColor] = useState('rgba(232, 98, 10, 0.85)');
   const [accentSoft, setAccentSoft] = useState('rgba(232, 98, 10, 0.05)');
+  const [isDark, setIsDark] = useState(false);
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       const updateColors = () => {
+        const dark = document.documentElement.classList.contains('dark');
+        setIsDark(dark);
         const style = window.getComputedStyle(document.documentElement);
         const acc = style.getPropertyValue('--accent').trim();
         const soft = style.getPropertyValue('--accent-soft').trim();
@@ -418,18 +422,25 @@ export function WorkspaceOverviewLineChart({
 
       updateColors();
 
-      const observer = new MutationObserver(() => {
-        updateColors();
-      });
-
+      const observer = new MutationObserver(updateColors);
       observer.observe(document.documentElement, {
         attributes: true,
-        attributeFilter: ["data-theme"]
+        attributeFilter: ["data-theme", "class"]
       });
 
       return () => observer.disconnect();
     }
   }, []);
+
+  // Visits: bright indigo in dark, deep indigo in light
+  const visitsColor    = isDark ? '#818cf8' : '#4f46e5';
+  const visitsBg       = isDark ? 'rgba(129,140,248,0.08)' : 'rgba(79,70,229,0.03)';
+  // Conversions: bright emerald in dark, deep emerald in light
+  const convColor      = isDark ? '#34d399' : '#10b981';
+  const convBg         = isDark ? 'rgba(52,211,153,0.08)' : 'rgba(16,185,129,0.03)';
+  // Axis labels: readable in both modes
+  const tickColor      = isDark ? '#94a3b8' : '#64748b';
+  const gridColor      = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.2)';
 
   const chartData = {
     labels: months,
@@ -441,29 +452,29 @@ export function WorkspaceOverviewLineChart({
         backgroundColor: accentSoft,
         tension: 0.4,
         fill: true,
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointRadius: 2,
         pointHoverRadius: 5,
       },
       {
         label: 'Visits',
         data: getScaledData(visits, visitsPattern),
-        borderColor: '#4f46e5',
-        backgroundColor: 'rgba(79, 70, 229, 0.03)',
+        borderColor: visitsColor,
+        backgroundColor: visitsBg,
         tension: 0.4,
         fill: true,
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointRadius: 2,
         pointHoverRadius: 5,
       },
       {
         label: 'Conversions',
         data: getScaledData(subscriptions, subsPattern),
-        borderColor: '#10b981',
-        backgroundColor: 'rgba(16, 185, 129, 0.03)',
+        borderColor: convColor,
+        backgroundColor: convBg,
         tension: 0.4,
         fill: true,
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointRadius: 2,
         pointHoverRadius: 5,
       }
@@ -480,11 +491,11 @@ export function WorkspaceOverviewLineChart({
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: '#94a3b8', font: { size: 9, weight: 'bold' } }
+        ticks: { color: tickColor, font: { size: 9, weight: 'bold' as const } }
       },
       y: {
-        grid: { color: 'var(--border-subtle)' },
-        ticks: { color: '#94a3b8', font: { size: 9, weight: 'bold' } }
+        grid: { color: gridColor },
+        ticks: { color: tickColor, font: { size: 9, weight: 'bold' as const } }
       }
     }
   };
@@ -496,8 +507,8 @@ export function WorkspaceOverviewLineChart({
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Workspace Overview</h3>
           <div className="flex items-center gap-4 mt-2 text-[10px] font-bold text-slate-400">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: accentColor }} /> Leads</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#4f46e5]" /> Visits</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Conversions</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: visitsColor }} /> Visits</span>
+            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ backgroundColor: convColor }} /> Conversions</span>
           </div>
         </div>
         <select className="text-[10px] font-bold text-slate-400 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg px-3 py-1.5 outline-none cursor-pointer hover:bg-[var(--surface-offset)] transition-colors">

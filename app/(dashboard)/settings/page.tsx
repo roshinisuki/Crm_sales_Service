@@ -41,7 +41,7 @@ function Toggle({ label, description, checked: controlledChecked, onChange, defa
       </div>
       <button
         onClick={handleToggle}
-        className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none cursor-pointer ${isChecked ? "bg-[#D44D4D]" : "bg-slate-200"}`}
+        className={`relative w-10 h-5 rounded-full transition-colors duration-200 focus:outline-none cursor-pointer ${isChecked ? "bg-[var(--primary)]" : "bg-slate-200"}`}
         aria-checked={isChecked}
         role="switch"
       >
@@ -418,12 +418,12 @@ export default function SettingsPage() {
               <input
                 type="text"
                 defaultValue=" SUKI  Software Pvt. Ltd."
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1.5">Default Timezone</label>
-              <select className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer">
+              <select className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer">
                 <option>Asia/Kolkata (IST +5:30)</option>
                 <option>UTC+0 (GMT)</option>
                 <option>America/New_York (EST)</option>
@@ -434,7 +434,7 @@ export default function SettingsPage() {
               <select
                 value={preferredCurrency}
                 onChange={e => setPreferredCurrency(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
               >
                 <option value="INR">INR (₹)</option>
                 <option value="USD">USD ($)</option>
@@ -443,7 +443,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleSaveCurrency}
                 disabled={savingCurrency}
-                className="mt-2 px-3 py-1.5 text-xs font-bold text-white bg-[#D44D4D] rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="mt-2 px-3 py-1.5 text-xs font-bold text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {savingCurrency ? "Saving..." : "Save Currency"}
               </button>
@@ -458,7 +458,7 @@ export default function SettingsPage() {
                     disabled={updatingVariant || companyVariant === v}
                     className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
                       companyVariant === v
-                        ? "bg-[#D44D4D] text-white"
+                        ? "bg-[var(--primary)] text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     } disabled:opacity-70`}
                   >
@@ -473,7 +473,7 @@ export default function SettingsPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
             >
               {saving ? "Saving..." : "Save Preferences"}
             </button>
@@ -501,7 +501,7 @@ export default function SettingsPage() {
                 value={pwForm.current}
                 onChange={(e) => setPwForm({ ...pwForm, current: e.target.value })}
                 placeholder="••••••••"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
             <div>
@@ -512,7 +512,7 @@ export default function SettingsPage() {
                 value={pwForm.next}
                 onChange={(e) => setPwForm({ ...pwForm, next: e.target.value })}
                 placeholder="Min. 8 characters"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
               <div className="flex items-center gap-2 mt-2">
                 <div className={`h-1.5 flex-1 rounded-full transition-colors ${pwScore >= 1 ? (pwScore >= 3 ? 'bg-emerald-500' : pwScore >= 2 ? 'bg-amber-400' : 'bg-red-400') : 'bg-slate-200'}`} />
@@ -531,13 +531,13 @@ export default function SettingsPage() {
                 value={pwForm.confirm}
                 onChange={(e) => setPwForm({ ...pwForm, confirm: e.target.value })}
                 placeholder="Repeat new password"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
             <button
               type="submit"
               disabled={pwLoading}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
             >
               {pwLoading ? "Updating..." : "Update Password"}
             </button>
@@ -610,7 +610,7 @@ export default function SettingsPage() {
                   type={showApiKey ? "text" : "password"}
                   value={leadsApiKey}
                   onChange={(e) => setLeadsApiKey(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                  className="flex-1 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                 />
                 <button
                   type="button"
@@ -634,7 +634,7 @@ export default function SettingsPage() {
               <select
                 value={leadsAssignmentMode}
                 onChange={(e) => setLeadsAssignmentMode(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
               >
                 <option value="ROUND_ROBIN">Round-Robin Assignment (Balanced Load)</option>
                 <option value="DEFAULT_POOL">Triage Pool (Assign to Default User)</option>
@@ -647,7 +647,7 @@ export default function SettingsPage() {
                 <select
                   value={leadsDefaultAssigneeId}
                   onChange={(e) => setLeadsDefaultAssigneeId(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
                 >
                   <option value="">-- Select default triage assignee --</option>
                   {users.map((u) => (
@@ -662,7 +662,7 @@ export default function SettingsPage() {
             <button
               onClick={handleSaveLeadsConfig}
               disabled={savingLeads}
-              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
             >
               {savingLeads ? "Saving API Settings..." : "Save API & Assignment Config"}
             </button>
@@ -677,7 +677,7 @@ export default function SettingsPage() {
                     navigator.clipboard.writeText(codeSnippet);
                     toast.success("Widget code copied to clipboard!");
                   }}
-                  className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-[#D44D4D] border border-red-200/60 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
+                  className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-[var(--primary)] border border-red-200/60 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
                 >
                   Copy Snippet
                 </button>

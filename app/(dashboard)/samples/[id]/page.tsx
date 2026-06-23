@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -15,7 +16,7 @@ const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?
 
 const icons = {
   back: "M10 19l-7-7m0 0l7-7m-7 7h18",
-  edit: "M11 4H4a2 2 0 012-2v14a2 2 0 012 2 2h14a2 2 0 012-2V4a2 2 0 00-2-2m-6 12h6m-6-12h6",
+  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
   x: "M6 18L18 6M6 6l12 12",
   check: "M5 13l4 4L19 7",
   arrow: "M14 5l7 7m0 0l-7 7m7-7H3",
@@ -53,6 +54,8 @@ export default function SampleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const { startLoading, stopLoading } = useGlobalLoading();
   const [customers, setCustomers] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -117,6 +120,8 @@ export default function SampleDetailPage() {
   }, [editForm.customerId]);
 
   const handleStatusChange = async (newStatus: string, extra: Record<string, any> = {}) => {
+    setUpdatingStatus(true);
+    startLoading("Updating sample status...", "handshake");
     try {
       const res = await fetch(`/api/samples/${id}`, {
         method: "PUT",
@@ -132,6 +137,9 @@ export default function SampleDetailPage() {
       }
     } catch {
       toast.error("Failed to update status");
+    } finally {
+      setUpdatingStatus(false);
+      stopLoading();
     }
   };
 
@@ -240,7 +248,7 @@ export default function SampleDetailPage() {
           <select
             value={sample.status}
             onChange={(e) => handleStatusClick(e.target.value)}
-            className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
           >
             <option value={sample.status}>{sample.status} (current)</option>
             {statusOptions.filter(s => s !== sample.status).map((s) => (
@@ -278,9 +286,19 @@ export default function SampleDetailPage() {
           {sample.rejectedDate && <span className="text-red-600">• Rejected: {new Date(sample.rejectedDate).toLocaleDateString()}</span>}
           {sample.revisionDate && <span className="text-orange-600">• Revision: {new Date(sample.revisionDate).toLocaleDateString()}</span>}
         </div>
-      </div>
 
-      {/* Details / Edit form */}
+        {/* B17: Convert to Quotation button when Approved */}
+        {sample.status === "Approved" && (
+          <div className="mt-4">
+            <button
+              onClick={() => router.push(`/quotations/new?sampleId=${sample.id}&customerId=${sample.customerId}&productId=${sample.productId}`)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+            >
+              <Ico d={icons.arrow} size={14} /> Convert to Quotation
+            </button>
+          </div>
+        )}
+      </div>
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
         {editing ? (
           <div className="space-y-5">
@@ -290,7 +308,7 @@ export default function SampleDetailPage() {
                 <select
                   value={editForm.customerId}
                   onChange={(e) => setEditForm({ ...editForm, customerId: e.target.value, contactId: "" })}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
                 >
                   <option value="">-- Select --</option>
                   {customers.map((c: any) => (
@@ -303,7 +321,7 @@ export default function SampleDetailPage() {
                 <select
                   value={editForm.contactId}
                   onChange={(e) => setEditForm({ ...editForm, contactId: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
                 >
                   <option value="">-- None --</option>
                   {contacts.map((c: any) => (
@@ -316,7 +334,7 @@ export default function SampleDetailPage() {
                 <select
                   value={editForm.productId}
                   onChange={(e) => setEditForm({ ...editForm, productId: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
                 >
                   <option value="">-- Select --</option>
                   {products.map((p: any) => (
@@ -331,7 +349,7 @@ export default function SampleDetailPage() {
                   min="1"
                   value={editForm.quantity}
                   onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
                 />
               </div>
               <div>
@@ -339,7 +357,7 @@ export default function SampleDetailPage() {
                 <select
                   value={editForm.rfqId}
                   onChange={(e) => setEditForm({ ...editForm, rfqId: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
                 >
                   <option value="">-- None --</option>
                   {rfqs.map((r: any) => (
@@ -352,7 +370,7 @@ export default function SampleDetailPage() {
                 <select
                   value={editForm.assignedUserId}
                   onChange={(e) => setEditForm({ ...editForm, assignedUserId: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] cursor-pointer"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
                 >
                   <option value="">-- Unassigned --</option>
                   {users.map((u: any) => (
@@ -367,7 +385,7 @@ export default function SampleDetailPage() {
                   value={editForm.trackingNumber}
                   onChange={(e) => setEditForm({ ...editForm, trackingNumber: e.target.value })}
                   placeholder="Courier tracking number..."
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D]"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
                 />
               </div>
             </div>
@@ -377,12 +395,12 @@ export default function SampleDetailPage() {
                 value={editForm.specifications}
                 onChange={(e) => setEditForm({ ...editForm, specifications: e.target.value })}
                 rows={4}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] resize-none"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
               />
             </div>
             <div className="flex justify-end gap-3">
               <button onClick={() => setEditing(false)} className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] cursor-pointer disabled:opacity-60">
+              <button onClick={handleSave} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-60">
                 {saving ? "Saving..." : "Save Changes"}
               </button>
             </div>
@@ -450,12 +468,12 @@ export default function SampleDetailPage() {
               onChange={(e) => setFeedbackText(e.target.value)}
               rows={4}
               placeholder="Enter customer feedback..."
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] resize-none"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
             />
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowFeedbackModal(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
               <button onClick={() => submitFeedback("Rejected")} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer">Mark Rejected</button>
-              <button onClick={() => submitFeedback("Approved")} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer">Mark Approved</button>
+              <button onClick={() => submitFeedback("Approved")} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">Mark Approved</button>
             </div>
           </div>
         </div>
@@ -472,11 +490,11 @@ export default function SampleDetailPage() {
               onChange={(e) => setRevisionText(e.target.value)}
               rows={4}
               placeholder="Enter revision requirements..."
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] resize-none"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
             />
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowRevisionModal(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
-              <button onClick={submitRevision} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 cursor-pointer">Submit Revision</button>
+              <button onClick={submitRevision} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">Submit Revision</button>
             </div>
           </div>
         </div>
@@ -490,7 +508,7 @@ function Field({ label, value, link }: { label: string; value: string; link?: st
     <div>
       <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{label}</label>
       {link ? (
-        <a href={link} className="text-sm text-[#D44D4D] hover:underline font-medium">{value}</a>
+        <a href={link} className="text-sm text-[var(--primary)] hover:underline font-medium">{value}</a>
       ) : (
         <p className="text-sm text-slate-700">{value}</p>
       )}

@@ -53,8 +53,20 @@ export async function PUT(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Negotiation not found" }, { status: 404 });
 
+  // B16: SalesRep can only modify negotiations assigned to them
+  if (user.role === "SalesRep" && existing.assignedUserId && existing.assignedUserId !== user.id) {
+    return NextResponse.json({ success: false, message: "You can only modify negotiations assigned to you" }, { status: 403 });
+  }
+
   if (body.status && !VALID_STATUSES.includes(body.status)) {
     return NextResponse.json({ success: false, message: "Invalid status" }, { status: 400 });
+  }
+
+  // B2: Block terminal status transitions when approval is pending
+  if (body.status && body.status !== existing.status) {
+    if (existing.status === "PendingApproval" && ["Won", "Lost", "Active", "PriceRevision", "CommercialDiscussion"].includes(body.status)) {
+      return NextResponse.json({ success: false, message: "Cannot change status while approval is pending. Resolve the approval in the Approval Center first." }, { status: 400 });
+    }
   }
 
   const updateData: any = {};

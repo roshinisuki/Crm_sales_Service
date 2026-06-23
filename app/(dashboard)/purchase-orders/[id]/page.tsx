@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -47,12 +49,14 @@ export default function PurchaseOrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const { formatCurrency } = useCurrency();
 
   const [po, setPo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Details");
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const { startLoading, stopLoading } = useGlobalLoading();
 
   // Validation checklist state
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
@@ -174,6 +178,7 @@ export default function PurchaseOrderDetailPage() {
 
   const handleSyncErp = async () => {
     setSyncing(true);
+    startLoading("Syncing with SUKI ERP...", "handshake");
     try {
       const res = await fetch(`/api/purchase-orders/${id}/sync-erp`, { method: "POST" });
       const data = await res.json();
@@ -187,6 +192,7 @@ export default function PurchaseOrderDetailPage() {
       toast.error("ERP sync failed");
     } finally {
       setSyncing(false);
+      stopLoading();
     }
   };
 
@@ -229,7 +235,7 @@ export default function PurchaseOrderDetailPage() {
               disabled={saving || readOnly}
               onClick={() => handleStatusChange(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                po.status === s ? "bg-[#D44D4D] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                po.status === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
               {s}
@@ -249,7 +255,7 @@ export default function PurchaseOrderDetailPage() {
               key={t}
               onClick={() => setActiveTab(t)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
-                activeTab === t ? "border-[#D44D4D] text-[#D44D4D]" : "border-transparent text-slate-500 hover:text-slate-700"
+                activeTab === t ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
               {t}
@@ -268,9 +274,9 @@ export default function PurchaseOrderDetailPage() {
               <Field label="PO Date" value={po.poDate ? new Date(po.poDate).toLocaleDateString() : "—"} />
               <Field label="Expected Delivery" value={po.expectedDelivery ? new Date(po.expectedDelivery).toLocaleDateString() : "—"} />
               <Field label="Actual Delivery" value={po.actualDelivery ? new Date(po.actualDelivery).toLocaleDateString() : "—"} />
-              <Field label="Subtotal" value={`$${po.totalAmount?.toLocaleString()}`} />
+              <Field label="Subtotal" value={formatCurrency(po.totalAmount)} />
               <Field label="Discount" value={`${po.discountPercent}%`} />
-              <Field label="Final Amount" value={`$${po.finalAmount?.toLocaleString()}`} />
+              <Field label="Final Amount" value={formatCurrency(po.finalAmount)} />
               <Field label="Items" value={String(po.items?.length || 0)} />
               <Field label="Negotiation" value={po.negotiation ? po.negotiation.negotiationCode : "—"} />
               <Field label="Quotation" value={po.quotation ? po.quotation.quotationCode : "—"} />
@@ -298,8 +304,8 @@ export default function PurchaseOrderDetailPage() {
                         <td className="px-3 py-2 text-sm text-slate-700">{it.product ? `${it.product.productCode || it.product.name}` : "—"}</td>
                         <td className="px-3 py-2 text-sm text-slate-700">{it.description}</td>
                         <td className="px-3 py-2 text-sm text-slate-700 text-right">{it.quantity}</td>
-                        <td className="px-3 py-2 text-sm text-slate-700 text-right">${it.unitPrice?.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-sm font-medium text-slate-800 text-right">${it.totalPrice?.toLocaleString()}</td>
+                        <td className="px-3 py-2 text-sm text-slate-700 text-right">{formatCurrency(it.unitPrice)}</td>
+                        <td className="px-3 py-2 text-sm font-medium text-slate-800 text-right">{formatCurrency(it.totalPrice)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -313,36 +319,36 @@ export default function PurchaseOrderDetailPage() {
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Payment Terms</label>
                     <input type="text" value={editForm.paymentTerms} onChange={(e) => setEditForm({ ...editForm, paymentTerms: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" />
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Delivery Terms</label>
                     <input type="text" value={editForm.deliveryTerms} onChange={(e) => setEditForm({ ...editForm, deliveryTerms: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" />
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Expected Delivery</label>
                     <input type="date" value={editForm.expectedDelivery} onChange={(e) => setEditForm({ ...editForm, expectedDelivery: e.target.value })}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all" />
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Shipping Address</label>
                     <textarea value={editForm.shippingAddress} onChange={(e) => setEditForm({ ...editForm, shippingAddress: e.target.value })} rows={2}
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none" />
+                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Special Instructions</label>
                   <textarea value={editForm.specialInstructions} onChange={(e) => setEditForm({ ...editForm, specialInstructions: e.target.value })} rows={2}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none" />
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Notes</label>
                   <textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2}
-                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none" />
+                    className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none" />
                 </div>
                 <div className="flex justify-end">
-                  <button onClick={handleSaveDetails} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer disabled:opacity-60">
+                  <button onClick={handleSaveDetails} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
                     {saving ? "Saving..." : "Save Changes"}
                   </button>
                 </div>
@@ -392,7 +398,7 @@ export default function PurchaseOrderDetailPage() {
                   checked={!!checklist[item.key]}
                   disabled={readOnly}
                   onChange={(e) => setChecklist({ ...checklist, [item.key]: e.target.checked })}
-                  className="w-5 h-5 rounded border-slate-300 text-[#D44D4D] focus:ring-[#D44D4D]/20 cursor-pointer disabled:opacity-40"
+                  className="w-5 h-5 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]/20 cursor-pointer disabled:opacity-40"
                 />
                 <span className="text-sm text-slate-700">{item.label}</span>
                 {checklist[item.key] && <Ico d={icons.check} size={16} className="text-green-600 ml-auto" />}
@@ -408,18 +414,18 @@ export default function PurchaseOrderDetailPage() {
               disabled={readOnly}
               onChange={(e) => setPoDocumentUrl(e.target.value)}
               placeholder="https://... (upload URL or external link to signed PO)"
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all disabled:opacity-60"
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all disabled:opacity-60"
             />
             <p className="text-xs text-slate-400 mt-1">Upload the customer's signed PO document and paste the URL here.</p>
           </div>
 
           {!readOnly && (
             <div className="flex justify-end gap-3">
-              <button onClick={handleSaveChecklist} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer disabled:opacity-60">
+              <button onClick={handleSaveChecklist} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
                 {saving ? "Saving..." : "Save Checklist"}
               </button>
               {canApprove && (
-                <button onClick={() => handleStatusChange("Approved")} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-60">
+                <button onClick={() => handleStatusChange("Approved")} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
                   Approve PO
                 </button>
               )}
@@ -447,7 +453,7 @@ export default function PurchaseOrderDetailPage() {
                 <button
                   onClick={handleSyncErp}
                   disabled={syncing}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer disabled:opacity-60"
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60"
                 >
                   <Ico d={icons.sync} size={16} className={syncing ? "animate-spin" : ""} />
                   {syncing ? "Syncing..." : po.erpSyncStatus === "Failed" ? "Retry Sync" : "Sync to ERP"}

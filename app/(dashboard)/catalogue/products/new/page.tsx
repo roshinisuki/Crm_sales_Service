@@ -110,7 +110,7 @@ export default function NewProductPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 placeholder="Enter product name"
               />
             </div>
@@ -119,7 +119,7 @@ export default function NewProductPage() {
               <select
                 value={formData.categoryId}
                 onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               >
                 <option value="">Select category</option>
                 {categories.map((cat) => (
@@ -134,7 +134,7 @@ export default function NewProductPage() {
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D] resize-none"
+              className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
               placeholder="Enter product description"
               rows={4}
             />
@@ -147,7 +147,7 @@ export default function NewProductPage() {
                 type="text"
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 placeholder="e.g., PCS, KG, MTR"
               />
             </div>
@@ -158,7 +158,7 @@ export default function NewProductPage() {
                 step="0.01"
                 value={formData.basePrice}
                 onChange={(e) => setFormData({ ...formData, basePrice: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 placeholder="0.00"
               />
             </div>
@@ -170,7 +170,7 @@ export default function NewProductPage() {
               <select
                 value={formData.productType}
                 onChange={(e) => setFormData({ ...formData, productType: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               >
                 <option value="">Select type</option>
                 <option value="FinishedGood">Finished Good</option>
@@ -187,7 +187,7 @@ export default function NewProductPage() {
                 step="0.01"
                 value={formData.minOrderQuantity}
                 onChange={(e) => setFormData({ ...formData, minOrderQuantity: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 placeholder="0"
               />
             </div>
@@ -200,7 +200,7 @@ export default function NewProductPage() {
                 type="url"
                 value={formData.datasheetUrl}
                 onChange={(e) => setFormData({ ...formData, datasheetUrl: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 placeholder="https://..."
               />
             </div>
@@ -210,7 +210,7 @@ export default function NewProductPage() {
                 type="url"
                 value={formData.brochureUrl}
                 onChange={(e) => setFormData({ ...formData, brochureUrl: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#D44D4D]"
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 placeholder="https://..."
               />
             </div>
@@ -222,7 +222,7 @@ export default function NewProductPage() {
               id="isActive"
               checked={formData.isActive}
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="w-4 h-4 rounded border border-slate-300 bg-white text-[#D44D4D] focus:ring-2 focus:ring-[#D44D4D]"
+              className="w-4 h-4 rounded border border-slate-300 bg-white text-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]"
             />
             <label htmlFor="isActive" className="text-sm text-slate-700">Active</label>
           </div>
@@ -238,7 +238,7 @@ export default function NewProductPage() {
             <button
               type="submit"
               disabled={formLoading || !formData.name}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#D44D4D] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               <Ico d={icons.save} size={18} />
               {formLoading ? "Creating..." : "Create Product"}

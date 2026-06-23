@@ -878,6 +878,8 @@ model ApprovalHistory {
   approvalType    String? // Discount | Negotiation | PO | Quotation
   entityType      String? // Deal | Negotiation | PurchaseOrder | Quotation
   entityId        String?
+  companyId       String?
+  company         Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt       DateTime  @default(now())
   resolvedAt      DateTime?
 
@@ -889,6 +891,7 @@ model ApprovalHistory {
   @@index([entityType, entityId])
   @@index([approvalType])
   @@index([status])
+  @@index([companyId])
 }
 
 model Company {
@@ -922,6 +925,7 @@ model Company {
   PurchaseOrder     PurchaseOrder[]
   CRMDocument       CRMDocument[]
   ApprovalRequest   ApprovalRequest[]
+  approvalHistories ApprovalHistory[]
   emailTemplates    EmailTemplate[]
   whatsappTemplates WhatsAppTemplate[]
 

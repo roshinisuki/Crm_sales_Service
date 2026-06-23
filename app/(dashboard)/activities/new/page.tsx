@@ -2,17 +2,17 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createCallAction, createMeetingAction, createNoteAction } from "@/app/actions/activities";
+import { createCallAction, createMeetingAction, createNoteAction, createEmailAction } from "@/app/actions/activities";
 import { completeFollowUpWithActivityAction } from "@/app/actions/followUps";
 import { getLeadByIdAction } from "@/app/actions/leads";
 import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Select } from "@/components/ui/FormField";
 import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
-import { ArrowLeft, Save, Phone, Video, StickyNote, User, Building2 } from "lucide-react";
+import { ArrowLeft, Save, Phone, Video, StickyNote, User, Building2, Mail } from "lucide-react";
 import Link from "next/link";
 
-type ActivityType = "call" | "meeting" | "note";
+type ActivityType = "call" | "meeting" | "note" | "email";
 
 function NewActivityPageInner() {
   const router = useRouter();
@@ -45,6 +45,7 @@ function NewActivityPageInner() {
     meetingDate: "", location: "", mode: "In-person", agenda: "", outcome: "", content: "", status: "Scheduled",
   });
   const [noteForm, setNoteForm] = useState({ content: "" });
+  const [emailForm, setEmailForm] = useState({ subject: "", body: "", direction: "Outbound" });
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -71,6 +72,9 @@ function NewActivityPageInner() {
       if (meetingForm.agenda.trim().length < 20) e.agenda = "Agenda must be at least 20 characters";
     } else if (activityType === "note") {
       if (noteForm.content.trim().length < 10) e.content = "Note must be at least 10 characters";
+    } else if (activityType === "email") {
+      if (emailForm.subject.trim().length < 3) e.subject = "Subject is required";
+      if (emailForm.body.trim().length < 10) e.body = "Email body must be at least 10 characters";
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -83,7 +87,7 @@ function NewActivityPageInner() {
     }
     setSaving(true);
     try {
-      let res;
+      let res: any;
       let followUpCompleted = false;
       if (activityType === "call") {
         if (isFollowUpLinked) {
@@ -134,6 +138,13 @@ function NewActivityPageInner() {
             status: meetingForm.status,
           });
         }
+      } else if (activityType === "email") {
+        res = await createEmailAction({
+          leadId: urlLeadId || null,
+          subject: emailForm.subject,
+          body: emailForm.body,
+          direction: emailForm.direction,
+        });
       } else {
         if (isFollowUpLinked) {
           res = await completeFollowUpWithActivityAction({
@@ -175,6 +186,13 @@ function NewActivityPageInner() {
               : { label: "Schedule Demo", href: `/activities/new?leadId=${leadId}&type=Meeting`, icon: <Video size={16} /> },
             secondary: { label: "View All Meetings", href: "/activities?type=Meeting" },
             alternate: dealId ? { label: "Back to Opportunity", href: `/sales-pipeline/${dealId}` } : { label: "Back to Lead", href: `/leads/${leadId}` },
+          });
+        } else if (activityType === "email") {
+          setOverlay({
+            open: true,
+            message: `Email logged: ${emailForm.subject}`,
+            primary: { label: "View All Emails", href: "/activities?type=Email", icon: <Mail size={16} /> },
+            secondary: { label: "Back to Activities", href: "/activities" },
           });
         } else {
           setOverlay({
@@ -240,7 +258,7 @@ function NewActivityPageInner() {
   };
 
   return (
-    <PageShell title="Log Activity" subtitle="Record a call, meeting, or note."
+    <PageShell title="Log Activity" subtitle="Record a call, meeting, email, or note."
       action={
         <Link href="/activities" className="btn-secondary text-xs flex items-center gap-2">
           <ArrowLeft size={14} /> Back
@@ -252,6 +270,7 @@ function NewActivityPageInner() {
         <div className="flex items-center gap-3 mb-6">
           <TypeButton type="call" icon={<Phone size={16} />} label="Call" />
           <TypeButton type="meeting" icon={<Video size={16} />} label="Meeting" />
+          <TypeButton type="email" icon={<Mail size={16} />} label="Email" />
           <TypeButton type="note" icon={<StickyNote size={16} />} label="Note" />
         </div>
 
@@ -347,6 +366,34 @@ function NewActivityPageInner() {
                   rows={3}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
                 />
+              </FormField>
+            </>
+          )}
+
+          {/* ── EMAIL FORM ── */}
+          {activityType === "email" && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <FormField label="Subject" required>
+                  <Input value={emailForm.subject} onChange={(e) => setEmailForm(f => ({ ...f, subject: e.target.value }))} placeholder="Email subject" />
+                  {errors.subject && <p className="text-xs text-red-500 mt-1">{errors.subject}</p>}
+                </FormField>
+                <FormField label="Direction" required>
+                  <Select value={emailForm.direction} onChange={(e) => setEmailForm(f => ({ ...f, direction: e.target.value }))}>
+                    <option value="Outbound">Outbound</option>
+                    <option value="Inbound">Inbound</option>
+                  </Select>
+                </FormField>
+              </div>
+              <FormField label="Email Body" required>
+                <textarea
+                  value={emailForm.body}
+                  onChange={(e) => setEmailForm(f => ({ ...f, body: e.target.value }))}
+                  placeholder="Write your email here (min 10 chars)..."
+                  rows={6}
+                  className={`w-full border rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none ${errors.body ? "border-red-300" : "border-slate-200"}`}
+                />
+                {errors.body && <p className="text-xs text-red-500 mt-1">{errors.body}</p>}
               </FormField>
             </>
           )}

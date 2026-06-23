@@ -67,7 +67,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
           <button onClick={() => setIsInboundOpen(true)} className="btn-secondary h-9 text-xs">
             + Office Visit
           </button>
-          <button onClick={() => setIsOutboundOpen(true)} className="btn-primary h-9 text-xs bg-[#C2601A] hover:bg-[#A84F16] text-white">
+          <button onClick={() => setIsOutboundOpen(true)} className="btn-primary h-9 text-xs bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white">
             + Field Check-In
           </button>
         </div>
@@ -75,7 +75,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
     >
       
       {/* ── 1. KPI Cards Row ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <SummaryCard 
           label="Total Leads" 
           value={salesData?.kpis?.totalLeads || 0} 
@@ -111,7 +111,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
       </div>
 
       {/* ── 3. Charts & Alerts Split ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
         
         {/* Left Side: Chart Panels */}
         <div className="xl:col-span-2">
@@ -129,7 +129,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
       </div>
 
       {/* ── 3b. Recent Leads & Pipeline Row ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
         {/* Left Side: Recent Leads */}
         <div className="xl:col-span-2">
           <RecentLeadsTableWidget recentLeads={dashboardData?.recentLeads || []} />
@@ -229,7 +229,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
                       {v.status === "CHECKED_IN" ? (
                         <button
                           onClick={() => handleOpenCheckout(v, "Inbound")}
-                          className="btn-primary text-xs py-1.5 px-3 bg-[#D44D4D] hover:bg-[#C94F4F]"
+                          className="btn-primary text-xs py-1.5 px-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
                         >
                           End Visit
                         </button>
@@ -275,7 +275,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
                       {v.status === "CHECKED_IN" ? (
                         <button
                           onClick={() => handleOpenCheckout(v, "Outbound")}
-                          className="btn-primary text-xs py-1.5 px-3 bg-[#D44D4D] hover:bg-[#C94F4F]"
+                          className="btn-primary text-xs py-1.5 px-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
                         >
                           Check-Out
                         </button>

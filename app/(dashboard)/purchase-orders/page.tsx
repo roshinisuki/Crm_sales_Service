@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import PageContainer from "@/components/PageContainer";
 
@@ -43,6 +44,7 @@ export default function PurchaseOrderListPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const toast = useToast();
+  const { formatCurrency } = useCurrency();
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
@@ -53,9 +55,19 @@ export default function PurchaseOrderListPage() {
     try {
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
-      const res = await fetch(`/api/purchase-orders?${new URLSearchParams(params)}`);
-      const data = await res.json();
-      if (data.success) setPurchaseOrders(data.data);
+      let allData: any[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await fetch(`/api/purchase-orders?${new URLSearchParams({ ...params, page: String(page) })}`);
+        const data = await res.json();
+        if (data.success) {
+          allData = allData.concat(data.data || []);
+          totalPages = data.totalPages || 1;
+        } else break;
+        page++;
+      }
+      setPurchaseOrders(allData);
     } catch {
       toast.error("Failed to load purchase orders");
     } finally {
@@ -121,7 +133,7 @@ export default function PurchaseOrderListPage() {
         </div>
         <button
           onClick={() => router.push("/purchase-orders/new")}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
         >
           <Ico d={icons.plus} size={16} /> New Purchase Order
         </button>
@@ -130,7 +142,7 @@ export default function PurchaseOrderListPage() {
       <div className="flex flex-wrap gap-2 mb-2">
         <button
           onClick={() => router.push("/purchase-orders")}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[#D44D4D] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
         >
           All
         </button>
@@ -138,7 +150,7 @@ export default function PurchaseOrderListPage() {
           <button
             key={s}
             onClick={() => router.push(`/purchase-orders?status=${s}`)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[#D44D4D] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
           >
             {s}
           </button>
@@ -152,7 +164,7 @@ export default function PurchaseOrderListPage() {
           placeholder="Search by PO code, PO number, or customer..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+          className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
         />
       </div>
 
@@ -183,7 +195,7 @@ export default function PurchaseOrderListPage() {
                     {p.poNumber && <div className="text-xs text-slate-400">{p.poNumber}</div>}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">{p.customer?.name || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{p.finalAmount?.toLocaleString(undefined, { style: "currency", currency: "USD" })}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">{p.finalAmount ? formatCurrency(p.finalAmount) : "—"}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[p.status] || "bg-gray-100 text-gray-600"}`}>{p.status}</span>
                   </td>

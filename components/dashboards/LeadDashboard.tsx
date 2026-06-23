@@ -73,7 +73,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
             <button onClick={() => setIsInboundOpen(true)} className="btn-secondary h-9 text-xs hidden sm:flex">
               <Building className="w-3.5 h-3.5" /> + Office Visit
             </button>
-            <button onClick={() => setIsOutboundOpen(true)} className="btn-primary h-9 text-xs bg-[#C2601A] hover:bg-[#A84F16] text-white hidden sm:flex">
+            <button onClick={() => setIsOutboundOpen(true)} className="btn-primary h-9 text-xs bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white hidden sm:flex">
               <MapPin className="w-3.5 h-3.5" /> + Field Check-In
             </button>
           </div>
@@ -87,14 +87,14 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
             onClick={() => setIsInboundOpen(true)}
             className="flex flex-col items-center justify-center bg-[#1A1A1A] text-white p-4 rounded-xl shadow-sm active:scale-95 transition-transform"
           >
-            <Building className="w-5 h-5 mb-2 text-[#C2601A]" />
+            <Building className="w-5 h-5 mb-2 text-[var(--primary)]" />
             <span className="text-xs font-bold">+ Office Visit</span>
           </button>
           <button 
             onClick={() => setIsOutboundOpen(true)}
             className="flex flex-col items-center justify-center bg-[#1A1A1A] text-white p-4 rounded-xl shadow-sm active:scale-95 transition-transform"
           >
-            <MapPin className="w-5 h-5 mb-2 text-[#C2601A]" />
+            <MapPin className="w-5 h-5 mb-2 text-[var(--primary)]" />
             <span className="text-xs font-bold">+ Field Check-In</span>
           </button>
         </div>
@@ -114,7 +114,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
             </div>
             <button
               onClick={() => handleOpenCheckout(activeVisit, activeVisit.type)}
-              className="w-full btn-primary bg-[#D44D4D] hover:bg-[#C94F4F]"
+              className="w-full btn-primary bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
             >
               <CheckCircle2 className="w-4 h-4 mr-1" /> Check-Out Now
             </button>
@@ -123,7 +123,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
       )}
 
       {/* ── 1. KPI Cards Row ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <SummaryCard 
           label="Total Leads" 
           value={salesData?.kpis?.totalLeads || 0} 
@@ -160,7 +160,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
 
 
       {/* ── 2. Top Charts & Alerts Row ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
         {/* Left Side: Workspace Overview */}
         <div className="xl:col-span-2">
           <WorkspaceOverviewLineChart 
@@ -209,7 +209,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
       </div>
 
       {/* ── 3. Bottom Table & Pipeline Row ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
         {/* Left Side: Recent Leads */}
         <div className="xl:col-span-2">
           <RecentLeadsTableWidget recentLeads={data?.recentLeads || []} />
@@ -227,7 +227,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
       </div>
 
       {/* ── 4. Approvals, Leaderboard & Sources Row ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
         {/* Left Side: Approvals Banner + Sources Table */}
         <div className="xl:col-span-2 flex flex-col gap-6">
           {/* Approvals (Lead Only) */}
@@ -238,9 +238,9 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
                   <AlertCircle className="w-5 h-5 text-[#C94F4F]" />
                   Action Required
                 </h3>
-                <p className="text-[#D44D4D]/80 dark:text-[#FCA5A5]/80 text-sm mt-1">You have {pendingCount} visit record{pendingCount > 1 ? 's' : ''} awaiting your approval.</p>
+                <p className="text-[var(--primary)]/80 dark:text-[#FCA5A5]/80 text-sm mt-1">You have {pendingCount} visit record{pendingCount > 1 ? 's' : ''} awaiting your approval.</p>
               </div>
-              <button className="btn-primary bg-[#D44D4D] hover:bg-[#C94F4F]">
+              <button className="btn-primary bg-[var(--primary)] hover:bg-[var(--primary-hover)]">
                 Review Approvals
               </button>
             </div>

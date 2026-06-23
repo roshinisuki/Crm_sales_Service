@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { dispatchNotification } from "@/lib/notifications";
 
 const VALID_STATUSES = ["New", "UnderValidation", "Approved", "Rejected", "Closed"];
 
@@ -48,8 +49,28 @@ export async function PUT(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Purchase order not found" }, { status: 404 });
 
+  // B16: SalesRep can only modify POs assigned to them
+  if (user.role === "SalesRep" && existing.assignedUserId && existing.assignedUserId !== user.id) {
+    return NextResponse.json({ success: false, message: "You can only modify purchase orders assigned to you" }, { status: 403 });
+  }
+
   if (body.status && !VALID_STATUSES.includes(body.status)) {
     return NextResponse.json({ success: false, message: "Invalid status" }, { status: 400 });
+  }
+
+  // B2: Block direct "Approved" status — must go through Approval Center
+  if (body.status === "Approved" && existing.status !== "Approved") {
+    // Only Admin/SalesManager can directly approve
+    if (!["Admin", "SalesManager"].includes(user.role ?? "")) {
+      return NextResponse.json({ success: false, message: "PO approval must be requested through the Approval Center. Only Admin or Sales Manager can approve directly." }, { status: 403 });
+    }
+    // Check for pending approval — if one exists, it must be resolved there
+    const pendingApproval = await prisma.approvalHistory.findFirst({
+      where: { entityType: "PurchaseOrder", entityId: id, status: "Pending", deletedAt: null },
+    });
+    if (pendingApproval) {
+      return NextResponse.json({ success: false, message: "A pending approval exists for this PO. Resolve it in the Approval Center first." }, { status: 400 });
+    }
   }
 
   // If items are provided, recalculate totals
@@ -115,6 +136,14 @@ export async function PUT(
 
   if (body.status !== undefined) {
     updateData.status = body.status;
+    if (body.status === "Approved") {
+      updateData.approvedById = user.id;
+      updateData.approvedAt = new Date();
+      updateData.rejectionReason = null;
+    }
+    if (body.status === "Rejected" && body.rejectionReason) {
+      updateData.rejectionReason = body.rejectionReason;
+    }
     if (body.status === "Closed" && !existing.actualDelivery) {
       updateData.actualDelivery = new Date();
     }
@@ -147,6 +176,17 @@ export async function PUT(
       previousState: { totalAmount: existing.totalAmount, finalAmount: existing.finalAmount },
       newState: { totalAmount, finalAmount },
       context: extractAuditContext(request),
+    });
+  }
+
+  // B15: Notify assigned user about PO status change
+  if (body.status && body.status !== existing.status && purchaseOrder.assignedUserId) {
+    await dispatchNotification({
+      userId: purchaseOrder.assignedUserId,
+      title: `PO Status Updated`,
+      message: `PO ${existing.poCode} status changed from ${existing.status} to ${body.status}.`,
+      type: "purchase_order",
+      link: `/purchase-orders/${id}`,
     });
   }
 

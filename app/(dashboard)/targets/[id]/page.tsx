@@ -179,7 +179,7 @@ export default function EditTargetPage() {
 
         <div className="flex gap-2 pt-2">
           <button type="button" onClick={() => router.push("/targets")} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
             {saving && <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.07-7.07l-2.83 2.83M9.76 14.24l-2.83 2.83m11.14 0l-2.83-2.83M9.76 9.76L6.93 6.93" /></svg>}
             {saving ? "Saving..." : "Update Target"}
           </button>

@@ -21,6 +21,7 @@ import {
   Plus, Search, Download, Eye, Pencil, Trash2, Filter,
   Users, Phone, CheckCircle, XCircle, PhoneCall, CalendarClock,
 } from "lucide-react";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 const LEAD_STATUSES = ["New", "Contacted", "FollowUpDue", "SQL", "Qualified", "Converted", "Lost"];
 const LEAD_SOURCES  = ["Website", "Facebook", "Instagram", "LinkedIn", "Referral", "WalkIn", "ColdCall", "Partner"];
@@ -35,6 +36,7 @@ export default function LeadsPage() {
   const { user } = useAuth();
   const router   = useRouter();
   const toast    = useToast();
+  const { startLoading, stopLoading } = useGlobalLoading();
   const searchParams = useSearchParams();
 
   const [leads,      setLeads]      = useState<Lead[]>([]);
@@ -84,6 +86,7 @@ export default function LeadsPage() {
 
   const loadLeads = async () => {
     setLoading(true);
+    startLoading("Loading leads...");
     try {
       const params: any = {};
       if (search) params.search = search;
@@ -92,6 +95,7 @@ export default function LeadsPage() {
       if (res.success && res.data) setLeads(res.data as any);
     } finally {
       setLoading(false);
+      stopLoading();
     }
   };
 
@@ -420,10 +424,7 @@ export default function LeadsPage() {
               {loading ? (
                 <tr>
                   <td colSpan={12} className="crm-td text-center py-12">
-                    <div className="flex flex-col items-center gap-2 text-slate-400">
-                      <div className="spinner-brand" />
-                      <span className="text-xs font-medium">Loading leads...</span>
-                    </div>
+                    <span className="text-slate-400 text-sm">Loading...</span>
                   </td>
                 </tr>
               ) : paged.length === 0 ? (
@@ -476,14 +477,14 @@ export default function LeadsPage() {
                     <td className="crm-td">
                       {(() => {
                         const sla = (l as any).slaStatus;
-                        if (l.status !== "New" && sla === "Met") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Met</span>;
-                        if (sla === "Breached") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 animate-pulse">Breached</span>;
+                        if (l.status !== "New" && sla === "Met") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50">Met</span>;
+                        if (sla === "Breached") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50 animate-pulse">Breached</span>;
                         if (sla === "Pending" && (l as any).slaResponseDeadline) {
                           const deadline = new Date((l as any).slaResponseDeadline);
                           const minsLeft = Math.floor((deadline.getTime() - Date.now()) / 60000);
-                          if (minsLeft <= 0) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 animate-pulse">Breached</span>;
-                          if (minsLeft <= 5) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{minsLeft}m left</span>;
-                          return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{minsLeft}m</span>;
+                          if (minsLeft <= 0) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50 animate-pulse">Breached</span>;
+                          if (minsLeft <= 5) return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50">{minsLeft}m left</span>;
+                          return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/50">{minsLeft}m</span>;
                         }
                         return <span className="text-xs text-slate-400">—</span>;
                       })()}

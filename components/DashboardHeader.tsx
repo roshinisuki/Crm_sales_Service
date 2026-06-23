@@ -62,6 +62,7 @@ export default function DashboardHeader({
     localStorage.setItem("crm-theme-color", t);
     const mode = isDarkMode ? "dark" : "light";
     document.documentElement.setAttribute("data-theme", `${t}-${mode}`);
+    window.dispatchEvent(new CustomEvent("crm-theme-change", { detail: { color: t, isDark: isDarkMode } }));
     if (user?.id) {
       const res = await saveUserThemeAction(t);
       if (!res.success) toast.warning("Theme saved locally only");
@@ -79,6 +80,7 @@ export default function DashboardHeader({
     } else {
       document.documentElement.classList.remove("dark");
     }
+    window.dispatchEvent(new CustomEvent("crm-theme-change", { detail: { color: activeTheme, isDark: next } }));
     if (user?.id) {
       const res = await saveUserThemeModeAction(mode);
       if (!res.success) toast.warning("Theme mode saved locally only");
@@ -174,29 +176,29 @@ export default function DashboardHeader({
   const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
 
   return (
-    <header className="h-16 bg-[var(--topbar-bg)] border-b border-[var(--topbar-border)] flex items-center justify-between px-4 md:px-6 shrink-0 z-40 relative shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+    <header className="h-14 bg-[var(--topbar-bg)] border-b border-[var(--topbar-border)] flex items-center justify-between px-3 md:px-5 shrink-0 z-40 relative shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
 
       {/* ── Left ── */}
       <div className="flex items-center gap-4">
         {/* Sidebar toggle button */}
         <button
           onClick={toggleSidebar}
-          className="w-8 h-8 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-offset)] flex items-center justify-center text-[var(--text-secondary)] transition-colors border border-[var(--border)]"
+          className="w-7 h-7 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-offset)] flex items-center justify-center text-[var(--text-secondary)] transition-colors border border-[var(--border)]"
         >
-          <Menu size={18} />
+          <Menu size={15} />
         </button>
 
         {/* Global Search */}
         <div className="relative hidden sm:block" ref={searchRef}>
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-            <Search size={15} />
+            <Search size={13} />
           </span>
           <input
             type="text"
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setIsSearchOpen(true); }}
             placeholder="Search leads, customers, deals, POs..."
-            className="w-[280px] lg:w-[360px] h-[38px] pl-9 pr-3 rounded-xl bg-[var(--surface-2)] text-sm text-[var(--text-primary)] placeholder:text-slate-400 border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] focus:bg-[var(--surface)] transition-all"
+            className="w-[220px] lg:w-[300px] h-[30px] pl-8 pr-3 rounded-lg bg-[var(--surface-2)] text-xs text-[var(--text-primary)] placeholder:text-slate-400 border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] focus:bg-[var(--surface)] transition-all"
           />
 
           {isSearchOpen && searchResults && (
@@ -295,16 +297,16 @@ export default function DashboardHeader({
       <div className="flex-1" />
 
       {/* ── Right ── */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
 
         {/* Theme Swatches */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl">
+        <div className="hidden lg:flex items-center gap-1.5 px-2 py-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg">
           {["ember", "ocean", "forest", "obsidian"].map((themeName) => (
             <button
               key={themeName}
               onClick={() => changeTheme(themeName)}
               className={cn(
-                "w-3.5 h-3.5 rounded-full border transition-transform hover:scale-110",
+                "w-3 h-3 rounded-full border transition-transform hover:scale-110",
                 activeTheme === themeName ? "ring-2 ring-offset-1 ring-[var(--border)]" : ""
               )}
               style={{
@@ -313,33 +315,33 @@ export default function DashboardHeader({
               }}
             />
           ))}
-          <div className="w-px h-3.5 bg-slate-300 dark:bg-slate-700 mx-1" />
-          <button onClick={toggleMode} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-[9px] uppercase tracking-widest px-1">
+          <div className="w-px h-3 bg-slate-300 dark:bg-slate-700 mx-0.5" />
+          <button onClick={toggleMode} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-bold text-[8px] uppercase tracking-widest px-0.5">
             {isDarkMode ? "DARK" : "LIGHT"}
           </button>
         </div>
 
         {/* Date/Time */}
-        <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl">
+        <div className="hidden lg:flex items-center gap-1 px-2 py-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg">
           <span className="text-slate-400">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </span>
-          <span className="text-[12px] font-semibold text-[var(--text-secondary)]">{dateStr}</span>
-          <span className="text-slate-300 dark:text-slate-700">|</span>
-          <span className="text-[12px] font-bold text-[var(--text-primary)]">{timeStr}</span>
+          <span className="text-[11px] font-semibold text-[var(--text-secondary)]">{dateStr}</span>
+          <span className="text-slate-300 dark:text-slate-700 text-[10px]">|</span>
+          <span className="text-[11px] font-bold text-[var(--text-primary)]">{timeStr}</span>
         </div>
 
         {/* Notifications */}
         <div className="relative" ref={notifRef}>
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="relative w-9 h-9 rounded-xl bg-[var(--surface-2)] hover:bg-[var(--surface-offset)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] transition-colors"
+            className="relative w-7 h-7 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface-offset)] border border-[var(--border)] flex items-center justify-center text-[var(--text-secondary)] transition-colors"
           >
-            <Bell size={17} />
+            <Bell size={14} />
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[var(--primary)] border-2 border-white dark:border-slate-900 animate-pulse" />
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[var(--primary)] border border-white dark:border-slate-900 animate-pulse" />
             )}
           </button>
 
@@ -406,14 +408,14 @@ export default function DashboardHeader({
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="flex items-center gap-2.5 hover:opacity-90 transition-opacity"
           >
-            <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-xs font-black border border-orange-200 shrink-0">
+            <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center text-[10px] font-black border border-orange-200 shrink-0">
               {getInitials(user?.name || "User")}
             </div>
             <div className="hidden md:block text-left">
-              <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-tight">{user?.name || "User"}</p>
-              <p className="text-[11px] text-[var(--text-secondary)] font-medium leading-tight">{ROLE_LABELS[user?.role] || user?.role}</p>
+              <p className="text-[11px] font-semibold text-[var(--text-primary)] leading-tight">{user?.name || "User"}</p>
+              <p className="text-[10px] text-[var(--text-secondary)] font-medium leading-tight">{ROLE_LABELS[user?.role] || user?.role}</p>
             </div>
-            <ChevronDown size={13} className="hidden md:block text-slate-400" />
+            <ChevronDown size={11} className="hidden md:block text-slate-400" />
           </button>
 
           {isProfileOpen && (

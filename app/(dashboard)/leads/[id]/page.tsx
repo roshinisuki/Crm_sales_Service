@@ -1,4 +1,5 @@
-"use client";
+﻿"use client";
+import { CRMSpinner } from "@/components/CRMSpinner";
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -18,7 +19,7 @@ import { getLeadWorkflowActions, computeWorkflowState } from "@/lib/workflow-act
 import {
   ArrowLeft, Briefcase, Phone, Mail, MapPin, Building2,
   CalendarClock, User, Plus, CheckCircle2, PhoneCall,
-  MessageSquare, FileText, XCircle, Zap,
+  MessageSquare, FileText, XCircle, Zap, Clock,
 } from "lucide-react";
 
 type Tab = "overview" | "followups" | "activities";
@@ -62,6 +63,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [expectedCloseDate,  setExpectedCloseDate]  = useState("");
   const [converting,  setConverting]  = useState(false);
   const [markingLost, setMarkingLost] = useState(false);
+  const [showLostModal, setShowLostModal] = useState(false);
+  const [lostReason, setLostReason] = useState("");
   const [qualifying, setQualifying] = useState(false);
 
   // Qualification fields
@@ -141,7 +144,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
   // Unified handler for both "Mark Contacted" (lead details) and "Log First Call"
   // (post lead creation). Both UI entry points open the Call Log modal first.
-  // The lead status is NOT updated here — it only changes after the user fills
+  // The lead status is NOT updated here â€” it only changes after the user fills
   // the call details and saves (see handleSaveCallLog -> contactLeadAction).
   const [contacting, setContacting] = useState(false);
   const handleLeadContact = (leadId: string) => {
@@ -151,7 +154,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     setCallLogModal(true);
   };
 
-  // Save call log via the unified contactLeadAction — creates the Call activity
+  // Save call log via the unified contactLeadAction â€” creates the Call activity
   // AND updates lead status to Contacted in a single atomic operation.
   // Status only changes AFTER the call log is saved with user-provided details.
   const handleSaveCallLog = async (e: React.FormEvent) => {
@@ -175,14 +178,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     setCallSaving(false);
   };
 
-  // After follow-up prompt: "No, still in discussion" → show next actions
-  // (Lead is already Contacted from contactLeadAction — no status update needed)
+  // After follow-up prompt: "No, still in discussion" â†’ show next actions
+  // (Lead is already Contacted from contactLeadAction â€” no status update needed)
   const handleNoFollowUp = () => {
     setFuPromptModal(false);
     setNextActionModal(true);
   };
 
-  // After follow-up prompt: "Yes, schedule follow-up" → open follow-up form
+  // After follow-up prompt: "Yes, schedule follow-up" â†’ open follow-up form
   const handleYesFollowUp = () => {
     setFuPromptModal(false);
     setFuFromCallLog(true);
@@ -245,13 +248,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     setNoteType("Note");
     setNoteModal(true);
   };
-  const handlePostCompleteLost = async () => {
+  const handlePostCompleteLost = () => {
     setPostCompleteModal(false);
-    if (!lead || markingLost) return;
-    setMarkingLost(true);
-    const res = await updateLeadAction(lead.id, { status: "Lost" });
-    if (res.success) { toast.success("Lead marked as lost."); load(); }
-    else { toast.error(res.message || "Failed to update lead."); setMarkingLost(false); }
+    handleMarkLost();
   };
   const handlePostCompleteDone = () => {
     setPostCompleteModal(false);
@@ -328,10 +327,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       load();
       setSuccessOverlay({
         open: true,
-        message: `Lead is now Sales Qualified (SQL). Budget: ₹${budgetAsked}, Timeline: ${timelineAsked}`,
-        primary: { label: "Convert Lead", href: `/leads/${lead.id}#convert`, icon: <Briefcase size={16} /> },
-        secondary: { label: "View SQL Leads", href: "/leads?status=SQL" },
-        alternate: { label: "Add More Activities", href: `/activities/new?leadId=${lead.id}` },
+        message: `Lead is now Sales Qualified (SQL). Budget: â‚¹${budgetAsked}, Timeline: ${timelineAsked}`,
+        primary: { label: "View SQL Leads", href: "/leads?status=SQL", icon: <CheckCircle2 size={16} /> },
+        alternate: { label: "Stay on this lead", onClick: () => {} },
       });
     } else {
       toast.error(res.message || "Failed to mark as SQL.");
@@ -339,12 +337,20 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     setSqlSaving(false);
   };
 
-  const handleMarkLost = async () => {
+  const handleMarkLost = () => {
     if (!lead || markingLost) return;
+    setLostReason("");
+    setShowLostModal(true);
+  };
+
+  const handleConfirmLost = async () => {
+    if (!lead || markingLost) return;
+    if (!lostReason.trim()) { toast.error("Please provide a reason for marking this lead as lost."); return; }
     setMarkingLost(true);
-    const res = await updateLeadAction(lead.id, { status: "Lost" });
-    if (res.success) { toast.success("Lead marked as lost."); load(); }
-    else { toast.error(res.message || "Failed to update lead."); setMarkingLost(false); }
+    const res = await updateLeadAction(lead.id, { status: "Lost", lostReason: lostReason.trim() });
+    if (res.success) { toast.success("Lead marked as lost."); setShowLostModal(false); load(); }
+    else { toast.error(res.message || "Failed to update lead."); }
+    setMarkingLost(false);
   };
 
   const handleQualify = async () => {
@@ -443,12 +449,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="flex flex-col items-center gap-3 text-slate-400">
-          <div className="spinner-brand" />
-          <p className="text-sm font-medium">Loading lead details...</p>
-        </div>
-      </div>
+      <div className="flex items-center justify-center h-64"><CRMSpinner size={40} label="Loading lead details..." /></div>
     );
   }
 
@@ -548,7 +549,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="page-shell max-w-4xl mx-auto space-y-5">
 
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div className="flex items-center justify-between gap-4">
         <button
           onClick={() => router.push("/leads")}
@@ -557,7 +558,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           <ArrowLeft size={16} /> Back to Leads
         </button>
         <div className="flex items-center gap-2">
-          {/* Danger button (Mark Lost) */}
+          {/* Danger button (Mark Lost) â€” only in header; primary CTA is in the banner */}
           {wfActions.danger && !isConverted && !isLost && (
             <button
               onClick={() => handleWorkflowAction(wfActions.danger!.id)}
@@ -568,18 +569,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               {markingLost ? "Marking..." : wfActions.danger.label}
             </button>
           )}
-          {/* Primary CTA from workflow config */}
-          {wfActions.primary && !isConverted && (
-            <button
-              onClick={() => handleWorkflowAction(wfActions.primary!.id)}
-              disabled={wfActions.primary.disabled || markingLost || contacting || qualifying}
-              title={wfActions.primary.disabledReason}
-              className="btn-primary text-sm flex items-center gap-1.5 disabled:opacity-40"
-            >
-              {wfIcon(wfActions.primary.icon)}
-              {wfActions.primary.label}
-            </button>
-          )}
           {isConverted && (
             <span className="text-sm bg-emerald-50 text-emerald-700 px-3 py-2 rounded-xl font-bold border border-emerald-100 flex items-center gap-1.5">
               <CheckCircle2 size={14} /> Converted
@@ -588,7 +577,34 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* ── Guided Workflow Banner ── */}
+      {/* â”€â”€ SLA Countdown Banner (prominent, near top) â”€â”€ */}
+      {lead.slaStatus === "Pending" && lead.slaResponseDeadline && !isConverted && !isLost && (() => {
+        const minsLeft = Math.floor((new Date(lead.slaResponseDeadline).getTime() - Date.now()) / 60000);
+        if (minsLeft <= 0) return (
+          <div className="crm-card p-3 flex items-center gap-3 border-red-200 bg-red-50">
+            <Clock className="text-red-600 shrink-0" size={20} />
+            <div>
+              <p className="text-sm font-bold text-red-700">SLA Breached â€” Response overdue</p>
+              <p className="text-xs text-red-500">This lead has exceeded the 15-minute response SLA. Log a call immediately.</p>
+            </div>
+          </div>
+        );
+        return (
+          <div className={`crm-card p-3 flex items-center gap-3 ${minsLeft <= 5 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+            <Clock className={`shrink-0 ${minsLeft <= 5 ? "text-red-600" : "text-amber-600"}`} size={20} />
+            <div>
+              <p className={`text-sm font-bold ${minsLeft <= 5 ? "text-red-700" : "text-amber-700"}`}>
+                SLA Countdown: {minsLeft} min remaining
+              </p>
+              <p className={`text-xs ${minsLeft <= 5 ? "text-red-500" : "text-amber-600"}`}>
+                Respond within {minsLeft} minutes to meet the response SLA.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* â”€â”€ Guided Workflow Banner â”€â”€ */}
       {!isConverted && !isLost && (
         <div className="crm-card p-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -603,8 +619,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               <Zap size={16} />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-700">Lead Status: {lead.status}</p>
-              <p className="text-xs text-slate-500">{wfActions.stageDescription}</p>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">{wfActions.stage}</p>
+              <p className="text-sm text-slate-600">{wfActions.stageDescription}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -627,7 +643,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 onClick={() => handleWorkflowAction(action.id)}
                 disabled={action.disabled}
                 title={action.disabledReason}
-                className="text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors px-2 py-1 disabled:opacity-40"
+                className="text-xs font-semibold text-slate-600 hover:text-[var(--primary)] bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {action.label}
               </button>
@@ -636,7 +652,52 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* ── Lead Summary Card ── */}
+      {/* â”€â”€ Lead Progress Tracker â”€â”€ */}
+      {(() => {
+        const STAGES = ["New", "Contacted", "SQL", "Qualified", "Converted"];
+        const currentIdx = STAGES.indexOf(lead.status);
+        const activeIdx = currentIdx === -1 ? (lead.status === "Lost" ? -2 : 0) : currentIdx;
+        return (
+          <div className="crm-card p-4">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {STAGES.map((stage, idx) => {
+                const isDone = idx < activeIdx;
+                const isActive = idx === activeIdx;
+                const isLost = lead.status === "Lost";
+                return (
+                  <div key={stage} className="flex items-center flex-1 last:flex-none">
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all",
+                        isDone ? "bg-emerald-500 text-white" :
+                        isActive && !isLost ? "bg-[var(--primary)] text-white" :
+                        isActive && isLost ? "bg-red-500 text-white" :
+                        "bg-slate-200 text-slate-400"
+                      )}>
+                        {isDone ? <CheckCircle2 size={14} /> : idx + 1}
+                      </div>
+                      <span className={cn(
+                        "text-xs font-semibold hidden sm:inline whitespace-nowrap",
+                        isActive ? "text-[var(--primary)]" : isDone ? "text-emerald-600" : "text-slate-400"
+                      )}>
+                        {stage}
+                      </span>
+                    </div>
+                    {idx < STAGES.length - 1 && (
+                      <div className={cn(
+                        "flex-1 h-0.5 mx-1.5 sm:mx-2 rounded-full transition-all",
+                        isDone ? "bg-emerald-400" : "bg-slate-200"
+                      )} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* â”€â”€ Lead Summary Card â”€â”€ */}
       <div className="crm-card p-6">
         <div className="flex items-start gap-4">
           <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-black shrink-0", avatarColor)}>
@@ -705,21 +766,20 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* ── Overview Tab ── */}
+      {/* â”€â”€ Overview Tab â”€â”€ */}
       {tab === "overview" && (
-        <div className="crm-card p-6">
-          <h3 className="text-sm font-bold text-slate-700 mb-5">Lead Information</h3>
-          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-5">
+        <div className="crm-card p-5">
+          <h3 className="text-sm font-bold text-slate-700 mb-4">Lead Information</h3>
+          <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-4">
             {[
               { label: "Full Name",   value: lead.name },
               { label: "Lead Code",   value: lead.leadCode },
-              { label: "Email",       value: lead.email || "—" },
-              { label: "Phone",       value: lead.phone || "—" },
-              { label: "Lead Source", value: lead.leadSource || "—" },
-              { label: "Location",    value: lead.city || "—" },
+              { label: "Email",       value: lead.email || "â€”" },
+              { label: "Phone",       value: lead.phone || "â€”" },
+              { label: "Lead Source", value: lead.leadSource || "â€”" },
+              { label: "Location",    value: lead.city || "â€”" },
               { label: "Assigned To", value: lead.assignedUser?.name || "Unassigned" },
               { label: "Created",     value: formatDate(lead.createdAt) },
-              { label: "Status",      value: <StatusBadge status={lead.status} /> },
               { label: "SLA Status",  value: (() => {
                 const sla = lead.slaStatus;
                 if (sla === "Met") return <span className="text-emerald-600 font-bold">Met</span>;
@@ -729,7 +789,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                   if (minsLeft <= 0) return <span className="text-red-600 font-bold">Breached</span>;
                   return <span className="text-amber-600 font-bold">{minsLeft} min remaining</span>;
                 }
-                return "—";
+                return "â€”";
               })() },
             ].map(({ label, value }) => (
               <div key={label}>
@@ -750,7 +810,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* ── Follow Ups Tab ── */}
+      {/* â”€â”€ Follow Ups Tab â”€â”€ */}
       {tab === "followups" && (
         <div className="crm-card p-5">
           <div className="flex items-center justify-between mb-5">
@@ -766,7 +826,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <div className="text-center py-12">
               <CalendarClock size={36} className="text-slate-200 mx-auto mb-3" />
               <p className="text-sm font-semibold text-slate-400">No follow-ups scheduled</p>
-              <p className="text-xs text-slate-300 mt-1">Schedule a follow-up to keep this lead warm</p>
+              <p className="text-xs text-slate-300 mt-1 mb-4">Schedule a follow-up to keep this lead warm</p>
+              <button
+                onClick={() => { setFuDate(""); setFuType("Call"); setFuNotes(""); setFuPriority("Medium"); setFuAssignedTo(lead.assignedUserId || ""); setFuSaving(false); setFuModal(true); }}
+                className="btn-primary text-xs flex items-center gap-1.5 mx-auto"
+              >
+                <Plus size={13} /> Add Follow-up
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -814,7 +880,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       )}
 
-      {/* ── Activities Tab ── */}
+      {/* â”€â”€ Activities Tab â”€â”€ */}
       {tab === "activities" && (
         <div className="crm-card p-5">
           <div className="flex items-center justify-between mb-5">
@@ -862,7 +928,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                           {a.duration && <span className="text-[10px] text-slate-400">{a.duration} min</span>}
                           {a.followUpId && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">Follow-Up</span>}
                         </div>
-                        <p className="text-sm text-slate-700 leading-relaxed">{a.content || a.agenda || "—"}</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{a.content || a.agenda || "â€”"}</p>
                         {a.outcome && <p className="text-xs text-slate-500 mt-1">Outcome: {a.outcome}</p>}
                         <p className="text-xs text-slate-400 mt-1.5">
                           {a.sentByUser?.name || "System"} &middot; {formatDateTime(a.sentAt)}
@@ -909,13 +975,27 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <div className="text-center py-12">
               <FileText size={36} className="text-slate-200 mx-auto mb-3" />
               <p className="text-sm font-semibold text-slate-400">No activities recorded</p>
-              <p className="text-xs text-slate-300 mt-1">Log a call, meeting, or note to track interactions</p>
+              <p className="text-xs text-slate-300 mt-1 mb-4">Log a call, meeting, or note to track interactions</p>
+              <div className="flex items-center gap-2 justify-center">
+                <Link
+                  href={`/activities/new?leadId=${leadId}&type=call`}
+                  className="btn-secondary text-xs flex items-center gap-1.5"
+                >
+                  <PhoneCall size={13} /> Log Call
+                </Link>
+                <button
+                  onClick={() => { setNoteText(""); setNoteType("Note"); setNoteSaving(false); setNoteModal(true); }}
+                  className="btn-primary text-xs flex items-center gap-1.5"
+                >
+                  <Plus size={13} /> Add Note
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* ── Qualification Modal (Mark as SQL) ── */}
+      {/* â”€â”€ Qualification Modal (Mark as SQL) â”€â”€ */}
       <Modal
         open={qualModalOpen}
         onClose={() => setQualModalOpen(false)}
@@ -930,20 +1010,20 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               disabled={sqlSaving || !budgetAsked.trim() || !timelineAsked.trim() || !isDecisionMaker}
               className="btn-primary text-sm flex items-center gap-1.5 disabled:opacity-40"
             >
-              {sqlSaving ? "Saving…" : <><CheckCircle2 size={14} /> Mark as SQL</>}
+              {sqlSaving ? "Savingâ€¦" : <><CheckCircle2 size={14} /> Mark as SQL</>}
             </button>
           </>
         }
       >
         <div className="p-6 space-y-4">
-          <FormField label="Budget Asked (₹)" required>
+          <FormField label="Budget Asked (â‚¹)" required>
             <Input
               type="text"
               value={budgetAsked}
               onChange={e => setBudgetAsked(e.target.value)}
               placeholder="e.g. 500000"
             />
-            {!budgetAsked.trim() && <p className="text-xs text-amber-500 mt-1">Required for SQL</p>}
+            <p className="text-xs text-slate-400 mt-1">Enter the budget discussed with the prospect (in INR).</p>
           </FormField>
           <FormField label="Timeline Asked" required>
             <Input
@@ -952,7 +1032,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               onChange={e => setTimelineAsked(e.target.value)}
               placeholder="e.g. Within 1 month"
             />
-            {!timelineAsked.trim() && <p className="text-xs text-amber-500 mt-1">Required for SQL</p>}
+            <p className="text-xs text-slate-400 mt-1">When does the prospect plan to make a decision?</p>
           </FormField>
           <div className="space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
@@ -964,7 +1044,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               />
               <span className="text-sm text-slate-700">Yes, the contact is the Decision Maker</span>
             </label>
-            {!isDecisionMaker && <p className="text-xs text-amber-500 ml-7">Required for SQL</p>}
+            <p className="text-xs text-slate-400 ml-7">Confirm that this contact has authority to make purchasing decisions.</p>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -974,16 +1054,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               />
               <span className="text-sm text-slate-700">Lead is Genuine (verified requirement)</span>
             </label>
+            <p className="text-xs text-slate-400 ml-7">Optional: Check if you've verified the prospect's requirement is real.</p>
           </div>
           <div className={`p-3 rounded-xl text-xs ${budgetAsked.trim() && timelineAsked.trim() && isDecisionMaker ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-amber-50 text-amber-600 border border-amber-100"}`}>
             {budgetAsked.trim() && timelineAsked.trim() && isDecisionMaker
-              ? "✓ All qualification criteria met. Ready to mark as SQL!"
-              : "⚠ Fill Budget, Timeline, and confirm Decision Maker to enable SQL promotion."}
+              ? "âœ“ All qualification criteria met. Ready to mark as SQL!"
+              : "âš  Fill Budget, Timeline, and confirm Decision Maker to enable SQL promotion."}
           </div>
         </div>
       </Modal>
 
-      {/* ── Success Overlay (guided flow) ── */}
+      {/* â”€â”€ Success Overlay (guided flow) â”€â”€ */}
       <SuccessOverlay
         open={successOverlay.open}
         message={successOverlay.message}
@@ -993,7 +1074,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         onClose={() => setSuccessOverlay(o => ({ ...o, open: false }))}
       />
 
-      {/* ── Complete Follow-up Modal ── */}
+      {/* â”€â”€ Complete Follow-up Modal â”€â”€ */}
       <Modal
         open={completeFuModal}
         onClose={() => setCompleteFuModal(false)}
@@ -1011,10 +1092,10 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         <form id="complete-fu-form" onSubmit={handleCompleteFollowUp} className="p-6 space-y-4">
           <FormField label="Update Lead Status To">
             <Select value={completeLeadStatus} onChange={e => setCompleteLeadStatus(e.target.value)}>
-              <option value="Contacted">Contacted — still in discussion</option>
-              <option value="SQL">SQL — Sales Qualified Lead</option>
-              <option value="Qualified">Qualified — ready to convert</option>
-              <option value="Lost">Lost — no longer interested</option>
+              <option value="Contacted">Contacted â€” still in discussion</option>
+              <option value="SQL">SQL â€” Sales Qualified Lead</option>
+              <option value="Qualified">Qualified â€” ready to convert</option>
+              <option value="Lost">Lost â€” no longer interested</option>
             </Select>
           </FormField>
           <FormField label="Outcome Remarks" required>
@@ -1030,15 +1111,15 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </form>
       </Modal>
 
-      {/* ── Post-Complete Suggestion Modal ── */}
+      {/* â”€â”€ Post-Complete Suggestion Modal â”€â”€ */}
       <Modal
         open={postCompleteModal}
         onClose={() => setPostCompleteModal(false)}
-        title="Follow-up Completed — What's Next?"
+        title="Follow-up Completed â€” What's Next?"
         subtitle="Choose your next action for this lead."
         footer={
           <button type="button" onClick={handlePostCompleteDone} className="btn-secondary text-sm">
-            Done — I'll handle it later
+            Done â€” I'll handle it later
           </button>
         }
       >
@@ -1112,13 +1193,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             </div>
             <div>
               <p className="text-sm font-bold text-red-800">Mark Lost</p>
-              <p className="text-xs text-red-600">Lead is no longer interested — close as lost</p>
+              <p className="text-xs text-red-600">Lead is no longer interested â€” close as lost</p>
             </div>
           </button>
         </div>
       </Modal>
 
-      {/* ── Call Log Modal (mandatory flow from "Mark Contacted" / "Log First Call") ── */}
+      {/* â”€â”€ Call Log Modal (mandatory flow from "Mark Contacted" / "Log First Call") â”€â”€ */}
       <Modal
         open={callLogModal}
         onClose={() => setCallLogModal(false)}
@@ -1134,7 +1215,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         }
       >
         <form id="call-log-form" onSubmit={handleSaveCallLog} className="p-6 space-y-4">
-          {/* Auto-filled lead name — no manual search needed */}
+          {/* Auto-filled lead name â€” no manual search needed */}
           <FormField label="Linked Lead">
             <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700">
               {lead?.name} <span className="text-xs font-mono text-slate-400 ml-1">{lead?.leadCode}</span>
@@ -1171,11 +1252,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </form>
       </Modal>
 
-      {/* ── Follow-up Prompt Modal (after call log saved) ── */}
+      {/* â”€â”€ Follow-up Prompt Modal (after call log saved) â”€â”€ */}
       <Modal
         open={fuPromptModal}
         onClose={() => setFuPromptModal(false)}
-        title="Call Logged — Next Step?"
+        title="Call Logged â€” Next Step?"
         subtitle="Does this lead need a follow-up?"
         footer={
           <>
@@ -1203,7 +1284,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </Modal>
 
-      {/* ── Next Action Modal (after "still in discussion") ── */}
+      {/* â”€â”€ Next Action Modal (after "still in discussion") â”€â”€ */}
       <Modal
         open={nextActionModal}
         onClose={() => setNextActionModal(false)}
@@ -1211,7 +1292,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         subtitle="Lead is now Contacted. Choose your next action."
         footer={
           <button type="button" onClick={handleNextActionDone} className="btn-secondary text-sm">
-            Done — I'll handle it later
+            Done â€” I'll handle it later
           </button>
         }
       >
@@ -1257,7 +1338,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </Modal>
 
-      {/* ── Add Follow-up Modal ── */}
+      {/* â”€â”€ Add Follow-up Modal â”€â”€ */}
       <Modal
         open={fuModal}
         onClose={() => { setFuModal(false); setFuFromCallLog(false); }}
@@ -1305,7 +1386,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 >
                   <option value="">Lead owner (default)</option>
                   {executives.map(ex => (
-                    <option key={ex.id} value={ex.id}>{ex.name} — {ex.role}</option>
+                    <option key={ex.id} value={ex.id}>{ex.name} â€” {ex.role}</option>
                   ))}
                 </select>
               )}
@@ -1316,9 +1397,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 onChange={e => setFuPriority(e.target.value as any)}
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               >
-                <option value="High">🔴 High</option>
-                <option value="Medium">🟡 Medium</option>
-                <option value="Low">🟢 Low</option>
+                <option value="High">ðŸ”´ High</option>
+                <option value="Medium">ðŸŸ¡ Medium</option>
+                <option value="Low">ðŸŸ¢ Low</option>
               </select>
             </FormField>
           </div>
@@ -1334,7 +1415,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </form>
       </Modal>
 
-      {/* ── Add Activity / Note Modal ── */}
+      {/* â”€â”€ Add Activity / Note Modal â”€â”€ */}
       <Modal
         open={noteModal}
         onClose={() => setNoteModal(false)}
@@ -1365,7 +1446,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             <textarea
               value={noteText}
               onChange={e => setNoteText(e.target.value)}
-              placeholder={noteType === "Call" ? "e.g. Called to discuss delivery timeline. Follow-up needed." : noteType === "Meeting" ? "e.g. Plant visit at Pune facility — discussed requirements." : "Add your note here..."}
+              placeholder={noteType === "Call" ? "e.g. Called to discuss delivery timeline. Follow-up needed." : noteType === "Meeting" ? "e.g. Plant visit at Pune facility â€” discussed requirements." : "Add your note here..."}
               rows={4}
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
               required
@@ -1374,7 +1455,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </form>
       </Modal>
 
-      {/* ── Convert to Deal Modal ── */}
+      {/* â”€â”€ Convert to Deal Modal â”€â”€ */}
       <Modal
         open={convertModal}
         onClose={() => setConvertModal(false)}
@@ -1395,7 +1476,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </FormField>
           <FormField label="Deal Value (INR)" required>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">₹</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">â‚¹</span>
               <Input type="number" value={dealValue} onChange={e => setDealValue(e.target.value)} placeholder="0.00" className="pl-7" required />
             </div>
           </FormField>
@@ -1404,6 +1485,50 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </FormField>
         </form>
       </Modal>
+
+      {/* â”€â”€ Lost Reason Modal â”€â”€ */}
+      <Modal
+        open={showLostModal}
+        onClose={() => setShowLostModal(false)}
+        title="Mark Lead as Lost"
+        subtitle={`Reason required for: ${lead?.name || ""} (${lead?.leadCode || ""})`}
+        footer={
+          <>
+            <button type="button" onClick={() => setShowLostModal(false)} className="btn-secondary text-sm">Cancel</button>
+            <button
+              type="button"
+              onClick={handleConfirmLost}
+              disabled={markingLost || !lostReason.trim()}
+              className="btn-danger text-sm flex items-center gap-1.5 disabled:opacity-40"
+            >
+              {markingLost ? "Marking..." : <><XCircle size={14} /> Confirm Mark Lost</>}
+            </button>
+          </>
+        }
+      >
+        <div className="p-6 space-y-4">
+          {(lead?.status === "SQL" || lead?.status === "Qualified") && (
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+              <XCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-800">This lead is already {lead?.status}</p>
+                <p className="text-xs text-amber-600 mt-0.5">Marking it as lost will discard the qualification progress. This action cannot be undone.</p>
+              </div>
+            </div>
+          )}
+          <FormField label="Reason for losing this lead" required>
+            <textarea
+              value={lostReason}
+              onChange={e => setLostReason(e.target.value)}
+              placeholder="e.g. Prospect went with competitor, budget constraints, no response, etc."
+              rows={4}
+              required
+              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
+            />
+          </FormField>
+        </div>
+      </Modal>
     </div>
   );
 }
+

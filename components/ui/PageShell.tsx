@@ -14,7 +14,7 @@ export function PageShell({ title, subtitle, action, breadcrumb, children, class
   return (
     <div className={cn("page-shell", className)}>
       {/* Header row */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
           {breadcrumb && breadcrumb.length > 0 && (
             <nav className="flex items-center gap-1.5 mb-1.5">

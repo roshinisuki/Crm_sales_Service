@@ -124,7 +124,7 @@ export default function CompetitorsPage() {
           />
         </div>
         {canManage && (
-          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
             <Ico d={icons.plus} size={16} /> New Competitor
           </button>
         )}
@@ -221,7 +221,7 @@ export default function CompetitorsPage() {
             </div>
             <div className="flex justify-end gap-2 border-t px-5 py-3">
               <button onClick={() => setEditorOpen(false)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
                 {saving ? "Saving..." : "Save"}
               </button>
             </div>

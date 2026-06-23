@@ -73,11 +73,19 @@ export default function DocumentsListPage() {
     try {
       const params: any = {};
       if (typeFilter) params.documentType = typeFilter;
-      const res = await fetch(`/api/documents?${new URLSearchParams(params)}`);
-      const data = await res.json();
-      if (data.success) {
-        setDocuments(data.data);
+      let allData: any[] = [];
+      let page = 1;
+      let totalPages = 1;
+      while (page <= totalPages) {
+        const res = await fetch(`/api/documents?${new URLSearchParams({ ...params, page: String(page) })}`);
+        const data = await res.json();
+        if (data.success) {
+          allData = allData.concat(data.data || []);
+          totalPages = data.totalPages || 1;
+        } else break;
+        page++;
       }
+      setDocuments(allData);
     } catch (err) {
       toast.error("Failed to load documents");
     } finally {
@@ -126,7 +134,7 @@ export default function DocumentsListPage() {
         </div>
         <button
           onClick={() => router.push("/documents/new")}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
         >
           <Ico d={icons.plus} size={16} /> Upload Document
         </button>
@@ -140,7 +148,7 @@ export default function DocumentsListPage() {
             href={f.value ? `/documents?type=${f.value}` : "/documents"}
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
               typeFilter === f.value
-                ? "bg-blue-600 text-white"
+                ? "bg-[var(--primary)] text-white"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
@@ -159,7 +167,7 @@ export default function DocumentsListPage() {
           placeholder="Search documents..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
         />
       </div>
 
@@ -192,13 +200,13 @@ export default function DocumentsListPage() {
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{doc.documentCode}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{doc.name}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
                           {doc.documentType}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         {linkBuilder ? (
-                          <Link href={linkBuilder(doc.entityId)} className="text-blue-600 hover:underline text-xs">
+                          <Link href={linkBuilder(doc.entityId)} className="text-[var(--primary)] hover:underline text-xs">
                             {relatedLabel}
                           </Link>
                         ) : (

@@ -20,11 +20,8 @@ export async function GET(request: NextRequest) {
   if (approvalType) where.approvalType = approvalType;
   if (entityType) where.entityType = entityType;
 
-  // Scope by company via deal relation or entity relations
-  // ApprovalHistory links to Deal; we filter via Deal.companyId
-  if (approvalType === "Discount" || approvalType === "Negotiation" || !approvalType) {
-    where.deal = { companyId: user.companyId };
-  }
+  // Scope by company using companyId on the approval record itself (B3/B4 fix)
+  where.companyId = user.companyId;
 
   const [approvals, total] = await Promise.all([
     prisma.approvalHistory.findMany({
@@ -75,6 +72,7 @@ export async function POST(request: NextRequest) {
       approvalType: body.approvalType,
       entityType: body.entityType,
       entityId: body.entityId,
+      companyId: user.companyId,
     },
     include: {
       deal: { select: { id: true, dealName: true, customer: { select: { id: true, name: true } } } },

@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -41,12 +43,14 @@ export default function NegotiationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const { formatCurrency } = useCurrency();
 
   const [negotiation, setNegotiation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Overview");
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const { startLoading, stopLoading } = useGlobalLoading();
 
   // Edit form state
   const [editForm, setEditForm] = useState<any>({});
@@ -90,6 +94,7 @@ export default function NegotiationDetailPage() {
   const handleStatusChange = async (newStatus: string) => {
     if (!negotiation) return;
     if (newStatus === negotiation.status) return;
+    if (newStatus === "Won") startLoading("Closing the deal...", "handshake");
     setSaving(true);
     try {
       const payload: any = { status: newStatus };
@@ -112,6 +117,7 @@ export default function NegotiationDetailPage() {
       toast.error("Failed to update status");
     } finally {
       setSaving(false);
+      stopLoading();
     }
   };
 
@@ -185,7 +191,7 @@ export default function NegotiationDetailPage() {
         {canRevise && (
           <button
             onClick={() => setShowRevisionModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
           >
             <Ico d={icons.plus} size={16} /> Add Revision
           </button>
@@ -202,7 +208,7 @@ export default function NegotiationDetailPage() {
               onClick={() => handleStatusChange(s)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                 negotiation.status === s
-                  ? "bg-[#D44D4D] text-white"
+                  ? "bg-[var(--primary)] text-white"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
@@ -222,7 +228,7 @@ export default function NegotiationDetailPage() {
               onClick={() => setActiveTab(t)}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
                 activeTab === t
-                  ? "border-[#D44D4D] text-[#D44D4D]"
+                  ? "border-[var(--primary)] text-[var(--primary)]"
                   : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
@@ -238,9 +244,9 @@ export default function NegotiationDetailPage() {
           <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-5">
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Negotiation Details</h2>
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Initial Amount" value={negotiation.initialAmount ? `$${negotiation.initialAmount.toLocaleString()}` : "—"} />
-              <Field label="Revised Amount" value={negotiation.revisedAmount ? `$${negotiation.revisedAmount.toLocaleString()}` : "—"} />
-              <Field label="Final Amount" value={negotiation.finalAmount ? `$${negotiation.finalAmount.toLocaleString()}` : "—"} />
+              <Field label="Initial Amount" value={negotiation.initialAmount ? formatCurrency(negotiation.initialAmount) : "—"} />
+              <Field label="Revised Amount" value={negotiation.revisedAmount ? formatCurrency(negotiation.revisedAmount) : "—"} />
+              <Field label="Final Amount" value={negotiation.finalAmount ? formatCurrency(negotiation.finalAmount) : "—"} />
               <Field label="Discount Requested" value={negotiation.discountRequested ? `${negotiation.discountRequested}%` : "—"} />
               <Field label="Quotation" value={negotiation.quotation ? negotiation.quotation.quotationCode : "—"} />
               <Field label="Deal" value={negotiation.deal ? negotiation.deal.dealName : "—"} />
@@ -257,7 +263,7 @@ export default function NegotiationDetailPage() {
                 onChange={(e) => setEditForm({ ...editForm, customerDemands: e.target.value })}
                 rows={3}
                 disabled={isClosed}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none disabled:opacity-60"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none disabled:opacity-60"
               />
             </div>
 
@@ -268,13 +274,13 @@ export default function NegotiationDetailPage() {
                 onChange={(e) => setEditForm({ ...editForm, internalNotes: e.target.value })}
                 rows={3}
                 disabled={isClosed}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none disabled:opacity-60"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none disabled:opacity-60"
               />
             </div>
 
             {!isClosed && (
               <div className="flex justify-end">
-                <button onClick={handleSaveOverview} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer disabled:opacity-60">
+                <button onClick={handleSaveOverview} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
@@ -309,7 +315,7 @@ export default function NegotiationDetailPage() {
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Price Revisions</h2>
             {canRevise && (
-              <button onClick={() => setShowRevisionModal(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer">
+              <button onClick={() => setShowRevisionModal(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">
                 <Ico d={icons.plus} size={14} /> Add Revision
               </button>
             )}
@@ -336,7 +342,7 @@ export default function NegotiationDetailPage() {
                 {negotiation.revisions?.map((r: any) => (
                   <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50">
                     <td className="px-4 py-3 text-sm font-medium text-slate-800">#{r.revisionNumber}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">${r.proposedAmount?.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700">{formatCurrency(r.proposedAmount)}</td>
                     <td className="px-4 py-3 text-sm text-slate-700">{r.discountPercent ? `${r.discountPercent}%` : "—"}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 max-w-xs truncate">{r.reason || "—"}</td>
                     <td className="px-4 py-3">
@@ -360,7 +366,7 @@ export default function NegotiationDetailPage() {
             onChange={(e) => setDiscussionNote(e.target.value)}
             rows={4}
             placeholder="Log a discussion point, customer feedback, or internal decision..."
-            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
           />
           <div className="flex justify-end">
             <button
@@ -370,7 +376,7 @@ export default function NegotiationDetailPage() {
                   setDiscussionNote("");
                 }
               }}
-              className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer"
+              className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
             >
               Add Note
             </button>
@@ -402,9 +408,9 @@ export default function NegotiationDetailPage() {
                   value={revisionForm.proposedAmount}
                   onChange={(e) => setRevisionForm({ ...revisionForm, proposedAmount: e.target.value })}
                   placeholder="0.00"
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                 />
-                <p className="text-xs text-slate-400 mt-1">Current revised amount: {negotiation.revisedAmount ? `$${negotiation.revisedAmount.toLocaleString()}` : `$${negotiation.initialAmount?.toLocaleString()}`}</p>
+                <p className="text-xs text-slate-400 mt-1">Current revised amount: {negotiation.revisedAmount ? formatCurrency(negotiation.revisedAmount) : formatCurrency(negotiation.initialAmount)}</p>
               </div>
 
               <div>
@@ -416,7 +422,7 @@ export default function NegotiationDetailPage() {
                   value={revisionForm.discountPercent}
                   onChange={(e) => setRevisionForm({ ...revisionForm, discountPercent: e.target.value })}
                   placeholder="0"
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                 />
                 <p className="text-xs text-slate-400 mt-1">Discounts above 5% require approval.</p>
               </div>
@@ -428,7 +434,7 @@ export default function NegotiationDetailPage() {
                   onChange={(e) => setRevisionForm({ ...revisionForm, reason: e.target.value })}
                   rows={3}
                   placeholder="Why is this revision being proposed?"
-                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
                 />
               </div>
             </div>
@@ -437,7 +443,7 @@ export default function NegotiationDetailPage() {
               <button onClick={() => setShowRevisionModal(false)} className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
                 Cancel
               </button>
-              <button onClick={handleCreateRevision} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer disabled:opacity-60">
+              <button onClick={handleCreateRevision} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
                 {saving ? "Creating..." : "Create Revision"}
               </button>
             </div>

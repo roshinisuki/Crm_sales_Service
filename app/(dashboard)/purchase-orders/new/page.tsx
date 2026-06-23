@@ -57,7 +57,7 @@ export default function NewPurchaseOrderPage() {
 
   useEffect(() => {
     fetch("/api/customer-master").then(res => res.json()).then(data => { if (data.success) setCustomers(data.data || []); });
-    fetch("/api/products").then(res => res.json()).then(data => { if (data.success) setProducts(data.data || []); });
+    fetch("/api/catalogue/products").then(res => res.json()).then(data => { if (data.success) setProducts(data.data || []); });
     fetch("/api/users").then(res => res.json()).then(data => { if (data.success) setUsers(data.data || []); });
 
     const qCustomerId = searchParams.get("customerId");
@@ -192,13 +192,13 @@ export default function NewPurchaseOrderPage() {
                 placeholder="Search customer..."
                 value={customerSearch}
                 onChange={(e) => setCustomerSearch(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all mb-2"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all mb-2"
               />
               <select
                 value={form.customerId}
                 onChange={(e) => setForm({ ...form, customerId: e.target.value, contactId: "" })}
                 required
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
               >
                 <option value="">-- Select Customer --</option>
                 {filteredCustomers.map((c: any) => (
@@ -213,7 +213,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.contactId}
                 onChange={(e) => setForm({ ...form, contactId: e.target.value })}
                 disabled={!form.customerId}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer disabled:opacity-50"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer disabled:opacity-50"
               >
                 <option value="">-- Select Contact --</option>
                 {contacts.map((c: any) => (
@@ -228,7 +228,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.negotiationId}
                 onChange={(e) => setForm({ ...form, negotiationId: e.target.value })}
                 disabled={!form.customerId}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer disabled:opacity-50"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer disabled:opacity-50"
               >
                 <option value="">-- None --</option>
                 {negotiations.map((n: any) => (
@@ -243,7 +243,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.quotationId}
                 onChange={(e) => setForm({ ...form, quotationId: e.target.value })}
                 disabled={!form.customerId}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer disabled:opacity-50"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer disabled:opacity-50"
               >
                 <option value="">-- None --</option>
                 {quotations.map((q: any) => (
@@ -259,7 +259,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.poNumber}
                 onChange={(e) => setForm({ ...form, poNumber: e.target.value })}
                 placeholder="Customer's PO reference"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
 
@@ -269,7 +269,7 @@ export default function NewPurchaseOrderPage() {
                 type="date"
                 value={form.poDate}
                 onChange={(e) => setForm({ ...form, poDate: e.target.value })}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
 
@@ -279,7 +279,7 @@ export default function NewPurchaseOrderPage() {
                 type="date"
                 value={form.expectedDelivery}
                 onChange={(e) => setForm({ ...form, expectedDelivery: e.target.value })}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
 
@@ -288,7 +288,7 @@ export default function NewPurchaseOrderPage() {
               <select
                 value={form.assignedUserId}
                 onChange={(e) => setForm({ ...form, assignedUserId: e.target.value })}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
               >
                 <option value="">-- Unassigned --</option>
                 {users.map((u: any) => (
@@ -304,7 +304,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.paymentTerms}
                 onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })}
                 placeholder="e.g. Net 30"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
 
@@ -315,7 +315,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.deliveryTerms}
                 onChange={(e) => setForm({ ...form, deliveryTerms: e.target.value })}
                 placeholder="e.g. FOB Destination"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.shippingAddress}
                 onChange={(e) => setForm({ ...form, shippingAddress: e.target.value })}
                 rows={2}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
               />
             </div>
             <div>
@@ -336,7 +336,7 @@ export default function NewPurchaseOrderPage() {
                 value={form.billingAddress}
                 onChange={(e) => setForm({ ...form, billingAddress: e.target.value })}
                 rows={2}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
               />
             </div>
           </div>
@@ -346,7 +346,7 @@ export default function NewPurchaseOrderPage() {
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Line Items</h2>
-            <button type="button" onClick={addItem} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer">
+            <button type="button" onClick={addItem} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">
               <Ico d={icons.plus} size={14} /> Add Item
             </button>
           </div>
@@ -370,7 +370,7 @@ export default function NewPurchaseOrderPage() {
                       <select
                         value={it.productId}
                         onChange={(e) => updateItem(i, "productId", e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all cursor-pointer"
+                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
                       >
                         <option value="">-- None --</option>
                         {products.map((p: any) => (
@@ -384,7 +384,7 @@ export default function NewPurchaseOrderPage() {
                         value={it.description}
                         onChange={(e) => updateItem(i, "description", e.target.value)}
                         placeholder="Item description"
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                       />
                     </td>
                     <td className="px-3 py-2">
@@ -394,7 +394,7 @@ export default function NewPurchaseOrderPage() {
                         min="0"
                         value={it.quantity}
                         onChange={(e) => updateItem(i, "quantity", e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                       />
                     </td>
                     <td className="px-3 py-2">
@@ -404,7 +404,7 @@ export default function NewPurchaseOrderPage() {
                         min="0"
                         value={it.unitPrice}
                         onChange={(e) => updateItem(i, "unitPrice", e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                       />
                     </td>
                     <td className="px-3 py-2 text-sm text-right font-medium text-slate-700">
@@ -438,7 +438,7 @@ export default function NewPurchaseOrderPage() {
                   min="0"
                   value={form.discountPercent}
                   onChange={(e) => setForm({ ...form, discountPercent: e.target.value })}
-                  className="w-20 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all"
+                  className="w-20 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                 />
               </div>
               <div className="flex justify-between text-sm">
@@ -447,7 +447,7 @@ export default function NewPurchaseOrderPage() {
               </div>
               <div className="flex justify-between text-base pt-2 border-t border-slate-200">
                 <span className="font-semibold text-slate-800">Final Total</span>
-                <span className="font-bold text-[#D44D4D]">${finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="font-bold text-[var(--primary)]">${finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -464,7 +464,7 @@ export default function NewPurchaseOrderPage() {
                 onChange={(e) => setForm({ ...form, specialInstructions: e.target.value })}
                 rows={2}
                 placeholder="Any special handling, packaging, or delivery instructions..."
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
               />
             </div>
             <div>
@@ -474,7 +474,7 @@ export default function NewPurchaseOrderPage() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 rows={2}
                 placeholder="Internal notes..."
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20 focus:border-[#D44D4D] transition-all resize-none"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
               />
             </div>
           </div>
@@ -484,7 +484,7 @@ export default function NewPurchaseOrderPage() {
           <button type="button" onClick={() => router.push("/purchase-orders")} className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
             Cancel
           </button>
-          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] transition-colors cursor-pointer disabled:opacity-60">
+          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
             {saving ? "Saving..." : "Create Purchase Order"}
           </button>
         </div>

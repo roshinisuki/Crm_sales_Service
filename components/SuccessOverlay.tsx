@@ -60,7 +60,7 @@ export function SuccessOverlay({
       }`}
     >
       <div
-        className={`bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 transition-all duration-300 ${
+        className={`bg-white dark:bg-[var(--surface)] rounded-2xl shadow-2xl max-w-md w-full p-6 sm:p-8 transition-all duration-300 ${
           visible ? "scale-100 translate-y-0" : "scale-95 translate-y-4"
         }`}
       >
@@ -68,7 +68,7 @@ export function SuccessOverlay({
         {onClose && (
           <button
             onClick={() => { setVisible(false); onClose(); }}
-            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+            className="absolute top-4 right-4 text-slate-400 dark:text-[var(--text-secondary)] hover:text-slate-600 dark:hover:text-[var(--text-primary)] transition-colors"
           >
             <X size={20} />
           </button>
@@ -82,8 +82,8 @@ export function SuccessOverlay({
         </div>
 
         {/* Title + message */}
-        <h2 className="text-xl font-bold text-slate-800 text-center mb-2">{title}</h2>
-        <p className="text-sm text-slate-500 text-center mb-6">{message}</p>
+        <h2 className="text-xl font-bold text-slate-800 dark:text-[var(--text-primary)] text-center mb-2">{title}</h2>
+        <p className="text-sm text-slate-500 dark:text-[var(--text-secondary)] text-center mb-6">{message}</p>
 
         {/* Buttons */}
         <div className="space-y-3">
@@ -98,7 +98,7 @@ export function SuccessOverlay({
           {secondary && (
             <button
               onClick={() => handleNavigate(secondary)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-[var(--border)] text-slate-600 dark:text-[var(--text-secondary)] font-semibold text-sm hover:bg-slate-50 dark:hover:bg-[var(--surface-2)] transition-colors"
             >
               {secondary.label}
             </button>
@@ -107,7 +107,7 @@ export function SuccessOverlay({
           {alternate && (
             <button
               onClick={() => handleNavigate(alternate)}
-              className="w-full text-center text-xs text-slate-400 hover:text-slate-600 transition-colors pt-1"
+              className="w-full text-center text-xs text-slate-400 dark:text-[var(--text-muted)] hover:text-slate-600 dark:hover:text-[var(--text-primary)] transition-colors pt-1"
             >
               {alternate.label}
             </button>

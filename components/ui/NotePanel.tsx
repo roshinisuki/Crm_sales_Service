@@ -47,8 +47,8 @@ function getInitials(name: string): string {
 const roleColors: Record<string, string> = {
   SuperAdmin: "bg-violet-600",
   Admin: "bg-rose-500",
-  SalesManager: "bg-blue-600",
-  SalesExecutive: "bg-emerald-600",
+  SalesManager: "bg-[var(--primary)]",
+  SalesExecutive: "bg-[var(--primary)]",
   Customer: "bg-amber-500",
 };
 

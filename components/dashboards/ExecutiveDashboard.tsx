@@ -72,7 +72,7 @@ export default function ExecutiveDashboard({ dashboardData: data, salesData, use
             <button onClick={() => setIsInboundOpen(true)} className="btn-secondary h-9 text-xs hidden sm:flex">
               <Building className="w-3.5 h-3.5" /> + Office Visit
             </button>
-            <button onClick={() => setIsOutboundOpen(true)} className="btn-primary h-9 text-xs bg-[#C2601A] hover:bg-[#A84F16] text-white hidden sm:flex">
+            <button onClick={() => setIsOutboundOpen(true)} className="btn-primary h-9 text-xs bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white hidden sm:flex">
               <MapPin className="w-3.5 h-3.5" /> + Field Check-In
             </button>
           </div>
@@ -86,14 +86,14 @@ export default function ExecutiveDashboard({ dashboardData: data, salesData, use
             onClick={() => setIsInboundOpen(true)}
             className="flex flex-col items-center justify-center bg-[#1A1A1A] text-white p-4 rounded-xl shadow-sm active:scale-95 transition-transform"
           >
-            <Building className="w-5 h-5 mb-2 text-[#C2601A]" />
+            <Building className="w-5 h-5 mb-2 text-[var(--primary)]" />
             <span className="text-xs font-bold">+ Office Visit</span>
           </button>
           <button 
             onClick={() => setIsOutboundOpen(true)}
             className="flex flex-col items-center justify-center bg-[#1A1A1A] text-white p-4 rounded-xl shadow-sm active:scale-95 transition-transform"
           >
-            <MapPin className="w-5 h-5 mb-2 text-[#C2601A]" />
+            <MapPin className="w-5 h-5 mb-2 text-[var(--primary)]" />
             <span className="text-xs font-bold">+ Field Check-In</span>
           </button>
         </div>
@@ -113,7 +113,7 @@ export default function ExecutiveDashboard({ dashboardData: data, salesData, use
             </div>
             <button
               onClick={() => handleOpenCheckout(activeVisit, activeVisit.type)}
-              className="w-full btn-primary bg-[#D44D4D] hover:bg-[#C94F4F]"
+              className="w-full btn-primary bg-[var(--primary)] hover:bg-[var(--primary-hover)]"
             >
               <CheckCircle2 className="w-4 h-4 mr-1" /> Check-Out Now
             </button>
@@ -231,7 +231,7 @@ export default function ExecutiveDashboard({ dashboardData: data, salesData, use
           <div className="crm-card p-6 h-full">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-theme-primary">Today's Itinerary</h3>
-              <span className="text-xs font-bold text-[#D44D4D] hover:text-[#C94F4F] cursor-pointer flex items-center gap-1">
+              <span className="text-xs font-bold text-[var(--primary)] hover:text-[#C94F4F] cursor-pointer flex items-center gap-1">
                 <Map className="w-3.5 h-3.5" /> View Map
               </span>
             </div>

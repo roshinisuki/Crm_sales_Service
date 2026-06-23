@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { Search, Filter, Plus, BookUser, Eye, Pencil, Trash2, Mail, Phone, User, Tag, Users, CheckCircle2, ArchiveX } from "lucide-react";
+import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { getInitials, getAvatarColor, cn } from "@/lib/ui-utils";
 
 const CONTACT_TYPES = ["Technical", "Purchase", "Finance", "Management"];
@@ -24,6 +25,7 @@ export default function ContactsPage() {
 
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { startLoading, stopLoading } = useGlobalLoading();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState(searchParams.get("type") || "");
@@ -34,6 +36,7 @@ export default function ContactsPage() {
 
   const fetchContacts = async () => {
     setLoading(true);
+    startLoading("Loading contacts...");
     try {
       const res = await getContactsAction({
         search,
@@ -50,6 +53,7 @@ export default function ContactsPage() {
       toast.error("An error occurred while loading contacts");
     } finally {
       setLoading(false);
+      stopLoading();
     }
   };
 
@@ -144,7 +148,7 @@ export default function ContactsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="py-10 text-center text-sm text-slate-400">Loading contacts...</td></tr>
+                  <tr><td colSpan={8} className="py-10 text-center text-sm text-slate-400">Loading...</td></tr>
                 ) : paginatedContacts.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-16 text-center">

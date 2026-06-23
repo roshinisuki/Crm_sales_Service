@@ -9,7 +9,7 @@ const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?
     <path d={d} />
   </svg>
 );
-const icons = { plus: "M12 4v16m8-8H4", up: "M5 15l7-7 7 7", down: "M19 9l-7 7-7-7", x: "M6 18L18 6M6 6l12 12", edit: "M11 4H4a2 2 0 012-2v14a2 2 0 012 2 2h14a2 2 0 012-2V4a2 2 0 00-2-2m-6 12h6m-6-12h6" };
+const icons = { plus: "M12 4v16m8-8H4", up: "M5 15l7-7 7 7", down: "M19 9l-7 7-7-7", x: "M6 18L18 6M6 6l12 12", edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" };
 
 export default function PipelineStagesSettingsPage() {
   const toast = useToast();
@@ -94,7 +94,7 @@ export default function PipelineStagesSettingsPage() {
     <PageContainer className="space-y-4 p-0">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-slate-800">Pipeline Stages</h1><p className="text-sm text-slate-500 mt-0.5">Configure deal pipeline stages</p></div>
-        <button onClick={() => { setShowAdd(true); setForm({ name: "", color: "#378ADD" }); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] cursor-pointer"><Ico d={icons.plus} size={16} /> Add Stage</button>
+        <button onClick={() => { setShowAdd(true); setForm({ name: "", color: "#378ADD" }); }} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.plus} size={16} /> Add Stage</button>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
@@ -138,11 +138,11 @@ export default function PipelineStagesSettingsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4">
             <h3 className="text-lg font-bold text-slate-800">{editStage ? "Edit Stage" : "Add Stage"}</h3>
-            <div><label className="block text-sm font-semibold text-slate-700 mb-1.5">Name</label><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" /></div>
-            <div><label className="block text-sm font-semibold text-slate-700 mb-1.5">Color</label><div className="flex items-center gap-3"><input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="w-12 h-10 rounded-lg border border-slate-200 cursor-pointer" /><input type="text" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="flex-1 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#D44D4D]/20" /></div></div>
+            <div><label className="block text-sm font-semibold text-slate-700 mb-1.5">Name</label><input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
+            <div><label className="block text-sm font-semibold text-slate-700 mb-1.5">Color</label><div className="flex items-center gap-3"><input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="w-12 h-10 rounded-lg border border-slate-200 cursor-pointer" /><input type="text" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="flex-1 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div></div>
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setShowAdd(false); setEditStage(null); }} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
-              <button onClick={editStage ? handleEdit : handleAdd} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[#D44D4D] hover:bg-[#C94F4F] cursor-pointer">{editStage ? "Save" : "Add"}</button>
+              <button onClick={editStage ? handleEdit : handleAdd} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">{editStage ? "Save" : "Add"}</button>
             </div>
           </div>
         </div>
