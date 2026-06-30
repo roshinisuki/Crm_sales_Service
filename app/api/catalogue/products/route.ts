@@ -49,14 +49,7 @@ export async function GET(request: Request) {
     }
 
     if (maxPrice) {
-      where.basePrice = { lte: parseFloat(maxPrice) };
-    }
-
-    // Special views for datasheets and brochures
-    if (view === "datasheets") {
-      where.datasheetUrl = { not: null };
-    } else if (view === "brochures") {
-      where.brochureUrl = { not: null };
+      where.basePrice = { lte: parseFloat(maxPrice) }
     }
 
     if (search) {
@@ -81,6 +74,14 @@ export async function GET(request: Request) {
         include: {
           category: {
             select: { id: true, name: true },
+          },
+          datasheets: {
+            where: { isActive: true },
+            orderBy: { createdAt: "desc" },
+          },
+          brochures: {
+            where: { isActive: true },
+            orderBy: { createdAt: "desc" },
           },
         },
         orderBy,
@@ -128,8 +129,6 @@ export async function POST(request: Request) {
         unit: body.unit ?? null,
         basePrice: body.basePrice ?? null,
         isActive: body.isActive ?? true,
-        datasheetUrl: body.datasheetUrl ?? null,
-        brochureUrl: body.brochureUrl ?? null,
         productType: body.productType ?? null,
         minOrderQuantity: body.minOrderQuantity ? parseFloat(body.minOrderQuantity) : null,
         companyId: user.companyId ?? null,

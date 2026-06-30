@@ -11,7 +11,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     where: { id, companyId: user.companyId },
     include: {
       products: { orderBy: { updatedAt: "desc" } },
-      _count: { select: { lostDealAnalyses: true } },
+      _count: { select: { lostDeals: true } },
     },
   });
 
@@ -58,6 +58,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const existing = await prisma.competitor.findFirst({ where: { id, companyId: user.companyId } });
   if (!existing) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
 
-  await prisma.competitor.delete({ where: { id } });
+  // Soft delete
+  await prisma.competitor.update({
+    where: { id },
+    data: { deletedAt: new Date(), deletedById: user.id },
+  });
   return NextResponse.json({ success: true });
 }

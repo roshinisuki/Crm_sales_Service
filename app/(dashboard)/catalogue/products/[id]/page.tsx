@@ -34,8 +34,6 @@ export default function ProductDetailPage() {
     productType: "",
     minOrderQuantity: "",
     isActive: true,
-    datasheetUrl: "",
-    brochureUrl: "",
     productImageUrl: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -62,8 +60,6 @@ export default function ProductDetailPage() {
           productType: data.data.productType || "",
           minOrderQuantity: data.data.minOrderQuantity?.toString() || "",
           isActive: data.data.isActive,
-          datasheetUrl: data.data.datasheetUrl || "",
-          brochureUrl: data.data.brochureUrl || "",
           productImageUrl: data.data.productImageUrl || "",
         });
       } else {
@@ -391,25 +387,6 @@ export default function ProductDetailPage() {
             </FormField>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField label="Datasheet URL">
-              <Input
-                type="url"
-                value={formData.datasheetUrl}
-                onChange={(e) => setFormData({ ...formData, datasheetUrl: e.target.value })}
-                placeholder="https://..."
-              />
-            </FormField>
-            <FormField label="Brochure URL">
-              <Input
-                type="url"
-                value={formData.brochureUrl}
-                onChange={(e) => setFormData({ ...formData, brochureUrl: e.target.value })}
-                placeholder="https://..."
-              />
-            </FormField>
-          </div>
-
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -476,32 +453,42 @@ export default function ProductDetailPage() {
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {product.datasheetUrl && (
+            {product.datasheets && product.datasheets.length > 0 && (
               <div>
-                <p className="text-sm text-slate-500 mb-1">Datasheet</p>
-                <a
-                  href={product.datasheetUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-700 flex items-center gap-2"
-                >
-                  <FileText size={16} />
-                  View Datasheet
-                </a>
+                <p className="text-sm text-slate-500 mb-1">Datasheets</p>
+                <div className="space-y-2">
+                  {product.datasheets.map((ds: any) => (
+                    <a
+                      key={ds.id}
+                      href={ds.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 flex items-center gap-2 text-sm"
+                    >
+                      <FileText size={14} />
+                      {ds.title}
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
-            {product.brochureUrl && (
+            {product.brochures && product.brochures.length > 0 && (
               <div>
-                <p className="text-sm text-slate-500 mb-1">Brochure</p>
-                <a
-                  href={product.brochureUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-600 hover:text-purple-700 flex items-center gap-2"
-                >
-                  <FileText size={16} />
-                  View Brochure
-                </a>
+                <p className="text-sm text-slate-500 mb-1">Brochures</p>
+                <div className="space-y-2">
+                  {product.brochures.map((br: any) => (
+                    <a
+                      key={br.id}
+                      href={br.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-purple-600 hover:text-purple-700 flex items-center gap-2 text-sm"
+                    >
+                      <FileText size={14} />
+                      {br.title}
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>

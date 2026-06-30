@@ -31,13 +31,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
-  if (!["Admin", "SalesManager", "SalesRep"].includes(user.role ?? "")) {
+  if (!["Admin", "SalesManager", "SalesExecutive"].includes(user.role ?? "")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
   }
 
   const body = await request.json();
   if (!body.dealId) return NextResponse.json({ success: false, message: "Deal is required" }, { status: 400 });
-  if (!body.lostReason) return NextResponse.json({ success: false, message: "Lost reason is required" }, { status: 400 });
 
   // Ensure deal belongs to company
   const deal = await prisma.deal.findFirst({ where: { id: body.dealId, companyId: user.companyId } });
@@ -48,7 +47,6 @@ export async function POST(request: NextRequest) {
       dealId: body.dealId,
       competitorId: body.competitorId || null,
       lossReasonId: body.lossReasonId || null,
-      lostReason: body.lostReason,
       competitorWonPrice: body.competitorWonPrice ?? null,
       ourFinalPrice: body.ourFinalPrice ?? null,
       lessonsLearned: body.lessonsLearned || null,

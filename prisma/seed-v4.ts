@@ -90,7 +90,6 @@ async function main() {
           dealId: lostDeal.id,
           competitorId: compMap["FlowTech Industries"],
           lossReasonId: lrMap["Price Too High"],
-          lostReason: "Competitor offered 15% lower price with acceptable quality",
           competitorWonPrice: 187000,
           ourFinalPrice: 220000,
           lessonsLearned: "Need to review pricing strategy for polymer valves. Consider volume-based discount tiers.",

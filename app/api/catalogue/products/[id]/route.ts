@@ -19,6 +19,9 @@ export async function GET(
       where: { id },
       include: {
         category: { select: { id: true, name: true } },
+        specifications: { orderBy: { displayOrder: "asc" } },
+        datasheets: { where: { isActive: true }, orderBy: { createdAt: "desc" } },
+        brochures: { where: { isActive: true }, orderBy: { createdAt: "desc" } },
       },
     });
 
@@ -72,8 +75,6 @@ export async function PUT(
         unit: body.unit,
         basePrice: body.basePrice,
         isActive: body.isActive,
-        datasheetUrl: body.datasheetUrl,
-        brochureUrl: body.brochureUrl,
         productType: body.productType ?? null,
         minOrderQuantity: body.minOrderQuantity ? parseFloat(body.minOrderQuantity) : null,
       },

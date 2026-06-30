@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     existing.lostCount++;
     if (la.competitorWonPrice) { existing.avgTheirPrice += la.competitorWonPrice; existing.priceCount++; }
     if (la.ourFinalPrice) { existing.avgOurPrice += la.ourFinalPrice; }
-    const reasonName = la.lossReason?.name || la.lostReason || "Unknown";
+    const reasonName = la.lossReason?.name || "Unknown";
     existing.lossReasons.set(reasonName, (existing.lossReasons.get(reasonName) || 0) + 1);
     competitorMap.set(key, existing);
   });

@@ -438,7 +438,6 @@ export async function updateLeadAction(
     assignedUserId?: string;
     budgetAsked?: string;
     timelineAsked?: string;
-    isDecisionMaker?: boolean;
     isGenuine?: boolean;
     lostReason?: string;
     // V2 fields
@@ -1204,7 +1203,7 @@ export async function convertLeadToDealAction(
           contactPerson: lead.name,
           budgetRange: lead.budgetAsked,
           timeline: lead.timelineAsked,
-          decisionMaker: lead.isDecisionMaker ? lead.name : null,
+          decisionMaker: lead.name,
         }
       });
 
@@ -1270,7 +1269,6 @@ export async function qualifyLeadAction(
         status: "SQL",
         budgetAsked: `Confirmed — Budget available`,
         timelineAsked: `${data.timelineMonths} months`,
-        isDecisionMaker: data.hasAuthority,
         isGenuine: data.hasNeed,
       },
     });

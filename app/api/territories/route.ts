@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     orderBy: { updatedAt: "desc" },
     include: {
       assignedUser: { select: { id: true, name: true, email: true } },
-      _count: { select: { accounts: true, salesTargets: true } },
+      _count: { select: { accounts: true, targets: true } },
     },
   });
 

@@ -36,6 +36,14 @@ export async function GET(request: Request) {
         category: {
           select: { id: true, name: true },
         },
+        datasheets: {
+          where: { isActive: true },
+          orderBy: { createdAt: "desc" },
+        },
+        brochures: {
+          where: { isActive: true },
+          orderBy: { createdAt: "desc" },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -51,9 +59,8 @@ export async function GET(request: Request) {
       "Product Type",
       "Min Order Quantity",
       "Status",
-      "Datasheet URL",
-      "Brochure URL",
-      "Image URL",
+      "Datasheets",
+      "Brochures",
     ];
 
     const rows = products.map((p) => [
@@ -66,9 +73,8 @@ export async function GET(request: Request) {
       p.productType || "",
       p.minOrderQuantity?.toString() || "",
       p.isActive ? "Active" : "Inactive",
-      p.datasheetUrl || "",
-      p.brochureUrl || "",
-      p.productImageUrl || "",
+      p.datasheets?.map((d: any) => d.fileName).join("; ") || "",
+      p.brochures?.map((b: any) => b.fileName).join("; ") || "",
     ]);
 
     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

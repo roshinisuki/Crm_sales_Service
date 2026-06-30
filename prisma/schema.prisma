@@ -96,7 +96,7 @@ model User {
   costingRFQs                 RFQ[]                       @relation("CostingOwnerRFQs")
   submittedCostingSheets      RFQCostingSheet[]           @relation("SubmittedCostingSheets")
   changedRFQStatuses          RFQStatusHistory[]          @relation("ChangedRFQStatus")
-  salesTargetsAssigned        SalesTarget[]               @relation("AssignedSalesTargets")
+  salesTargets                SalesTarget[]               @relation("AssignedSalesTargets")
   approvedSamples             SampleRequest[]             @relation("ApprovedSamples")
   assignedSamples             SampleRequest[]             @relation("AssignedSamples")
   sampleDeletedBy             SampleRequest[]             @relation("SampleDeletedBy")
@@ -105,7 +105,7 @@ model User {
   tasksAssignedBy             Task[]                      @relation("TaskAssignedBy")
   Task                        Task[]
   taskComments                TaskComment[]
-  territoriesAssigned         Territory[]                 @relation("AssignedTerritories")
+  territoriesOwned            Territory[]                 @relation("AssignedTerritories")
   company                     Company?                    @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   hostedVisitors              Visitor[]
 
@@ -488,7 +488,7 @@ model Deal {
   discountApprovedBy   User?                @relation("ApprovedDiscounts", fields: [discountApprovedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   lostReasonRef        LossReason?          @relation("DealLossReason", fields: [lostReasonRefId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   stageHistories       DealStageHistory[]
-  lostDealAnalysis     LostDealAnalysis?
+  lostDealAnalyses     LostDealAnalysis[]
   negotiations         Negotiation[]
   opportunityContacts  OpportunityContact[]
   opportunityDetail    OpportunityDetail?
@@ -664,7 +664,6 @@ model Lead {
   deletedById            String?
   name                   String
   budgetAsked            String?
-  isDecisionMaker        Boolean             @default(false)
   isGenuine              Boolean             @default(false)
   timelineAsked          String?
   companyName            String?
@@ -861,48 +860,49 @@ model ApprovalHistory {
 }
 
 model Company {
-  id                   String                @id @default(uuid())
-  name                 String                @unique
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  variant              Int                   @default(1)
-  baseCurrency         String                @default("INR")
-  domain               String?               @unique
-  approvalHistories    ApprovalHistory[]
-  ApprovalRequest      ApprovalRequest[]
-  auditLogs            AuditLog[]
-  competitors          Competitor[]
-  CRMDocument          CRMDocument[]
-  customers            Customer[]
-  customerVisits       CustomerVisit[]
-  deals                Deal[]
-  emailTemplates       EmailTemplate[]
-  followUps            FollowUp[]
-  forecastEntries      ForecastEntry[]
-  keyAccounts          KeyAccount[]
-  leads                Lead[]
-  leadSources          LeadSource[]
-  lossReasons          LossReason[]
-  lostDealAnalyses     LostDealAnalysis[]
-  marketingVisits      MarketingVisit[]
-  Negotiation          Negotiation[]
-  notes                Note[]
-  pipelineStages       PipelineStage[]
-  pipelineStageMasters PipelineStageMaster[]
-  products             Product[]
-  productCategories    ProductCategory[]
-  proposals            Proposal[]
-  PurchaseOrder        PurchaseOrder[]
-  quotations           Quotation[]
-  reportExportLogs     ReportExportLog[]
-  reportSchedules      ReportSchedule[]
-  rfqs                 RFQ[]
-  salesTargets         SalesTarget[]
-  SampleRequest        SampleRequest[]
-  subscriptions        Subscription[]
-  territories          Territory[]
-  users                User[]
-  whatsappTemplates    WhatsAppTemplate[]
+  id                    String                 @id @default(uuid())
+  name                  String                 @unique
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  variant               Int                    @default(1)
+  baseCurrency          String                 @default("INR")
+  domain                String?                @unique
+  approvalHistories     ApprovalHistory[]
+  ApprovalRequest       ApprovalRequest[]
+  auditLogs             AuditLog[]
+  competitors           Competitor[]
+  CRMDocument           CRMDocument[]
+  customers             Customer[]
+  customerVisits        CustomerVisit[]
+  deals                 Deal[]
+  emailTemplates        EmailTemplate[]
+  followUps             FollowUp[]
+  forecastEntries       ForecastEntry[]
+  keyAccounts           KeyAccount[]
+  leads                 Lead[]
+  leadSources           LeadSource[]
+  lossReasons           LossReason[]
+  lostDealAnalyses      LostDealAnalysis[]
+  marketingVisits       MarketingVisit[]
+  Negotiation           Negotiation[]
+  notes                 Note[]
+  pipelineStages        PipelineStage[]
+  pipelineStageMasters  PipelineStageMaster[]
+  products              Product[]
+  productCategories     ProductCategory[]
+  productSpecifications ProductSpecification[]
+  proposals             Proposal[]
+  purchaseOrders        PurchaseOrder[]
+  quotations            Quotation[]
+  SampleRequest         SampleRequest[]
+  subscriptions         Subscription[]
+  targets               SalesTarget[]
+  territories           Territory[]
+  rfqs                  RFQ[]
+  reportExportLogs      ReportExportLog[]
+  reportSchedules       ReportSchedule[]
+  users                 User[]
+  whatsappTemplates     WhatsAppTemplate[]
 }
 
 model LeadSource {
@@ -1030,15 +1030,13 @@ model ProductCategory {
 
 model Product {
   id                 String                 @id @default(uuid())
-  productCode        String                 @unique
+  productCode        String
   name               String
   categoryId         String?
   description        String?                @db.NVarChar(Max)
   unit               String?
   basePrice          Float?
   isActive           Boolean                @default(true)
-  datasheetUrl       String?                @db.NVarChar(Max)
-  brochureUrl        String?                @db.NVarChar(Max)
   companyId          String?
   deletedAt          DateTime?
   deletedById        String?
@@ -1050,12 +1048,15 @@ model Product {
   category           ProductCategory?       @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   company            Company?               @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   specifications     ProductSpecification[]
+  datasheets         ProductDatasheet[]
+  brochures          ProductBrochure[]
   purchaseOrderItems PurchaseOrderItem[]
   quotationItems     QuotationItem[]
   rfqs               RFQ[]
   rfqLineItems       RFQLineItem[]
   samples            SampleRequest[]
 
+  @@unique([companyId, productCode])
   @@index([companyId])
   @@index([categoryId])
   @@index([isActive])
@@ -1068,11 +1069,48 @@ model ProductSpecification {
   specValue    String
   unit         String?
   displayOrder Int      @default(0)
+  companyId    String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  company      Company? @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([productId])
+  @@index([companyId])
+}
+
+model ProductDatasheet {
+  id          String   @id @default(uuid())
+  companyId   String?
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  title       String
+  fileName    String
+  fileUrl     String?
+  storageKey  String?
+  version     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([productId])
+  @@index([companyId])
+}
+
+model ProductBrochure {
+  id          String   @id @default(uuid())
+  companyId   String?
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  title       String
+  fileName    String
+  fileUrl     String?
+  storageKey  String?
+  version     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([productId])
+  @@index([companyId])
 }
 
 model RFQ {
@@ -1527,19 +1565,21 @@ model WhatsAppTemplate {
 }
 
 model Competitor {
-  id               String              @id @default(uuid())
-  name             String
-  website          String?
-  description      String?             @db.NVarChar(Max)
-  strengths        String?             @db.NVarChar(Max)
-  weaknesses       String?             @db.NVarChar(Max)
-  isActive         Boolean             @default(true)
-  companyId        String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
-  company          Company?            @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  products         CompetitorProduct[]
-  lostDealAnalyses LostDealAnalysis[]
+  id          String              @id @default(uuid())
+  name        String
+  website     String?
+  description String?             @db.NVarChar(Max)
+  strengths   String?             @db.NVarChar(Max)
+  weaknesses  String?             @db.NVarChar(Max)
+  isActive    Boolean             @default(true)
+  companyId   String?
+  company     Company?            @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  products    CompetitorProduct[]
+  lostDeals   LostDealAnalysis[]
+  deletedAt   DateTime?
+  deletedById String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   @@index([companyId])
   @@index([isActive])
@@ -1561,26 +1601,23 @@ model CompetitorProduct {
 
 model LostDealAnalysis {
   id                 String      @id @default(uuid())
-  dealId             String      @unique
+  dealId             String
   competitorId       String?
+  competitor         Competitor? @relation(fields: [competitorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   lossReasonId       String?
-  lostReason         String
+  lossReason         LossReason? @relation(fields: [lossReasonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   competitorWonPrice Float?
   ourFinalPrice      Float?
   lessonsLearned     String?     @db.NVarChar(Max)
   recordedById       String
   companyId          String?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
   company            Company?    @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  competitor         Competitor? @relation(fields: [competitorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  deal               Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  lossReason         LossReason? @relation(fields: [lossReasonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deal               Deal        @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   recordedBy         User        @relation("RecordedLostDealAnalyses", fields: [recordedById], references: [id], onUpdate: NoAction)
+  createdAt          DateTime    @default(now())
 
   @@index([dealId])
   @@index([competitorId])
-  @@index([lossReasonId])
   @@index([companyId])
 }
 
@@ -1589,10 +1626,10 @@ model LossReason {
   name             String
   isActive         Boolean            @default(true)
   companyId        String?
-  createdAt        DateTime           @default(now())
-  dealsLost        Deal[]             @relation("DealLossReason")
   company          Company?           @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dealsLost        Deal[]             @relation("DealLossReason")
   lostDealAnalyses LostDealAnalysis[]
+  createdAt        DateTime           @default(now())
 
   @@index([companyId])
   @@index([isActive])
@@ -1606,26 +1643,28 @@ model Territory {
   assignedUserId String?
   isActive       Boolean            @default(true)
   companyId      String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  salesTargets   SalesTarget[]
-  assignedUser   User?              @relation("AssignedTerritories", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   company        Company?           @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   accounts       TerritoryAccount[]
+  targets        SalesTarget[]
+  assignedUser   User?              @relation("AssignedTerritories", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deletedAt      DateTime?
+  deletedById    String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@index([companyId])
   @@index([isActive])
-  @@index([assignedUserId])
 }
 
 model TerritoryAccount {
   id          String    @id @default(uuid())
   territoryId String
-  customerId  String
-  assignedAt  DateTime  @default(now())
-  customer    Customer  @relation(fields: [customerId], references: [id], onUpdate: NoAction)
   territory   Territory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id], onUpdate: NoAction)
+  assignedAt  DateTime  @default(now())
 
+  @@unique([territoryId, customerId])
   @@index([territoryId])
   @@index([customerId])
 }
@@ -1638,41 +1677,42 @@ model SalesTarget {
   achievedAmount Float      @default(0)
   assignedUserId String?
   territoryId    String?
-  notes          String?    @db.NVarChar(Max)
+  territory      Territory? @relation(fields: [territoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  notes          String?
   companyId      String?
+  company        Company?   @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignedUser   User?      @relation("AssignedSalesTargets", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deletedAt      DateTime?
+  deletedById    String?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
-  assignedUser   User?      @relation("AssignedSalesTargets", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  company        Company?   @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  territory      Territory? @relation(fields: [territoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([targetType])
-  @@index([period])
-  @@index([assignedUserId])
-  @@index([territoryId])
+  @@unique([targetType, period, assignedUserId, territoryId, companyId])
   @@index([companyId])
+  @@index([targetType, period])
 }
 
 model KeyAccount {
   id                  String    @id @default(uuid())
   customerId          String
+  customer            Customer  @relation(fields: [customerId], references: [id], onUpdate: NoAction)
   accountManagerId    String
+  accountManager      User      @relation("ManagedKeyAccounts", fields: [accountManagerId], references: [id], onUpdate: NoAction)
   revenuePotential    Float?
   strategicImportance String    @default("High")
   relationshipStatus  String?
   nextReviewDate      DateTime?
   notes               String?   @db.NVarChar(Max)
   companyId           String?
+  company             Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deletedAt           DateTime?
+  deletedById         String?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
-  accountManager      User      @relation("ManagedKeyAccounts", fields: [accountManagerId], references: [id], onUpdate: NoAction)
-  company             Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  customer            Customer  @relation(fields: [customerId], references: [id], onUpdate: NoAction)
 
-  @@index([customerId])
-  @@index([accountManagerId])
-  @@index([strategicImportance])
+  @@unique([customerId, companyId])
   @@index([companyId])
+  @@index([strategicImportance])
 }
 
 model LeadStatusHistory {

@@ -43,8 +43,6 @@ export async function POST(request: Request) {
             unit: product.unit ?? null,
             basePrice: product.basePrice ? parseFloat(product.basePrice) : null,
             isActive: product.isActive ?? true,
-            datasheetUrl: product.datasheetUrl ?? null,
-            brochureUrl: product.brochureUrl ?? null,
             productImageUrl: product.productImageUrl ?? null,
             productType: product.productType ?? null,
             minOrderQuantity: product.minOrderQuantity ? parseFloat(product.minOrderQuantity) : null,

@@ -61,6 +61,25 @@ export function buildScope(
     }
   }
 
+  // V4 modules: SalesExecutive has view-only access
+  if (userPayload.role === "SalesExecutive") {
+    switch (modelName) {
+      case "Competitor":
+      case "CompetitorProduct":
+      case "LostDealAnalysis":
+      case "LossReason":
+      case "KeyAccount":
+      case "Territory":
+      case "TerritoryAccount":
+      case "SalesTarget":
+        // View-only: can read but not create/edit/delete
+        // This is enforced at the action level, not here
+        break;
+      default:
+        break;
+    }
+  }
+
   return filter;
 }
 

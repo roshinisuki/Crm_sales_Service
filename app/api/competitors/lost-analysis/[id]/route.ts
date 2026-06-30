@@ -5,7 +5,7 @@ import { verifyAuth } from "@/lib/auth";
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
-  if (!["Admin", "SalesManager", "SalesRep"].includes(user.role ?? "")) {
+  if (!["Admin", "SalesManager", "SalesExecutive"].includes(user.role ?? "")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
   }
 
@@ -19,7 +19,6 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     data: {
       competitorId: body.competitorId || null,
       lossReasonId: body.lossReasonId || null,
-      lostReason: body.lostReason,
       competitorWonPrice: body.competitorWonPrice ?? null,
       ourFinalPrice: body.ourFinalPrice ?? null,
       lessonsLearned: body.lessonsLearned || null,

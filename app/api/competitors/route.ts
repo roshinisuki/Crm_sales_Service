@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const competitors = await prisma.competitor.findMany({
     where,
     orderBy: { updatedAt: "desc" },
-    include: { _count: { select: { products: true, lostDealAnalyses: true } } },
+    include: { _count: { select: { products: true, lostDeals: true } } },
   });
 
   return NextResponse.json({ success: true, data: competitors });

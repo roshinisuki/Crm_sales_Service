@@ -33,18 +33,21 @@ function NavLink({ item, active, onClick, collapsed }: { item: NavItem; active: 
       onClick={onClick}
       title={collapsed ? item.label : undefined}
       className={cn(
-        "relative rounded-lg text-sm font-medium transition-colors group",
+        "relative rounded-lg font-medium transition-colors group",
         active && "font-semibold",
         collapsed ? "flex items-center justify-center px-2 py-2" : "flex items-center gap-3 px-3 py-2",
       )}
-      style={active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-text-act)" } : { color: "var(--sidebar-text)" }}
+      style={{
+        fontSize: collapsed ? undefined : "13.5px",
+        ...(active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-text-act)" } : { color: "var(--sidebar-text)" })
+      }}
       onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
       onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
     >
       <span className={cn("transition-colors shrink-0")} style={{ color: active ? "var(--sidebar-text-act)" : "var(--sidebar-heading)" }}>
         {item.icon}
       </span>
-      {!collapsed && <span className="whitespace-nowrap overflow-hidden">{item.label}</span>}
+      {!collapsed && <span className="whitespace-nowrap overflow-hidden text-ellipsis">{item.label}</span>}
     </Link>
   );
 }
@@ -114,7 +117,7 @@ function ExpandableNavSection({
                 onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
                 onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
               >
-                {sub.label}
+                <span className="whitespace-nowrap overflow-hidden text-ellipsis">{sub.label}</span>
               </Link>
             );
           })}
@@ -128,9 +131,12 @@ function ExpandableNavSection({
       <button
         onClick={() => onToggle()}
         className={cn(
-          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-colors group",
+          "w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg font-medium transition-colors group",
         )}
-        style={{ color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)" }}
+        style={{
+          fontSize: collapsed ? undefined : "13.5px",
+          color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)"
+        }}
         onMouseEnter={e => { if (!isSectionActive) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
         onMouseLeave={e => { if (!isSectionActive) e.currentTarget.style.background = "transparent"; }}
       >
@@ -138,7 +144,7 @@ function ExpandableNavSection({
           <span className={cn("transition-colors shrink-0")} style={{ color: isSectionActive ? "var(--sidebar-active)" : "var(--sidebar-heading)" }}>
             {icon}
           </span>
-          <span className="whitespace-nowrap overflow-hidden">{label}</span>
+          <span className="whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
         </div>
         <span className="transition-colors overflow-hidden shrink-0 min-w-[14px]" style={{ color: "var(--sidebar-heading)" }}>
           {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -156,16 +162,19 @@ function ExpandableNavSection({
                 href={sub.href}
                 onClick={onNavClick}
                 className={cn(
-                  "flex items-center py-1.5 px-2 rounded-md text-[12.5px] font-medium transition-colors",
+                  "flex items-center py-1.5 px-2 rounded-md font-medium transition-colors",
                 )}
-                style={isActive
-                  ? { color: "var(--sidebar-active)", fontWeight: 600, background: "rgba(255,255,255,0.04)" }
-                  : { color: "var(--sidebar-text)" }
-                }
+                style={{
+                  fontSize: "12.5px",
+                  ...(isActive
+                    ? { color: "var(--sidebar-active)", fontWeight: 600, background: "rgba(255,255,255,0.04)" }
+                    : { color: "var(--sidebar-text)" }
+                  )
+                }}
                 onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
                 onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
               >
-                {sub.label}
+                <span className="whitespace-nowrap overflow-hidden text-ellipsis">{sub.label}</span>
               </Link>
             );
           })}
@@ -466,6 +475,15 @@ function SidebarContent({
     { href: "/targets/achievement", label: "Achievement Tracking" },
   ];
 
+  const dashboardSubItems = [
+    { href: "/dashboard", label: "Dashboard" },
+  ];
+
+  // Add Sales Manager Dashboard as submenu if user has the role
+  if (!loading && (user?.role === "Admin" || user?.role === "SalesManager") && isVariant2) {
+    dashboardSubItems.push({ href: "/dashboard/manager", label: "Sales Manager Dashboard" });
+  }
+
   return (
     <>
       {/* ── Logo / Brand ── */}
@@ -486,12 +504,7 @@ function SidebarContent({
             Variant: {user?.variant || user?.company?.variant || 1}
           </div>
         )}
-        <NavLink item={{ href: "/dashboard", label: "Dashboard", icon: <LayoutDashboard size={17} />, end: true }} active={pathname === "/dashboard"} onClick={onNavClick} collapsed={collapsed} />
-        
-        {/* Sales Manager Dashboard - Variant 2 only */}
-        {!loading && (user?.role === "Admin" || user?.role === "SalesManager") && isVariant2 && (
-          <NavLink item={{ href: "/dashboard/manager", label: "Sales Manager Dashboard", icon: <TrendingUp size={17} />, end: true }} active={pathname === "/dashboard/manager"} onClick={onNavClick} collapsed={collapsed} />
-        )}
+        <ExpandableNavSection label="Dashboard" icon={<LayoutDashboard size={17} />} subItems={dashboardSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Dashboard"} onToggle={makeToggle("Dashboard")} />
 
         {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
           <>
@@ -510,24 +523,24 @@ function SidebarContent({
             )}
 
             {isVariant3 && (
-              <ExpandableNavSection label="Sample Management" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sample Management"} onToggle={makeToggle("Sample Management")} />
+              <ExpandableNavSection label="Samples" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Samples"} onToggle={makeToggle("Samples")} />
             )}
 
             <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} />
 
             {isVariant2 && (
-              <ExpandableNavSection label="RFQ Management" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ Management"} onToggle={makeToggle("RFQ Management")} />
+              <ExpandableNavSection label="RFQ" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ"} onToggle={makeToggle("RFQ")} />
             )}
 
             {isVariant4 && (
-              <ExpandableNavSection label="Competitor Mgmt" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitor Mgmt"} onToggle={makeToggle("Competitor Mgmt")} />
+              <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} />
             )}
-            <ExpandableNavSection label="Quotation Management" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotation Management"} onToggle={makeToggle("Quotation Management")} />
+            <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} />
             {isVariant3 && (
-              <ExpandableNavSection label="Negotiation Mgmt" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiation Mgmt"} onToggle={makeToggle("Negotiation Mgmt")} />
+              <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} />
             )}
             {isVariant3 && (
-              <ExpandableNavSection label="Purchase Order Mgmt" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Order Mgmt"} onToggle={makeToggle("Purchase Order Mgmt")} />
+              <ExpandableNavSection label="Purchase Orders" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Orders"} onToggle={makeToggle("Purchase Orders")} />
             )}
 
             {isVariant2 && (
@@ -537,16 +550,16 @@ function SidebarContent({
             <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} />
 
             {isVariant3 && (
-              <ExpandableNavSection label="Document Mgmt" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Document Mgmt"} onToggle={makeToggle("Document Mgmt")} />
+              <ExpandableNavSection label="Documents" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Documents"} onToggle={makeToggle("Documents")} />
             )}
             {isVariant4 && (
-              <ExpandableNavSection label="Key Account Mgmt" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Account Mgmt"} onToggle={makeToggle("Key Account Mgmt")} />
+              <ExpandableNavSection label="Key Accounts" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Accounts"} onToggle={makeToggle("Key Accounts")} />
             )}
             {isVariant4 && (
-              <ExpandableNavSection label="Territory Mgmt" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territory Mgmt"} onToggle={makeToggle("Territory Mgmt")} />
+              <ExpandableNavSection label="Territories" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territories"} onToggle={makeToggle("Territories")} />
             )}
             {isVariant4 && (
-              <ExpandableNavSection label="Target Mgmt" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Target Mgmt"} onToggle={makeToggle("Target Mgmt")} />
+              <ExpandableNavSection label="Targets" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Targets"} onToggle={makeToggle("Targets")} />
             )}
 
             {isVariant2 && (
@@ -691,7 +704,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           "shrink-0 flex flex-col h-full z-20 shadow-xl border-r border-white/[0.07] transition-all duration-300 ease-in-out overflow-hidden",
           // Desktop: show sidebar always
           "hidden md:flex",
-          isCollapsed ? "w-[72px]" : "w-[220px]",
+          isCollapsed ? "w-[72px]" : "w-[236px]",
           // Mobile: show as drawer when open
           mobileDrawerOpen && "fixed inset-y-0 left-0 md:hidden flex w-[260px] z-50"
         )}

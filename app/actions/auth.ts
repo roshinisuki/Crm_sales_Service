@@ -993,12 +993,10 @@ export async function requestNewActivationLink(email: string) {
     }
 
     // Rate limit: max 3 requests per email per hour
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recentRequests = await prisma.auditLog.count({
       where: {
         userId: user.id,
-        action: "PORTAL_ACTIVATION",
-        createdAt: { gte: oneHourAgo }
+        action: "PORTAL_ACTIVATION"
       }
     });
 

@@ -69,6 +69,10 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const existing = await prisma.keyAccount.findFirst({ where: { id, companyId: user.companyId } });
   if (!existing) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
 
-  await prisma.keyAccount.delete({ where: { id } });
+  // Soft delete
+  await prisma.keyAccount.update({
+    where: { id },
+    data: { deletedAt: new Date(), deletedById: user.id },
+  });
   return NextResponse.json({ success: true });
 }

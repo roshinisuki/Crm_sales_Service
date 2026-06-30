@@ -542,7 +542,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         if (ld.isGenuine) setIsGenuine(true);
         // V2: Pre-fill BANT from existing lead data
         if (ld.budgetAsked?.includes("Confirmed")) setBantBudget(true);
-        if (ld.isDecisionMaker) setBantAuthority(true);
         if (ld.isGenuine) setBantNeed(true);
         if (ld.timelineAsked) {
           const m = ld.timelineAsked.match(/(\d+)/);

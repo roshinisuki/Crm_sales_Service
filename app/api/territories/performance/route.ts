@@ -22,7 +22,7 @@ export async function GET(_request: NextRequest) {
           },
         },
       },
-      salesTargets: { select: { id: true, targetType: true, period: true, targetAmount: true, achievedAmount: true } },
+      targets: { select: { id: true, targetType: true, period: true, targetAmount: true, achievedAmount: true } },
     },
   });
 
@@ -52,7 +52,7 @@ export async function GET(_request: NextRequest) {
     const leadsCount = t.assignedUserId ? (leadCountMap.get(t.assignedUserId) ?? 0) : 0;
     const followUpsDone = t.assignedUserId ? (followUpMap.get(t.assignedUserId) ?? 0) : 0;
 
-    const latestTarget = t.salesTargets[0] ?? null;
+    const latestTarget = t.targets[0] ?? null;
     const targetAmount = latestTarget?.targetAmount ?? 0;
     const achievedAmount = latestTarget?.achievedAmount ?? wonDealsRevenue;
 

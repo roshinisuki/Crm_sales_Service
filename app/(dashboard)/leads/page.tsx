@@ -21,9 +21,10 @@ import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import {
   Plus, Search, Download, Pencil, Trash2,
   Users, Phone, CheckCircle, XCircle, PhoneCall, CalendarClock,
-  TrendingUp, AlertTriangle, Copy,
+  TrendingUp, AlertTriangle, Copy, Upload,
 } from "lucide-react";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
+import LeadImportModal from "@/components/leads/LeadImportModal";
 
 const LEAD_STATUSES = ["New", "Contacted", "FollowUpDue", "SQL", "Qualified", "Converted", "Lost", "Overdue", "Duplicate"];
 const LEAD_SOURCES  = ["Website", "Facebook", "Instagram", "LinkedIn", "Referral", "WalkIn", "ColdCall", "Partner", "Trade Show", "Tender Portal"];
@@ -109,6 +110,8 @@ export default function LeadsPage() {
   const [successOverlay, setSuccessOverlay] = useState<{ open: boolean; message: string; primary: SuccessAction; secondary?: SuccessAction; alternate?: SuccessAction }>({
     open: false, message: "", primary: { label: "", href: "" },
   });
+
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   // Unified handler for both "Log First Call" (post lead creation) and
   // "Mark Contacted" (lead details). Both UI entry points navigate to the
@@ -405,6 +408,11 @@ export default function LeadsPage() {
           <button onClick={exportCSV} className="btn-secondary text-xs flex items-center gap-2">
             <Download size={14} /> Export CSV
           </button>
+          {(user?.role === "Admin" || user?.role === "SalesManager") && (
+            <button onClick={() => setIsImportOpen(true)} className="btn-secondary text-xs flex items-center gap-2">
+              <Upload size={14} /> Import Leads
+            </button>
+          )}
           {user?.role !== "Customer" && (
             <button onClick={openCreate} className="btn-primary text-xs flex items-center gap-2">
               <Plus size={14} /> Add Lead
@@ -898,6 +906,15 @@ export default function LeadsPage() {
         secondary={successOverlay.secondary}
         alternate={successOverlay.alternate}
         onClose={() => setSuccessOverlay(o => ({ ...o, open: false }))}
+      />
+
+      <LeadImportModal
+        open={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImportDone={async () => {
+          const result = await getLeadsAction();
+          if (result.success && result.data) setLeads(result.data as any);
+        }}
       />
     </PageShell>
   );

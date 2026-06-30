@@ -49,7 +49,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const existing = await prisma.salesTarget.findFirst({ where: { id, companyId: user.companyId } });
   if (!existing) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
 
-  await prisma.salesTarget.delete({ where: { id } });
+  // Soft delete
+  await prisma.salesTarget.update({
+    where: { id },
+    data: { deletedAt: new Date(), deletedById: user.id },
+  });
 
   await logAudit(user.id, "Target", "DELETE", `Deleted target ${existing.period}`, {
     resourceId: id,

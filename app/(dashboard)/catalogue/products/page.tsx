@@ -381,17 +381,17 @@ export default function ProductsPage() {
                     {!view && (
                       <td className="crm-td text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {product.datasheetUrl ? (
-                            <a href={product.datasheetUrl} target="_blank" rel="noopener noreferrer" className="action-icon-btn text-blue-600 hover:bg-blue-50" title="Datasheet">
+                          {product.datasheets && product.datasheets.length > 0 ? (
+                            <span className="action-icon-btn text-blue-600 hover:bg-blue-50" title={`${product.datasheets.length} Datasheet${product.datasheets.length > 1 ? 's' : ''}`}>
                               <FileText size={14} />
-                            </a>
+                            </span>
                           ) : (
                             <span className="w-[30px]" />
                           )}
-                          {product.brochureUrl ? (
-                            <a href={product.brochureUrl} target="_blank" rel="noopener noreferrer" className="action-icon-btn text-rose-600 hover:bg-rose-50" title="Brochure">
+                          {product.brochures && product.brochures.length > 0 ? (
+                            <span className="action-icon-btn text-rose-600 hover:bg-rose-50" title={`${product.brochures.length} Brochure${product.brochures.length > 1 ? 's' : ''}`}>
                               <BookOpen size={14} />
-                            </a>
+                            </span>
                           ) : (
                             <span className="w-[30px]" />
                           )}
