@@ -14,6 +14,11 @@ export async function POST(
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
+  // SuperAdmin must use support/impersonation mode
+  if (user.role === "SuperAdmin" && (!user.supportMode || !user.companyId)) {
+    return NextResponse.json({ success: false, message: "SuperAdmin must access business data via support/impersonation mode." }, { status: 403 });
+  }
+
   const { id } = await params;
   const body = await request.json();
   const { lost_reason_id, competitor_id, notes } = body;

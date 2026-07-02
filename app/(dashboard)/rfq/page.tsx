@@ -117,7 +117,7 @@ export default function RFQListPage() {
 
   return (
     <PageShell
-      title="RFQ Management"
+      title="RFQ"
       subtitle="Manage Request for Quotations"
       action={
         <button

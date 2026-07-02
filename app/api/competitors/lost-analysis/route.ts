@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
       lossReasonId: body.lossReasonId || null,
       competitorWonPrice: body.competitorWonPrice ?? null,
       ourFinalPrice: body.ourFinalPrice ?? null,
+      lostReason: body.lostReason || null,
       lessonsLearned: body.lessonsLearned || null,
       recordedById: user.id,
       companyId: user.companyId,

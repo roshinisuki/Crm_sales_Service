@@ -6,6 +6,7 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { buildScope, checkRecordScope } from "@/lib/scopes";
 import { dispatchNotification } from "@/lib/notifications";
+import { DB_DEFAULT_THEME } from "@/lib/theme";
 
 /**
  * Create an internal user (Admin only)
@@ -25,7 +26,7 @@ export async function createInternalUserAction(data: {
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if ((userPayload.role as string) === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
@@ -70,6 +71,7 @@ export async function createInternalUserAction(data: {
         companyId: userPayload.companyId,
         isActive: true,
         isFirstLogin: true,
+        theme: DB_DEFAULT_THEME,
       },
     });
 
@@ -103,7 +105,7 @@ export async function getUsersAction() {
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if ((userPayload.role as string) === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
@@ -138,7 +140,7 @@ export async function updateUserAction(params: { id: string; role?: string; isAc
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if ((userPayload.role as string) === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
@@ -194,7 +196,7 @@ export async function deleteUserAction(id: string) {
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if ((userPayload.role as string) === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
@@ -208,7 +210,7 @@ export async function deleteUserAction(id: string) {
       return { success: false, message: "Unauthorized: Access denied." };
     }
 
-    if (userPayload.role === "SuperAdmin") {
+    if ((userPayload.role as string) === "SuperAdmin") {
       // Permanent Hard Delete for SuperAdmin
       await prisma.user.delete({ where: { id } });
       await logAudit(userPayload.id, "User Master", "Delete_Permanent", `Permanently deleted user ${existingUser.email}`);
@@ -255,7 +257,7 @@ export async function restoreUserAction(id: string) {
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if ((userPayload.role as string) === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
@@ -292,7 +294,7 @@ export async function approveUserAction(id: string) {
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if ((userPayload.role as string) === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
@@ -355,7 +357,7 @@ export async function rejectUserAction(id: string) {
     }
 
     // Tenant check: SuperAdmin supportMode check
-    if (userPayload.role === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
+    if ((userPayload.role as string) === "SuperAdmin" && (!userPayload.supportMode || !userPayload.companyId)) {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 

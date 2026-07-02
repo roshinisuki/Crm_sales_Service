@@ -23,6 +23,45 @@ export const Ico = ({ d, size = 16, className }: { d: string; size?: number; cla
   </svg>
 );
 
+// ─── Shared Analytics Card Shell ─────────────────────────────────────────────
+// Standardized wrapper for dashboard analytics widgets so they all share the
+// same padding, header height, corner radius, border, shadow, and flex layout.
+// Use this for all chart + list widgets in the dashboard grid.
+interface AnalyticsCardProps {
+  title: string;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+  right?: React.ReactNode;
+  footer?: React.ReactNode;
+}
+
+export function AnalyticsCard({ title, badge, children, className, right, footer }: AnalyticsCardProps) {
+  return (
+    <div className={cn("crm-card p-5 flex flex-col min-h-[360px] h-full", className)}>
+      <div className="flex items-center justify-between gap-3 mb-4 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">{title}</h3>
+          {badge && <span className="shrink-0">{badge}</span>}
+        </div>
+        {right && <div className="shrink-0">{right}</div>}
+      </div>
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {children}
+      </div>
+      {footer && <div className="shrink-0 mt-4">{footer}</div>}
+    </div>
+  );
+}
+
+export function AnalyticsEmptyState({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[240px]">
+      <p className="text-sm text-slate-400 font-semibold text-center px-4">{children}</p>
+    </div>
+  );
+}
+
 export function SalesKpiCards({ kpis }: { kpis: any }) {
   if (!kpis) return null;
   const { formatCurrency } = useCurrency();
@@ -741,22 +780,17 @@ export function RecentLeadsTableWidget({ recentLeads = [] }: { recentLeads?: any
   }, []);
 
   return (
-    <div className="crm-card p-6 flex flex-col justify-between h-full">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          Recent Leads
-        </h3>
+    <AnalyticsCard
+      title="Recent Leads"
+      right={
         <a href="/leads" className="text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors uppercase tracking-widest">
           View All →
         </a>
-      </div>
-
-      <div className="overflow-x-auto">
+      }
+    >
+      <div className="overflow-x-auto flex-1">
         {!recentLeads || recentLeads.length === 0 ? (
-          <p className="text-xs text-slate-500 italic text-center py-8">No recent leads found.</p>
+          <AnalyticsEmptyState>No recent leads found.</AnalyticsEmptyState>
         ) : (
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -816,7 +850,7 @@ export function RecentLeadsTableWidget({ recentLeads = [] }: { recentLeads?: any
           </table>
         )}
       </div>
-    </div>
+    </AnalyticsCard>
   );
 }
 
@@ -933,17 +967,21 @@ export function ActionRequiredWidget({ followUps = [] }: { followUps?: any[] }) 
   };
 
   return (
-    <div className="crm-card p-6 flex flex-col justify-between h-full min-h-[420px]">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Action Required</h3>
-        </div>
+    <AnalyticsCard
+      title="Action Required"
+      badge={
         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-100/30">
           <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
           Overdue
         </span>
-      </div>
-
+      }
+      footer={
+        <a href="/follow-up" className="btn-primary w-full justify-center text-xs font-bold h-9">
+          <Rocket size={13} className="mr-1.5" />
+          Launch CRM Dialer
+        </a>
+      }
+    >
       <div className="flex-1 flex flex-col justify-between gap-3 my-2">
         {displayItems.map((item) => (
           <div key={item.id} className="flex items-center justify-between py-1.5 border-b border-slate-50 dark:border-slate-800/40 last:border-0">
@@ -963,11 +1001,197 @@ export function ActionRequiredWidget({ followUps = [] }: { followUps?: any[] }) 
           </div>
         ))}
       </div>
+    </AnalyticsCard>
+  );
+}
 
-      <a href="/follow-up" className="btn-primary mt-4 w-full justify-center text-xs font-bold h-9">
-        <Rocket size={13} className="mr-1.5" />
-        Launch CRM Dialer
-      </a>
-    </div>
+// ─── Pipeline Pie Chart ──────────────────────────────────────────────────────
+// Donut chart showing part-of-whole pipeline distribution. Chart sits on the left,
+// custom legend on the right, filling the card without wasted space.
+export function PipelinePieChart({ funnel }: { funnel: any[] }) {
+  if (!funnel || funnel.length === 0) {
+    return (
+      <AnalyticsCard title="Pipeline Distribution" right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">0 Total</span>}>
+        <AnalyticsEmptyState>No pipeline data yet.</AnalyticsEmptyState>
+      </AnalyticsCard>
+    );
+  }
+
+  const total = funnel.reduce((sum: number, f: any) => sum + (f.count || 0), 0);
+  if (total === 0) {
+    return (
+      <AnalyticsCard title="Pipeline Distribution" right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">0 Total</span>}>
+        <AnalyticsEmptyState>No opportunities in pipeline yet.</AnalyticsEmptyState>
+      </AnalyticsCard>
+    );
+  }
+
+  // Distinct segment colors — aligned with CRM chart palette
+  const palette = [
+    '#2090FF', // blue
+    '#FF6901', // orange
+    '#10B981', // emerald
+    '#F59E0B', // amber
+    '#8B5CF6', // violet
+    '#EF4444', // red
+    '#14B8A6', // teal
+  ];
+
+  const stageItems = funnel.map((f: any, i: number) => ({
+    ...f,
+    color: palette[i % palette.length],
+    pct: total > 0 ? Math.round((f.count / total) * 100) : 0,
+  }));
+
+  const chartData = {
+    labels: funnel.map((f: any) => f.stage),
+    datasets: [{
+      data: funnel.map((f: any) => f.count),
+      backgroundColor: stageItems.map((s: any) => s.color),
+      borderColor: 'transparent',
+      borderWidth: 0,
+      hoverOffset: 6,
+      cutout: '62%',
+    }],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: { padding: 0 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx: any) => {
+            const val = ctx.parsed;
+            const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+            return ` ${ctx.label}: ${val} (${pct}%)`;
+          },
+        },
+      },
+    },
+  };
+
+  return (
+    <AnalyticsCard
+      title="Pipeline Distribution"
+      right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{total} Total</span>}
+    >
+      <div className="flex-1 flex items-center gap-4 min-h-0">
+        {/* Chart area */}
+        <div className="relative flex-1 min-h-0 h-full">
+          <Doughnut data={chartData} options={options} />
+          {/* Center label */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-2xl font-bold text-slate-800 dark:text-slate-200">{total}</span>
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total</span>
+          </div>
+        </div>
+
+        {/* Custom legend */}
+        <div className="w-36 shrink-0 flex flex-col justify-center gap-3 pr-2">
+          {stageItems.map((stage: any, idx: number) => (
+            <div key={idx} className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{stage.stage}</span>
+              </div>
+              <div className="shrink-0 text-right ml-2">
+                <span className="font-bold text-slate-800 dark:text-slate-200">{stage.count}</span>
+                <span className="text-[10px] text-slate-400 ml-1">({stage.pct}%)</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </AnalyticsCard>
+  );
+}
+
+// ─── Customer Score Trend Line Chart ─────────────────────────────────────────
+// Shows customer satisfaction scores over time, sourced from demoCustomerRating.
+// Separate from pipeline/revenue data. Uses the shared AnalyticsCard shell.
+export function CustomerScoreTrendChart({ scoreTrend }: { scoreTrend: any[] }) {
+  const [accentColor, setAccentColor] = useState('#2090FF');
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const updateColors = () => {
+        const style = window.getComputedStyle(document.documentElement);
+        const acc = style.getPropertyValue('--accent').trim();
+        if (acc) setAccentColor(acc);
+      };
+      updateColors();
+      const observer = new MutationObserver(updateColors);
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  if (!scoreTrend || scoreTrend.length === 0) {
+    return (
+      <AnalyticsCard title="Customer Score Trend" right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Out of 10</span>}>
+        <AnalyticsEmptyState>No customer score data yet. Conduct demos and record ratings to see trends.</AnalyticsEmptyState>
+      </AnalyticsCard>
+    );
+  }
+
+  const chartData = {
+    labels: scoreTrend.map((s: any) => s.label),
+    datasets: [{
+      label: 'Customer Score',
+      data: scoreTrend.map((s: any) => s.score),
+      borderColor: accentColor,
+      backgroundColor: accentColor + '20',
+      fill: true,
+      tension: 0.35,
+      pointBackgroundColor: accentColor,
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 5,
+      pointHoverRadius: 7,
+    }],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: { padding: 0 },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx: any) => ` Score: ${ctx.parsed.y}/10`,
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: 10,
+        ticks: {
+          font: { size: 11 },
+          color: 'var(--text-muted)',
+          stepSize: 2,
+        },
+        grid: { color: 'rgba(148,163,184,0.12)' },
+      },
+      x: {
+        ticks: {
+          font: { size: 11 },
+          color: 'var(--text-muted)',
+        },
+        grid: { display: false },
+      },
+    },
+  };
+
+  return (
+    <AnalyticsCard title="Customer Score Trend" right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Out of 10</span>}>
+      <div className="flex-1 relative min-h-0">
+        <Line data={chartData} options={options} />
+      </div>
+    </AnalyticsCard>
   );
 }

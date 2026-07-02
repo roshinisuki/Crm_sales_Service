@@ -102,6 +102,7 @@ export async function updateCompanyAction(companyId: string, data: {
       return { success: false, message: "Company not found" };
     }
 
+    const { name, variant, baseCurrency, domain } = data;
     const updateData: any = {};
     if (name) updateData.name = name.trim();
     if (variant !== undefined) updateData.variant = variant;

@@ -5,7 +5,7 @@
 //
 // Usage:
 //   <HandshakeLoader />                                    // default: clasp + ripple, blue, 64px
-//   <HandshakeLoader size={96} accent="#F77F00" />          // orange theme, larger
+//   <HandshakeLoader size={96} accent="#2090FF" />          // blue theme, larger
 //   <HandshakeLoader variant="flash" label="Connecting..." />
 //   <HandshakeLoader fullScreen label="Closing the deal..." />
 

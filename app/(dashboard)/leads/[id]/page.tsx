@@ -15,14 +15,18 @@ import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Select } from "@/components/ui/FormField";
 import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
 import { getInitials, getAvatarColor, formatDate, formatDateTime, cn } from "@/lib/ui-utils";
+import { FieldGrid, ScoreIndicator } from "@/components/shared/FieldGrid";
+import { CompactUserAvatar } from "@/components/shared/UserAvatar";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { getLeadWorkflowActions, computeWorkflowState } from "@/lib/workflow-actions";
 import {
   ArrowLeft, Briefcase, Phone, Mail, MapPin, Building2,
   CalendarClock, User, Plus, CheckCircle2, PhoneCall,
   MessageSquare, FileText, XCircle, Zap, Clock,
 } from "lucide-react";
+import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
 
-type Tab = "overview" | "followups" | "activities" | "bant";
+type Tab = "overview" | "followups" | "activities" | "bant" | "competitor";
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -66,6 +70,10 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [showLostModal, setShowLostModal] = useState(false);
   const [lostReason, setLostReason] = useState("");
   const [qualifying, setQualifying] = useState(false);
+
+  // V4: Sample Required prompt after qualification
+  const [showSamplePrompt, setShowSamplePrompt] = useState(false);
+  const activeVariant: number = (user as any)?.variant || (user as any)?.company?.variant || 1;
 
   // V2 BANT checklist state
   const [bantBudget, setBantBudget] = useState(false);
@@ -254,7 +262,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     if (!lead || qualifying) return;
     setQualifying(true);
     const res = await updateLeadAction(lead.id, { status: "Qualified" });
-    if (res.success) { toast.success("Lead qualified! Customer record created."); load(); }
+    if (res.success) {
+      toast.success("Lead qualified! Customer record created.");
+      load();
+      if (activeVariant === 4) {
+        setShowSamplePrompt(true);
+      }
+    }
     else { toast.error(res.message || "Failed to qualify lead."); }
     setQualifying(false);
   };
@@ -404,6 +418,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     if (res.success) {
       toast.success("Lead qualified as SQL via BANT checklist!");
       load();
+      if (activeVariant === 4) {
+        setShowSamplePrompt(true);
+      }
     } else {
       toast.error(res.message || "Failed to qualify.");
     }
@@ -473,10 +490,26 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     if (res.success) {
       toast.success("Lead qualified! Customer record created.");
       load();
+      if (activeVariant === 4) {
+        setShowSamplePrompt(true);
+      }
     } else {
       toast.error(res.message || "Failed to qualify lead.");
     }
     setQualifying(false);
+  };
+
+  // V4: Handle sample required response
+  const handleSampleRequired = (sampleNeeded: boolean) => {
+    setShowSamplePrompt(false);
+    if (!lead) return;
+    if (sampleNeeded) {
+      toast.success("Lead moved to Sample Management");
+      router.push("/samples");
+    } else {
+      toast.success("Lead qualified. Proceed to Sales Pipeline.");
+      router.push("/sales-pipeline");
+    }
   };
 
   const handleAddFollowUp = async (e: React.FormEvent) => {
@@ -670,13 +703,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     { key: "followups",  label: `Follow Ups (${followups.length})` },
     { key: "activities", label: `Activities (${notes.length})` },
     { key: "bant",       label: "BANT Checklist" },
+    { key: "competitor",  label: "Competitor Intelligence" },
   ];
 
   return (
-    <div className="page-shell space-y-5">
+    <div className="page-shell">
 
       {/* ---- Header ---- */}
-      <div className="flex items-center justify-between gap-3 py-1">
+      <div className="crm-card p-4 flex items-center justify-between gap-3">
         <button
           onClick={() => router.push("/leads")}
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--primary)] font-medium transition-colors shrink-0"
@@ -706,7 +740,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       {lead.slaStatus === "Pending" && lead.slaResponseDeadline && !isConverted && !isLost && (() => {
         const minsLeft = Math.floor((new Date(lead.slaResponseDeadline).getTime() - Date.now()) / 60000);
         if (minsLeft <= 0) return (
-          <div className="crm-card p-3 flex items-center gap-3 border-red-200 bg-red-50">
+          <div className="crm-card p-4 flex items-center gap-3 border-red-200 bg-red-50">
             <Clock className="text-red-600 shrink-0" size={20} />
             <div>
               <p className="text-sm font-bold text-red-700">SLA Breached - Response overdue</p>
@@ -715,7 +749,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         );
         return (
-          <div className={`crm-card p-3 flex items-center gap-3 ${minsLeft <= 5 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+          <div className={`crm-card p-4 flex items-center gap-3 ${minsLeft <= 5 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
             <Clock className={`shrink-0 ${minsLeft <= 5 ? "text-red-600" : "text-amber-600"}`} size={20} />
             <div>
               <p className={`text-sm font-bold ${minsLeft <= 5 ? "text-red-700" : "text-amber-700"}`}>
@@ -823,7 +857,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       })()}
 
       {/* ---- Lead Summary Card ---- */}
-      <div className="crm-card p-5">
+      <div className="crm-card p-4">
         <div className="flex items-start gap-4">
           <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-base font-black shrink-0", avatarColor)}>
             {initials}
@@ -834,17 +868,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded">{lead.leadCode}</span>
               <StatusBadge status={lead.status} showDot size="md" />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-x-6 gap-y-2 mt-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-2 mt-3">
               {lead.email && (
                 <div className="flex items-center gap-2 text-sm text-slate-600">
                   <Mail size={13} className="text-slate-400 shrink-0" />
                   <span className="truncate">{lead.email}</span>
-                </div>
-              )}
-              {lead.phone && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Phone size={13} className="text-slate-400 shrink-0" />
-                  {lead.phone}
                 </div>
               )}
               {lead.leadSource && (
@@ -873,7 +901,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-6 mt-6 border-t border-slate-100 pt-4">
+        <div className="flex items-center gap-6 mt-4 border-t border-slate-100 pt-3">
           {TABS.map(({ key, label }) => (
             <button
               key={key}
@@ -895,43 +923,38 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       {tab === "overview" && (
         <div className="crm-card p-5">
           <h3 className="text-sm font-bold text-slate-700 mb-4">Lead Information</h3>
-          <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-8 gap-y-4">
-            {[
-              { label: "Full Name",   value: lead.name },
-              { label: "Lead Code",   value: lead.leadCode },
-              { label: "Company",     value: lead.companyName || "-" },
-              { label: "Designation", value: lead.designation || "-" },
-              { label: "Email",       value: lead.email || "-" },
-              { label: "Phone",       value: lead.phone || "-" },
+          <FieldGrid
+            fields={[
+              { label: "Full Name", value: lead.name, truncate: true },
+              { label: "Lead Code", value: lead.leadCode },
+              { label: "Company", value: lead.companyName || "-", truncate: true },
+              { label: "Designation", value: lead.designation || "-", truncate: true },
+              { label: "Email", value: lead.email || "-", truncate: true },
+              { label: "Industry", value: lead.industryType || "-" },
               { label: "Lead Source", value: lead.leadSource || "-" },
-              { label: "Industry",    value: lead.industryType || "-" },
-              { label: "Est. Value",  value: lead.estimatedValue ? `Rs.${lead.estimatedValue.toLocaleString("en-IN")}` : "-" },
-              { label: "Lead Score",  value: (() => {
-                const score = lead.leadScore ?? 0;
-                const cls = score <= 40 ? "text-rose-600" : score <= 70 ? "text-amber-600" : "text-emerald-600";
-                return <span className={cn("font-bold", cls)}>{score}/100</span>;
-              })() },
-              { label: "Location",    value: lead.city || "-" },
-              { label: "Assigned To", value: lead.assignedUser?.name || "Unassigned" },
-              { label: "Created",     value: formatDate(lead.createdAt) },
-              { label: "SLA Status",  value: (() => {
+              { label: "Est. Value", value: lead.estimatedValue ? `Rs.${lead.estimatedValue.toLocaleString("en-IN")}` : "-" },
+              { label: "Lead Score", value: <ScoreIndicator score={lead.leadScore ?? 0} /> },
+              { label: "Location", value: lead.city || "-" },
+              { label: "Assigned To", value: lead.assignedUser ? (
+                <CompactUserAvatar 
+                  name={lead.assignedUser.name} 
+                  role={lead.assignedUser.role}
+                />
+              ) : "Unassigned" },
+              { label: "Created", value: formatDate(lead.createdAt) },
+              { label: "SLA Status", value: (() => {
                 const sla = lead.slaStatus;
-                if (sla === "Met") return <span className="text-emerald-600 font-bold">Met</span>;
-                if (sla === "Breached") return <span className="text-red-600 font-bold">Breached</span>;
+                if (sla === "Met") return <StatusPill status="Met" />;
+                if (sla === "Breached") return <StatusPill status="Breached" />;
                 if (sla === "Pending" && lead.slaResponseDeadline) {
                   const minsLeft = Math.floor((new Date(lead.slaResponseDeadline).getTime() - Date.now()) / 60000);
-                  if (minsLeft <= 0) return <span className="text-red-600 font-bold">Breached</span>;
+                  if (minsLeft <= 0) return <StatusPill status="Breached" />;
                   return <span className="text-amber-600 font-bold">{minsLeft} min remaining</span>;
                 }
                 return "-";
               })() },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <dt className="text-xs font-semibold text-slate-400 mb-1">{label}</dt>
-                <dd className="text-sm font-semibold text-slate-700">{value}</dd>
-              </div>
-            ))}
-          </dl>
+            ]}
+          />
 
           {lead.notes && (
             <div className="mt-6 pt-5 border-t border-slate-100">
@@ -1238,6 +1261,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ---- Competitor Intelligence Tab ---- */}
+      {tab === "competitor" && (
+        <div className="crm-card p-5">
+          <CompetitorIntelligenceTab entity={{ leadId: lead.id, currentStage: lead.status }} />
         </div>
       )}
 
@@ -1966,6 +1996,34 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           )}
         </div>
       </Modal>
+
+      {/* V4: Sample Required prompt after qualification */}
+      {showSamplePrompt && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-[400px] w-full mx-4 p-6">
+            <h3 className="text-base font-semibold mb-2 text-theme-primary">
+              Is a sample required for this lead?
+            </h3>
+            <p className="text-[13px] text-theme-secondary mb-5">
+              If the customer needs a product sample before proceeding, select Yes to move this lead to Sample Management. Otherwise, proceed directly to Sales Pipeline.
+            </p>
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => handleSampleRequired(true)}
+                className="flex-1 bg-[var(--primary)] text-white border-none rounded-lg py-2.5 text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity"
+              >
+                Yes — Send to Sample Management
+              </button>
+              <button
+                onClick={() => handleSampleRequired(false)}
+                className="flex-1 bg-transparent text-theme-secondary border border-theme rounded-lg py-2.5 text-sm font-medium cursor-pointer hover:bg-surface-2 transition-colors"
+              >
+                No — Go to Sales Pipeline
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

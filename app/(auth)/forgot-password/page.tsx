@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
         
         <div className="flex justify-center mb-6">
           <div className="w-12 h-12 rounded-full bg-[#f0f4ff] flex items-center justify-center">
-            <svg className="w-6 h-6 text-[#0b1f3a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <svg className="w-6 h-6 text-[var(--brand-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4v-3l8.44-8.44A6 6 0 0115 7h.01z" />
             </svg>
           </div>
@@ -59,12 +59,12 @@ export default function ForgotPasswordPage() {
                 </span>
                 <input id="email" type="email" required autoFocus value={email} onChange={e => setEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="w-full pl-11 pr-4 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all" />
+                  className="w-full pl-11 pr-4 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all" />
               </div>
             </div>
 
             <button type="submit" disabled={loading || !email}
-              className="w-full py-3.5 px-6 rounded-[8px] bg-[#0b1f3a] hover:bg-[#152e52] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              className="w-full py-3.5 px-6 rounded-[8px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {loading ? (
                 <>
                   <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none">
@@ -86,7 +86,7 @@ export default function ForgotPasswordPage() {
 
         {!success && (
           <div className="mt-8 text-center">
-            <Link href="/login" className="flex items-center justify-center gap-1.5 text-[13px] font-medium text-[#44474d] hover:text-[#0b1f3a] transition-colors">
+            <Link href="/login" className="flex items-center justify-center gap-1.5 text-[13px] font-medium text-[#44474d] hover:text-[var(--brand-primary)] transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
               Back to log in
             </Link>

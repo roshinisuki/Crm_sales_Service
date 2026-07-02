@@ -36,10 +36,7 @@ export async function PUT(
     });
 
     if (fileUrl !== undefined) {
-      await prisma.product.update({
-        where: { id: doc.entityId },
-        data: { brochureUrl: fileUrl },
-      });
+      // Brochure record already updated above; Product model has no brochureUrl field
     }
 
     return NextResponse.json({ success: true, data: updated });

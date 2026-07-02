@@ -21,7 +21,7 @@ import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import {
   Plus, Search, Download, Pencil, Trash2,
   Users, Phone, CheckCircle, XCircle, PhoneCall, CalendarClock,
-  TrendingUp, AlertTriangle, Copy, Upload,
+  TrendingUp, AlertTriangle, Copy, Upload, Zap, ChevronRight,
 } from "lucide-react";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import LeadImportModal from "@/components/leads/LeadImportModal";
@@ -38,6 +38,14 @@ const V2_TABS = [
   { key: "Duplicate", label: "Duplicate" },
 ] as const;
 const INDUSTRY_TYPES = ["Automotive", "Pharma", "Textile", "FMCG", "Infrastructure", "Others"];
+
+function isSlaBreached(l: Lead, now: Date) {
+  if (l.slaStatus === "Breached") return true;
+  if (l.slaStatus === "Pending" && l.slaResponseDeadline) {
+    return new Date(l.slaResponseDeadline).getTime() <= now.getTime();
+  }
+  return false;
+}
 
 const COUNTRY_CODES = [
   { code: "+91", label: "+91 🇮🇳 India" },
@@ -100,8 +108,10 @@ export default function LeadsPage() {
   const [formData,    setFormData]    = useState(emptyForm);
   const [formLoading, setFormLoading] = useState(false);
   const [formError,   setFormError]   = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [isDeleting, setIsDeleting] = useState(false);
+  const [guidanceLeadId, setGuidanceLeadId] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({
     isOpen: false, title: "", message: "", action: () => {},
   });
@@ -154,7 +164,7 @@ export default function LeadsPage() {
     try {
       const params: any = {};
       if (search) params.search = search;
-      if (statusFilter) params.status = statusFilter;
+      if (statusFilter && statusFilter !== "Overdue") params.status = statusFilter;
       const res = await getLeadsAction(params);
       if (res.success && res.data) setLeads(res.data as any);
     } finally {
@@ -181,6 +191,14 @@ export default function LeadsPage() {
   useEffect(() => { loadLeads(); }, [search, statusFilter]);
   useEffect(() => { loadExecutives(); loadLeadSources(); }, [user]);
 
+  // Close guidance popover on outside click
+  useEffect(() => {
+    if (!guidanceLeadId) return;
+    const handler = () => setGuidanceLeadId(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [guidanceLeadId]);
+
   // ── Filtered data ─────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
@@ -198,7 +216,14 @@ export default function LeadsPage() {
         );
         if (!hasTodayFU) return false;
       } else if (activeTab === "Overdue") {
-        if (l.status !== "Overdue") return false;
+        // Overdue is a computed filter — not a stored status value.
+        // A lead is overdue if it has a pending follow-up with a date in the past
+        // OR its first-response SLA has breached, and it is not in a terminal status.
+        if (l.status === "Lost" || l.status === "Converted" || l.status === "Duplicate") return false;
+        const hasOverdueFU = (l as any).followUps?.some((f: any) =>
+          f.status === "Pending" && new Date(f.nextMeetingDate) <= now
+        );
+        if (!hasOverdueFU && !isSlaBreached(l, now)) return false;
       } else if (activeTab === "Duplicate") {
         if (l.status !== "Duplicate") return false;
       } else if (activeTab && activeTab !== "") {
@@ -257,7 +282,13 @@ export default function LeadsPage() {
     )
   ).length;
   const kpiSQL          = leads.filter(l => l.status === "SQL").length;
-  const kpiOverdue       = leads.filter(l => l.status === "Overdue" || l.status === "FollowUpDue").length;
+  const kpiOverdue       = leads.filter(l => {
+    if (l.status === "Lost" || l.status === "Converted" || l.status === "Duplicate") return false;
+    const hasOverdueFU = (l as any).followUps?.some((f: any) =>
+      f.status === "Pending" && new Date(f.nextMeetingDate) <= now
+    );
+    return hasOverdueFU || isSlaBreached(l, now);
+  }).length;
   const kpiLost          = leads.filter(l => l.status === "Lost").length;
   const kpiDuplicate     = leads.filter(l => l.status === "Duplicate").length;
 
@@ -266,6 +297,7 @@ export default function LeadsPage() {
   const openCreate = () => {
     setFormData(emptyForm);
     setFormError("");
+    setFieldErrors({});
     setIsModalOpen(true);
   };
 
@@ -289,20 +321,28 @@ export default function LeadsPage() {
       industryType: l.industryType || "", estimatedValue: l.estimatedValue ? String(l.estimatedValue) : "",
     });
     setFormError("");
+    setFieldErrors({});
     setIsModalOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Validation
-    const errors: string[] = [];
-    if (!formData.name.trim()) errors.push("Lead Name is required");
-    if (!formData.phone.trim() && !formData.email.trim()) errors.push("Either Phone or Email is required");
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.push("Invalid email format");
-    if (formData.phone && formData.phone.replace(/\D/g, "").length < 10) errors.push("Phone number must be at least 10 digits (excluding country code)");
-    if (!formData.city.trim()) errors.push("City is required");
-    if (!formData.leadSource) errors.push("Lead Source is required");
-    if (errors.length > 0) { setFormError(errors.join(", ")); return; }
+    // Validation — Name, Phone, Email, City all mandatory
+    const errors: Record<string, string> = {};
+    if (!formData.name.trim()) errors.name = "Lead name is required";
+    if (!formData.phone.trim()) errors.phone = "Phone number is required";
+    else if (formData.phone.replace(/\D/g, "").length < 10) errors.phone = "Enter a valid 10-digit phone number";
+    if (!formData.email.trim()) errors.email = "Email address is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Enter a valid email address";
+    if (!formData.city.trim()) errors.city = "Place / City is required";
+    if (!formData.companyName.trim()) errors.companyName = "Company name is required";
+    if (!formData.leadSource) errors.leadSource = "Lead Source is required";
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setFormError(Object.values(errors).join(", "));
+      return;
+    }
+    setFieldErrors({});
     setFormLoading(true);
     setFormError("");
 
@@ -331,7 +371,7 @@ export default function LeadsPage() {
         assignedUserId: formData.assignedUserId || undefined,
         leadSource: formData.leadSource as any,
         notes: formData.notes || undefined,
-        companyName: formData.companyName || undefined,
+        companyName: formData.companyName.trim(),
         designation: formData.designation || undefined,
         industryType: formData.industryType || undefined,
         estimatedValue: formData.estimatedValue ? parseFloat(formData.estimatedValue) : undefined,
@@ -422,7 +462,7 @@ export default function LeadsPage() {
       }
     >
       {/* ── V2 KPI Cards (aligned with tab sections) ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
         <SummaryCard
           label="Total Leads"
           value={kpiTotal}
@@ -448,12 +488,20 @@ export default function LeadsPage() {
           onClick={() => { setActiveTab("TodayFollowUp"); setPage(1); }}
         />
         <SummaryCard
-          label="SQL / Overdue"
-          value={kpiSQL + kpiOverdue}
-          subtitle={`${kpiSQL} SQL · ${kpiOverdue} overdue`}
+          label="SQL"
+          value={kpiSQL}
+          subtitle="Sales Qualified Leads"
           icon={<TrendingUp size={20} />}
           variant="amber"
           onClick={() => { setActiveTab("SQL"); setPage(1); }}
+        />
+        <SummaryCard
+          label="Overdue"
+          value={kpiOverdue}
+          subtitle="SLA breached / overdue FU"
+          icon={<AlertTriangle size={20} />}
+          variant="red"
+          onClick={() => { setActiveTab("Overdue"); setPage(1); }}
         />
       </div>
 
@@ -551,7 +599,7 @@ export default function LeadsPage() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="crm-table" style={{ minWidth: "1100px" }}>
+          <table className="crm-table" style={{ minWidth: "1220px" }}>
             <colgroup>
               <col style={{ width: "45px" }} />
               <col style={{ width: "90px" }} />
@@ -565,7 +613,7 @@ export default function LeadsPage() {
               <col style={{ width: "70px" }} />
               <col style={{ width: "110px" }} />
               <col style={{ width: "85px" }} />
-              <col style={{ width: "85px" }} />
+              <col style={{ width: "105px" }} />
             </colgroup>
             <thead>
               <tr>
@@ -688,6 +736,77 @@ export default function LeadsPage() {
                     <td className="crm-td text-theme-muted text-[11px]">{formatDate(l.createdAt)}</td>
                     <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
+                        <div className="relative">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setGuidanceLeadId(guidanceLeadId === l.id ? null : l.id); }}
+                            className="row-action-btn text-blue-600"
+                            title="Workflow"
+                          >
+                            <Zap size={14} />
+                          </button>
+                          {guidanceLeadId === l.id && (
+                            <div
+                              className="absolute right-0 top-full mt-1 z-50 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-3"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-1.5">
+                                <Zap size={13} /> Lead Workflow
+                              </p>
+                              {(() => {
+                                const fups = (l as any).followUps || [];
+                                const hasPendingFU = fups.some((f: any) => f.status === "Pending" || f.status === "Overdue");
+                                const hasCompletedFU = fups.some((f: any) => f.status === "Completed");
+                                const steps = [
+                                  { label: "New", desc: "Log first call", done: l.status !== "New" && l.status !== "Lost", active: l.status === "New" },
+                                  { label: "Contacted", desc: "Add follow-up", done: ["SQL", "Qualified", "Converted"].includes(l.status) || hasCompletedFU, active: l.status === "Contacted" && !hasPendingFU && !hasCompletedFU },
+                                  { label: "Follow-Up", desc: "Schedule & log", done: ["SQL", "Qualified", "Converted"].includes(l.status) || (hasCompletedFU && !hasPendingFU), active: hasPendingFU || l.status === "FollowUpDue" },
+                                  { label: "Qualify (SQL)", desc: "BANT checklist", done: ["Qualified", "Converted"].includes(l.status), active: l.status === "SQL" },
+                                  { label: "Convert", desc: "Create opportunity", done: l.status === "Converted", active: l.status === "Qualified" },
+                                ];
+                                const currentStepIdx = steps.findIndex(s => s.active);
+                                return (
+                                  <div className="space-y-0">
+                                    {steps.map((s, i) => (
+                                      <div key={s.label} className="flex items-start gap-2">
+                                        <div className="flex flex-col items-center">
+                                          <div className={cn(
+                                            "w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0",
+                                            s.done
+                                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                                              : s.active
+                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 ring-2 ring-blue-300 dark:ring-blue-700"
+                                              : "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
+                                          )}>
+                                            {s.done ? "✓" : i + 1}
+                                          </div>
+                                          {i < steps.length - 1 && (
+                                            <div className={cn("w-0.5 h-5", s.done ? "bg-emerald-200 dark:bg-emerald-800" : "bg-slate-200 dark:bg-slate-700")} />
+                                          )}
+                                        </div>
+                                        <div className="pb-1">
+                                          <p className={cn(
+                                            "text-xs font-semibold",
+                                            s.active ? "text-blue-700 dark:text-blue-400" : s.done ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"
+                                          )}>
+                                            {s.label}
+                                            {s.active && <span className="ml-1 text-[9px] text-blue-500">← you are here</span>}
+                                          </p>
+                                          <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.desc}</p>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setGuidanceLeadId(null); router.push(`/leads/${l.id}`); }}
+                                className="mt-2 w-full text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center justify-center gap-1 pt-2 border-t border-slate-100 dark:border-slate-700"
+                              >
+                                Open Lead Detail <ChevronRight size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         <button
                           onClick={() => openEdit(l)}
                           className="row-action-btn"
@@ -763,7 +882,7 @@ export default function LeadsPage() {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <FormField label="Lead Name" required>
+            <FormField label="Lead Name" required error={fieldErrors.name}>
               <Input
                 value={formData.name}
                 onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
@@ -772,7 +891,7 @@ export default function LeadsPage() {
               />
             </FormField>
 
-            <FormField label="Phone No" required>
+            <FormField label="Phone No" required error={fieldErrors.phone}>
               <div className="flex gap-2">
                 <Select
                   value={formData.phoneCountryCode}
@@ -791,7 +910,7 @@ export default function LeadsPage() {
               </div>
             </FormField>
 
-            <FormField label="Email ID">
+            <FormField label="Email ID" required error={fieldErrors.email}>
               <Input
                 type="email"
                 value={formData.email}
@@ -800,7 +919,7 @@ export default function LeadsPage() {
               />
             </FormField>
 
-            <FormField label="Company Name">
+            <FormField label="Company Name" required>
               <Input
                 value={formData.companyName}
                 onChange={e => setFormData(p => ({ ...p, companyName: e.target.value }))}
@@ -836,7 +955,7 @@ export default function LeadsPage() {
               />
             </FormField>
 
-            <FormField label="City">
+            <FormField label="City" required error={fieldErrors.city}>
               <Input
                 value={formData.city}
                 onChange={e => setFormData(p => ({ ...p, city: e.target.value }))}

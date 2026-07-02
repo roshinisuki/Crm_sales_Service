@@ -11,7 +11,7 @@ import { Users, PhoneCall, CheckCircle2, XCircle, Clock, CalendarCheck, Briefcas
 import InboundCheckInModal from "@/components/InboundCheckInModal";
 import OutboundCheckInModal from "@/components/OutboundCheckInModal";
 import CheckOutModal from "@/components/CheckOutModal";
-import { SalesFunnelChart, RevenueTrendChart, WorkspaceOverviewLineChart, SalesPipelineWidget, RecentLeadsTableWidget, ActionRequiredWidget } from "./SalesWidgets";
+import { PipelinePieChart, CustomerScoreTrendChart, RecentLeadsTableWidget, ActionRequiredWidget } from "./SalesWidgets";
 
 function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-slate-200 rounded-lg ${className ?? ""}`} />;
@@ -74,7 +74,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
           label="Total Leads" 
           value={salesData?.kpis?.totalLeads || 0} 
           icon={<Users size={18} />} 
-          variant="orange" 
+          variant="brand" 
           trend={{ value: "+12.4%", up: true }}
           subtitle="vs last month"
         />
@@ -104,39 +104,23 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
         />
       </div>
 
-      {/* ── 3. Charts & Alerts Split ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
-        
-        {/* Left Side: Chart Panels */}
-        <div className="xl:col-span-2">
-          <WorkspaceOverviewLineChart 
-            activeLeads={salesData?.kpis?.totalLeads || 0} 
-            visits={dashboardData?.stats?.monthlyVisits || 0} 
-            subscriptions={dashboardData?.stats?.activeSubs || 0} 
-          />
+      {/* ── 2. Pipeline Distribution (Pie) & Action Required ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 h-full">
+          <PipelinePieChart funnel={salesData?.funnel || []} />
         </div>
-
-        {/* Right Side: Action Required */}
-        <div className="flex flex-col">
+        <div className="xl:col-span-1 h-full">
           <ActionRequiredWidget followUps={dashboardData?.overdueFollowUps || []} />
         </div>
       </div>
 
-      {/* ── 3b. Recent Leads & Pipeline Row ── */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
-        {/* Left Side: Recent Leads */}
-        <div className="xl:col-span-2">
-          <RecentLeadsTableWidget recentLeads={dashboardData?.recentLeads || []} />
+      {/* ── 3. Customer Score Trend & Recent Leads ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-1 h-full">
+          <CustomerScoreTrendChart scoreTrend={salesData?.customerScoreTrend || []} />
         </div>
-
-        {/* Right Side: Sales Pipeline */}
-        <div>
-          <SalesPipelineWidget 
-            activeLeads={salesData?.kpis?.totalLeads || 0} 
-            visits={dashboardData?.stats?.monthlyVisits || 0} 
-            subscriptions={dashboardData?.stats?.activeSubs || 0} 
-            funnel={salesData?.funnel || []}
-          />
+        <div className="xl:col-span-2 h-full">
+          <RecentLeadsTableWidget recentLeads={dashboardData?.recentLeads || []} />
         </div>
       </div>
 

@@ -8,39 +8,44 @@ import { PageShell } from "@/components/ui/PageShell";
 import { formatDate, cn } from "@/lib/ui-utils";
 import {
   Search, AlertTriangle,
-  Download,
+  Download, Zap,
 } from "lucide-react";
 
 const STAGE_TABS = [
   { key: "all", label: "All" },
   { key: "SalesOpportunity", label: "Qualified" },
   { key: "RequirementGathering", label: "Req. Gathering" },
-  { key: "MeetingScheduled", label: "Meeting & Demo" },
-  { key: "ProposalSent", label: "Proposal" },
-  { key: "Negotiation", label: "Negotiation" },
+  { key: "TechnicalDiscussion", label: "Technical Discussion" },
+  { key: "MeetingScheduled", label: "Meeting Scheduled" },
+  { key: "DemoConducted", label: "Demo Conducted" },
   { key: "overdue", label: "Overdue" },
-  { key: "Lost", label: "Lost" },
+  { key: "Rejected", label: "Rejected" },
 ];
 
 const STAGE_LABELS: Record<string, string> = {
   SalesOpportunity: "Qualified",
   RequirementGathering: "Req. Gathering",
-  MeetingScheduled: "Meeting & Demo",
-  DemoConducted: "Demo (Historical)",
+  TechnicalDiscussion: "Technical Discussion",
+  MeetingScheduled: "Meeting Scheduled",
+  DemoConducted: "Demo Conducted",
   ProposalSent: "Proposal",
   Negotiation: "Negotiation",
   Won: "Won",
   Lost: "Lost",
+  Rejected: "Rejected",
 };
 
 const STAGE_PILL_COLORS: Record<string, string> = {
-  SalesOpportunity: "bg-sky-50 text-sky-700 border-sky-200",
-  RequirementGathering: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  MeetingScheduled: "bg-purple-50 text-purple-700 border-purple-200",
-  ProposalSent: "bg-teal-50 text-teal-700 border-teal-200",
-  Negotiation: "bg-amber-50 text-amber-700 border-amber-200",
-  Won: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  Lost: "bg-rose-50 text-rose-700 border-rose-200",
+  SalesOpportunity: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50",
+  RequirementGathering: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/50",
+  TechnicalDiscussion: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50",
+  MeetingScheduled: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/50",
+  DemoConducted: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50",
+  ProposalSent: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-800/50",
+  Negotiation: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50",
+  Won: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50",
+  Lost: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50",
+  Rejected: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50",
 };
 
 export default function SalesPipelineListPage() {
@@ -136,10 +141,10 @@ export default function SalesPipelineListPage() {
             <div className="flex-1 min-w-0">
               <span className={cn(
                 "inline-flex px-2.5 py-1 text-xs font-bold rounded-full border mb-2",
-                activeTab === "all" ? "bg-slate-100 text-slate-600 border-slate-200" :
-                activeTab === "overdue" ? "bg-rose-100 text-rose-700 border-rose-200" :
-                activeTab === "Lost" ? "bg-rose-100 text-rose-700 border-rose-200" :
-                (STAGE_PILL_COLORS[activeTab] || "bg-slate-100 text-slate-600 border-slate-200")
+                activeTab === "all" ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50" :
+                activeTab === "overdue" ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50" :
+                activeTab === "Lost" ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50" :
+                (STAGE_PILL_COLORS[activeTab] || "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50")
               )}>
                 {STAGE_TABS.find((t) => t.key === activeTab)?.label || activeTab}
               </span>
@@ -237,7 +242,7 @@ export default function SalesPipelineListPage() {
                           <p className="text-[11px] text-slate-400">{deal.customer?.customerCode}</p>
                         </td>
                         <td className="crm-td">
-                          <span className={cn("px-2.5 py-1 text-xs font-bold rounded-lg border", STAGE_PILL_COLORS[deal.status] || "bg-slate-50 text-slate-600 border-slate-200")}>
+                          <span className={cn("px-2.5 py-1 text-xs font-bold rounded-lg border", STAGE_PILL_COLORS[deal.status] || "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50")}>
                             {STAGE_LABELS[deal.status] || deal.status}
                           </span>
                         </td>
@@ -274,7 +279,13 @@ export default function SalesPipelineListPage() {
                         </td>
                         <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* Opportunity actions can be added here */}
+                            <button
+                              onClick={() => router.push(`/sales-pipeline/${deal.id}/opportunity-detail`)}
+                              className="row-action-btn text-[var(--primary)]"
+                              title="Workflow"
+                            >
+                              <Zap size={14} />
+                            </button>
                           </div>
                         </td>
                       </tr>

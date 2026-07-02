@@ -455,7 +455,10 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
-    const currentDeal = await prisma.deal.findUnique({ where: { id } });
+    const currentDeal = await prisma.deal.findUnique({
+      where: { id },
+      include: { opportunityDetail: true },
+    });
     if (!currentDeal) {
       return { success: false, message: "Deal not found" };
     }
@@ -469,16 +472,11 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
     const details = currentDeal.opportunityDetail;
     const currentStatus = currentDeal.status;
 
-    // MeetingScheduled: only validate meeting details if already in MeetingScheduled stage (re-save)
-    // When advancing FROM RequirementGathering, meeting details get filled AFTER entering this stage
+    // MeetingScheduled: only validate required fields for stage transition
+    // Required: meetingDate, meetingType, meetingStatus, nextFollowUpDate
     if (status === "MeetingScheduled" && currentStatus === "MeetingScheduled") {
-      if (!details || !details.meetingDate || !details.meetingMode || !details.meetingAgenda) {
-        throw new Error("Validation Failed: Must complete Meeting Details (Date, Mode, Agenda).");
-      }
-    }
-    if (status === "SolutionReview") {
-      if (!details || !details.meetingDate) {
-        throw new Error("Validation Failed: Must schedule a meeting before moving to Solution Review.");
+      if (!details || !details.meetingDate || !details.meetingType || !details.meetingStatus || !details.nextFollowUpDate) {
+        throw new Error("Validation Failed: Must complete required Meeting & Demo fields (Date, Type, Status, Next Follow-up Date).");
       }
     }
     if (status === "ProposalSent") {
@@ -493,7 +491,7 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
     await transitionDealStatus(id, status, {
       actorId: userPayload.id,
       reason: lostReason ? `Lost: ${lostReason}` : undefined,
-      companyId: userPayload.companyId,
+      companyId: userPayload.companyId!,
     });
 
     // Update lost reason separately if provided (not part of transitionDealStatus)
@@ -652,7 +650,7 @@ export async function requestDiscountAction(_data: {
       await transitionDealStatus(dealId, "Active", {
         actorId: userPayload!.id,
         reason: `Discount of ${discountPercent}% requested`,
-        companyId: userPayload!.companyId,
+        companyId: userPayload!.companyId!,
       });
 
       // Create entry in ApprovalHistory, store previous status for rollback
@@ -796,7 +794,7 @@ export async function resolveDiscountAction(data: {
       await transitionDealStatus(dealId, "Active", {
         actorId: userPayload.id,
         reason: `Discount of ${deal.discountPercent}% approved`,
-        companyId: userPayload.companyId,
+        companyId: userPayload.companyId!,
       });
 
       // Find pending ApprovalHistory and update
@@ -869,7 +867,7 @@ export async function resolveDiscountAction(data: {
       await transitionDealStatus(dealId, restoredStatus, {
         actorId: userPayload.id,
         reason: `Discount request rejected — deal restored to previous stage (${restoredStatus})`,
-        companyId: userPayload.companyId,
+        companyId: userPayload.companyId!,
       });
 
       if (pendingApprovalForReject) {

@@ -73,7 +73,7 @@ async function main() {
   console.log(`✅ Customers: ${Object.keys(custMap).length}`);
 
   // ─── Deals (25) ───────────────────────────────────────────────────────
-  const dealStatuses = ["Active", "Active", "Active", "Active", "Active", "Won", "Won", "Won", "Lost", "Lost", "Lost", "Lost", "On Hold", "On Hold", "On Hold", "On Hold", "Active", "Active", "Active", "Active", "Active", "Active", "Active", "Active", "Active"];
+  const dealStatuses = ["SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "Won", "Won", "Won", "Lost", "Lost", "Lost", "Lost", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity", "SalesOpportunity"];
   const dealValues = [250000, 450000, 180000, 320000, 550000, 780000, 620000, 890000, 410000, 375000, 520000, 280000, 195000, 420000, 330000, 580000, 720000, 910000, 480000, 390000, 670000, 540000, 820000, 760000, 440000];
   
   const dealsData: any[] = [];

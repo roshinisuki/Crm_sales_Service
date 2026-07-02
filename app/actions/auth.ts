@@ -19,6 +19,7 @@ import {
 import { z } from "zod";
 import { verifyAuth, isInternalEmail, requiresInternalEmail, getRoleRedirect } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { DB_DEFAULT_THEME } from "@/lib/theme";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const ALLOWED_DOMAINS = (process.env.ALLOWED_DOMAIN || "sukisoftware.com,sukisoft.com,apexindustries.com,bharatmetalworks.com").split(",").map((d) => d.trim());
@@ -406,6 +407,7 @@ export async function activateCustomerPortal(customerId: string) {
           isActive: true,
           isFirstLogin: true,
           companyId: customer.companyId,
+          theme: DB_DEFAULT_THEME,
         },
       });
     }
@@ -761,6 +763,7 @@ export async function createInternalUserByAdmin(data: {
         invitedBy: adminPayload.id,
         invitedAt: new Date(),
         companyId: adminPayload.companyId,
+        theme: DB_DEFAULT_THEME,
       },
     });
 

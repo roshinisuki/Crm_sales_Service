@@ -20,7 +20,7 @@ export async function GET(_request: NextRequest) {
   // Get contacts for all customers
   const customerIds = keyAccounts.map(ka => ka.customerId);
   const contacts = await prisma.contact.findMany({
-    where: { customerId: { in: customerIds }, isActive: true },
+    where: { customerId: { in: customerIds }, status: "Active", deletedAt: null },
     select: { id: true, name: true, email: true, phone: true, contactType: true, designation: true, isPrimary: true, customerId: true },
     orderBy: [{ isPrimary: "desc" }, { name: "asc" }],
   });
@@ -34,12 +34,12 @@ export async function GET(_request: NextRequest) {
       revenuePotential: ka.revenuePotential,
       strategicImportance: ka.strategicImportance,
       relationshipStatus: ka.relationshipStatus,
-      contacts: customerContacts.reduce((acc, contact) => {
+      contacts: customerContacts.reduce((acc: Record<string, any[]>, contact) => {
         const type = contact.contactType || "Other";
         if (!acc[type]) acc[type] = [];
         acc[type].push(contact);
         return acc;
-      }, {} as Record<string, typeof customerContacts[0]>),
+      }, {} as Record<string, any[]>),
     };
   });
 

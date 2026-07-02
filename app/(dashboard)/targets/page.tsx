@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
@@ -8,28 +8,12 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  plus: "M12 4v16m8-8H4",
-  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-  trash: "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
-  chart: "M3 3v18h18 M18 17V9 M13 17V5 M8 17v-3",
-};
-
-function ProgressBar({ pct }: { pct: number }) {
-  const color = pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500";
-  return (
-    <div className="w-24 bg-gray-100 rounded-full h-2.5 relative">
-      <div className={`${color} rounded-full h-2.5 transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
-    </div>
-  );
-}
+import {
+  KPICard, ChartCard, AnalyticsPageHeader,
+  EmptyState, LoadingState, UserAvatar, ComparisonBar,
+} from "@/components/shared/AnalyticsComponents";
+import { StatusPill } from "@/components/shared/StatusPill";
+import { Target, DollarSign, Trophy, AlertTriangle, Plus, Pencil, Trash2, BarChart3 } from "lucide-react";
 
 export default function TargetsPage() {
   const { user } = useAuth();
@@ -75,31 +59,58 @@ export default function TargetsPage() {
 
   const canManage = ["Admin", "SalesManager"].includes(user?.role ?? "");
 
+  // Summary metrics from real records
+  const summary = useMemo(() => {
+    const totalTarget = targets.reduce((s, t) => s + t.targetAmount, 0);
+    const totalAchieved = targets.reduce((s, t) => s + t.achievedAmount, 0);
+    const overallPct = totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0;
+    const atRiskCount = targets.filter(t => {
+      const pct = t.targetAmount > 0 ? (t.achievedAmount / t.targetAmount) * 100 : 0;
+      return pct < 50;
+    }).length;
+    return { totalTarget, totalAchieved, overallPct, atRiskCount };
+  }, [targets]);
+
+  // Chart data: group by user — fixed scale
+  const chartData = useMemo(() => {
+    const userMap = new Map<string, { target: number; achieved: number }>();
+    targets.forEach(t => {
+      const key = t.assignedUser?.name || "Unassigned";
+      const existing = userMap.get(key) || { target: 0, achieved: 0 };
+      existing.target += t.targetAmount;
+      existing.achieved += t.achievedAmount;
+      userMap.set(key, existing);
+    });
+    return Array.from(userMap.entries());
+  }, [targets]);
+  const maxChartVal = Math.max(...chartData.map(([, v]) => Math.max(v.target, v.achieved)), 1);
+
   return (
-    <PageContainer className="space-y-4 p-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Sales Targets</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage monthly, quarterly, and yearly sales targets</p>
-        </div>
+    <PageContainer className="space-y-5 p-0">
+      <AnalyticsPageHeader title="Sales Targets" subtitle="Manage monthly, quarterly, and yearly sales targets">
         <div className="flex gap-2">
-          <Link href="/targets/achievement" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50">
-            <Ico d={icons.chart} size={16} /> Achievement Tracking
+          <Link href="/targets/achievement" className="btn-secondary">
+            <BarChart3 size={16} /> Achievement Tracking
           </Link>
           {canManage && (
-            <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
-              <Ico d={icons.plus} size={16} /> Add Target
+            <Link href="/targets/new" className="btn-primary">
+              <Plus size={16} /> Add Target
             </Link>
           )}
         </div>
-      </div>
+      </AnalyticsPageHeader>
 
-      <div className="flex gap-1 border-b">
+      {/* Tab switcher */}
+      <div className="flex gap-1 border-b border-[var(--border)]">
         {(["Monthly", "Quarterly", "Yearly"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${tab === t ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+            className={`px-4 py-2 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
+              tab === t
+                ? "border-[var(--accent)] text-[var(--accent)]"
+                : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            }`}
           >
             {t}
           </button>
@@ -107,65 +118,92 @@ export default function TargetsPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-2">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
-          ))}
-        </div>
+        <LoadingState />
       ) : targets.length === 0 ? (
-        <div className="rounded-lg border bg-white p-12 text-center">
-          <p className="text-sm text-gray-500 mb-3">No {tab.toLowerCase()} targets found.</p>
-          {canManage && (
-            <Link href="/targets/new" className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
-              <Ico d={icons.plus} size={16} /> Create your first target
-            </Link>
-          )}
-        </div>
+        <EmptyState
+          message={`No ${tab.toLowerCase()} targets found.`}
+          action={canManage ? <Link href="/targets/new" className="btn-primary"><Plus size={16} /> Create your first target</Link> : undefined}
+        />
       ) : (
-        <div className="crm-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="crm-table">
-              <thead>
-                <tr>
-                  <th className="crm-th">Period</th>
-                  <th className="crm-th">Assigned User</th>
-                  <th className="crm-th">Territory</th>
-                  <th className="crm-th text-right">Target Amount</th>
-                  <th className="crm-th text-right">Achieved</th>
-                  <th className="crm-th text-right">Achievement %</th>
-                  <th className="crm-th">Progress</th>
-                  {canManage && <th className="crm-th text-right">Actions</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {targets.map((t) => {
-                  const pct = t.targetAmount > 0 ? Math.round((t.achievedAmount / t.targetAmount) * 100) : 0;
-                  return (
-                    <tr key={t.id} className="crm-tr">
-                      <td className="crm-td font-medium">{t.period}</td>
-                      <td className="crm-td text-foreground">{t.assignedUser?.name || "—"}</td>
-                      <td className="crm-td text-foreground">{t.territory?.name || "—"}</td>
-                      <td className="crm-td text-right text-foreground">{formatCurrency(t.targetAmount)}</td>
-                      <td className="crm-td text-right text-foreground">{formatCurrency(t.achievedAmount)}</td>
-                      <td className="crm-td text-right">
-                        <span className={`px-2 py-0.5 rounded-full text-xs ${pct >= 80 ? "bg-green-50 text-green-700" : pct >= 50 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>{pct}%</span>
-                      </td>
-                      <td className="crm-td"><ProgressBar pct={pct} /></td>
-                      {canManage && (
-                        <td className="crm-td text-right">
-                          <div className="inline-flex gap-1.5">
-                            <Link href={`/targets/${t.id}`} className="p-1.5 rounded hover:bg-muted" title="Edit"><Ico d={icons.edit} /></Link>
-                            <button onClick={() => handleDelete(t)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Delete"><Ico d={icons.trash} /></button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Total Target" value={formatCurrency(summary.totalTarget)} icon={<Target size={20} />} />
+            <KPICard label="Total Achieved" value={formatCurrency(summary.totalAchieved)} icon={<DollarSign size={20} />} />
+            <KPICard label="Overall %" value={`${summary.overallPct}%`} icon={<Trophy size={20} />} iconColor={summary.overallPct >= 80 ? "var(--status-success-text)" : summary.overallPct >= 50 ? "var(--status-warning-text)" : "var(--status-danger-text)"} />
+            <KPICard label="At Risk (<50%)" value={summary.atRiskCount} icon={<AlertTriangle size={20} />} iconColor={summary.atRiskCount > 0 ? "var(--status-danger-text)" : undefined} />
           </div>
-        </div>
+
+          {/* Chart: Target vs Achieved per User */}
+          {chartData.length > 0 && (
+            <ChartCard title={`Target vs Achieved per User (${tab})`} subtitle="Both bars on the same scale for fair comparison">
+              <div className="space-y-3">
+                {chartData.map(([userName, vals]) => (
+                  <ComparisonBar
+                    key={userName}
+                    label={userName}
+                    valueA={vals.target}
+                    valueB={vals.achieved}
+                    labelA="Target"
+                    labelB="Achieved"
+                    formatValue={(v) => formatCurrency(v)}
+                    maxScale={maxChartVal}
+                  />
+                ))}
+              </div>
+            </ChartCard>
+          )}
+
+          {/* Table */}
+          <div className="analytics-chart-card !p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    <th className="crm-th">Period</th>
+                    <th className="crm-th">Assigned User</th>
+                    <th className="crm-th">Territory</th>
+                    <th className="crm-th text-right">Target Amount</th>
+                    <th className="crm-th text-right">Achieved</th>
+                    <th className="crm-th text-right">Achievement %</th>
+                    <th className="crm-th">Status</th>
+                    {canManage && <th className="crm-th text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {targets.map((t) => {
+                    const pct = t.targetAmount > 0 ? Math.round((t.achievedAmount / t.targetAmount) * 100) : 0;
+                    return (
+                      <tr key={t.id} className="crm-tr">
+                        <td className="crm-td font-medium text-[var(--text-primary)]">{t.period}</td>
+                        <td className="crm-td">
+                          <UserAvatar name={t.assignedUser?.name} role={t.assignedUser?.role} size="sm" />
+                        </td>
+                        <td className="crm-td text-[var(--text-secondary)]">{t.territory?.name || "—"}</td>
+                        <td className="crm-td text-right text-[var(--text-secondary)]">{formatCurrency(t.targetAmount)}</td>
+                        <td className="crm-td text-right text-[var(--text-secondary)]">{formatCurrency(t.achievedAmount)}</td>
+                        <td className="crm-td text-right">
+                          <StatusPill status={pct >= 80 ? "Achieved" : pct >= 50 ? "On Track" : "Behind"} />
+                        </td>
+                        <td className="crm-td">
+                          <StatusPill status={pct >= 80 ? "On Track" : pct >= 50 ? "Behind" : "At Risk"} />
+                        </td>
+                        {canManage && (
+                          <td className="crm-td text-right">
+                            <div className="inline-flex gap-1.5">
+                              <Link href={`/targets/${t.id}`} className="action-icon-btn" title="Edit"><Pencil size={16} /></Link>
+                              <button onClick={() => handleDelete(t)} className="action-icon-btn row-action-btn-danger" title="Delete"><Trash2 size={16} /></button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       <ConfirmModal {...confirmState} onCancel={() => setConfirmState({ ...confirmState, isOpen: false })} />

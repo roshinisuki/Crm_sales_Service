@@ -9,64 +9,96 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await verifyAuth();
-  if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
-  const { id } = await params;
+    // SuperAdmin must use support/impersonation mode
+    if (user.role === "SuperAdmin" && (!user.supportMode || !user.companyId)) {
+      return NextResponse.json({ success: false, message: "SuperAdmin must access business data via support/impersonation mode." }, { status: 403 });
+    }
 
-  const deal = await prisma.deal.findFirst({
-    where: { id, deletedAt: null, companyId: user.companyId },
-    include: {
-      customer: {
-        select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, status: true },
-      },
-      assignedUser: { select: { id: true, name: true, email: true } },
-      opportunityDetail: true,
-      opportunityContacts: {
-        include: {
-          contact: { select: { id: true, name: true, designation: true, email: true, phone: true, company: true } },
+    const { id } = await params;
+
+    if (!id) {
+      return NextResponse.json({ success: false, message: "Missing opportunity ID" }, { status: 400 });
+    }
+
+    const deal = await prisma.deal.findFirst({
+      where: { id, deletedAt: null, companyId: user.companyId },
+      include: {
+        customer: {
+          select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, status: true },
         },
-        orderBy: { isPrimary: "desc" },
-      },
-      stageHistories: {
-        include: { changedBy: { select: { id: true, name: true } } },
-        orderBy: { changedAt: "desc" },
-      },
-      quotations: {
-        select: {
-          id: true, quotationCode: true, status: true, finalAmount: true,
-          validUntil: true, pdfUrl: true, createdAt: true,
+        assignedUser: { select: { id: true, name: true, email: true } },
+        opportunityDetail: true,
+        opportunityContacts: {
+          include: {
+            contact: { select: { id: true, name: true, designation: true, email: true, phone: true, company: true } },
+          },
+          orderBy: { isPrimary: "desc" },
         },
-        orderBy: { createdAt: "desc" },
+        stageHistories: {
+          include: { changedBy: { select: { id: true, name: true } } },
+          orderBy: { changedAt: "desc" },
+        },
+        quotations: {
+          select: {
+            id: true, quotationCode: true, status: true, finalAmount: true,
+            validUntil: true, pdfUrl: true, createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+        },
+        tasks: {
+          select: { id: true, title: true, status: true, priority: true, dueDate: true },
+          orderBy: { createdAt: "desc" },
+        },
+        lostReasonRef: { select: { id: true, name: true } },
+        _count: { select: { quotations: true, tasks: true } },
       },
-      tasks: {
-        select: { id: true, title: true, status: true, priority: true, dueDate: true },
-        orderBy: { createdAt: "desc" },
+    });
+
+    if (!deal) {
+      // Diagnostic: check if the deal exists at all (without company filter)
+      const rawDeal = await prisma.deal.findUnique({ where: { id }, select: { id: true, companyId: true, deletedAt: true, assignedUserId: true } });
+      if (rawDeal?.deletedAt) {
+        return NextResponse.json({ success: false, message: "Opportunity not found (deleted)" }, { status: 404 });
+      }
+      if (rawDeal && rawDeal.companyId !== user.companyId) {
+        return NextResponse.json({ success: false, message: "Opportunity not found (belongs to a different company/tenant)" }, { status: 404 });
+      }
+      if (user.role === "SalesExecutive" && rawDeal && rawDeal.assignedUserId !== user.id) {
+        return NextResponse.json({ success: false, message: "Opportunity not found (assigned to another sales executive)" }, { status: 403 });
+      }
+      console.error("[GET /api/opportunities/[id]] Deal not found. id:", id, "user.companyId:", user.companyId, "user.role:", user.role);
+      return NextResponse.json({ success: false, message: "Opportunity not found" }, { status: 404 });
+    }
+
+    // Row-level scope check
+    if (user.role === "SalesExecutive" && deal.assignedUserId !== user.id) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+    }
+
+    // Fetch linked RFQs (via quotations → rfqId, or direct customer RFQs)
+    const rfqs = await prisma.rFQ.findMany({
+      where: { customerId: deal.customerId, deletedAt: null },
+      select: {
+        id: true, rfqCode: true, status: true, priority: true,
+        customerDueDate: true, createdAt: true,
       },
-      lostReasonRef: { select: { id: true, name: true } },
-      _count: { select: { quotations: true, tasks: true } },
-    },
-  });
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
 
-  if (!deal) return NextResponse.json({ success: false, message: "Opportunity not found" }, { status: 404 });
-
-  // Row-level scope check
-  if (user.role === "SalesExecutive" && deal.assignedUserId !== user.id) {
-    return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+    return NextResponse.json({ success: true, data: { ...deal, rfqs } });
+  } catch (error: any) {
+    console.error("[GET /api/opportunities/[id]] error:", error);
+    return NextResponse.json(
+      { success: false, message: error.message || "Failed to load opportunity" },
+      { status: 500 }
+    );
   }
-
-  // Fetch linked RFQs (via quotations → rfqId, or direct customer RFQs)
-  const rfqs = await prisma.rFQ.findMany({
-    where: { customerId: deal.customerId, deletedAt: null },
-    select: {
-      id: true, rfqCode: true, status: true, priority: true,
-      customerDueDate: true, createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-    take: 10,
-  });
-
-  return NextResponse.json({ success: true, data: { ...deal, rfqs } });
 }
 
 // PUT /api/opportunities/[id] — update opportunity fields
@@ -77,6 +109,11 @@ export async function PUT(
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+
+  // SuperAdmin must use support/impersonation mode
+  if (user.role === "SuperAdmin" && (!user.supportMode || !user.companyId)) {
+    return NextResponse.json({ success: false, message: "SuperAdmin must access business data via support/impersonation mode." }, { status: 403 });
+  }
 
   const { id } = await params;
   const body = await request.json();

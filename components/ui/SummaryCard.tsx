@@ -40,10 +40,13 @@ export function SummaryCard({
   const numericValue = typeof value === "number" ? value : parsed.end;
   const showAccent = accentWhenPositive && numericValue > 0;
 
+  // Theme-aware value/icon tint for brand/orange variants
+  const brandTint = variant === "brand" || variant === "orange" ? "var(--brand-primary)" : undefined;
+
   // Trend sub-text colour based on meaning
   const trendColor = trend
     ? trend.up
-      ? "#1D9E75"      // positive
+      ? brandTint ?? "#1D9E75"      // positive: theme brand if available, else green
       : showAccent
       ? "var(--accent-text)"  // warning / pending
       : "#E24B4A"      // negative
@@ -63,18 +66,25 @@ export function SummaryCard({
       onClick={onClick}
     >
       <div className="p-5 flex flex-col gap-3 h-full">
-        {/* Label */}
-        <p
-          className="text-[11px] uppercase tracking-[0.04em]"
-          style={{ color: showAccent ? "var(--accent-text)" : "var(--text-muted)" }}
-        >
-          {label}
-        </p>
+        {/* Label + icon */}
+        <div className="flex items-center justify-between">
+          <p
+            className="text-[11px] uppercase tracking-[0.04em]"
+            style={{ color: showAccent ? "var(--accent-text)" : "var(--text-muted)" }}
+          >
+            {label}
+          </p>
+          {icon && (
+            <span style={{ color: showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-muted)" }}>
+              {icon}
+            </span>
+          )}
+        </div>
 
         {/* Value */}
         <p
           className="text-[22px] font-medium tracking-tight"
-          style={{ color: showAccent ? "var(--accent-text)" : "var(--text-primary)" }}
+          style={{ color: showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-primary)" }}
         >
           {isNumeric ? (
             <CountUp

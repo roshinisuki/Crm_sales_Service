@@ -4,7 +4,7 @@
 //
 // Usage:
 //   <PulsingTickLogo />                                  // default: ripple ring, blue, 64px
-//   <PulsingTickLogo size={96} accent="#F77F00" />        // orange theme, larger
+//   <PulsingTickLogo size={96} accent="#2090FF" />        // blue theme, larger
 //   <PulsingTickLogo variant="glow" />                    // glow pulse instead of ripple
 //   <PulsingTickLogo variant="scale" label="Connecting..." />
 //   <PulsingTickLogo fullScreen label="Loading SUKI CRM..." />

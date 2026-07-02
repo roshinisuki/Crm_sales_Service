@@ -9,6 +9,9 @@ import { createDealAction, updateDealAction, updateDealStatusAction, deleteDealA
 import { getUsersAction } from "@/app/actions/users";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
+import { FieldGrid } from "@/components/shared/FieldGrid";
+import { CompactUserAvatar } from "@/components/shared/UserAvatar";
+import { StatusPill } from "@/components/shared/StatusPill";
 
 const icons = {
   back: "M10 19l-7-7m0 0l7-7m-7 7h18",
@@ -543,75 +546,27 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
             {/* Account Details */}
             <div className="crm-card p-5">
               <h3 className="text-sm font-bold text-slate-700 mb-4">Account Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Account Name</p>
-                  <p className="text-sm font-semibold text-slate-700">{customer.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Account Code</p>
-                  <p className="text-sm font-mono font-semibold text-slate-700">{customer.customerCode}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Status</p>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
-                    customer.status === "Active" || customer.status === "ActiveCustomer" || customer.status === "Converted"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : customer.status === "Lost" || customer.status === "Churned"
-                      ? "bg-rose-50 text-rose-700 border-rose-200"
-                      : "bg-amber-50 text-amber-700 border-amber-200"
-                  }`}>
-                    {customer.status}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Email</p>
-                  <p className="text-sm font-medium text-slate-700">{customer.email || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Phone</p>
-                  <p className="text-sm font-medium text-slate-700">{customer.phone || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">City</p>
-                  <p className="text-sm font-medium text-slate-700">{customer.city || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Account Type</p>
-                  <p className="text-sm font-medium text-slate-700">{customer.accountType || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Industry</p>
-                  <p className="text-sm font-medium text-slate-700">{customer.industryType || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">GSTIN</p>
-                  <p className="text-sm font-mono text-slate-700">{customer.gstNumber || "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Lead Source</p>
-                  <select
-                    value={customer.leadSource || ""}
-                    onChange={(e) => handleLeadSourceChange(e.target.value)}
-                    className="mt-0.5 block w-full pl-2 pr-8 py-1 text-xs bg-slate-50 border border-slate-200 focus:outline-none focus:ring-1 focus:ring-[var(--primary)] focus:border-[var(--primary)] rounded-lg font-medium text-slate-700 transition-all cursor-pointer"
-                  >
-                    <option value="">Select...</option>
-                    {LEAD_SOURCES.map((source) => (
-                      <option key={source} value={source}>{source}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Assigned Executive</p>
-                  <p className="text-sm font-medium text-slate-700">
-                    {customer.assignedUserId ? executives.find(e => e.id === customer.assignedUserId)?.name || "Assigned" : "Unassigned"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">Next Follow Up</p>
-                  <p className="text-sm font-bold text-orange-600">{nextFollowUpDateText}</p>
-                </div>
-              </div>
+              <FieldGrid
+                fields={[
+                  { label: "Account Name", value: customer.name, truncate: true },
+                  { label: "Account Code", value: customer.customerCode },
+                  { label: "Status", value: <StatusPill status={customer.status} /> },
+                  { label: "Email", value: customer.email || "-", truncate: true },
+                  { label: "Phone", value: customer.phone || "-" },
+                  { label: "City", value: customer.city || "-" },
+                  { label: "Account Type", value: customer.accountType || "-" },
+                  { label: "Industry", value: customer.industryType || "-" },
+                  { label: "GSTIN", value: customer.gstNumber || "-" },
+                  { label: "Lead Source", value: customer.leadSource || "-" },
+                  { label: "Assigned Executive", value: customer.assignedUserId ? (
+                    <CompactUserAvatar 
+                      name={executives.find(e => e.id === customer.assignedUserId)?.name || "Assigned"} 
+                      role="Executive"
+                    />
+                  ) : "Unassigned" },
+                  { label: "Next Follow Up", value: nextFollowUpDateText },
+                ]}
+              />
             </div>
 
             {/* Addresses */}

@@ -78,12 +78,12 @@ async function main() {
       // SuperAdmin (only for Suki owner company)
       ...(company.variant === 0 ? [{ email: `superadmin@${domain}`, name: "Super Admin", role: "SuperAdmin", department: "Management", isFirstLogin: false, passwordHash: SUPERADMIN_PASSWORD }] : []),
       // Admin
-      { email: `admin@${domain}`, name: `Admin ${company.name}`, role: "Admin", department: "Management", isFirstLogin: false, passwordHash: ADMIN_PASSWORD },
+      { email: `admin@${domain}`, name: "Admin", role: "Admin", department: "Management", isFirstLogin: false, passwordHash: ADMIN_PASSWORD },
       // Manager
-      { email: `manager@${domain}`, name: `Manager ${company.name}`, role: "SalesManager", department: "Sales", isFirstLogin: false, passwordHash: MANAGER_PASSWORD },
+      { email: `manager@${domain}`, name: "Sales Manager", role: "SalesManager", department: "Sales", isFirstLogin: false, passwordHash: MANAGER_PASSWORD },
       // Executives
-      { email: `se1@${domain}`, name: `Executive 1 ${company.name}`, role: "SalesExecutive", department: "Sales", isFirstLogin: false, passwordHash: EXECUTIVE_PASSWORD },
-      { email: `se2@${domain}`, name: `Executive 2 ${company.name}`, role: "SalesExecutive", department: "Sales", isFirstLogin: false, passwordHash: EXECUTIVE_PASSWORD },
+      { email: `se1@${domain}`, name: "Sales Executive 1", role: "SalesExecutive", department: "Sales", isFirstLogin: false, passwordHash: EXECUTIVE_PASSWORD },
+      { email: `se2@${domain}`, name: "Sales Executive 2", role: "SalesExecutive", department: "Sales", isFirstLogin: false, passwordHash: EXECUTIVE_PASSWORD },
     ];
 
     for (const u of companyUsers) {

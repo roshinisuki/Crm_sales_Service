@@ -16,8 +16,9 @@ export function getLogoTheme(colorKey: string, _isDark: boolean): LogoTheme {
   if (colorKey === "obsidian" || colorKey === "neutral") return "dark";
   if (colorKey === "purple" || colorKey === "black")    return "purple";
   if (colorKey === "forest"   || colorKey === "green")   return "green";
+  if (colorKey === "ember"    || colorKey === "orange")  return "orange";
   if (colorKey === "ocean"    || colorKey === "blue")    return "blue";
-  return "orange"; // ember / orange / fallback
+  return "blue"; // fallback
 }
 
 /**
@@ -25,9 +26,9 @@ export function getLogoTheme(colorKey: string, _isDark: boolean): LogoTheme {
  * Format: "{color}-{mode}", e.g. "ember-light", "forest-dark".
  */
 function readFromDOM(): LogoTheme {
-  if (typeof window === "undefined") return "orange";
+  if (typeof window === "undefined") return "blue";
   // New system: separate data-theme attribute (e.g. "orange", "blue")
-  const attr = document.documentElement.getAttribute("data-theme") ?? "orange";
+  const attr = document.documentElement.getAttribute("data-theme") ?? "blue";
   // Could be new format ("orange") or legacy ("ember-light")
   const sep = attr.lastIndexOf("-");
   const color = sep > 0 ? attr.slice(0, sep) : attr;
@@ -53,7 +54,7 @@ export function useLogoTheme(opts?: {
   const [logoTheme, setLogoTheme] = useState<LogoTheme>(() => {
     if (typeof window !== "undefined") return readFromDOM();
     if (opts?.initialColor) return getLogoTheme(opts.initialColor, opts?.initialIsDark ?? false);
-    return "orange";
+    return "blue";
   });
 
   useEffect(() => {

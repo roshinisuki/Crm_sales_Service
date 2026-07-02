@@ -115,15 +115,19 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
       aria-label="Main navigation"
     >
       {/* Logo Section */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-white/[0.06]">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-10 h-10 flex items-center justify-center shrink-0 rounded-lg">
-            <Logo theme={logoTheme} variant="mark-only" size={24} />
+      <div
+        className={cn(
+          "flex items-center border-b border-white/[0.06] relative",
+          collapsed ? "justify-center py-3 px-0" : "justify-between py-3 px-4"
+        )}
+      >
+        <div className="flex items-center gap-2.5 overflow-hidden">
+          <div className="w-14 h-14 flex items-center justify-center shrink-0 rounded-lg" style={{ filter: "drop-shadow(0 0 6px rgba(255,255,255,0.25))" }}>
+            <Logo theme={logoTheme} variant="mark-only" size={56} />
           </div>
           {!collapsed && (
             <div className="overflow-hidden whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-200">
-              <p className="text-white text-[14px] font-bold leading-tight">SUKI CRM</p>
-              <p className="text-white/60 text-[10px] font-medium">Customer Relationship</p>
+              <p className="text-white text-[18px] font-bold leading-none tracking-[-0.3px] whitespace-nowrap">SUKI CRM</p>
             </div>
           )}
         </div>
@@ -132,7 +136,8 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
           className={cn(
             "flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200",
             "text-white/60 hover:text-white hover:bg-white/[0.1]",
-            "focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 focus:ring-offset-[var(--sidebar-bg)]"
+            "focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 focus:ring-offset-[var(--sidebar-bg)]",
+            collapsed ? "absolute right-2" : ""
           )}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={collapsed}

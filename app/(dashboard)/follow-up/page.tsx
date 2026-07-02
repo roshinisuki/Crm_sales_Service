@@ -438,7 +438,7 @@ export default function FollowUpsPage() {
 
   return (
     <PageShell 
-      title="Follow-up" 
+      title="Follow Ups" 
       subtitle="Redesigned CRM Touchpoints and Scheduled Calendars"
       action={
         <button

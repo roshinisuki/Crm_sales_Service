@@ -14,12 +14,26 @@ export async function POST(
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
+  // SuperAdmin must use support/impersonation mode
+  if (user.role === "SuperAdmin" && (!user.supportMode || !user.companyId)) {
+    return NextResponse.json({ success: false, message: "SuperAdmin must access business data via support/impersonation mode." }, { status: 403 });
+  }
+
   const { id } = await params;
   const body = await request.json();
   const { to_stage, notes } = body;
 
   if (!to_stage) {
     return NextResponse.json({ success: false, message: "to_stage is required" }, { status: 400 });
+  }
+
+  // Validate stage value against allowed pipeline stages
+  const VALID_STAGES = ["SalesOpportunity", "RequirementGathering", "MeetingScheduled", "ProposalSent", "Negotiation", "Won", "Lost"];
+  if (!VALID_STAGES.includes(to_stage)) {
+    return NextResponse.json(
+      { success: false, message: `Invalid stage "${to_stage}". Valid stages: ${VALID_STAGES.join(", ")}` },
+      { status: 400 }
+    );
   }
 
   const deal = await prisma.deal.findFirst({

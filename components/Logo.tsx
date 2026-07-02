@@ -13,20 +13,20 @@ interface LogoProps {
 }
 
 const ACCENT: Record<LogoTheme, string> = {
-  orange:  "var(--brand-primary, #F77F00)",  // ember   --brand-primary
-  blue:    "var(--brand-primary, #8ECAE6)",  // ocean   --brand-primary
-  green:   "var(--brand-primary, #65B017)",  // forest  --brand-primary
-  purple:  "var(--brand-primary, #4a0875)",  // obsidian --brand-primary
+  orange:  "var(--brand-primary, #FF6901)",  // orange gradient
+  blue:    "var(--brand-primary, #2090FF)",  // blue gradient
+  green:   "var(--brand-primary, #BBDD48)",  // forest green gradient
+  purple:  "var(--brand-primary, #CD69ED)",  // deep purple gradient
   dark:    "#FFFFFF",  // login page explicit all-white
   neutral: "#FFFFFF",  // obsidian-light fallback to white on dark sidebar
 };
 
 // Glow colors per theme (used by GlowFilter)
 const GLOW_HEX: Record<LogoTheme, string> = {
-  orange:  "#F77F00",
-  blue:    "#8ECAE6",
-  green:   "#65B017",
-  purple:  "#4a0875",
+  orange:  "#FF6901",
+  blue:    "#2090FF",
+  green:   "#BBDD48",
+  purple:  "#CD69ED",
   dark:    "#FFFFFF",
   neutral: "#FFFFFF",
 };
@@ -83,9 +83,18 @@ export default function Logo({
   size = 32,
   className,
 }: LogoProps) {
-  const accent = ACCENT[theme];
-  const glowColor = GLOW_HEX[theme];
-  const glowId = `glow-${theme}`;
+  // Map themes to external gradient SVG files
+  // ?v=2 cache-busts old logo files so browsers load the updated gradients
+  const logoMap: Record<LogoTheme, string> = {
+    blue: "/logo-darkblue.svg?v=2",
+    purple: "/logo-purple.svg?v=2",
+    green: "/logo-green.svg?v=2",
+    orange: "/logo-orange.svg?v=2", // Orange theme uses orange gradient
+    dark: "/crm black (3).svg?v=2", // Keep existing white-on-black for dark mode
+    neutral: "/crm black (3).svg?v=2", // Keep existing white-on-black for neutral
+  };
+
+  const logoSrc = logoMap[theme];
 
   // Black/dark/neutral themes use the uploaded white-on-black SVG file
   if (theme === "dark" || theme === "neutral") {
@@ -123,64 +132,27 @@ export default function Logo({
   if (variant === "mark-only") {
     return (
       <div suppressHydrationWarning>
-        <svg
-          width={Math.round(size * (620 / 440))}
+        <img
+          src={logoSrc}
+          alt="SUKI CRM"
+          width={Math.round(size * (620 / 445))}
           height={size}
-          viewBox="0 0 620 440"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
           className={className}
-          aria-label="SUKI CRM"
-        >
-          <defs>
-            <GlowFilter id={glowId} color={glowColor} />
-          </defs>
-          <path d={MARK_TOP} fill="white" />
-          <g filter={`url(#${glowId})`}>
-            <path d={MARK_BOT} fill={accent} />
-          </g>
-        </svg>
+        />
       </div>
     );
   }
 
-  // variant === "full" — complete brand lockup (1286 × 440)
+  // variant === "full" — complete brand lockup
   return (
     <div suppressHydrationWarning>
-      <svg
+      <img
+        src={logoSrc}
+        alt="SUKI CRM"
         width={Math.round(size * (1286 / 440))}
         height={size}
-        viewBox="0 0 1286 440"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
         className={className}
-        aria-label="SUKI CRM"
-      >
-      <defs>
-        <GlowFilter id={glowId} color={glowColor} />
-      </defs>
-      {/* Large white letterforms (S, right arm) */}
-      <path d="M953.129 246.046L874.749 324.218V399.25L1035.36 239.066L989.169 193H874.749V246.046H953.129Z" fill="white" />
-      <path d="M1068.25 390.176L982.521 304.675L945.256 341.842L993.718 390.176H1068.25Z" fill="white" />
-      {/* Accent bracket shapes (K / C-bracket letterforms) — with glow */}
-      <g filter={`url(#${glowId})`}>
-        <path d="M844.751 331.75H779.501C756.149 376.752 734.544 382.339 702.251 389.875C773.033 413.619 811.958 395.144 844.751 331.75Z" fill={accent} />
-        <path d="M717.251 343.75H653.876C640.958 306.982 638.694 286.451 653.876 250H717.251C686.137 285.835 688.238 310.491 717.251 343.75Z" fill={accent} />
-        <path d="M844.43 261.832H779.18C755.828 216.83 734.222 211.243 701.93 203.707C772.712 179.963 811.637 198.438 844.43 261.832Z" fill={accent} />
-        <path d="M716.93 249.832H653.555C640.636 286.6 638.372 307.131 653.555 343.582H716.93C685.816 307.747 687.917 283.091 716.93 249.832Z" fill={accent} />
-      </g>
-      {/* Large white letterform (diagonal / M shape) */}
-      <path d="M1052.5 250.132V323.824L1112.71 400L1172.5 323.824V400H1222.75V193L1112.71 323.824L1052.5 250.132Z" fill="white" />
-      {/* SUKI text wordmark (S · U · K · I), top area y:43-151 — scaled 40% larger, bold */}
-      <g transform="translate(741 97) scale(1.4) translate(-741 -97)">
-        <path d={WORDMARK} fill="white" stroke="white" strokeWidth="8" strokeLinejoin="round" paintOrder="stroke" />
-      </g>
-      {/* Icon mark — upper (white) + lower (accent) swirl */}
-      <path d={MARK_TOP} fill="white" />
-      <path d={MARK_BOT} fill={accent} />
-      {/* Decorative circle */}
-      <circle cx="1269.25" cy="383.496" r="16.5" fill="white" />
-    </svg>
+      />
     </div>
   );
 }

@@ -111,7 +111,7 @@ function ActivateForm() {
   if (validating) {
     return (
       <div className="flex flex-col items-center gap-4 py-8">
-        <div className="w-12 h-12 rounded-full bg-[#0b1f3a] flex items-center justify-center">
+        <div className="w-12 h-12 rounded-full bg-[var(--brand-primary)] flex items-center justify-center">
           <Spinner />
         </div>
         <p className="text-[14px] text-[#44474d]">Validating your activation link…</p>
@@ -155,7 +155,7 @@ function ActivateForm() {
                 value={resendEmail}
                 onChange={e => setResendEmail(e.target.value)}
                 placeholder="Enter your registered email"
-                className="w-full px-4 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all"
+                className="w-full px-4 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all"
               />
             </div>
             {resendError && (
@@ -164,7 +164,7 @@ function ActivateForm() {
             <button
               type="submit"
               disabled={resendLoading}
-              className="w-full py-3 px-6 rounded-[8px] bg-[#0b1f3a] hover:bg-[#152e52] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+              className="w-full py-3 px-6 rounded-[8px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
             >
               {resendLoading ? (
                 <><svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Sending…</>
@@ -174,7 +174,7 @@ function ActivateForm() {
         )}
 
         <div className="mt-6 pt-5 border-t border-[#eceef0]">
-          <Link href="/login" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#44474d] hover:text-[#0b1f3a] transition-colors">
+          <Link href="/login" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#44474d] hover:text-[var(--brand-primary)] transition-colors">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
             Back to Login
           </Link>
@@ -194,7 +194,7 @@ function ActivateForm() {
         <h2 className="text-[22px] font-semibold text-[#191c1e] mb-2">Account Activated!</h2>
         <p className="text-[14px] text-[#44474d]">Your password has been set. Redirecting to login…</p>
         <div className="flex justify-center mt-4">
-          <div className="w-8 h-8 rounded-full bg-[#0b1f3a] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center">
             <Spinner small />
           </div>
         </div>
@@ -233,7 +233,7 @@ function ActivateForm() {
             </span>
             <input id="activate-password" type={showPassword ? "text" : "password"} required autoFocus value={password}
               onChange={e => setPassword(e.target.value)} placeholder="Min 8 chars, A-Z, 0-9, !@#$"
-              className="w-full pl-11 pr-12 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:border-[#0b1f3a] focus:ring-2 focus:ring-[#0b1f3a]/20 transition-all" />
+              className="w-full pl-11 pr-12 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all" />
             <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#75777e] hover:text-[#191c1e]">
               <EyeIcon visible={showPassword} />
             </button>
@@ -261,7 +261,7 @@ function ActivateForm() {
             </span>
             <input id="activate-confirm" type={showConfirm ? "text" : "password"} required value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter your password"
-              className={`w-full pl-11 pr-12 py-3 rounded-[8px] border bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:ring-2 transition-all ${confirmPassword ? (passwordsMatch ? "border-[#2e7d32] focus:border-[#2e7d32] focus:ring-[#2e7d32]/20" : "border-[#ba1a1a] focus:border-[#ba1a1a] focus:ring-[#ba1a1a]/20") : "border-[#e2e8f0] focus:border-[#0b1f3a] focus:ring-[#0b1f3a]/20"}`} />
+              className={`w-full pl-11 pr-12 py-3 rounded-[8px] border bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:ring-2 transition-all ${confirmPassword ? (passwordsMatch ? "border-[#2e7d32] focus:border-[#2e7d32] focus:ring-[#2e7d32]/20" : "border-[#ba1a1a] focus:border-[#ba1a1a] focus:ring-[#ba1a1a]/20") : "border-[#e2e8f0] focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)]/20"}`} />
             <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#75777e] hover:text-[#191c1e]">
               <EyeIcon visible={showConfirm} />
             </button>
@@ -274,13 +274,13 @@ function ActivateForm() {
         </div>
 
         <button type="submit" disabled={loading || !passwordsMatch || strength.level < 2}
-          className="w-full mt-4 py-3.5 px-6 rounded-[8px] bg-[#0b1f3a] hover:bg-[#152e52] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          className="w-full mt-4 py-3.5 px-6 rounded-[8px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
           {loading ? <><Spinner small />Activating Account…</> : <>Activate My Account <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></>}
         </button>
       </form>
 
       <div className="mt-6 pt-6 border-t border-[#eceef0] text-center">
-        <Link href="/login" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#44474d] hover:text-[#0b1f3a] transition-colors">
+        <Link href="/login" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#44474d] hover:text-[var(--brand-primary)] transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           Back to Login
         </Link>
@@ -299,7 +299,7 @@ export default function ActivateAccountPage() {
         <div className="bg-white rounded-[16px] border border-[#e2e8f0] shadow-[0px_2px_8px_rgba(11,31,58,0.06)] px-8 py-10 sm:px-12 sm:py-12">
           <Suspense fallback={
             <div className="flex flex-col items-center gap-4 py-8">
-              <div className="w-12 h-12 rounded-full bg-[#0b1f3a] flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-[var(--brand-primary)] flex items-center justify-center">
                 <Spinner />
               </div>
               <p className="text-[14px] text-[#44474d]">Loading…</p>

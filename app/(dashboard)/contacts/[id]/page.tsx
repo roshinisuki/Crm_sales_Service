@@ -10,6 +10,8 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { NotePanel } from "@/components/ui/NotePanel";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { getInitials, getAvatarColor, formatDateTime, cn } from "@/lib/ui-utils";
+import { FieldGrid } from "@/components/shared/FieldGrid";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { ArrowLeft, Phone, Mail, Building2, Tag, Save, Pencil, X, Check, User, Calendar } from "lucide-react";
 
 const CONTACT_TYPES = ["Technical", "Purchase", "Finance", "Management"];
@@ -206,25 +208,20 @@ export default function ContactDetailPage({ params }: { params: Promise<{ id: st
               <div className="crm-card p-6">
                 <h3 className="text-sm font-bold text-slate-700 mb-4">Contact Information</h3>
                 {!editing ? (
-                  <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {[
-                      { label: "Name", value: contact.name },
-                      { label: "Email", value: contact.email || "—" },
-                      { label: "Phone", value: contact.phone || "—" },
-                      { label: "Company", value: contact.company || "—" },
-                      { label: "Title", value: contact.title || "—" },
-                      { label: "Designation", value: contact.designation || "—" },
-                      { label: "Contact Type", value: contact.contactType },
-                      { label: "Status", value: <StatusBadge status={contact.status} size="sm" /> },
+                  <FieldGrid
+                    fields={[
+                      { label: "Name", value: contact.name, truncate: true },
+                      { label: "Email", value: contact.email || "-", truncate: true },
+                      { label: "Phone", value: contact.phone || "-" },
+                      { label: "Company", value: contact.company || "-", truncate: true },
+                      { label: "Title", value: contact.title || "-" },
+                      { label: "Designation", value: contact.designation || "-", truncate: true },
+                      { label: "Contact Type", value: <StatusPill status={contact.contactType} /> },
+                      { label: "Status", value: <StatusPill status={contact.status} /> },
                       { label: "Primary Contact", value: contact.isPrimary ? "Yes" : "No" },
-                      { label: "Notes", value: contact.notes || "—" },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <dt className="text-xs font-semibold text-slate-400 mb-0.5">{label}</dt>
-                        <dd className="text-sm font-semibold text-slate-700">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
+                      { label: "Notes", value: contact.notes || "-", maxLines: 2 },
+                    ]}
+                  />
                 ) : (
                   <div className="space-y-4">
                     <FormField label="Name" required><Input value={form.name} onChange={(e) => setForm((f: any) => ({ ...f, name: e.target.value }))} /></FormField>

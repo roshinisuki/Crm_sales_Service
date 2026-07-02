@@ -40,7 +40,7 @@ model User {
   companyId                   String?
   deletedAt                   DateTime?
   deletedById                 String?
-  theme                       String                      @default("ember")
+  theme                       String                      @default("ocean")
   themeMode                   String                      @default("light")
   preferredCurrency           String                      @default("INR")
   department                  String?
@@ -108,6 +108,9 @@ model User {
   territoriesOwned            Territory[]                 @relation("AssignedTerritories")
   company                     Company?                    @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   hostedVisitors              Visitor[]
+  ciCreated                   CompetitorInvolvement[]    @relation("CompetitorInvolvementCreator")
+  ciUpdated                   CompetitorInvolvement[]    @relation("CompetitorInvolvementUpdater")
+  ciDiscountApproved          CompetitorInvolvement[]    @relation("CompetitorInvolvementDiscountApprover")
 
   @@index([role])
   @@index([isActive])
@@ -168,6 +171,7 @@ model Customer {
   subscriptions          Subscription[]
   supportTickets         SupportTicket[]
   territoryAccounts      TerritoryAccount[]
+  competitorInvolvements  CompetitorInvolvement[] @relation("CompetitorInvolvementCustomer")
 
   @@index([customerCode])
   @@index([status])
@@ -497,6 +501,7 @@ model Deal {
   quotations           Quotation[]
   rfqs                 RFQ[]                @relation("OpportunityRFQs")
   tasks                Task[]
+  competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementDeal")
 
   @@index([customerId])
   @@index([assignedUserId])
@@ -544,6 +549,7 @@ model OpportunityDetail {
   meetingLocation        String?   @db.NVarChar(Max)
   meetingAgenda          String?   @db.NVarChar(Max)
   meetingOutcome         String?   @db.NVarChar(Max)
+  nextFollowUpDate       DateTime?
   demoType               String?
   demoDate               DateTime?
   demoPresenter          String?
@@ -684,6 +690,7 @@ model Lead {
   ownerHistory           LeadOwnerHistory[]
   statusHistories        LeadStatusHistory[]
   marketingVisits        MarketingVisit[]
+  competitorInvolvements  CompetitorInvolvement[] @relation("CompetitorInvolvementLead")
 
   @@index([status])
   @@index([assignedUserId])
@@ -736,6 +743,7 @@ model CommunicationLog {
   outcome      String?            @db.NVarChar(Max)
   followUpId   String?
   attendees    ActivityAttendee[]
+  competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementActivity")
   customer     Customer?          @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   followUp     FollowUp?          @relation(fields: [followUpId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   lead         Lead?              @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -903,6 +911,7 @@ model Company {
   reportSchedules       ReportSchedule[]
   users                 User[]
   whatsappTemplates     WhatsAppTemplate[]
+  competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementCompany")
 }
 
 model LeadSource {
@@ -968,6 +977,7 @@ model Contact {
   rfqs                RFQ[]
   samples             SampleRequest[]
   Task                Task[]
+  competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementContact")
 
   @@index([ownerId])
   @@index([status])
@@ -1149,6 +1159,7 @@ model RFQ {
   lineItems            RFQLineItem[]
   rfqStatusHistories   RFQStatusHistory[]
   samples              SampleRequest[]
+  competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementRFQ")
 
   @@index([customerId])
   @@index([status])
@@ -1207,6 +1218,7 @@ model Quotation {
   items                    QuotationItem[]
   revisionSnapshots        QuotationRevisionSnapshot[]
   quotationStatusHistories QuotationStatusHistory[]
+  competitorInvolvements    CompetitorInvolvement[] @relation("CompetitorInvolvementQuotation")
 
   @@index([customerId])
   @@index([status])
@@ -1361,6 +1373,7 @@ model Negotiation {
   quotation         Quotation?            @relation(fields: [quotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   revisions         NegotiationRevision[]
   PurchaseOrder     PurchaseOrder[]
+  competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementNegotiation")
 
   @@index([customerId])
   @@index([quotationId])
@@ -1576,6 +1589,8 @@ model Competitor {
   company     Company?            @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   products    CompetitorProduct[]
   lostDeals   LostDealAnalysis[]
+  involvements          CompetitorInvolvement[]
+  selectedInvolvements  CompetitorInvolvement[] @relation("CompetitorInvolvementSelected")
   deletedAt   DateTime?
   deletedById String?
   createdAt   DateTime            @default(now())
@@ -1595,6 +1610,7 @@ model CompetitorProduct {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   competitor   Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  involvements CompetitorInvolvement[]
 
   @@index([competitorId])
 }
@@ -1608,6 +1624,7 @@ model LostDealAnalysis {
   lossReason         LossReason? @relation(fields: [lossReasonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   competitorWonPrice Float?
   ourFinalPrice      Float?
+  lostReason         String?     @db.NVarChar(Max)
   lessonsLearned     String?     @db.NVarChar(Max)
   recordedById       String
   companyId          String?
@@ -1629,6 +1646,7 @@ model LossReason {
   company          Company?           @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   dealsLost        Deal[]             @relation("DealLossReason")
   lostDealAnalyses LostDealAnalysis[]
+  competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementLossReason")
   createdAt        DateTime           @default(now())
 
   @@index([companyId])
@@ -2014,4 +2032,86 @@ model ReportExportLog {
   @@index([reportId])
   @@index([exportedById])
   @@index([companyId])
+}
+
+model CompetitorInvolvement {
+  id                          String              @id @default(uuid())
+
+  competitorId                String
+  competitorProductId         String?
+
+  leadId                      String?
+  customerId                  String?
+  contactId                   String?
+  opportunityId              String?
+  dealId                      String?
+  rfqId                       String?
+  quotationId                 String?
+  negotiationId               String?
+  activityId                  String?
+
+  discoveredAtStage           String
+  discoveredThrough           String
+  competitorStatus            String
+  threatLevel                 String
+
+  currentVendor               String?             @db.NVarChar(Max)
+  customerPainPoint           String?             @db.NVarChar(Max)
+  customerPreference          String?             @db.NVarChar(Max)
+  requiredFeatures            String?             @db.NVarChar(Max)
+  competitorStrengths         String?             @db.NVarChar(Max)
+  competitorWeaknesses        String?             @db.NVarChar(Max)
+  ourAdvantages               String?             @db.NVarChar(Max)
+  ourGaps                     String?             @db.NVarChar(Max)
+  technicalComparisonNotes    String?             @db.NVarChar(Max)
+  demoFeedback                String?             @db.NVarChar(Max)
+
+  competitorQuotedPrice       Float?
+  ourQuotedPrice              Float?
+  commercialTermsComparison   String?             @db.NVarChar(Max)
+  paymentTermsComparison      String?             @db.NVarChar(Max)
+  deliveryComparison          String?             @db.NVarChar(Max)
+
+  negotiationActionPlan       String?             @db.NVarChar(Max)
+  discountRequestedDueToComp  Boolean             @default(false)
+  expectedCompetitorDiscount  Float?
+  discountApprovalStatus      String?
+  discountApprovedById        String?
+
+  finalResult                 String?             @default("Open")
+  selectedCompetitorId        String?
+  winLossReasonId             String?
+  secondaryReason             String?             @db.NVarChar(Max)
+  correctiveAction            String?             @db.NVarChar(Max)
+  managerReviewNotes          String?             @db.NVarChar(Max)
+
+  createdById                 String
+  updatedById                 String?
+  companyId                   String?
+  createdAt                   DateTime            @default(now())
+  updatedAt                   DateTime            @updatedAt
+
+  competitor                  Competitor          @relation(fields: [competitorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  competitorProduct           CompetitorProduct?  @relation(fields: [competitorProductId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lead                        Lead?               @relation("CompetitorInvolvementLead", fields: [leadId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  customer                    Customer?           @relation("CompetitorInvolvementCustomer", fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  contact                     Contact?            @relation("CompetitorInvolvementContact", fields: [contactId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deal                        Deal?               @relation("CompetitorInvolvementDeal", fields: [dealId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rfq                         RFQ?                @relation("CompetitorInvolvementRFQ", fields: [rfqId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotation                   Quotation?          @relation("CompetitorInvolvementQuotation", fields: [quotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  negotiation                 Negotiation?        @relation("CompetitorInvolvementNegotiation", fields: [negotiationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  activity                    CommunicationLog?   @relation("CompetitorInvolvementActivity", fields: [activityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  selectedCompetitor          Competitor?         @relation("CompetitorInvolvementSelected", fields: [selectedCompetitorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  winLossReason               LossReason?         @relation("CompetitorInvolvementLossReason", fields: [winLossReasonId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  discountApprovedBy          User?               @relation("CompetitorInvolvementDiscountApprover", fields: [discountApprovedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy                   User                @relation("CompetitorInvolvementCreator", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updatedBy                   User?               @relation("CompetitorInvolvementUpdater", fields: [updatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company                     Company?            @relation("CompetitorInvolvementCompany", fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([competitorId])
+  @@index([leadId])
+  @@index([dealId])
+  @@index([opportunityId])
+  @@index([companyId])
+  @@index([finalResult])
 }

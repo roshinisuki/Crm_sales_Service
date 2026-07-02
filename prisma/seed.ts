@@ -500,7 +500,7 @@ async function main() {
     "Battery Assembly Line Equipment", "Quality Control System — Bosch", "Tractor Component Sourcing — Mahindra",
     "Generator Set Components — Cummins Annual"
   ];
-  const dealStatuses = ["Active", "Won", "Lost"];
+  const dealStatuses = ["SalesOpportunity", "Won", "Lost"];
   for (let i = 0; i < dealNames.length; i++) {
     const exec = execs[i % execs.length];
     const customer = createdCustomers[i % createdCustomers.length];

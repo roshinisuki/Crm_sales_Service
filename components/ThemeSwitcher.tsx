@@ -5,10 +5,10 @@ import { useTheme, type ThemeName } from "@/lib/useTheme";
 import { Sun, Moon } from "lucide-react";
 
 const THEME_DOTS: { key: ThemeName; color: string; label: string }[] = [
-  { key: "orange", color: "#F77F00", label: "Orange" },
-  { key: "blue",   color: "#8ECAE6", label: "Blue" },
-  { key: "green",  color: "#65B017", label: "Green" },
-  { key: "purple", color: "#4a0875", label: "Purple" },
+  { key: "blue",   color: "#2090FF", label: "Blue" },
+  { key: "green",  color: "#BBDD48", label: "Green" },
+  { key: "purple", color: "#CD69ED", label: "Purple" },
+  { key: "orange", color: "#FF6901", label: "Orange" },
 ];
 
 export function ThemeSwitcher({ className }: { className?: string }) {

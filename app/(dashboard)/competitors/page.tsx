@@ -1,25 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  plus: "M12 4v16m8-8H4",
-  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-  trash: "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
-  search: "M21 21l-4.35-4.35 M11 19a8 8 0 100-16 8 8 0 000 16z",
-  external: "M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6 M15 3h6v6 M10 14L21 3",
-};
+import {
+  KPICard, ChartCard, ThreatBadge, CompetitorPageHeader,
+  ViewToggle, EmptyState, LoadingState, getChartColor, ColorDot,
+} from "@/components/competitors/CompetitorAnalytics";
+import { StatusPill } from "@/components/shared/StatusPill";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from "recharts";
+import { Plus, Pencil, Trash2, Search, ExternalLink, Swords, Trophy, AlertTriangle, Eye } from "lucide-react";
 
 export default function CompetitorsPage() {
   const { user } = useAuth();
@@ -27,6 +22,7 @@ export default function CompetitorsPage() {
   const [competitors, setCompetitors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [view, setView] = useState<"grid" | "table">("grid");
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
 
   const [editorOpen, setEditorOpen] = useState(false);
@@ -50,6 +46,45 @@ export default function CompetitorsPage() {
   };
 
   useEffect(() => { load(); }, [q]);
+
+  // ── Computed summary metrics ──────────────────────────────────────────────
+  const summary = useMemo(() => {
+    const total = competitors.length;
+    const winRates = competitors.map((c) => c.stats?.winRate).filter((w: number | null) => w != null) as number[];
+    const avgWinRate = winRates.length > 0 ? Math.round((winRates.reduce((a, b) => a + b, 0) / winRates.length) * 10) / 10 : 0;
+
+    // Most-encountered: most total involvements
+    let mostEncountered = "—";
+    let maxInvolvements = 0;
+    for (const c of competitors) {
+      const count = c.stats?.totalInvolvements ?? 0;
+      if (count > maxInvolvements) { maxInvolvements = count; mostEncountered = c.name; }
+    }
+
+    // Highest-threat competitor
+    let highestThreat = "—";
+    for (const c of competitors) {
+      if (c.stats?.threatLevel === "High") { highestThreat = c.name; break; }
+      if (c.stats?.threatLevel === "Medium" && highestThreat === "—") highestThreat = c.name;
+    }
+
+    return { total, avgWinRate, mostEncountered, highestThreat };
+  }, [competitors]);
+
+  // ── Chart data: deals by competitor ───────────────────────────────────────
+  const chartData = useMemo(() => {
+    return competitors
+      .map((c) => ({
+        name: c.name,
+        count: c.stats?.totalInvolvements ?? 0,
+        color: getChartColor(c.name),
+      }))
+      .filter((d) => d.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+  }, [competitors]);
+
+  const canManage = ["Admin", "SalesManager"].includes(user?.role ?? "");
 
   const openNew = () => {
     setEditing(null);
@@ -103,127 +138,206 @@ export default function CompetitorsPage() {
     });
   };
 
-  const canManage = ["Admin", "SalesManager"].includes(user?.role ?? "");
+  const initials = (name: string) => name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
-    <PageContainer className="space-y-4 p-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Competitors</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Track competitors, their products and win/loss insights</p>
-        </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-3 mb-5">
+    <PageContainer className="space-y-5 p-0">
+      <CompetitorPageHeader title="Competitors" subtitle="Track competitors, their products and win/loss insights">
+        {canManage && (
+          <button onClick={openNew} className="btn-primary">
+            <Plus size={16} /> New Competitor
+          </button>
+        )}
+      </CompetitorPageHeader>
+
+      {/* Search + view toggle */}
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[220px] max-w-md">
-          <Ico d={icons.search} size={16} className="absolute left-3 top-2.5 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-2.5 text-[var(--text-muted)]" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search competitors..."
-            className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            className="input-field pl-9"
           />
         </div>
-        {canManage && (
-          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
-            <Ico d={icons.plus} size={16} /> New Competitor
-          </button>
-        )}
+        <ViewToggle view={view} onChange={setView} />
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState />
       ) : competitors.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500">No competitors found.</div>
+        <EmptyState message="No competitors found." />
       ) : (
-        <div className="crm-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="crm-table">
-              <thead>
-                <tr>
-                  <th className="crm-th">Name</th>
-                  <th className="crm-th">Website</th>
-                  <th className="crm-th">Products</th>
-                  <th className="crm-th">Lost Deals</th>
-                  <th className="crm-th">Status</th>
-                  <th className="crm-th text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {competitors.map((c) => (
-                  <tr key={c.id} className="crm-tr">
-                    <td className="crm-td">
-                      <Link href={`/competitors/${c.id}`} className="font-medium text-foreground hover:text-[var(--accent)]">{c.name}</Link>
-                    </td>
-                    <td className="crm-td text-foreground">
-                      {c.website ? (
-                        <a href={c.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[var(--accent)] hover:underline">
-                          {c.website} <Ico d={icons.external} size={12} />
-                        </a>
-                      ) : "—"}
-                    </td>
-                    <td className="crm-td text-foreground">{c._count?.products ?? 0}</td>
-                    <td className="crm-td text-foreground">{c._count?.lostDealAnalyses ?? 0}</td>
-                    <td className="crm-td">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${c.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>
-                        {c.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td className="crm-td text-right">
-                      <div className="inline-flex gap-1.5">
-                        {canManage && (
-                          <>
-                            <button onClick={() => openEdit(c)} className="p-1.5 rounded hover:bg-muted" title="Edit"><Ico d={icons.edit} /></button>
-                            <button onClick={() => handleDelete(c)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Delete"><Ico d={icons.trash} /></button>
-                          </>
+        <>
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Total Competitors" value={summary.total} icon={<Swords size={20} />} />
+            <KPICard label="Avg Win Rate" value={`${summary.avgWinRate}%`} sublabel="against all competitors" icon={<Trophy size={20} />} />
+            <KPICard label="Most Encountered" value={summary.mostEncountered} sublabel="by involvement count" icon={<Eye size={20} />} />
+            <KPICard label="Highest Threat" value={summary.highestThreat} icon={<AlertTriangle size={20} />} iconColor="var(--status-danger-text)" />
+          </div>
+
+          {/* Chart row */}
+          {chartData.length > 0 && (
+            <ChartCard title="Deals by Competitor" subtitle="Count of competitor involvement records per competitor">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={60} />
+                  <YAxis tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
+                    cursor={{ fill: "var(--surface-2)" }}
+                  />
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]} name="Deals">
+                    {chartData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+
+          {/* Data row: grid or table */}
+          {view === "grid" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {competitors.map((c) => (
+                <Link key={c.id} href={`/competitors/${c.id}`} className="competitor-card block">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-[14px] font-medium text-white"
+                        style={{ backgroundColor: getChartColor(c.name) }}
+                      >
+                        {initials(c.name)}
+                      </div>
+                      <div>
+                        <div className="text-[14px] font-medium text-[var(--text-primary)]">{c.name}</div>
+                        {c.website && (
+                          <a href={c.website} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-[12px] text-[var(--accent)] hover:underline inline-flex items-center gap-0.5">
+                            {c.website} <ExternalLink size={10} />
+                          </a>
                         )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                    </div>
+                    <ThreatBadge level={c.stats?.threatLevel ?? "Low"} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-[18px] font-bold text-[var(--text-primary)]">{c.stats?.winRate != null ? `${c.stats.winRate}%` : "—"}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">Win Rate</div>
+                    </div>
+                    <div>
+                      <div className="text-[18px] font-bold text-[var(--text-primary)]">{c.stats?.activeDeals ?? 0}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">Active Deals</div>
+                    </div>
+                    <div>
+                      <div className="text-[18px] font-bold text-[var(--text-primary)]">{c._count?.products ?? 0}</div>
+                      <div className="text-[11px] text-[var(--text-muted)]">Products</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t border-[var(--border-subtle)]">
+                    <StatusPill status={c.isActive ? "Active" : "Inactive"} />
+                    {c.stats?.lastActivity && (
+                      <span className="text-[11px] text-[var(--text-muted)]">
+                        {new Date(c.stats.lastActivity).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="crm-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="crm-table">
+                  <thead>
+                    <tr>
+                      <th className="crm-th">Name</th>
+                      <th className="crm-th">Threat</th>
+                      <th className="crm-th">Win Rate</th>
+                      <th className="crm-th">Active Deals</th>
+                      <th className="crm-th">Products</th>
+                      <th className="crm-th">Status</th>
+                      <th className="crm-th">Last Activity</th>
+                      {canManage && <th className="crm-th text-right">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {competitors.map((c) => (
+                      <tr key={c.id} className="crm-tr">
+                        <td className="crm-td">
+                          <Link href={`/competitors/${c.id}`} className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{c.name}</Link>
+                        </td>
+                        <td className="crm-td"><ThreatBadge level={c.stats?.threatLevel ?? "Low"} /></td>
+                        <td className="crm-td">{c.stats?.winRate != null ? `${c.stats.winRate}%` : "—"}</td>
+                        <td className="crm-td">{c.stats?.activeDeals ?? 0}</td>
+                        <td className="crm-td">{c._count?.products ?? 0}</td>
+                        <td className="crm-td">
+                          <StatusPill status={c.isActive ? "Active" : "Inactive"} />
+                        </td>
+                        <td className="crm-td text-[var(--text-secondary)]">
+                          {c.stats?.lastActivity ? new Date(c.stats.lastActivity).toLocaleDateString() : "—"}
+                        </td>
+                        {canManage && (
+                          <td className="crm-td text-right">
+                            <div className="inline-flex gap-1.5">
+                              <button onClick={() => openEdit(c)} className="action-icon-btn" title="Edit"><Pencil size={16} /></button>
+                              <button onClick={() => handleDelete(c)} className="action-icon-btn row-action-btn-danger" title="Delete"><Trash2 size={16} /></button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
+      {/* Editor modal — preserved from original */}
       {editorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-3">
-              <h3 className="font-semibold">{editing ? "Edit Competitor" : "New Competitor"}</h3>
-              <button onClick={() => setEditorOpen(false)} className="text-gray-400 hover:text-gray-600"><Ico d="M6 18L18 6M6 6l12 12" /></button>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--surface)] shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+              <h3 className="font-medium text-[var(--text-primary)]">{editing ? "Edit Competitor" : "New Competitor"}</h3>
+              <button onClick={() => setEditorOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">✕</button>
             </div>
             <div className="space-y-3 px-5 py-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Name *</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Website</label>
-                <input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://..." className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Website</label>
+                <input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://..." className="input-field" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Description</label>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className="input-field" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Strengths</label>
-                  <textarea value={form.strengths} onChange={(e) => setForm({ ...form, strengths: e.target.value })} rows={3} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Strengths</label>
+                  <textarea value={form.strengths} onChange={(e) => setForm({ ...form, strengths: e.target.value })} rows={3} className="input-field" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Weaknesses</label>
-                  <textarea value={form.weaknesses} onChange={(e) => setForm({ ...form, weaknesses: e.target.value })} rows={3} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Weaknesses</label>
+                  <textarea value={form.weaknesses} onChange={(e) => setForm({ ...form, weaknesses: e.target.value })} rows={3} className="input-field" />
                 </div>
               </div>
-              <label className="inline-flex items-center gap-2 text-sm">
+              <label className="inline-flex items-center gap-2 text-[13px] text-[var(--text-primary)]">
                 <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
                 Active
               </label>
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-3">
-              <button onClick={() => setEditorOpen(false)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
+            <div className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+              <button onClick={() => setEditorOpen(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
                 {saving ? "Saving..." : "Save"}
               </button>
             </div>

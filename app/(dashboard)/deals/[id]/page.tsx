@@ -13,6 +13,9 @@ import { NotePanel } from "@/components/ui/NotePanel";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea } from "@/components/ui/FormField";
 import { getInitials, getAvatarColor, formatDateTime, cn } from "@/lib/ui-utils";
+import { FieldGrid } from "@/components/shared/FieldGrid";
+import { CompactUserAvatar } from "@/components/shared/UserAvatar";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { ArrowLeft, Briefcase, User, CalendarClock, DollarSign, History, AlertCircle, Percent, Check, X } from "lucide-react";
 
 export default function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {

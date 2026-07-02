@@ -128,7 +128,7 @@ export default function LeadDashboard({ dashboardData: data, salesData, user, lo
           label="Total Leads" 
           value={salesData?.kpis?.totalLeads || 0} 
           icon={<Users size={18} />} 
-          variant="orange" 
+          variant="brand" 
           trend={{ value: "+12.4%", up: true }}
           subtitle="vs last month"
         />

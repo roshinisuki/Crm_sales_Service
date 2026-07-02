@@ -151,13 +151,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // If opportunity_id provided, update opportunity stage to 'Requirement Gathering'
+    // If opportunity_id provided, update opportunity stage to 'RequirementGathering'
     if (body.opportunity_id) {
       const opp = await tx.deal.findUnique({ where: { id: body.opportunity_id } });
-      if (opp && opp.status !== "Requirement Gathering" && opp.status !== "ProposalSubmitted" && opp.status !== "Negotiation" && opp.status !== "Won" && opp.status !== "Lost") {
+      if (opp && opp.status !== "RequirementGathering" && opp.status !== "ProposalSent" && opp.status !== "Negotiation" && opp.status !== "Won" && opp.status !== "Lost") {
         await tx.deal.update({
           where: { id: body.opportunity_id },
-          data: { status: "Requirement Gathering" },
+          data: { status: "RequirementGathering" },
         });
       }
     }

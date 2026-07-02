@@ -5,18 +5,19 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
 import { logoutAction } from "@/app/actions/auth";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DashboardHeader from "@/components/DashboardHeader";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import Logo from "@/components/Logo";
 import { useLogoTheme } from "@/lib/use-logo-theme";
 import { cn } from "@/lib/ui-utils";
 import { getSettingsForVariant } from "@/lib/config/variantSettingsMap";
+import { searchModules } from "@/lib/config/variantModuleMap";
 import {
   LayoutDashboard, Users, CalendarClock, Briefcase, BookUser,
   CheckSquare, Settings, LogOut, Menu, X, TrendingUp, Building,
   ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo,
-  Package, FileText, DollarSign, MessageSquare, Clock, Target, Layers, MapPin,
+  Package, FileText, DollarSign, MessageSquare, Clock, Target, Layers, MapPin, Search,
   Swords, Crown, Globe, Trophy
 } from "lucide-react";
 
@@ -66,7 +67,7 @@ function ExpandableNavSection({
 }: {
   label: string;
   icon: React.ReactNode;
-  subItems: { href: string; label: string }[];
+  subItems: { href?: string; label?: string; divider?: boolean }[];
   pathname: string;
   onNavClick?: () => void;
   collapsed?: boolean;
@@ -76,12 +77,16 @@ function ExpandableNavSection({
   const searchParams = useSearchParams();
   const searchString = searchParams ? searchParams.toString() : "";
 
+  const isSubActive = (href: string): boolean => {
+    const [path, query] = href.split("?");
+    if (pathname !== path) return false;
+    if (!query) return searchString === "";
+    return searchString === query;
+  };
+
   const isSectionActive = subItems.some((item) => {
-    const [path, query] = item.href.split("?");
-    if (query) {
-      return pathname.startsWith(path) && searchString.includes(query);
-    }
-    return pathname === path;
+    if (item.divider || !item.href) return false;
+    return isSubActive(item.href);
   });
 
   useEffect(() => {
@@ -107,11 +112,16 @@ function ExpandableNavSection({
         <div className="absolute left-full top-0 ml-2 w-48 py-1.5 rounded-xl shadow-2xl border border-white/10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50"
              style={{ background: "var(--sidebar-bg)" }}>
           <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--sidebar-heading)" }}>{label}</p>
-          {subItems.map((sub) => {
-            const [path, query] = sub.href.split("?");
-            const isActive = pathname.startsWith(path) && (!query || searchString.includes(query));
+          {subItems.map((sub, idx) => {
+            if (sub.divider || !sub.href) {
+              return (
+                <div key={`divider-${idx}`} className="my-2 border-t border-white/10 mx-3" />
+              );
+            }
+            const href = sub.href;
+            const isActive = isSubActive(href);
             return (
-              <Link key={sub.href} href={sub.href} onClick={onNavClick}
+              <Link key={href} href={href} onClick={onNavClick}
                 className="block px-3 py-1.5 text-[12px] rounded-md mx-1 transition-colors"
                 style={isActive ? { color: "var(--sidebar-active)", fontWeight: 600, background: "rgba(255,255,255,0.04)" } : { color: "var(--sidebar-text)" }}
                 onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
@@ -153,13 +163,18 @@ function ExpandableNavSection({
       
       {isOpen && (
         <div className="overflow-hidden pl-4 pr-1 py-1 space-y-1 border-l border-white/10 ml-5">
-          {subItems.map((sub) => {
-            const [path, query] = sub.href.split("?");
-            const isActive = pathname.startsWith(path) && (!query || searchString.includes(query));
+          {subItems.map((sub, idx) => {
+            if (sub.divider || !sub.href) {
+              return (
+                <div key={`divider-${idx}`} className="my-2 border-t border-white/10" />
+              );
+            }
+            const href = sub.href;
+            const isActive = isSubActive(href);
             return (
               <Link
-                key={`${sub.href}-${sub.label}`}
-                href={sub.href}
+                key={`${href}-${sub.label}`}
+                href={href}
                 onClick={onNavClick}
                 className={cn(
                   "flex items-center py-1.5 px-2 rounded-md font-medium transition-colors",
@@ -178,6 +193,98 @@ function ExpandableNavSection({
               </Link>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sidebar module search ───────────────────────────────────────────────────
+
+function SidebarModuleSearch({
+  activeVariant,
+  collapsed,
+  onNavigate,
+}: {
+  activeVariant: number;
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const results = useMemo(() => searchModules(query, activeVariant), [query, activeVariant]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setOpen(query.trim().length > 0);
+  }, [query]);
+
+  if (collapsed) return null;
+
+  return (
+    <div ref={containerRef} className="relative px-2.5 pt-2 pb-1">
+      <div className="relative">
+        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--sidebar-heading)" }} />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search modules..."
+          aria-label="Search modules"
+          className="w-full pl-7 pr-2.5 py-1.5 rounded-md text-[12.5px] border focus:outline-none transition-all"
+          style={{
+            background: "rgba(255,255,255,0.05)",
+            borderColor: "rgba(255,255,255,0.10)",
+            color: "var(--sidebar-text-act)",
+          }}
+        />
+      </div>
+      {open && (
+        <div
+          className="absolute left-2.5 right-2.5 top-full mt-0.5 rounded-lg border shadow-2xl z-50 max-h-60 overflow-y-auto"
+          style={{ background: "var(--sidebar-bg)", borderColor: "rgba(255,255,255,0.10)" }}
+        >
+          {results.length === 0 ? (
+            <div className="px-3 py-2 text-[11px]" style={{ color: "var(--sidebar-heading)" }}>
+              No matching modules found.
+            </div>
+          ) : (
+            results.map((item) => (
+              <Link
+                key={item.key}
+                href={item.href}
+                onClick={() => {
+                  setQuery("");
+                  setOpen(false);
+                  onNavigate?.();
+                }}
+                className="flex items-center gap-2 px-2.5 py-1.5 transition-colors"
+                onMouseEnter={e => { e.currentTarget.style.background = "var(--sidebar-hover)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <span className="text-sm shrink-0">{item.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] truncate font-medium" style={{ color: "var(--sidebar-text-act)" }}>{item.label}</div>
+                  {item.parentLabel ? (
+                    <div className="text-[10px] truncate" style={{ color: "var(--sidebar-heading)" }}>{item.parentLabel}</div>
+                  ) : item.type === "setting" ? (
+                    <div className="text-[10px] truncate" style={{ color: "var(--sidebar-heading)" }}>Settings</div>
+                  ) : null}
+                </div>
+              </Link>
+            ))
+          )}
         </div>
       )}
     </div>
@@ -286,22 +393,16 @@ function SidebarContent({
     { href: "/follow-up?status=Overdue", label: "Overdue" },
   ];
 
-  const salesPipelineSubItems = isVariant2 ? [
+  const salesPipelineSubItems = [
     { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
     { href: "/sales-pipeline/pipeline-list?tab=SalesOpportunity", label: "Qualified" },
     { href: "/sales-pipeline/pipeline-list?tab=RequirementGathering", label: "Requirement Gathering" },
-    { href: "/sales-pipeline/pipeline-list?tab=MeetingScheduled", label: "Meeting & Demo" },
-    { href: "/sales-pipeline/pipeline-list?tab=ProposalSent", label: "Proposal Sent" },
-    { href: "/sales-pipeline/pipeline-list?tab=Negotiation", label: "Negotiation" },
+    { href: "/sales-pipeline/pipeline-list?tab=TechnicalDiscussion", label: "Technical Discussion" },
+    { href: "/sales-pipeline/pipeline-list?tab=MeetingScheduled", label: "Meeting Scheduled" },
+    { href: "/sales-pipeline/pipeline-list?tab=DemoConducted", label: "Demo Conducted" },
+    { divider: true },
     { href: "/sales-pipeline/pipeline-list?tab=overdue", label: "Overdue" },
-    { href: "/sales-pipeline/pipeline-list?tab=Lost", label: "Lost" },
-  ] : [
-    { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
-    { href: "/sales-pipeline/pipeline-list?tab=SalesOpportunity", label: "Qualified" },
-    { href: "/sales-pipeline/pipeline-list?tab=RequirementGathering", label: "Requirement Gathering" },
-    { href: "/sales-pipeline/pipeline-list?tab=MeetingScheduled", label: "Meeting & Demo" },
-    { href: "/sales-pipeline/pipeline-list?tab=overdue", label: "Overdue" },
-    { href: "/sales-pipeline/pipeline-list?tab=Lost", label: "Lost" },
+    { href: "/sales-pipeline/pipeline-list?tab=Rejected", label: "Rejected" },
   ];
 
   const dealSubItems = isVariant2 ? [
@@ -475,27 +576,42 @@ function SidebarContent({
     { href: "/targets/achievement", label: "Achievement Tracking" },
   ];
 
-  const dashboardSubItems = [
-    { href: "/dashboard", label: "Dashboard" },
-  ];
-
-  // Add Sales Manager Dashboard as submenu if user has the role
-  if (!loading && (user?.role === "Admin" || user?.role === "SalesManager") && isVariant2) {
-    dashboardSubItems.push({ href: "/dashboard/manager", label: "Sales Manager Dashboard" });
-  }
+  // Sales Manager Dashboard is shown as a separate NavLink for Variant 2
 
   return (
     <>
       {/* ── Logo / Brand ── */}
-      <div className={cn("shrink-0 flex flex-col gap-1 border-b border-white/[0.07]", collapsed ? "px-1.5 pt-3 pb-3 items-center" : "px-3 pt-3 pb-3")}>
-        <div className="flex items-center">
-          {collapsed ? (
-            <Logo theme={logoTheme} variant="mark-only" size={24} />
-          ) : (
-            <Logo theme={logoTheme} variant="full" size={32} />
-          )}
-        </div>
+      <div
+        className={cn(
+          "shrink-0 flex items-center justify-center border-b border-white/[0.07]",
+          collapsed ? "px-2 pt-6 pb-5" : "px-4 pt-6 pb-5"
+        )}
+      >
+        {collapsed ? (
+          <Logo
+            theme={logoTheme}
+            variant="mark-only"
+            size={32}
+            className="transition-all duration-300 hover:scale-105 hover:drop-shadow-[0_0_8px_var(--brand-primary)]"
+          />
+        ) : (
+          <Logo
+            theme={logoTheme}
+            variant="full"
+            size={40}
+            className="transition-all duration-300 hover:scale-105 hover:drop-shadow-[0_0_8px_var(--brand-primary)]"
+          />
+        )}
       </div>
+
+      {/* ── Module Search ── */}
+      {!collapsed && (
+        <SidebarModuleSearch
+          activeVariant={activeVariant}
+          collapsed={collapsed}
+          onNavigate={onNavClick}
+        />
+      )}
 
       {/* ── Navigation ── */}
       <nav className={cn("flex-1 overflow-y-auto py-4 space-y-1", collapsed ? "px-1.5" : "px-3")}>
@@ -504,7 +620,20 @@ function SidebarContent({
             Variant: {user?.variant || user?.company?.variant || 1}
           </div>
         )}
-        <ExpandableNavSection label="Dashboard" icon={<LayoutDashboard size={17} />} subItems={dashboardSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Dashboard"} onToggle={makeToggle("Dashboard")} />
+        {/* Dashboards - Expandable section */}
+        <ExpandableNavSection
+          label="Dashboards"
+          icon={<LayoutDashboard size={17} />}
+          subItems={[
+            { href: "/dashboard", label: "Overview" },
+            ...(isVariant2 && !loading && (user?.role === "Admin" || user?.role === "SalesManager") ? [{ href: "/dashboard/manager", label: "Sales Dashboard" }] : []),
+          ]}
+          pathname={pathname}
+          onNavClick={onNavClick}
+          collapsed={collapsed}
+          isOpen={openSection === "Dashboards"}
+          onToggle={makeToggle("Dashboards")}
+        />
 
         {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
           <>
@@ -701,7 +830,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Sidebar ── */}
       <aside
         className={cn(
-          "shrink-0 flex flex-col h-full z-20 shadow-xl border-r border-white/[0.07] transition-all duration-300 ease-in-out overflow-hidden",
+          "shrink-0 flex flex-col h-full z-20 shadow-xl border-r border-white/[0.07] transition-all duration-300 ease-in-out",
           // Desktop: show sidebar always
           "hidden md:flex",
           isCollapsed ? "w-[72px]" : "w-[236px]",

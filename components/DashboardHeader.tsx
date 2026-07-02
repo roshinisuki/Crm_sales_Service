@@ -3,13 +3,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
-import { logoutAction, saveUserThemeAction, saveUserThemeModeAction } from "@/app/actions/auth";
+import { logoutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/ui-utils";
 import { searchModules, type ModuleSearchItem } from "@/lib/config/variantModuleMap";
 import { getInitials } from "@/lib/ui-utils";
 import { Search, Bell, ChevronDown, Menu, Settings, User, LogOut, Check, Trash2 } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
-import { useTheme, THEME_TO_LEGACY, type ThemeName } from "@/lib/useTheme";
+import { useTheme } from "@/lib/useTheme";
 
 const ROLE_LABELS: Record<string, string> = {
   Admin:              "Administrator",
@@ -49,39 +49,11 @@ export default function DashboardHeader({
   const toast = useToast();
   const now = useClock();
 
-  // Theme — use new useTheme hook
-  const { theme: activeTheme, mode: isDarkMode, setTheme: changeThemeFn, toggleMode: toggleModeFn } = useTheme();
-
-  // Ref guard: only save to backend when theme/mode actually changes
-  const prevThemeRef = useRef<string>(activeTheme);
-  const prevModeRef = useRef<string>(isDarkMode);
-
-  useEffect(() => {
-    if (prevThemeRef.current !== activeTheme && user?.id) {
-      const legacyName = THEME_TO_LEGACY[activeTheme as ThemeName] || "ember";
-      saveUserThemeAction(legacyName).then(res => {
-        if (!res.success) toast.warning("Theme saved locally only");
-      });
-      prevThemeRef.current = activeTheme;
-    }
-  }, [activeTheme, user?.id]);
-
-  useEffect(() => {
-    if (prevModeRef.current !== isDarkMode && user?.id) {
-      const mode = isDarkMode ? "dark" : "light";
-      saveUserThemeModeAction(mode).then(res => {
-        if (!res.success) toast.warning("Theme mode saved locally only");
-      });
-      prevModeRef.current = isDarkMode;
-    }
-  }, [isDarkMode, user?.id]);
+  // Theme — single source of truth from ThemeProvider
+  const { theme, mode, setTheme, toggleMode } = useTheme();
 
   const changeTheme = (t: string) => {
-    changeThemeFn(t as ThemeName);
-  };
-
-  const toggleMode = () => {
-    toggleModeFn();
+    setTheme(t as any);
   };
 
   // Search

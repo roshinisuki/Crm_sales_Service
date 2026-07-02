@@ -5,6 +5,7 @@ import { ToastProvider } from "@/components/ToastProvider";
 import { GlobalLoadingProvider } from "@/components/GlobalLoadingProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { getMeAction } from "@/app/actions/auth";
+import { migrateTheme, migrateMode, DEFAULT_THEME_NAME, DEFAULT_THEME_MODE } from "@/lib/theme";
 
 const inter = { className: "font-sans" };
 
@@ -21,15 +22,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Map legacy Prisma theme names to new theme keys
-const LEGACY_THEME_MAP: Record<string, string> = {
-  ember: "orange",
-  ocean: "blue",
-  forest: "green",
-  obsidian: "purple",
-  black: "purple",
-};
-
 export default async function RootLayout({
   children,
 }: {
@@ -38,10 +30,9 @@ export default async function RootLayout({
   const userRes = await getMeAction();
   const initialUser = userRes.success ? userRes.data : null;
 
-  // Resolve theme from user profile (DB), fallback to defaults
-  const legacyTheme = initialUser?.theme || "ember";
-  const themeMode = initialUser?.themeMode || "light";
-  const themeColor = LEGACY_THEME_MAP[legacyTheme] || "orange";
+  // Resolve theme from user profile (DB), falling back to BLUE default.
+  const themeColor = migrateTheme(initialUser?.theme || DEFAULT_THEME_NAME);
+  const themeMode = migrateMode(initialUser?.themeMode || DEFAULT_THEME_MODE);
   const isDark = themeMode === "dark";
 
   return (
@@ -49,14 +40,19 @@ export default async function RootLayout({
       <head>
       </head>
       <body className={inter.className}>
-        <ThemeProvider />
-        <ToastProvider>
-          <AuthProvider initialUser={initialUser as any}>
-            <GlobalLoadingProvider>
-              {children}
-            </GlobalLoadingProvider>
-          </AuthProvider>
-        </ToastProvider>
+        <ThemeProvider
+          initialTheme={themeColor}
+          initialMode={themeMode}
+          userId={initialUser?.id || null}
+        >
+          <ToastProvider>
+            <AuthProvider initialUser={initialUser as any}>
+              <GlobalLoadingProvider>
+                {children}
+              </GlobalLoadingProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -9,9 +9,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const importance = searchParams.get("importance");
   const view = searchParams.get("view");
+  const q = searchParams.get("q");
 
   const where: any = { companyId: user.companyId };
   if (importance && importance !== "All") where.strategicImportance = importance;
+  if (q) where.customer = { name: { contains: q } };
 
   const keyAccounts = await prisma.keyAccount.findMany({
     where,
@@ -21,16 +23,18 @@ export async function GET(request: NextRequest) {
         select: { id: true, name: true, city: true, phone: true, email: true, customerCode: true,
           assignedUser: { select: { id: true, name: true } },
           deals: { where: { status: "Won" }, select: { dealValue: true } },
+          contacts: { where: { status: "Active", deletedAt: null }, select: { id: true, name: true, contactType: true, designation: true, isPrimary: true } },
         },
       },
-      accountManager: { select: { id: true, name: true, email: true } },
+      accountManager: { select: { id: true, name: true, email: true, role: true } },
     },
   });
 
-  // Add achieved revenue
+  // Add achieved revenue + contacts count
   const data = keyAccounts.map(ka => ({
     ...ka,
     achievedRevenue: ka.customer.deals?.reduce((s, d) => s + d.dealValue, 0) ?? 0,
+    contactsCount: ka.customer.contacts?.length ?? 0,
   }));
 
   return NextResponse.json({ success: true, data });

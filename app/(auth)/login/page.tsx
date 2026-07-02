@@ -12,6 +12,7 @@ import {
   loginWithPassword,
 } from "@/app/actions/auth";
 import Logo from "@/components/Logo";
+import { useLogoTheme } from "@/lib/use-logo-theme";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 
 // ── Icons ───────────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ function EyeIcon({ visible }: { visible: boolean }) {
 }
 function Spinner() {
   return (
-    <svg className="animate-spin h-4 w-4" style={{ color: "var(--brand-primary, #F77F00)" }} viewBox="0 0 24 24" fill="none">
+    <svg className="animate-spin h-4 w-4" style={{ color: "var(--brand-primary, #2090FF)" }} viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
@@ -53,7 +54,7 @@ function getStrength(p: string): { level: number; label: string; color: string }
   if (score <= 1) return { level: score, label: "Weak", color: "#ba1a1a" };
   if (score === 2) return { level: score, label: "Fair", color: "#e6a817" };
   if (score === 3) return { level: score, label: "Good", color: "#2e7d32" };
-  return { level: score, label: "Strong", color: "var(--brand-primary, #F77F00)" };
+  return { level: score, label: "Strong", color: "var(--brand-primary, #2090FF)" };
 }
 
 // ── Inactivity Timeout ───────────────────────────────────────────────────────
@@ -183,7 +184,7 @@ function ImageCarousel() {
                 width: i === active ? "14px" : "4px",
                 height: "4px",
                 borderRadius: "9999px",
-                backgroundColor: i === active ? "var(--brand-primary, #F77F00)" : "rgba(255,255,255,0.35)",
+                backgroundColor: i === active ? "var(--brand-primary, #2090FF)" : "rgba(255,255,255,0.35)",
                 transition: "width 300ms ease, background-color 300ms ease",
                 border: "none",
                 cursor: "pointer",
@@ -199,10 +200,10 @@ function ImageCarousel() {
 
 // ── Dark input styles ─────────────────────────────────────────────────────────
 const inputClass =
-  "w-full px-4 py-3 rounded-[8px] border border-[#2C2C2A] bg-[#1A1A1A] text-white text-[14px] placeholder:text-[#5F5E5A] focus:outline-none focus:border-[var(--brand-primary,#F77F00)] focus:ring-1 focus:ring-[var(--brand-primary,#F77F00)]/30 transition-all";
+  "w-full px-4 py-3 rounded-[8px] border border-[#2C2C2A] bg-[#1A1A1A] text-white text-[14px] placeholder:text-[#5F5E5A] focus:outline-none focus:border-[var(--brand-primary,#2090FF)] focus:ring-1 focus:ring-[var(--brand-primary,#2090FF)]/30 transition-all";
 
 // ── Login accent (theme-aware) ─────────────────────────────────────────────
-const ACCENT_HEX = "var(--brand-primary, #F77F00)";
+const ACCENT_HEX = "var(--brand-primary, #2090FF)";
 const ACCENT_HOVER = "var(--brand-primary-hover, #C55308)";
 
 // ════════════════════════════════════════════════════════════════
@@ -211,6 +212,7 @@ const ACCENT_HOVER = "var(--brand-primary-hover, #C55308)";
 type Stage = "email" | "otp" | "setPassword" | "password";
 
 function LoginContent() {
+  const logoTheme = useLogoTheme();
   const searchParams = useSearchParams();
   const resetSuccess = searchParams.get("reset") === "success";
   const activated = searchParams.get("activated") === "true";
@@ -435,8 +437,8 @@ function LoginContent() {
         >
           <div className="w-full max-w-[380px] flex flex-col">
           {/* Logo mark */}
-          <div className="flex items-center mb-8">
-            <Logo theme="orange" variant="full" size={36} />
+          <div className="flex items-center justify-center mb-10">
+            <Logo theme={logoTheme} variant="full" size={56} />
           </div>
 
           <Banners />
@@ -501,7 +503,7 @@ function LoginContent() {
                     value={digit}
                     onChange={e => handleOtpChange(i, e.target.value)}
                     onKeyDown={e => handleOtpKeyDown(i, e)}
-                    className="w-10 h-12 text-center text-[20px] font-bold text-white rounded-[8px] border-2 border-[#2C2C2A] bg-[#1A1A1A] focus:outline-none focus:border-[var(--brand-primary,#F77F00)] focus:ring-1 focus:ring-[var(--brand-primary,#F77F00)]/30 transition-all font-mono"
+                    className="w-10 h-12 text-center text-[20px] font-bold text-white rounded-[8px] border-2 border-[#2C2C2A] bg-[#1A1A1A] focus:outline-none focus:border-[var(--brand-primary,#2090FF)] focus:ring-1 focus:ring-[var(--brand-primary,#2090FF)]/30 transition-all font-mono"
                   />
                 ))}
               </div>
@@ -509,7 +511,7 @@ function LoginContent() {
                 onClick={handleVerifyOtp}
                 disabled={loading || otp.some(d => d === "")}
                 className="w-full py-3.5 px-6 rounded-[8px] text-[14px] font-semibold transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                style={{ backgroundColor: "var(--brand-primary, #F77F00)", color: "#0A0A0A" }}
+                style={{ backgroundColor: "var(--brand-primary, #2090FF)", color: "#0A0A0A" }}
               >
                 {loading ? <><Spinner />Verifying…</> : "Verify Code"}
               </button>
@@ -517,7 +519,7 @@ function LoginContent() {
                 {resendCooldown > 0 ? (
                   <p className="text-[13px] text-white">Resend available in <span className="text-white">{resendCooldown}s</span></p>
                 ) : (
-                  <button onClick={handleSendOtp} disabled={loading} className="text-[13px] hover:underline disabled:opacity-50" style={{ color: "var(--brand-primary, #F77F00)" }}>Resend Code</button>
+                  <button onClick={handleSendOtp} disabled={loading} className="text-[13px] hover:underline disabled:opacity-50" style={{ color: "var(--brand-primary, #2090FF)" }}>Resend Code</button>
                 )}
               </div>
               <div className="pt-8 text-center">
@@ -572,7 +574,7 @@ function LoginContent() {
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <div className="relative">
                     <input type="checkbox" className="sr-only" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />
-                    <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${rememberMe ? "border-[var(--brand-primary,#F77F00)]" : "border-[#2C2C2A] bg-[#1A1A1A]"}`} style={{ backgroundColor: rememberMe ? "var(--brand-primary, #F77F00)" : "" }}>
+                    <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${rememberMe ? "border-[var(--brand-primary,#2090FF)]" : "border-[#2C2C2A] bg-[#1A1A1A]"}`} style={{ backgroundColor: rememberMe ? "var(--brand-primary, #2090FF)" : "" }}>
                       {rememberMe && <svg className="w-3 h-3 text-[#0A0A0A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                     </div>
                   </div>
@@ -599,7 +601,7 @@ function LoginContent() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label htmlFor="login-password" className="text-[11px] font-medium text-white tracking-[0.08em] uppercase">Password</label>
-                    <Link href="/forgot-password" className="text-[13px] transition-colors" style={{ color: "var(--brand-primary, #F77F00)" }}>Forgot?</Link>
+                    <Link href="/forgot-password" className="text-[13px] transition-colors" style={{ color: "var(--brand-primary, #2090FF)" }}>Forgot?</Link>
                   </div>
                   <div className="relative">
                     <input id="login-password" type={showPassword ? "text" : "password"} required autoFocus value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className={`${inputClass} pr-12 font-mono tracking-widest`} />
@@ -609,7 +611,7 @@ function LoginContent() {
                 <label className="flex items-center gap-2.5 cursor-pointer select-none">
                   <div className="relative">
                     <input type="checkbox" className="sr-only" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />
-                    <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${rememberMe ? "border-[var(--brand-primary,#F77F00)]" : "border-[#2C2C2A] bg-[#1A1A1A]"}`} style={{ backgroundColor: rememberMe ? "var(--brand-primary, #F77F00)" : "" }}>
+                    <div className={`w-4 h-4 rounded border-2 transition-all flex items-center justify-center ${rememberMe ? "border-[var(--brand-primary,#2090FF)]" : "border-[#2C2C2A] bg-[#1A1A1A]"}`} style={{ backgroundColor: rememberMe ? "var(--brand-primary, #2090FF)" : "" }}>
                       {rememberMe && <svg className="w-3 h-3 text-[#0A0A0A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                     </div>
                   </div>

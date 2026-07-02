@@ -13,6 +13,7 @@ import {
   ChevronRight, Save, AlertTriangle, Calendar,
   Edit3, FileText, MessageSquare,
 } from "lucide-react";
+import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
 
 const PIPELINE_STAGES = [
   { key: "SalesOpportunity", label: "Qualified", order: 1 },
@@ -65,9 +66,10 @@ const STAGE_REQUIRED_FIELDS: Record<string, { field: string; label: string }[]> 
     { field: "decisionMaker", label: "Decision Maker" },
   ],
   MeetingScheduled: [
-    { field: "meetingDate", label: "Meeting Date" },
-    { field: "meetingMode", label: "Meeting Mode" },
-    { field: "meetingAgenda", label: "Meeting Agenda" },
+    { field: "meetingDate", label: "Meeting/Demo Date" },
+    { field: "meetingType", label: "Meeting/Demo Type" },
+    { field: "meetingStatus", label: "Outcome / Status" },
+    { field: "nextFollowUpDate", label: "Next Follow-up Date" },
   ],
   ProposalSent: [
     { field: "proposedSolution", label: "Proposed Solution" },
@@ -436,6 +438,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   const [deal, setDeal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<any[]>([]);
   const [lossReasons, setLossReasons] = useState<any[]>([]);
   const [competitors, setCompetitors] = useState<any[]>([]);
@@ -481,10 +484,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   const fetchDeal = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/opportunities/${id}`);
-    if (res.ok) {
+    setFetchError(null);
+    try {
+      const res = await fetch(`/api/opportunities/${id}`);
       const json = await res.json();
-      setDeal(json.data);
+      if (res.ok && json.success) {
+        setDeal(json.data);
       setEditForm({
         dealName: json.data.dealName,
         dealValue: json.data.dealValue,
@@ -566,6 +571,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         meetingLocation: d.meetingLocation || "",
         meetingAgenda: d.meetingAgenda || "",
         meetingOutcome: d.meetingOutcome || "",
+        nextFollowUpDate: d.nextFollowUpDate ? d.nextFollowUpDate.split("T")[0] : "",
         // Demo Conducted
         demoType: d.demoType || "",
         demoDate: d.demoDate ? d.demoDate.split("T")[0] : "",
@@ -586,8 +592,15 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         implementationEffort: d.implementationEffort || "",
         supportRequirements: d.supportRequirements || "",
       });
-    } else {
-      toast.error("Failed to load opportunity");
+      } else {
+        const msg = json.message || `Failed to load opportunity (HTTP ${res.status})`;
+        setFetchError(msg);
+        toast.error(msg);
+      }
+    } catch (err: any) {
+      const msg = err?.message || "Network error while loading opportunity";
+      setFetchError(msg);
+      toast.error(msg);
     }
     setLoading(false);
   }, [id]);
@@ -1144,20 +1157,22 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
         {(effectiveStage === "MeetingScheduled" || effectiveStage === "DemoConducted") && (
           <div className="space-y-6">
+            {/* Required fields for stage transition */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50 text-sm font-bold text-slate-700">Meeting details</div>
+              <div className="px-4 py-3 bg-[var(--primary)]/10 text-sm font-bold text-[var(--primary)]">Required for Stage Transition</div>
               <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Meeting Type"><Input value={rgForm.meetingType || ""} onChange={(e) => setRgForm({ ...rgForm, meetingType: e.target.value })} /></FormField>
-                <FormField label="Meeting Mode">
-                  <Select value={rgForm.meetingMode || ""} onChange={(e) => setRgForm({ ...rgForm, meetingMode: e.target.value })}>
+                <FormField label="Meeting/Demo Type">
+                  <Select value={rgForm.meetingType || ""} onChange={(e) => setRgForm({ ...rgForm, meetingType: e.target.value })}>
                     <option value="">Select...</option>
-                    <option value="In-person">In-person</option>
-                    <option value="Video Call">Video Call</option>
-                    <option value="Phone Call">Phone Call</option>
+                    <option value="Discovery Call">Discovery Call</option>
+                    <option value="Product Demo">Product Demo</option>
+                    <option value="Technical Discussion">Technical Discussion</option>
+                    <option value="Site Visit">Site Visit</option>
+                    <option value="Solution Review">Solution Review</option>
                   </Select>
                 </FormField>
-                <FormField label="Meeting Date"><Input type="date" value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} /></FormField>
-                <FormField label="Meeting Status">
+                <FormField label="Meeting/Demo Date"><Input type="date" value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} /></FormField>
+                <FormField label="Outcome / Status">
                   <Select value={rgForm.meetingStatus || ""} onChange={(e) => setRgForm({ ...rgForm, meetingStatus: e.target.value })}>
                     <option value="">Select...</option>
                     <option value="Scheduled">Scheduled</option>
@@ -1166,17 +1181,34 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     <option value="Rescheduled">Rescheduled</option>
                   </Select>
                 </FormField>
+                <FormField label="Next Follow-up Date"><Input type="date" value={rgForm.nextFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, nextFollowUpDate: e.target.value })} /></FormField>
+              </div>
+            </div>
+
+            {/* Optional additional details - expandable */}
+            <details className="border border-slate-200 rounded-xl overflow-hidden group">
+              <summary className="px-4 py-3 bg-slate-50 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors flex items-center justify-between">
+                <span>Additional Demo Details (Optional)</span>
+                <ChevronRight size={16} className="transform group-open:rotate-90 transition-transform" />
+              </summary>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200">
+                <FormField label="Meeting Mode">
+                  <Select value={rgForm.meetingMode || ""} onChange={(e) => setRgForm({ ...rgForm, meetingMode: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="In-person">In-person</option>
+                    <option value="Video Call">Video Call</option>
+                    <option value="Phone Call">Phone Call</option>
+                  </Select>
+                </FormField>
                 <FormField label="Duration (minutes)"><Input type="number" value={rgForm.meetingDuration || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDuration: e.target.value })} /></FormField>
                 <FormField label="Location"><Input value={rgForm.meetingLocation || ""} onChange={(e) => setRgForm({ ...rgForm, meetingLocation: e.target.value })} /></FormField>
                 <FormField label="Participants"><Input value={rgForm.meetingParticipants || ""} onChange={(e) => setRgForm({ ...rgForm, meetingParticipants: e.target.value })} /></FormField>
                 <FormField label="Agenda"><Textarea rows={2} value={rgForm.meetingAgenda || ""} onChange={(e) => setRgForm({ ...rgForm, meetingAgenda: e.target.value })} /></FormField>
-                <FormField label="Outcome" className="md:col-span-2"><Textarea rows={3} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} /></FormField>
-              </div>
-            </div>
-
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 bg-slate-50 text-sm font-bold text-slate-700">Demo details</div>
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField label="Outcome Notes" className="md:col-span-2"><Textarea rows={3} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} /></FormField>
+                
+                <div className="md:col-span-2 border-t border-slate-200 pt-4 mt-2">
+                  <div className="text-xs font-semibold text-slate-500 mb-3">Demo-Specific Details</div>
+                </div>
                 <FormField label="Demo Type"><Input value={rgForm.demoType || ""} onChange={(e) => setRgForm({ ...rgForm, demoType: e.target.value })} /></FormField>
                 <FormField label="Demo Date"><Input type="date" value={rgForm.demoDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoDate: e.target.value })} /></FormField>
                 <FormField label="Presenter"><Input value={rgForm.demoPresenter || ""} onChange={(e) => setRgForm({ ...rgForm, demoPresenter: e.target.value })} /></FormField>
@@ -1202,7 +1234,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 </FormField>
                 <FormField label="Questions Raised"><Textarea rows={2} value={rgForm.demoQuestionsRaised || ""} onChange={(e) => setRgForm({ ...rgForm, demoQuestionsRaised: e.target.value })} /></FormField>
               </div>
-            </div>
+            </details>
           </div>
         )}
 
@@ -1510,10 +1542,16 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400">
         <AlertTriangle size={40} className="mb-3" />
-        <p className="font-semibold">Opportunity not found</p>
-        <button onClick={() => router.push("/sales-pipeline")} className="mt-4 text-[var(--primary)] font-bold text-sm">
-          ← Back to Pipeline
-        </button>
+        <p className="font-semibold">{fetchError || "Opportunity not found"}</p>
+        <p className="text-xs text-slate-400 mt-1">Opportunity ID: {id}</p>
+        <div className="flex gap-3 mt-4">
+          <button onClick={() => { setDeal(null); setFetchError(null); fetchDeal(); }} className="text-[var(--primary)] font-bold text-sm">
+            ↻ Retry
+          </button>
+          <button onClick={() => router.push("/sales-pipeline")} className="text-slate-500 font-bold text-sm">
+            ← Back to Pipeline
+          </button>
+        </div>
       </div>
     );
   }
@@ -1521,6 +1559,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s.key === deal.status);
   const hasAcceptedQuotation = deal.quotations?.some((q: any) => q.status === "Accepted");
   const isWonOrLost = deal.status === "Won" || deal.status === "Lost";
+  const isValidStage = currentStageIndex !== -1 || isWonOrLost;
   const progressPercent = isWonOrLost
     ? (deal.status === "Won" ? 100 : 0)
     : Math.round(((currentStageIndex + 1) / PIPELINE_STAGES.length) * 100);
@@ -1534,6 +1573,21 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       >
         <ArrowLeft size={16} /> Back to Pipeline
       </button>
+
+      {/* ── Invalid Stage Error Banner ─── */}
+      {!isValidStage && (
+        <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold text-rose-800">Invalid Opportunity Stage</p>
+            <p className="text-sm text-rose-700 mt-1">
+              This opportunity has an invalid stage value: <code className="bg-rose-100 px-1.5 py-0.5 rounded">{deal.status}</code>.
+              Valid stages are: SalesOpportunity, RequirementGathering, MeetingScheduled, ProposalSent, Negotiation, Won, Lost.
+              Please contact support to correct this record.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ─── Hero Summary Card ─── */}
       <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[var(--primary)]/10 via-white to-slate-50 p-6 shadow-sm">
@@ -1699,6 +1753,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         </div>
 
         {renderStageForm()}
+      </div>
+
+      {/* ─── Competitor Intelligence ─── */}
+      <div className="crm-card p-5">
+        <CompetitorIntelligenceTab entity={{ dealId: deal.id, customerId: deal.customerId, currentStage: deal.status }} />
       </div>
 
 

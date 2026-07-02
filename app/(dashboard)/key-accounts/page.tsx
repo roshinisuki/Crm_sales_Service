@@ -1,56 +1,41 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
-import { CRMSpinner } from "@/components/CRMSpinner";
+import { StatusPill, normalizeRelationshipStatus } from "@/components/shared/StatusPill";
+import {
+  KPICard, ChartCard, AnalyticsPageHeader, FilterPills,
+  EmptyState, LoadingState, getChartColor, MiniBar,
+} from "@/components/shared/AnalyticsComponents";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from "recharts";
+import { Plus, Pencil, Trash2, Search, DollarSign, AlertTriangle, Building2, CalendarClock } from "lucide-react";
 
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  plus: "M12 4v16m8-8H4",
-  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-  trash: "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
-  search: "M21 21l-4.35-4.35 M11 19a8 8 0 100-16 8 8 0 000 16z",
-};
-
-const importanceColors: Record<string, string> = {
-  High: "bg-blue-50 text-blue-700",
-  Medium: "bg-gray-100 text-gray-600",
-  Critical: "bg-red-50 text-red-700",
-};
-
-const statusColors: Record<string, string> = {
-  Active: "bg-green-50 text-green-700",
-  "At Risk": "bg-red-50 text-red-700",
-  Growing: "bg-blue-50 text-blue-700",
-  Dormant: "bg-gray-100 text-gray-600",
-};
+type SortField = "customer" | "revenue" | "importance" | "nextReview";
+type SortDir = "asc" | "desc";
 
 export default function KeyAccountsPage() {
   const { user } = useAuth();
   const toast = useToast();
   const { formatCurrency } = useCurrency();
-  const searchParams = useSearchParams();
-  const view = searchParams.get("view");
-  const importanceFilter = searchParams.get("importance") || "All";
   const [keyAccounts, setKeyAccounts] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importanceFilter, setImportanceFilter] = useState("All");
+  const [search, setSearch] = useState("");
+  const [sortField, setSortField] = useState<SortField>("revenue");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void }>({ isOpen: false, title: "", message: "", onConfirm: () => {} });
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
-  const [form, setForm] = useState({ customerId: "", accountManagerId: "", revenuePotential: "", strategicImportance: "High", relationshipStatus: "Active", nextReviewDate: "", notes: "" });
+  const [form, setForm] = useState({ customerId: "", accountManagerId: "", revenuePotential: "", strategicImportance: "High", relationshipStatus: "Strong", nextReviewDate: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<any[]>([]);
@@ -60,7 +45,7 @@ export default function KeyAccountsPage() {
     try {
       const params = new URLSearchParams();
       if (importanceFilter !== "All") params.set("importance", importanceFilter);
-      if (view === "revenue") params.set("view", "revenue");
+      if (search) params.set("q", search);
       const res = await fetch(`/api/key-accounts?${params}`);
       const data = await res.json();
       if (data.success) setKeyAccounts(data.data);
@@ -79,11 +64,84 @@ export default function KeyAccountsPage() {
     } catch { /* ignore */ }
   };
 
-  useEffect(() => { load(); loadUsers(); }, [importanceFilter, view]);
+  useEffect(() => { load(); loadUsers(); }, [importanceFilter, search]);
+
+  // ── Computed summary metrics (from real records in current filter) ─────────
+  const summary = useMemo(() => {
+    const total = keyAccounts.length;
+    const totalRevenue = keyAccounts.reduce((s, ka) => s + (ka.revenuePotential ?? 0), 0);
+    const criticalCount = keyAccounts.filter((ka) => ka.strategicImportance === "Critical").length;
+
+    // Avg next review timeframe
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const reviewAccounts = keyAccounts.filter((ka) => ka.nextReviewDate);
+    let avgDays = 0;
+    if (reviewAccounts.length > 0) {
+      const totalDays = reviewAccounts.reduce((s, ka) => {
+        const diff = Math.ceil((new Date(ka.nextReviewDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        return s + diff;
+      }, 0);
+      avgDays = Math.round(totalDays / reviewAccounts.length);
+    }
+
+    return { total, totalRevenue, criticalCount, avgDays };
+  }, [keyAccounts]);
+
+  // ── Chart: revenue potential by strategic importance tier ──────────────────
+  const chartData = useMemo(() => {
+    const tiers = ["Critical", "High", "Medium"];
+    return tiers.map((tier) => {
+      const accounts = keyAccounts.filter((ka) => ka.strategicImportance === tier);
+      return {
+        name: tier,
+        revenue: accounts.reduce((s, ka) => s + (ka.revenuePotential ?? 0), 0),
+        count: accounts.length,
+        color: tier === "Critical" ? "#EF4444" : tier === "High" ? "#F59E0B" : "#2090FF",
+      };
+    }).filter((d) => d.count > 0);
+  }, [keyAccounts]);
+
+  // ── Max revenue for inline mini bar ────────────────────────────────────────
+  const maxRevenue = useMemo(() => {
+    return Math.max(...keyAccounts.map((ka) => ka.revenuePotential ?? 0), 1);
+  }, [keyAccounts]);
+
+  // ── Sort ───────────────────────────────────────────────────────────────────
+  const sortedAccounts = useMemo(() => {
+    const arr = [...keyAccounts];
+    arr.sort((a, b) => {
+      let av: any, bv: any;
+      if (sortField === "customer") { av = a.customer?.name ?? ""; bv = b.customer?.name ?? ""; }
+      else if (sortField === "revenue") { av = a.revenuePotential ?? 0; bv = b.revenuePotential ?? 0; }
+      else if (sortField === "importance") {
+        const order = { Critical: 0, High: 1, Medium: 2 };
+        av = order[a.strategicImportance as keyof typeof order] ?? 3;
+        bv = order[b.strategicImportance as keyof typeof order] ?? 3;
+      } else { av = a.nextReviewDate ? new Date(a.nextReviewDate).getTime() : Infinity; bv = b.nextReviewDate ? new Date(b.nextReviewDate).getTime() : Infinity; }
+      if (typeof av === "string") return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+    return arr;
+  }, [keyAccounts, sortField, sortDir]);
+
+  const canManage = ["Admin", "SalesManager"].includes(user?.role ?? "");
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) setSortDir(sortDir === "asc" ? "desc" : "asc");
+    else { setSortField(field); setSortDir("desc"); }
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => (
+    <span className="inline-flex flex-col ml-1 text-[9px] leading-none">
+      <span className={sortField === field && sortDir === "asc" ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}>▲</span>
+      <span className={sortField === field && sortDir === "desc" ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}>▼</span>
+    </span>
+  );
 
   const openNew = () => {
     setEditing(null);
-    setForm({ customerId: "", accountManagerId: "", revenuePotential: "", strategicImportance: "High", relationshipStatus: "Active", nextReviewDate: "", notes: "" });
+    setForm({ customerId: "", accountManagerId: "", revenuePotential: "", strategicImportance: "High", relationshipStatus: "Strong", nextReviewDate: "", notes: "" });
     setCustomerSearch("");
     setCustomerResults([]);
     setEditorOpen(true);
@@ -96,7 +154,7 @@ export default function KeyAccountsPage() {
       accountManagerId: ka.accountManagerId,
       revenuePotential: ka.revenuePotential?.toString() || "",
       strategicImportance: ka.strategicImportance,
-      relationshipStatus: ka.relationshipStatus || "",
+      relationshipStatus: ka.relationshipStatus || "Strong",
       nextReviewDate: ka.nextReviewDate ? new Date(ka.nextReviewDate).toISOString().split("T")[0] : "",
       notes: ka.notes || "",
     });
@@ -111,7 +169,6 @@ export default function KeyAccountsPage() {
       const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
       const data = await res.json();
       if (data.success) {
-        // Exclude already key accounts
         const existingIds = new Set(keyAccounts.map(ka => ka.customerId));
         setCustomerResults((data.data?.customers ?? []).filter((c: any) => !existingIds.has(c.id)));
       }
@@ -157,155 +214,167 @@ export default function KeyAccountsPage() {
     });
   };
 
-  const canManage = ["Admin", "SalesManager"].includes(user?.role ?? "");
-
   return (
-    <PageContainer className="space-y-4 p-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Key Accounts</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Strategic customer accounts with dedicated management</p>
+    <PageContainer className="space-y-5 p-0">
+      <AnalyticsPageHeader title="Key Accounts" subtitle="Strategic customer accounts with dedicated management">
+        <div className="flex items-center gap-3">
+          <Link href="/key-accounts/revenue-potential" className="text-[13px] text-[var(--accent)] hover:underline">Revenue view →</Link>
+          {canManage && (
+            <button onClick={openNew} className="btn-primary">
+              <Plus size={16} /> Add Key Account
+            </button>
+          )}
         </div>
-        <Link href="/key-accounts?view=revenue" className="text-sm text-blue-600 hover:underline">Revenue view →</Link>
-      </div>
+      </AnalyticsPageHeader>
 
-      {/* Revenue chart */}
-      {view === "revenue" && keyAccounts.length > 0 && (
-        <div className="rounded-lg border bg-white p-5">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">Top 10 Key Accounts — Revenue Potential vs Achieved</h4>
-          <div className="space-y-2">
-            {keyAccounts.slice(0, 10).map((ka) => {
-              const potential = ka.revenuePotential ?? 0;
-              const achieved = ka.achievedRevenue ?? 0;
-              const maxVal = Math.max(potential, achieved, 1);
-              return (
-                <div key={ka.id} className="flex items-center gap-3 text-sm">
-                  <div className="w-32 truncate text-gray-600">{ka.customer?.name}</div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-400 w-16">Potential</span>
-                      <div className="flex-1 bg-gray-100 rounded-full h-4 relative">
-                        <div className="bg-blue-500 rounded-full h-4" style={{ width: `${(potential / maxVal) * 100}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-600 w-20 text-right">{formatCurrency(potential)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-400 w-16">Achieved</span>
-                      <div className="flex-1 bg-gray-100 rounded-full h-4 relative">
-                        <div className="bg-green-500 rounded-full h-4" style={{ width: `${(achieved / maxVal) * 100}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-600 w-20 text-right">{formatCurrency(achieved)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {/* Search + filter pills */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search size={16} className="absolute left-3 top-2.5 text-[var(--text-muted)]" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by customer name..."
+            className="input-field pl-9"
+          />
         </div>
-      )}
-
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <div className="flex gap-1">
-          {["All", "High", "Medium", "Critical"].map(imp => (
-            <Link
-              key={imp}
-              href={imp === "All" ? "/key-accounts" : `/key-accounts?importance=${imp}`}
-              className={`px-3 py-1.5 text-sm rounded-lg ${importanceFilter === imp ? "bg-[var(--primary)] text-white" : "border hover:bg-gray-50"}`}
-            >
-              {imp}
-            </Link>
-          ))}
-        </div>
-        {canManage && (
-          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] ml-auto">
-            <Ico d={icons.plus} size={16} /> Add Key Account
-          </button>
-        )}
+        <FilterPills
+          options={["All", "High", "Medium", "Critical"]}
+          value={importanceFilter}
+          onChange={setImportanceFilter}
+        />
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <CRMSpinner size={36} label="Loading..." />
-        </div>
+        <LoadingState />
       ) : keyAccounts.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500">No key accounts found.</div>
+        <EmptyState message="No key accounts found." />
       ) : (
-        <div className="crm-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="crm-table">
-              <thead>
-                <tr>
-                  <th className="crm-th">Customer</th>
-                  <th className="crm-th">Account Manager</th>
-                  <th className="crm-th text-right">Revenue Potential</th>
-                  <th className="crm-th">Strategic Importance</th>
-                  <th className="crm-th">Relationship Status</th>
-                  <th className="crm-th">Next Review</th>
-                  <th className="crm-th text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keyAccounts.map((ka) => (
-                  <tr key={ka.id} className="crm-tr">
-                    <td className="crm-td">
-                      <Link href={`/key-accounts/${ka.id}`} className="font-medium text-foreground hover:text-[var(--accent)]">{ka.customer?.name}</Link>
-                    </td>
-                    <td className="crm-td text-muted-foreground">{ka.accountManager?.name || "—"}</td>
-                    <td className="crm-td text-right text-muted-foreground">{formatCurrency(ka.revenuePotential ?? 0)}</td>
-                    <td className="crm-td">
-                      <span className={`px-2 py-0.5 rounded-full text-xs ${importanceColors[ka.strategicImportance] || "bg-gray-100 text-gray-600"}`}>{ka.strategicImportance}</span>
-                    </td>
-                    <td className="crm-td">
-                      {ka.relationshipStatus && <span className={`px-2 py-0.5 rounded-full text-xs ${statusColors[ka.relationshipStatus] || "bg-gray-100 text-gray-600"}`}>{ka.relationshipStatus}</span>}
-                    </td>
-                    <td className="crm-td text-muted-foreground">{ka.nextReviewDate ? new Date(ka.nextReviewDate).toLocaleDateString() : "—"}</td>
-                    <td className="crm-td text-right">
-                      <div className="inline-flex gap-1.5">
-                        {canManage && (
-                          <>
-                            <button onClick={() => openEdit(ka)} className="p-1.5 rounded hover:bg-muted" title="Edit"><Ico d={icons.edit} /></button>
-                            <button onClick={() => handleDelete(ka)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Remove"><Ico d={icons.trash} /></button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Total Accounts" value={summary.total} sublabel="in current filter" icon={<Building2 size={20} />} />
+            <KPICard label="Total Revenue Potential" value={formatCurrency(summary.totalRevenue)} icon={<DollarSign size={20} />} />
+            <KPICard label="Critical Accounts" value={summary.criticalCount} icon={<AlertTriangle size={20} />} />
+            <KPICard label="Avg Next Review" value={summary.avgDays !== 0 ? `in ${Math.abs(summary.avgDays)} days` : "—"} sublabel={summary.avgDays < 0 ? "overdue" : undefined} icon={<CalendarClock size={20} />} />
           </div>
-        </div>
+
+          {/* Chart: revenue by importance tier */}
+          {chartData.length > 0 && (
+            <ChartCard title="Revenue Potential by Strategic Importance" subtitle="Total revenue potential grouped by tier">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
+                    cursor={{ fill: "var(--surface-2)" }}
+                    formatter={(v: any) => [formatCurrency(Number(v)), "Revenue"]}
+                  />
+                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]} name="Revenue Potential">
+                    {chartData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
+
+          {/* Table */}
+          <div className="analytics-chart-card !p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    <th className="crm-th">
+                      <button onClick={() => toggleSort("customer")} className="inline-flex items-center hover:text-[var(--text-primary)]">
+                        Customer <SortIcon field="customer" />
+                      </button>
+                    </th>
+                    <th className="crm-th">Account Manager</th>
+                    <th className="crm-th">
+                      <button onClick={() => toggleSort("revenue")} className="inline-flex items-center hover:text-[var(--text-primary)]">
+                        Revenue <SortIcon field="revenue" />
+                      </button>
+                    </th>
+                    <th className="crm-th">
+                      <button onClick={() => toggleSort("importance")} className="inline-flex items-center hover:text-[var(--text-primary)]">
+                        Importance <SortIcon field="importance" />
+                      </button>
+                    </th>
+                    <th className="crm-th">Relationship</th>
+                    <th className="crm-th">
+                      <button onClick={() => toggleSort("nextReview")} className="inline-flex items-center hover:text-[var(--text-primary)]">
+                        Next Review <SortIcon field="nextReview" />
+                      </button>
+                    </th>
+                    {canManage && <th className="crm-th text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedAccounts.map((ka) => (
+                    <tr key={ka.id} className="crm-tr">
+                      <td className="crm-td">
+                        <Link href={`/key-accounts/${ka.id}`} className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{ka.customer?.name}</Link>
+                        {ka.customer?.city && <div className="text-[11px] text-[var(--text-muted)]">{ka.customer.city}</div>}
+                      </td>
+                      <td className="crm-td">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] text-[var(--text-primary)]">{ka.accountManager?.name || "—"}</span>
+                          {ka.accountManager?.role && <StatusPill status={ka.accountManager.role} />}
+                        </div>
+                      </td>
+                      <td className="crm-td">
+                        <div className="flex items-center gap-2">
+                          <MiniBar value={ka.revenuePotential ?? 0} max={maxRevenue} />
+                          <span className="text-[12px] text-[var(--text-secondary)] whitespace-nowrap w-24 text-right">{formatCurrency(ka.revenuePotential ?? 0)}</span>
+                        </div>
+                      </td>
+                      <td className="crm-td"><StatusPill status={ka.strategicImportance} /></td>
+                      <td className="crm-td"><StatusPill status={normalizeRelationshipStatus(ka.relationshipStatus)} /></td>
+                      <td className="crm-td text-[var(--text-secondary)]">
+                        {ka.nextReviewDate ? new Date(ka.nextReviewDate).toLocaleDateString() : "—"}
+                      </td>
+                      {canManage && (
+                        <td className="crm-td text-right">
+                          <div className="inline-flex gap-1.5">
+                            <button onClick={() => openEdit(ka)} className="action-icon-btn" title="Edit"><Pencil size={16} /></button>
+                            <button onClick={() => handleDelete(ka)} className="action-icon-btn row-action-btn-danger" title="Remove"><Trash2 size={16} /></button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
+      {/* Editor modal */}
       {editorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-3">
-              <h3 className="font-semibold">{editing ? "Edit Key Account" : "Add Key Account"}</h3>
-              <button onClick={() => setEditorOpen(false)} className="text-gray-400 hover:text-gray-600"><Ico d="M6 18L18 6M6 6l12 12" /></button>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--surface)] shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+              <h3 className="font-medium text-[var(--text-primary)]">{editing ? "Edit Key Account" : "Add Key Account"}</h3>
+              <button onClick={() => setEditorOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">✕</button>
             </div>
             <div className="space-y-3 px-5 py-4 max-h-[70vh] overflow-y-auto">
               {!editing && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Customer *</label>
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Customer *</label>
                   <div className="relative">
-                    <Ico d={icons.search} size={16} className="absolute left-3 top-2.5 text-gray-400" />
-                    <input
-                      value={customerSearch}
-                      onChange={(e) => searchCustomers(e.target.value)}
-                      placeholder="Search customer..."
-                      className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                    <Search size={16} className="absolute left-3 top-2.5 text-[var(--text-muted)]" />
+                    <input value={customerSearch} onChange={(e) => searchCustomers(e.target.value)} placeholder="Search customer..." className="input-field pl-9" />
                   </div>
                   {customerResults.length > 0 && (
-                    <div className="max-h-40 overflow-y-auto border rounded-lg mt-1">
+                    <div className="max-h-40 overflow-y-auto border border-[var(--border)] rounded-lg mt-1">
                       {customerResults.map((c: any) => (
-                        <button
-                          key={c.id}
-                          onClick={() => { setForm({ ...form, customerId: c.id }); setCustomerSearch(c.name); setCustomerResults([]); }}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
-                        >
-                          <span className="font-medium">{c.name}</span> <span className="text-gray-400">({c.customerCode})</span>
+                        <button key={c.id} onClick={() => { setForm({ ...form, customerId: c.id }); setCustomerSearch(c.name); setCustomerResults([]); }} className="w-full text-left px-3 py-2 text-[13px] hover:bg-[var(--surface-2)]">
+                          <span className="font-medium">{c.name}</span> <span className="text-[var(--text-muted)]">({c.customerCode})</span>
                         </button>
                       ))}
                     </div>
@@ -313,45 +382,47 @@ export default function KeyAccountsPage() {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Account Manager *</label>
-                <select value={form.accountManagerId} onChange={(e) => setForm({ ...form, accountManagerId: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Account Manager *</label>
+                <select value={form.accountManagerId} onChange={(e) => setForm({ ...form, accountManagerId: e.target.value })} className="select-field">
                   <option value="">— Select —</option>
                   {users.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Revenue Potential (₹)</label>
-                <input type="number" value={form.revenuePotential} onChange={(e) => setForm({ ...form, revenuePotential: e.target.value })} placeholder="0" className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Revenue Potential</label>
+                <input type="number" value={form.revenuePotential} onChange={(e) => setForm({ ...form, revenuePotential: e.target.value })} placeholder="0" className="input-field" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Strategic Importance</label>
+                  <select value={form.strategicImportance} onChange={(e) => setForm({ ...form, strategicImportance: e.target.value })} className="select-field">
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Relationship Status</label>
+                  <select value={form.relationshipStatus} onChange={(e) => setForm({ ...form, relationshipStatus: e.target.value })} className="select-field">
+                    <option value="Strong">Strong</option>
+                    <option value="Growing">Growing</option>
+                    <option value="Developing">Developing</option>
+                    <option value="Stable">Stable</option>
+                  </select>
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Strategic Importance</label>
-                <select value={form.strategicImportance} onChange={(e) => setForm({ ...form, strategicImportance: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Critical">Critical</option>
-                </select>
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Next Review Date</label>
+                <input type="date" value={form.nextReviewDate} onChange={(e) => setForm({ ...form, nextReviewDate: e.target.value })} className="input-field" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Relationship Status</label>
-                <select value={form.relationshipStatus} onChange={(e) => setForm({ ...form, relationshipStatus: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                  <option value="Active">Active</option>
-                  <option value="At Risk">At Risk</option>
-                  <option value="Growing">Growing</option>
-                  <option value="Dormant">Dormant</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Next Review Date</label>
-                <input type="date" value={form.nextReviewDate} onChange={(e) => setForm({ ...form, nextReviewDate: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Notes</label>
+                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className="input-field" />
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-3">
-              <button onClick={() => setEditorOpen(false)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
+            <div className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+              <button onClick={() => setEditorOpen(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
                 {saving ? "Saving..." : "Save"}
               </button>
             </div>

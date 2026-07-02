@@ -60,15 +60,26 @@ async function generateLeadCode(companyId?: string | null): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `LD-${year}-`;
 
-  // Count existing leads with this prefix this year
-  const count = await prisma.lead.count({
+  // leadCode is globally unique (see Lead.leadCode @unique in schema.prisma),
+  // so the sequence lookup must NOT be scoped to companyId — otherwise two
+  // companies can independently compute the same next sequence number and
+  // collide on the global unique constraint.
+  const lastLead = await prisma.lead.findFirst({
     where: {
       leadCode: { startsWith: prefix },
-      ...(companyId ? { companyId } : {}),
     },
+    orderBy: { leadCode: "desc" },
+    select: { leadCode: true },
   });
 
-  const seq = String(count + 1).padStart(5, "0");
+  let nextSeq = 1;
+  if (lastLead?.leadCode) {
+    const lastSeqStr = lastLead.leadCode.slice(prefix.length);
+    const lastSeq = parseInt(lastSeqStr, 10);
+    if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
+  }
+
+  const seq = String(nextSeq).padStart(5, "0");
   return `${prefix}${seq}`;
 }
 
@@ -276,7 +287,7 @@ export async function createLeadAction(data: {
   notes?: string;
   assignedUserId?: string;
   // V2 fields
-  companyName?: string;
+  companyName: string;
   designation?: string;
   industryType?: string;
   estimatedValue?: number;
@@ -294,13 +305,20 @@ export async function createLeadAction(data: {
 
     const { name, email, phone, city, leadSource, notes, assignedUserId } = data;
 
-    if (!name) {
+    if (!name?.trim()) {
       return { success: false, message: "Name is required." };
     }
-
-    // V2 validation: phone OR email required
-    if (!phone?.trim() && !email?.trim()) {
-      return { success: false, message: "Either phone or email is required." };
+    if (!phone?.trim()) {
+      return { success: false, message: "Phone number is required." };
+    }
+    if (!email?.trim()) {
+      return { success: false, message: "Email address is required." };
+    }
+    if (!city?.trim()) {
+      return { success: false, message: "Place / City is required." };
+    }
+    if (!data.companyName?.trim()) {
+      return { success: false, message: "Company name is required." };
     }
 
     // V2 validation: estimated_value must be positive if provided
@@ -1482,6 +1500,21 @@ export async function convertLeadV2Action(
           // V2 fields
           opportunityCode,
           probabilityPercent: 20,
+        },
+      });
+
+      // 5b. Seed OpportunityDetail with lead qualification data
+      await tx.opportunityDetail.create({
+        data: {
+          dealId: deal.id,
+          companyName: lead.companyName || lead.name,
+          email: lead.email,
+          phone: lead.phone,
+          contactPerson: lead.name,
+          budgetRange: lead.budgetAsked,
+          timeline: lead.timelineAsked,
+          decisionMaker: lead.name,
+          industry: lead.industryType || null,
         },
       });
 

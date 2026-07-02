@@ -1,26 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  plus: "M12 4v16m8-8H4",
-  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-  trash: "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
-  search: "M21 21l-4.35-4.35 M11 19a8 8 0 100-16 8 8 0 000 16z",
-  map: "M9 20l-5.45-2.73a1 1 0 01-.55-.9V4.62a1 1 0 011.45-.9L9 6 M9 20l6-3 M9 20V6 M15 17l5.45-2.73a1 1 0 00.55-.9V4.62a1 1 0 00-1.45-.9L15 6 M15 17V6 M15 6L9 3",
-};
+import {
+  KPICard, AnalyticsPageHeader,
+  EmptyState, LoadingState, UserAvatar,
+} from "@/components/shared/AnalyticsComponents";
+import { Plus, Pencil, Trash2, Search, MapPin, Building2, Users, BarChart3 } from "lucide-react";
 
 export default function TerritoriesPage() {
   const { user } = useAuth();
@@ -118,6 +109,14 @@ export default function TerritoriesPage() {
 
   const canManage = ["Admin", "SalesManager"].includes(user?.role ?? "");
 
+  // Summary metrics
+  const summary = useMemo(() => {
+    const totalAccounts = territories.reduce((s, t) => s + (t._count?.accounts ?? 0), 0);
+    const regions = new Set(territories.map(t => t.region)).size;
+    const assigned = territories.filter(t => t.assignedUserId).length;
+    return { total: territories.length, totalAccounts, regions, assigned };
+  }, [territories]);
+
   // Regions view
   if (view === "regions") {
     const regionsMap = new Map<string, any[]>();
@@ -128,45 +127,48 @@ export default function TerritoriesPage() {
     });
 
     return (
-      <PageContainer className="space-y-4 p-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800">Regions Overview</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Territories grouped by region</p>
-          </div>
-          <Link href="/territories" className="text-sm text-blue-600 hover:underline">← List view</Link>
-        </div>
+      <PageContainer className="space-y-5 p-0">
+        <AnalyticsPageHeader title="Regions Overview" subtitle="Territories grouped by region">
+          <Link href="/territories" className="text-[13px] text-[var(--accent)] hover:underline">← List view</Link>
+        </AnalyticsPageHeader>
 
         {loading ? (
-          <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+          <LoadingState />
         ) : regionsMap.size === 0 ? (
-          <div className="py-12 text-center text-sm text-gray-500">No territories found.</div>
+          <EmptyState message="No territories found." />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {Array.from(regionsMap.entries()).map(([region, items]) => {
               const accountCount = items.reduce((s, t) => s + (t._count?.accounts ?? 0), 0);
-              const usersList = items.map(t => t.assignedUser?.name).filter(Boolean);
               return (
-                <div key={region} className="rounded-lg border bg-white p-5">
+                <div key={region} className="analytics-chart-card">
                   <div className="flex items-center gap-2 mb-3">
-                    <Ico d={icons.map} size={18} className="text-blue-600" />
-                    <h3 className="font-semibold text-slate-800">{region}</h3>
+                    <MapPin size={18} className="text-[var(--accent)]" />
+                    <h3 className="text-[15px] font-medium text-[var(--text-primary)]">{region}</h3>
                   </div>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-500">Territories</span><span className="font-medium">{items.length}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-500">Accounts</span><span className="font-medium">{accountCount}</span></div>
+                  <div className="space-y-2 text-[13px]">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Territories</span>
+                      <span className="font-medium text-[var(--text-primary)]">{items.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--text-muted)]">Accounts</span>
+                      <span className="font-medium text-[var(--text-primary)]">{accountCount}</span>
+                    </div>
                     <div>
-                      <span className="text-gray-500 block mb-1">Assigned Users</span>
+                      <span className="text-[var(--text-muted)] block mb-1">Assigned Users</span>
                       <div className="flex flex-wrap gap-1">
-                        {usersList.length ? usersList.map((u, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700">{u}</span>
-                        )) : <span className="text-gray-400">Unassigned</span>}
+                        {items.map(t => t.assignedUser?.name).filter(Boolean).length ? (
+                          items.map(t => t.assignedUser?.name).filter(Boolean).map((u, i) => (
+                            <span key={i} className="px-2 py-0.5 rounded-full text-[11px] bg-[var(--surface-2)] text-[var(--text-secondary)] border border-[var(--border)]">{u}</span>
+                          ))
+                        ) : <span className="text-[var(--text-muted)]">Unassigned</span>}
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t space-y-1">
+                  <div className="mt-3 pt-3 border-t border-[var(--border)] space-y-1">
                     {items.map(t => (
-                      <Link key={t.id} href={`/territories/${t.id}`} className="block text-sm text-blue-600 hover:underline">{t.name}</Link>
+                      <Link key={t.id} href={`/territories/${t.id}`} className="block text-[13px] text-[var(--accent)] hover:underline">{t.name}</Link>
                     ))}
                   </div>
                 </div>
@@ -179,113 +181,132 @@ export default function TerritoriesPage() {
   }
 
   return (
-    <PageContainer className="space-y-4 p-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Sales Territories</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage sales territories and regional assignments</p>
+    <PageContainer className="space-y-5 p-0">
+      <AnalyticsPageHeader title="Sales Territories" subtitle="Manage sales territories and regional assignments">
+        <div className="flex items-center gap-3">
+          <Link href="/territories/performance" className="btn-secondary">
+            <BarChart3 size={16} /> Performance
+          </Link>
+          <Link href="/territories/accounts" className="btn-secondary">
+            <Building2 size={16} /> Accounts
+          </Link>
+          <Link href="/territories?view=regions" className="text-[13px] text-[var(--accent)] hover:underline">Regions view →</Link>
         </div>
-        <Link href="/territories?view=regions" className="text-sm text-blue-600 hover:underline">Regions view →</Link>
-      </div>
+      </AnalyticsPageHeader>
 
-      <div className="flex flex-wrap items-center gap-3 mb-5">
+      {/* Search + add */}
+      <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[220px] max-w-md">
-          <Ico d={icons.search} size={16} className="absolute left-3 top-2.5 text-gray-400" />
+          <Search size={16} className="absolute left-3 top-2.5 text-[var(--text-muted)]" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search territories..."
-            className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            className="input-field pl-9"
           />
         </div>
         {canManage && (
-          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
-            <Ico d={icons.plus} size={16} /> Add Territory
+          <button onClick={openNew} className="btn-primary">
+            <Plus size={16} /> Add Territory
           </button>
         )}
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState />
       ) : territories.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500">No territories found.</div>
+        <EmptyState
+          message="No territories found."
+          action={canManage ? <button onClick={openNew} className="btn-primary"><Plus size={16} /> Create your first territory</button> : undefined}
+        />
       ) : (
-        <div className="crm-card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="crm-table">
-              <thead>
-                <tr>
-                  <th className="crm-th">Name</th>
-                  <th className="crm-th">Region</th>
-                  <th className="crm-th">States / Area</th>
-                  <th className="crm-th">Assigned User</th>
-                  <th className="crm-th">Accounts</th>
-                  <th className="crm-th text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {territories.map((t) => (
-                  <tr key={t.id} className="crm-tr">
-                    <td className="crm-td">
-                      <Link href={`/territories/${t.id}`} className="font-medium text-foreground hover:text-[var(--accent)]">{t.name}</Link>
-                    </td>
-                    <td className="crm-td text-foreground">{t.region}</td>
-                    <td className="crm-td text-foreground max-w-xs"><div className="line-clamp-1">{t.states || "—"}</div></td>
-                    <td className="crm-td text-foreground">{t.assignedUser?.name || "—"}</td>
-                    <td className="crm-td text-foreground">{t._count?.accounts ?? 0}</td>
-                    <td className="crm-td text-right">
-                      <div className="inline-flex gap-1.5">
-                        {canManage && (
-                          <>
-                            <button onClick={() => openEdit(t)} className="p-1.5 rounded hover:bg-muted" title="Edit"><Ico d={icons.edit} /></button>
-                            <button onClick={() => handleDelete(t)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Delete"><Ico d={icons.trash} /></button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <>
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Total Territories" value={summary.total} icon={<MapPin size={20} />} />
+            <KPICard label="Regions" value={summary.regions} icon={<MapPin size={20} />} />
+            <KPICard label="Total Accounts" value={summary.totalAccounts} icon={<Building2 size={20} />} />
+            <KPICard label="Assigned" value={summary.assigned} sublabel={`of ${summary.total}`} icon={<Users size={20} />} />
           </div>
-        </div>
+
+          {/* Table */}
+          <div className="analytics-chart-card !p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    <th className="crm-th">Name</th>
+                    <th className="crm-th">Region</th>
+                    <th className="crm-th">States / Area</th>
+                    <th className="crm-th">Assigned User</th>
+                    <th className="crm-th text-right">Accounts</th>
+                    {canManage && <th className="crm-th text-right">Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {territories.map((t) => (
+                    <tr key={t.id} className="crm-tr">
+                      <td className="crm-td">
+                        <Link href={`/territories/${t.id}`} className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{t.name}</Link>
+                      </td>
+                      <td className="crm-td text-[var(--text-secondary)]">{t.region}</td>
+                      <td className="crm-td text-[var(--text-secondary)] max-w-xs"><div className="line-clamp-1">{t.states || "—"}</div></td>
+                      <td className="crm-td">
+                        <UserAvatar name={t.assignedUser?.name} role={t.assignedUser?.role} size="sm" />
+                      </td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{t._count?.accounts ?? 0}</td>
+                      {canManage && (
+                        <td className="crm-td text-right">
+                          <div className="inline-flex gap-1.5">
+                            <button onClick={() => openEdit(t)} className="action-icon-btn" title="Edit"><Pencil size={16} /></button>
+                            <button onClick={() => handleDelete(t)} className="action-icon-btn row-action-btn-danger" title="Delete"><Trash2 size={16} /></button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
 
       {editorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-3">
-              <h3 className="font-semibold">{editing ? "Edit Territory" : "New Territory"}</h3>
-              <button onClick={() => setEditorOpen(false)} className="text-gray-400 hover:text-gray-600"><Ico d="M6 18L18 6M6 6l12 12" /></button>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--surface)] shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+              <h3 className="font-medium text-[var(--text-primary)]">{editing ? "Edit Territory" : "New Territory"}</h3>
+              <button onClick={() => setEditorOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">✕</button>
             </div>
             <div className="space-y-3 px-5 py-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Name *</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Region *</label>
-                <input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="e.g. South, North, West..." className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Region *</label>
+                <input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} placeholder="e.g. South, North, West..." className="input-field" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">States / Area (comma-separated)</label>
-                <input value={form.states} onChange={(e) => setForm({ ...form, states: e.target.value })} placeholder="e.g. Tamil Nadu, Karnataka, Kerala" className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">States / Area (comma-separated)</label>
+                <input value={form.states} onChange={(e) => setForm({ ...form, states: e.target.value })} placeholder="e.g. Tamil Nadu, Karnataka, Kerala" className="input-field" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Assigned User</label>
-                <select value={form.assignedUserId} onChange={(e) => setForm({ ...form, assignedUserId: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Assigned User</label>
+                <select value={form.assignedUserId} onChange={(e) => setForm({ ...form, assignedUserId: e.target.value })} className="select-field">
                   <option value="">— Unassigned —</option>
                   {users.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
                 </select>
               </div>
-              <label className="inline-flex items-center gap-2 text-sm">
+              <label className="inline-flex items-center gap-2 text-[13px] text-[var(--text-secondary)]">
                 <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
                 Active
               </label>
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-3">
-              <button onClick={() => setEditorOpen(false)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
+            <div className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+              <button onClick={() => setEditorOpen(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
                 {saving ? "Saving..." : "Save"}
               </button>
             </div>

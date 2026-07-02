@@ -1,24 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  plus: "M12 4v16m8-8H4",
-  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-  trash: "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
-  search: "M21 21l-4.35-4.35 M11 19a8 8 0 100-16 8 8 0 000 16z",
-};
+import {
+  KPICard, ChartCard, CompetitorPageHeader, FilterSelect,
+  EmptyState, LoadingState, getChartColor,
+} from "@/components/competitors/CompetitorAnalytics";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from "recharts";
+import { Plus, Pencil, Trash2, TrendingDown, DollarSign, Percent, AlertCircle } from "lucide-react";
 
 export default function LostAnalysisPage() {
   const { user } = useAuth();
@@ -63,6 +58,62 @@ export default function LostAnalysisPage() {
 
   useEffect(() => { load(); }, [filterCompetitor, filterReason]);
 
+  // ── Computed summary metrics from real records ────────────────────────────
+  const summary = useMemo(() => {
+    const totalLost = analyses.length;
+    const totalValueLost = analyses.reduce((sum, a) => sum + (a.deal?.dealValue || 0), 0);
+
+    // Avg loss margin %
+    const marginAnalyses = analyses.filter((a) => a.competitorWonPrice != null && a.ourFinalPrice != null && a.ourFinalPrice > 0);
+    const avgLossMargin = marginAnalyses.length > 0
+      ? Math.round((marginAnalyses.reduce((sum, a) => {
+          const margin = ((a.ourFinalPrice - a.competitorWonPrice) / a.ourFinalPrice) * 100;
+          return sum + margin;
+        }, 0) / marginAnalyses.length) * 10) / 10
+      : 0;
+
+    // Top loss reason
+    const reasonCounts = new Map<string, number>();
+    for (const a of analyses) {
+      const key = a.lossReason?.name || a.lostReason || "Uncategorized";
+      reasonCounts.set(key, (reasonCounts.get(key) ?? 0) + 1);
+    }
+    let topLossReason = "—";
+    let maxCount = 0;
+    for (const [reason, count] of reasonCounts) {
+      if (count > maxCount) { maxCount = count; topLossReason = reason; }
+    }
+
+    return { totalLost, totalValueLost, avgLossMargin, topLossReason };
+  }, [analyses]);
+
+  // ── Chart 1: loss reason breakdown ────────────────────────────────────────
+  const lossReasonChart = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of analyses) {
+      const name = a.lossReason?.name || a.lostReason || "Uncategorized";
+      map.set(name, (map.get(name) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count, color: getChartColor(name) }))
+      .sort((a, b) => b.count - a.count);
+  }, [analyses]);
+
+  // ── Chart 2: value lost per competitor ────────────────────────────────────
+  const valueByCompetitor = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const a of analyses) {
+      const name = a.competitor?.name || "No competitor";
+      map.set(name, (map.get(name) ?? 0) + (a.deal?.dealValue || 0));
+    }
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value, color: getChartColor(name) }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [analyses]);
+
+  const canManage = ["Admin", "SalesManager", "SalesRep"].includes(user?.role ?? "");
+
   const openNew = () => {
     setEditing(null);
     setForm({ dealId: "", competitorId: "", lossReasonId: "", lostReason: "", competitorWonPrice: "", ourFinalPrice: "", lessonsLearned: "" });
@@ -75,7 +126,7 @@ export default function LostAnalysisPage() {
       dealId: a.dealId,
       competitorId: a.competitorId || "",
       lossReasonId: a.lossReasonId || "",
-      lostReason: a.lostReason,
+      lostReason: a.lostReason || "",
       competitorWonPrice: a.competitorWonPrice?.toString() || "",
       ourFinalPrice: a.ourFinalPrice?.toString() || "",
       lessonsLearned: a.lessonsLearned || "",
@@ -131,121 +182,248 @@ export default function LostAnalysisPage() {
     });
   };
 
-  const canManage = ["Admin", "SalesManager", "SalesRep"].includes(user?.role ?? "");
+  // Price comparison badge computation
+  const priceBadge = (a: any) => {
+    if (a.competitorWonPrice == null || a.ourFinalPrice == null) return null;
+    const diff = a.ourFinalPrice - a.competitorWonPrice;
+    const pct = a.ourFinalPrice > 0 ? Math.round((Math.abs(diff) / a.ourFinalPrice) * 1000) / 10 : 0;
+    const isOverpriced = diff > 0;
+    return {
+      text: `Lost by ${pct}% ($${Math.abs(diff).toLocaleString()})`,
+      isOverpriced,
+    };
+  };
 
   return (
-    <PageContainer className="space-y-4 p-0">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Lost Deals Analysis</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Record and review why deals were lost</p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <select value={filterCompetitor} onChange={(e) => setFilterCompetitor(e.target.value)} className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">All competitors</option>
-          {competitors.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-        <select value={filterReason} onChange={(e) => setFilterReason(e.target.value)} className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">All loss reasons</option>
-          {lossReasons.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
+    <PageContainer className="space-y-5 p-0">
+      <CompetitorPageHeader title="Lost Deals Analysis" subtitle="Record and review why deals were lost">
         {canManage && (
-          <button onClick={openNew} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] ml-auto">
-            <Ico d={icons.plus} size={16} /> Record Lost Deal
+          <button onClick={openNew} className="btn-primary">
+            <Plus size={16} /> Record Lost Deal
           </button>
         )}
+      </CompetitorPageHeader>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterSelect
+          value={filterCompetitor}
+          onChange={setFilterCompetitor}
+          options={competitors.map((c) => ({ value: c.id, label: c.name }))}
+          placeholder="All competitors"
+        />
+        <FilterSelect
+          value={filterReason}
+          onChange={setFilterReason}
+          options={lossReasons.map((r) => ({ value: r.id, label: r.name }))}
+          placeholder="All loss reasons"
+        />
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState />
       ) : analyses.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500">No lost-deal analyses recorded yet.</div>
+        <EmptyState message="No lost-deal analyses recorded yet." />
       ) : (
-        <div className="space-y-3">
-          {analyses.map((a) => (
-            <div key={a.id} className="rounded-lg border bg-white p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <div className="font-medium text-sm">{a.deal?.dealName || "Untitled deal"}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    {a.deal?.customer?.name || "—"} · {a.competitor?.name ? `Lost to ${a.competitor.name}` : "No competitor"} · {a.lossReason?.name || "No reason category"}
+        <>
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Total Lost Deals" value={summary.totalLost} icon={<TrendingDown size={20} />} />
+            <KPICard label="Total Value Lost" value={`$${summary.totalValueLost.toLocaleString()}`} icon={<DollarSign size={20} />} iconColor="var(--status-danger-text)" />
+            <KPICard label="Avg Loss Margin" value={`${summary.avgLossMargin}%`} icon={<Percent size={20} />} />
+            <KPICard label="Top Loss Reason" value={summary.topLossReason} icon={<AlertCircle size={20} />} />
+          </div>
+
+          {/* Charts row */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Chart 1: loss reason breakdown */}
+            <ChartCard title="Loss Reason Breakdown" subtitle="Count of lost deals per reason">
+              {lossReasonChart.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={lossReasonChart} layout="vertical" margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} width={120} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
+                      cursor={{ fill: "var(--surface-2)" }}
+                    />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]} name="Lost Deals">
+                      {lossReasonChart.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <EmptyState message="No data for chart." />}
+            </ChartCard>
+
+            {/* Chart 2: value lost per competitor */}
+            <ChartCard title="Value Lost per Competitor" subtitle="Total deal value lost by competitor">
+              {valueByCompetitor.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={valueByCompetitor} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={60} />
+                    <YAxis tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
+                      cursor={{ fill: "var(--surface-2)" }}
+                      formatter={(v: any) => [`$${Number(v).toLocaleString()}`, "Value Lost"]}
+                    />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]} name="Value Lost">
+                      {valueByCompetitor.map((entry, idx) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <EmptyState message="No data for chart." />}
+            </ChartCard>
+          </div>
+
+          {/* Deal cards */}
+          <div className="space-y-3">
+            {analyses.map((a) => {
+              const badge = priceBadge(a);
+              const maxPrice = Math.max(a.competitorWonPrice ?? 0, a.ourFinalPrice ?? 0);
+              return (
+                <div key={a.id} className="analytics-chart-card">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <Link href={`/deals/${a.deal?.id}`} className="text-[14px] font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">
+                        {a.deal?.dealName || "Untitled deal"}
+                      </Link>
+                      <div className="text-[12px] text-[var(--text-muted)] mt-0.5">
+                        {a.deal?.customer?.name || "—"}
+                        {a.competitor?.name && (
+                          <span>
+                            {" · "}
+                            <Link href={`/competitors/${a.competitor.id}`} className="text-[var(--accent)] hover:underline">
+                              Lost to {a.competitor.name}
+                            </Link>
+                          </span>
+                        )}
+                        {a.lossReason?.name && ` · ${a.lossReason.name}`}
+                      </div>
+                    </div>
+                    {canManage && (
+                      <div className="inline-flex gap-1.5">
+                        <button onClick={() => openEdit(a)} className="action-icon-btn" title="Edit"><Pencil size={16} /></button>
+                        <button onClick={() => handleDelete(a)} className="action-icon-btn row-action-btn-danger" title="Delete"><Trash2 size={16} /></button>
+                      </div>
+                    )}
                   </div>
-                </div>
-                {canManage && (
-                  <div className="inline-flex gap-1.5">
-                    <button onClick={() => openEdit(a)} className="p-1.5 rounded hover:bg-gray-100" title="Edit"><Ico d={icons.edit} /></button>
-                    <button onClick={() => handleDelete(a)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Delete"><Ico d={icons.trash} /></button>
+
+                  {/* Lost reason detail */}
+                  {a.lostReason && (
+                    <p className="text-[13px] text-[var(--text-secondary)] mt-2 whitespace-pre-wrap">{a.lostReason}</p>
+                  )}
+
+                  {/* Price comparison: single badge + secondary bars */}
+                  {a.competitorWonPrice != null && a.ourFinalPrice != null && (
+                    <div className="mt-3">
+                      {badge && (
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[12px] font-medium mb-2 ${
+                          badge.isOverpriced
+                            ? "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] border border-[var(--status-danger-border)]"
+                            : "bg-[var(--status-success-bg)] text-[var(--status-success-text)] border border-[var(--status-success-border)]"
+                        }`}>
+                          {badge.text}
+                        </span>
+                      )}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-[var(--text-muted)] w-20">Their price</span>
+                          <div className="flex-1 price-range-track">
+                            <div className="bg-[var(--status-warning)] rounded-full h-full" style={{ width: `${maxPrice > 0 ? (a.competitorWonPrice / maxPrice) * 100 : 0}%` }} />
+                          </div>
+                          <span className="text-[12px] text-[var(--text-secondary)] w-24 text-right">${a.competitorWonPrice.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-[var(--text-muted)] w-20">Our price</span>
+                          <div className="flex-1 price-range-track">
+                            <div className="bg-[var(--accent)] rounded-full h-full" style={{ width: `${maxPrice > 0 ? (a.ourFinalPrice / maxPrice) * 100 : 0}%` }} />
+                          </div>
+                          <span className="text-[12px] text-[var(--text-secondary)] w-24 text-right">${a.ourFinalPrice.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Metadata */}
+                  <div className="flex items-center gap-4 mt-3 text-[12px] text-[var(--text-muted)]">
+                    <span>Recorded by: <span className="font-medium text-[var(--text-secondary)]">{a.recordedBy?.name || "—"}</span></span>
+                    {a.createdAt && <span>{new Date(a.createdAt).toLocaleDateString()}</span>}
                   </div>
-                )}
-              </div>
-              <p className="text-sm text-gray-700 mt-2 whitespace-pre-wrap">{a.lostReason}</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3 text-xs">
-                <div><span className="text-gray-500">Their price:</span> <span className="font-medium">{a.competitorWonPrice != null ? `$${a.competitorWonPrice.toLocaleString()}` : "—"}</span></div>
-                <div><span className="text-gray-500">Our price:</span> <span className="font-medium">{a.ourFinalPrice != null ? `$${a.ourFinalPrice.toLocaleString()}` : "—"}</span></div>
-                <div><span className="text-gray-500">Recorded by:</span> <span className="font-medium">{a.recordedBy?.name || "—"}</span></div>
-              </div>
-              {a.lessonsLearned && (
-                <div className="mt-2 text-xs text-gray-600 bg-amber-50 rounded p-2">
-                  <span className="font-semibold">Lessons: </span>{a.lessonsLearned}
+
+                  {/* Lessons learned — real per-record field */}
+                  {a.lessonsLearned && (
+                    <div className="mt-2 text-[12px] text-[var(--text-secondary)] bg-[var(--status-warning-bg)] rounded-lg p-2.5 border border-[var(--status-warning-border)]">
+                      <span className="font-medium">Lessons: </span>{a.lessonsLearned}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
+      {/* Editor modal */}
       {editorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-3">
-              <h3 className="font-semibold">{editing ? "Edit Analysis" : "Record Lost Deal"}</h3>
-              <button onClick={() => setEditorOpen(false)} className="text-gray-400 hover:text-gray-600"><Ico d="M6 18L18 6M6 6l12 12" /></button>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--surface)] shadow-xl">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3">
+              <h3 className="font-medium text-[var(--text-primary)]">{editing ? "Edit Analysis" : "Record Lost Deal"}</h3>
+              <button onClick={() => setEditorOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)]">✕</button>
             </div>
             <div className="space-y-3 px-5 py-4 max-h-[70vh] overflow-y-auto">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Lost Deal *</label>
-                <select value={form.dealId} onChange={(e) => setForm({ ...form, dealId: e.target.value })} disabled={!!editing} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50">
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Lost Deal *</label>
+                <select value={form.dealId} onChange={(e) => setForm({ ...form, dealId: e.target.value })} disabled={!!editing} className="select-field disabled:opacity-60">
                   <option value="">Select a lost deal...</option>
                   {lostDeals.map((d) => <option key={d.id} value={d.id}>{d.dealName} — {d.customer?.name}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Competitor</label>
-                  <select value={form.competitorId} onChange={(e) => setForm({ ...form, competitorId: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Competitor</label>
+                  <select value={form.competitorId} onChange={(e) => setForm({ ...form, competitorId: e.target.value })} className="select-field">
                     <option value="">—</option>
                     {competitors.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Loss Reason Category</label>
-                  <select value={form.lossReasonId} onChange={(e) => setForm({ ...form, lossReasonId: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Loss Reason Category</label>
+                  <select value={form.lossReasonId} onChange={(e) => setForm({ ...form, lossReasonId: e.target.value })} className="select-field">
                     <option value="">—</option>
                     {lossReasons.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Lost Reason (detail) *</label>
-                <textarea value={form.lostReason} onChange={(e) => setForm({ ...form, lostReason: e.target.value })} rows={3} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Lost Reason (detail) *</label>
+                <textarea value={form.lostReason} onChange={(e) => setForm({ ...form, lostReason: e.target.value })} rows={3} className="input-field" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Competitor Won Price</label>
-                  <input type="number" value={form.competitorWonPrice} onChange={(e) => setForm({ ...form, competitorWonPrice: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Competitor Won Price</label>
+                  <input type="number" value={form.competitorWonPrice} onChange={(e) => setForm({ ...form, competitorWonPrice: e.target.value })} className="input-field" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Our Final Price</label>
-                  <input type="number" value={form.ourFinalPrice} onChange={(e) => setForm({ ...form, ourFinalPrice: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                  <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Our Final Price</label>
+                  <input type="number" value={form.ourFinalPrice} onChange={(e) => setForm({ ...form, ourFinalPrice: e.target.value })} className="input-field" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Lessons Learned</label>
-                <textarea value={form.lessonsLearned} onChange={(e) => setForm({ ...form, lessonsLearned: e.target.value })} rows={2} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1">Lessons Learned</label>
+                <textarea value={form.lessonsLearned} onChange={(e) => setForm({ ...form, lessonsLearned: e.target.value })} rows={2} className="input-field" />
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-3">
-              <button onClick={() => setEditorOpen(false)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
+            <div className="flex justify-end gap-2 border-t border-[var(--border)] px-5 py-3">
+              <button onClick={() => setEditorOpen(false)} className="btn-secondary">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
                 {saving ? "Saving..." : "Save"}
               </button>
             </div>

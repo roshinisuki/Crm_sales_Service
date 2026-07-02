@@ -13,6 +13,11 @@ export async function PUT(
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
+  // SuperAdmin must use support/impersonation mode
+  if (user.role === "SuperAdmin" && (!user.supportMode || !user.companyId)) {
+    return NextResponse.json({ success: false, message: "SuperAdmin must access business data via support/impersonation mode." }, { status: 403 });
+  }
+
   const { id } = await params;
   const body = await request.json();
 
@@ -55,7 +60,7 @@ export async function PUT(
     "requirementCompletedAt",
     // Meeting Scheduled
     "meetingType", "meetingMode", "meetingDate", "meetingStatus", "meetingDuration",
-    "meetingParticipants", "meetingLocation", "meetingAgenda", "meetingOutcome",
+    "meetingParticipants", "meetingLocation", "meetingAgenda", "meetingOutcome", "nextFollowUpDate",
     // Demo Conducted
     "demoType", "demoDate", "demoPresenter", "demoDuration", "demoAttendees",
     "demoCustomerRating", "demoInterestLevel", "demoQuestionsRaised",
@@ -73,7 +78,7 @@ export async function PUT(
         data[key] = body[key] !== null && body[key] !== "" ? parseInt(body[key]) || null : null;
       } else if (["expectedBudget", "finalDiscussedBudget", "discountRequested", "proposalValue"].includes(key)) {
         data[key] = body[key] !== null && body[key] !== "" ? parseFloat(body[key]) || null : null;
-      } else if (["expectedGoLive", "meetingDate", "demoDate", "requirementCompletedAt"].includes(key)) {
+      } else if (["expectedGoLive", "meetingDate", "demoDate", "nextFollowUpDate", "requirementCompletedAt"].includes(key)) {
         data[key] = body[key] ? new Date(body[key]) : null;
       } else {
         data[key] = body[key];

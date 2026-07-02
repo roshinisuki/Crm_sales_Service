@@ -523,7 +523,7 @@ export default function VisitDetailPage() {
                 <button
                   onClick={handleCheckIn}
                   disabled={gpsLoading}
-                  className="px-6 py-3 bg-amber-600 text-white font-bold text-sm rounded-xl hover:bg-amber-700 disabled:opacity-50 flex items-center gap-2 mx-auto"
+                  className="px-6 py-3 bg-[var(--primary)] text-white font-bold text-sm rounded-xl hover:bg-[var(--primary-hover)] disabled:opacity-50 flex items-center gap-2 mx-auto"
                 >
                   {gpsLoading ? (
                     <><Clock size={18} className="animate-spin" /> Capturing location...</>
@@ -668,7 +668,7 @@ export default function VisitDetailPage() {
               <button
                 onClick={handleCheckIn}
                 disabled={gpsLoading || checkInTooLate}
-                className="px-5 py-2.5 bg-amber-600 text-white font-bold text-sm rounded-xl hover:bg-amber-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-5 py-2.5 bg-[var(--primary)] text-white font-bold text-sm rounded-xl hover:bg-[var(--primary-hover)] disabled:opacity-50 flex items-center gap-2"
               >
                 <MapPin size={16} /> Check In
               </button>
@@ -732,7 +732,7 @@ export default function VisitDetailPage() {
           {(visit.status === "PLANNED" || visit.status === "MISSED") && (
             <button
               onClick={() => setShowReschedule(true)}
-              className="px-5 py-2.5 bg-slate-100 text-slate-700 font-bold text-sm rounded-xl hover:bg-slate-200 flex items-center gap-2"
+              className="px-5 py-2.5 bg-[var(--primary)]/10 text-[var(--primary)] font-bold text-sm rounded-xl hover:bg-[var(--primary)]/20 border border-[var(--primary)]/20 flex items-center gap-2"
             >
               <CalendarClock size={16} /> Reschedule
             </button>

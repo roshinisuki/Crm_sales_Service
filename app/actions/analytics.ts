@@ -316,11 +316,100 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
         funnel: funnelStages,
         leadSources: sourceAnalytics,
         agentPerformance,
-        revenueTrend
+        revenueTrend,
+        customerScoreTrend: await getCustomerScoreTrendData(userPayload, trendCutoff),
       }
     };
   } catch (error) {
     console.error("GET Sales Analytics Error:", error);
     return { success: false, message: "Failed to fetch sales analytics data" };
+  }
+}
+
+// ─── Customer Score Trend Data ───────────────────────────────────────────────
+// Fetches demoCustomerRating from opportunities over time, aggregates by month.
+// Returns array of { label, score } for the line chart. Separate from pipeline.
+async function getCustomerScoreTrendData(userPayload: any, trendCutoff: Date): Promise<{ label: string; score: number }[]> {
+  try {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    // Initialize last 6 months with 0
+    const scoreMap: { [key: string]: { total: number; count: number } } = {};
+    for (let i = 0; i < 6; i++) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const label = `${months[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
+      scoreMap[label] = { total: 0, count: 0 };
+    }
+
+    // Query deals with their OpportunityDetail (which holds demoCustomerRating)
+    const rbacDealFilter: any = { companyId: userPayload.companyId };
+    if (userPayload.role === "SalesExecutive") {
+      rbacDealFilter.OR = [
+        { assignedUserId: userPayload.id },
+        { customer: { assignedUserId: userPayload.id } }
+      ];
+    }
+
+    const deals = await prisma.deal.findMany({
+      where: {
+        AND: [
+          rbacDealFilter,
+          { opportunityDetail: { demoCustomerRating: { not: null } } },
+          { updatedAt: { gte: trendCutoff } },
+        ],
+      },
+      select: {
+        updatedAt: true,
+        opportunityDetail: { select: { demoCustomerRating: true } },
+      },
+      orderBy: { updatedAt: "asc" },
+    });
+
+    // Parse ratings and aggregate by month
+    deals.forEach((deal: any) => {
+      const rating = deal.opportunityDetail?.demoCustomerRating;
+      if (!rating) return;
+
+      // Parse numeric score from string (e.g. "8/10", "8", "4 out of 5", "Excellent")
+      let score: number | null = null;
+      const numericMatch = rating.match(/(\d+(?:\.\d+)?)/);
+      if (numericMatch) {
+        score = parseFloat(numericMatch[1]);
+        // If score > 10, normalize to 10-scale
+        if (score > 10) score = score / 10;
+      } else {
+        // Word-based ratings
+        const lower = rating.toLowerCase();
+        if (lower.includes("excellent") || lower.includes("very good")) score = 9;
+        else if (lower.includes("good") || lower.includes("satisfied")) score = 7;
+        else if (lower.includes("average") || lower.includes("neutral")) score = 5;
+        else if (lower.includes("poor") || lower.includes("bad") || lower.includes("dissatisfied")) score = 3;
+      }
+
+      if (score === null) return;
+
+      const date = new Date(deal.updatedAt);
+      const label = `${months[date.getMonth()]} ${date.getFullYear().toString().slice(-2)}`;
+      if (scoreMap[label]) {
+        scoreMap[label].total += score;
+        scoreMap[label].count += 1;
+      }
+    });
+
+    // Convert to ordered array with average scores
+    return Object.keys(scoreMap)
+      .reverse()
+      .map((key) => {
+        const { total, count } = scoreMap[key];
+        return {
+          label: key,
+          score: count > 0 ? Math.round((total / count) * 10) / 10 : 0,
+        };
+      })
+      .filter((item) => item.score > 0); // Only show months with data
+  } catch (error) {
+    console.error("Customer Score Trend Error:", error);
+    return [];
   }
 }

@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
+import {
+  KPICard, ChartCard, AnalyticsPageHeader,
+  EmptyState, LoadingState, UserAvatar, ComparisonBar,
+} from "@/components/shared/AnalyticsComponents";
+import { StatusPill } from "@/components/shared/StatusPill";
+import { MapPin, Users, Trophy, DollarSign, Download, ArrowLeft, Target } from "lucide-react";
 
 export default function TerritoryPerformancePage() {
   const toast = useToast();
@@ -51,61 +57,112 @@ export default function TerritoryPerformancePage() {
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <PageContainer className="space-y-4 p-0">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Territory Performance</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Aggregated performance metrics per territory</p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={exportCSV} disabled={!data.length} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 disabled:opacity-50">
-            Export CSV
-          </button>
-          <Link href="/territories" className="text-sm text-blue-600 hover:underline self-center">← Back</Link>
-        </div>
-      </div>
+  // Summary metrics
+  const summary = useMemo(() => {
+    const totalRevenue = data.reduce((s, d) => s + (d.revenue || 0), 0);
+    const totalTarget = data.reduce((s, d) => s + (d.targetAmount || 0), 0);
+    const totalAchieved = data.reduce((s, d) => s + (d.achievedAmount || 0), 0);
+    const overallPct = totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0;
+    const totalLeads = data.reduce((s, d) => s + (d.leads || 0), 0);
+    return { totalRevenue, totalTarget, totalAchieved, overallPct, totalLeads };
+  }, [data]);
 
+  // Fixed scale across all territories
+  const maxChartVal = useMemo(() => {
+    return Math.max(...data.map(d => Math.max(d.targetAmount || 0, d.achievedAmount || 0)), 1);
+  }, [data]);
+
+  return (
+    <PageContainer className="space-y-5 p-0">
+      <AnalyticsPageHeader title="Territory Performance" subtitle="Aggregated performance metrics per territory">
+        <div className="flex items-center gap-3">
+          <button onClick={exportCSV} disabled={!data.length} className="btn-secondary disabled:opacity-50">
+            <Download size={16} /> Export CSV
+          </button>
+          <Link href="/territories" className="text-[13px] text-[var(--accent)] hover:underline inline-flex items-center gap-1">
+            <ArrowLeft size={14} /> Back
+          </Link>
+        </div>
+      </AnalyticsPageHeader>
+
+      {/* Summary KPI row */}
+      {data.length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard label="Total Revenue" value={formatCurrency(summary.totalRevenue)} icon={<DollarSign size={20} />} />
+          <KPICard label="Total Target" value={formatCurrency(summary.totalTarget)} icon={<Target size={20} />} />
+          <KPICard label="Overall Achievement" value={`${summary.overallPct}%`} icon={<Trophy size={20} />} iconColor={summary.overallPct >= 80 ? "var(--status-success-text)" : summary.overallPct >= 50 ? "var(--status-warning-text)" : "var(--status-danger-text)"} />
+          <KPICard label="Total Leads" value={summary.totalLeads} icon={<Users size={20} />} />
+        </div>
+      )}
+
+      {/* Chart: Target vs Achieved per Territory — fixed scale */}
+      {data.length > 0 && (
+        <ChartCard title="Target vs Achieved per Territory" subtitle="Both bars on the same scale for fair comparison">
+          <div className="space-y-3">
+            {data.map((d) => (
+              <ComparisonBar
+                key={d.id}
+                label={d.name}
+                valueA={d.targetAmount || 0}
+                valueB={d.achievedAmount || 0}
+                labelA="Target"
+                labelB="Achieved"
+                formatValue={(v) => formatCurrency(v)}
+                maxScale={maxChartVal}
+              />
+            ))}
+          </div>
+        </ChartCard>
+      )}
+
+      {/* Table */}
       {loading ? (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState />
       ) : data.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500">No performance data found.</div>
+        <EmptyState message="No performance data found." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Territory</th>
-                <th className="px-4 py-3 font-semibold">Assigned User</th>
-                <th className="px-4 py-3 font-semibold text-right">Leads</th>
-                <th className="px-4 py-3 font-semibold text-right">Visits</th>
-                <th className="px-4 py-3 font-semibold text-right">Follow-Ups</th>
-                <th className="px-4 py-3 font-semibold text-right">Deals Won</th>
-                <th className="px-4 py-3 font-semibold text-right">Revenue</th>
-                <th className="px-4 py-3 font-semibold text-right">Target</th>
-                <th className="px-4 py-3 font-semibold text-right">Target vs Achieved</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {data.map((d) => (
-                <tr key={d.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium"><Link href={`/territories/${d.id}`} className="text-blue-600 hover:underline">{d.name}</Link></td>
-                  <td className="px-4 py-3 text-gray-600">{d.assignedUser?.name || "—"}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{d.leads}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{d.visits}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{d.followUpsDone}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{d.dealsWon}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(d.revenue)}</td>
-                  <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(d.targetAmount)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${d.targetVsAchieved !== "—" && parseInt(d.targetVsAchieved) >= 100 ? "bg-green-50 text-green-700" : d.targetVsAchieved !== "—" && parseInt(d.targetVsAchieved) >= 50 ? "bg-yellow-50 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
-                      {d.targetVsAchieved}
-                    </span>
-                  </td>
+        <div className="analytics-chart-card !p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  <th className="crm-th">Territory</th>
+                  <th className="crm-th">Assigned User</th>
+                  <th className="crm-th text-right">Leads</th>
+                  <th className="crm-th text-right">Visits</th>
+                  <th className="crm-th text-right">Follow-Ups</th>
+                  <th className="crm-th text-right">Deals Won</th>
+                  <th className="crm-th text-right">Revenue</th>
+                  <th className="crm-th text-right">Target</th>
+                  <th className="crm-th text-right">vs Achieved</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.map((d) => {
+                  const pct = d.targetVsAchieved !== "—" ? parseInt(d.targetVsAchieved) : 0;
+                  return (
+                    <tr key={d.id} className="crm-tr">
+                      <td className="crm-td">
+                        <Link href={`/territories/${d.id}`} className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">{d.name}</Link>
+                      </td>
+                      <td className="crm-td">
+                        <UserAvatar name={d.assignedUser?.name} role={d.assignedUser?.role} size="sm" />
+                      </td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{d.leads}</td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{d.visits}</td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{d.followUpsDone}</td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{d.dealsWon}</td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{formatCurrency(d.revenue)}</td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{formatCurrency(d.targetAmount)}</td>
+                      <td className="crm-td text-right">
+                        <StatusPill status={pct >= 80 ? "Achieved" : pct >= 50 ? "On Track" : "Behind"} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </PageContainer>

@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  download: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3",
-};
+import {
+  KPICard, ChartCard, CompetitorPageHeader, EmptyState, LoadingState,
+  getChartColor, ColorDot,
+} from "@/components/competitors/CompetitorAnalytics";
+import { StatusPill } from "@/components/shared/StatusPill";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  PieChart, Pie, LineChart, Line, Legend,
+} from "recharts";
+import { Download, Trophy, Target, MapPin, ThumbsUp } from "lucide-react";
 
 export default function WinLossPage() {
   const toast = useToast();
@@ -20,6 +21,7 @@ export default function WinLossPage() {
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -40,138 +42,240 @@ export default function WinLossPage() {
 
   useEffect(() => { load(); }, [from, to]);
 
-  const exportCsv = () => {
-    if (!data) return;
-    const rows: string[] = [];
-    rows.push("Section,Label,Value");
-    rows.push(`Summary,Won Count,${data.summary.wonCount}`);
-    rows.push(`Summary,Lost Count,${data.summary.lostCount}`);
-    rows.push(`Summary,Won Value,${data.summary.wonValue}`);
-    rows.push(`Summary,Lost Value,${data.summary.lostValue}`);
-    rows.push(`Summary,Win Rate %,${data.summary.winRate}`);
-    rows.push(`Summary,Total,${data.summary.total}`);
-    rows.push("");
-    rows.push("By Competitor,Competitor,Lost Count");
-    data.byCompetitor.forEach((c: any) => rows.push(`Competitor,${escape(c.competitorName)},${c.lostCount}`));
-    rows.push("");
-    rows.push("By Loss Reason,Reason,Lost Count");
-    data.byLossReason.forEach((r: any) => rows.push(`Loss Reason,${escape(r.lossReasonName)},${r.lostCount}`));
+  // ── Donut chart data: win/loss split ───────────────────────────────────────
+  const winLossSplit = useMemo(() => {
+    if (!data) return [];
+    return [
+      { name: "Won", value: data.summary.wonCount, color: "#10B981" },
+      { name: "Lost", value: data.summary.lostCount, color: "#EF4444" },
+    ];
+  }, [data]);
 
-    const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  // ── Win rate per competitor bar chart ──────────────────────────────────────
+  const winRateByComp = useMemo(() => {
+    if (!data) return [];
+    return data.winRateByCompetitor.map((c: any) => ({
+      ...c,
+      color: getChartColor(c.competitorName),
+    }));
+  }, [data]);
+
+  // ── 6-month trend line chart ───────────────────────────────────────────────
+  const trendData = useMemo(() => data?.trend ?? [], [data]);
+
+  // ── Deal-level table (client-side filtered by status) ──────────────────────
+  const dealDetails = useMemo(() => {
+    if (!data) return [];
+    const deals = data.dealDetails;
+    if (!statusFilter) return deals;
+    return deals.filter((d: any) => d.status === statusFilter);
+  }, [data, statusFilter]);
+
+  const exportCSV = () => {
+    if (!data?.dealDetails) return;
+    const headers = ["Deal Name", "Status", "Value", "Customer", "Territory", "Competitors", "Date"];
+    const rows = data.dealDetails.map((d: any) => [
+      d.dealName, d.status, d.dealValue, d.customerName, d.territory,
+      (d.competitors || []).join("; "), new Date(d.updatedAt).toLocaleDateString(),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c: any) => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `win-loss-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = "win-loss-analysis.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
-
-  const s = data?.summary;
-  const maxCompetitor = data ? Math.max(1, ...data.byCompetitor.map((c: any) => c.lostCount)) : 1;
-  const maxReason = data ? Math.max(1, ...data.byLossReason.map((r: any) => r.lostCount)) : 1;
-
   return (
-    <PageContainer className="space-y-4 p-0">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Win/Loss Analysis</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Aggregate win/loss performance with competitor and reason breakdowns</p>
-      </div>
-      <div className="flex flex-wrap items-end gap-3 mb-5">
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <button onClick={exportCsv} disabled={!data} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50 disabled:opacity-50 ml-auto">
-          <Ico d={icons.download} size={16} /> Export CSV
+    <PageContainer className="space-y-5 p-0">
+      <CompetitorPageHeader title="Win / Loss Analysis" subtitle="Overall win rate, per-competitor performance, and deal-level breakdown">
+        <button onClick={exportCSV} className="btn-secondary">
+          <Download size={16} /> Export CSV
         </button>
+      </CompetitorPageHeader>
+
+      {/* Date filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <label className="text-[12px] text-[var(--text-secondary)] mr-1.5">From</label>
+          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="input-field !w-auto" />
+        </div>
+        <div>
+          <label className="text-[12px] text-[var(--text-secondary)] mr-1.5">To</label>
+          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="input-field !w-auto" />
+        </div>
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState />
       ) : !data ? (
-        <div className="py-12 text-center text-sm text-gray-500">No data.</div>
+        <EmptyState message="No data available." />
       ) : (
-        <div className="space-y-5">
-          {/* Summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <Stat label="Won" value={s.wonCount} color="bg-green-50 text-green-700" />
-            <Stat label="Lost" value={s.lostCount} color="bg-red-50 text-red-700" />
-            <Stat label="Win Rate" value={`${s.winRate}%`} color="bg-blue-50 text-blue-700" />
-            <Stat label="Won Value" value={`$${(s.wonValue || 0).toLocaleString()}`} color="bg-emerald-50 text-emerald-700" />
-            <Stat label="Lost Value" value={`$${(s.lostValue || 0).toLocaleString()}`} color="bg-rose-50 text-rose-700" />
+        <>
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Overall Win Rate" value={`${data.summary.winRate}%`} sublabel={`${data.summary.total} deals evaluated`} icon={<Trophy size={20} />} />
+            <KPICard label="Total Deals" value={data.summary.total} sublabel={`${data.summary.wonCount} won / ${data.summary.lostCount} lost`} icon={<Target size={20} />} />
+            <KPICard label="Best Territory" value={data.summary.bestTerritory} sublabel={data.summary.bestTerritoryWinRate > 0 ? `${data.summary.bestTerritoryWinRate}% win rate` : undefined} icon={<MapPin size={20} />} />
+            <KPICard label="Top Win Reason" value={data.summary.mostCommonWinReason} icon={<ThumbsUp size={20} />} />
           </div>
 
-          {/* Win/Loss bar */}
-          <div className="rounded-lg border bg-white p-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Won vs Lost</h4>
-            <div className="space-y-2">
-              <BarRow label="Won" value={s.wonCount} total={s.total} color="bg-green-500" />
-              <BarRow label="Lost" value={s.lostCount} total={s.total} color="bg-red-500" />
-            </div>
+          {/* Charts row 1: donut + win-rate-per-competitor */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Chart 1: Win/Loss donut */}
+            <ChartCard title="Win / Loss Split" subtitle="Overall distribution of won vs lost deals">
+              {winLossSplit.length > 0 && (winLossSplit[0].value > 0 || winLossSplit[1].value > 0) ? (
+                <>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={winLossSplit}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={2}
+                      >
+                        {winLossSplit.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex items-center justify-center gap-4 mt-2">
+                    {winLossSplit.map((s) => (
+                      <ColorDot key={s.name} color={s.color} label={`${s.name}: ${s.value}`} />
+                    ))}
+                  </div>
+                </>
+              ) : <EmptyState message="No data for chart." />}
+            </ChartCard>
+
+            {/* Chart 2: Win rate per competitor (the most important chart) */}
+            <ChartCard title="Win Rate per Competitor" subtitle="How we perform against each competitor">
+              {winRateByComp.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart data={winRateByComp} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                    <XAxis dataKey="competitorName" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} interval={0} angle={-15} textAnchor="end" height={60} />
+                    <YAxis tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
+                      cursor={{ fill: "var(--surface-2)" }}
+                      formatter={(v: any) => [`${v}%`, "Win Rate"]}
+                    />
+                    <Bar dataKey="winRate" radius={[6, 6, 0, 0]} name="Win Rate %">
+                      {winRateByComp.map((entry: any, idx: number) => (
+                        <Cell key={idx} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <EmptyState message="No competitor involvement data yet." />}
+            </ChartCard>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* By competitor */}
-            <div className="rounded-lg border bg-white p-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Losses by Competitor</h4>
-              {data.byCompetitor.length === 0 ? (
-                <p className="text-sm text-gray-500">No data.</p>
-              ) : (
-                <div className="space-y-2">
-                  {data.byCompetitor.map((c: any) => (
-                    <div key={c.competitorId}>
-                      <div className="flex justify-between text-xs mb-0.5"><span>{c.competitorName}</span><span className="text-gray-500">{c.lostCount}</span></div>
-                      <div className="h-2 bg-gray-100 rounded"><div className="h-2 bg-amber-500 rounded" style={{ width: `${(c.lostCount / maxCompetitor) * 100}%` }} /></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Charts row 2: 6-month trend */}
+          {trendData.length > 0 && (
+            <ChartCard title="Win Rate Trend" subtitle="Last 6 months">
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={trendData} margin={{ top: 8, right: 16, left: 0, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "var(--text-secondary)" }} axisLine={false} tickLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="winRate" stroke="#2090FF" strokeWidth={2.5} dot={{ r: 4 }} name="Win Rate %" />
+                  <Line type="monotone" dataKey="won" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} name="Won" />
+                  <Line type="monotone" dataKey="lost" stroke="#EF4444" strokeWidth={2} dot={{ r: 3 }} name="Lost" />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
 
-            {/* By loss reason */}
-            <div className="rounded-lg border bg-white p-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Losses by Reason</h4>
-              {data.byLossReason.length === 0 ? (
-                <p className="text-sm text-gray-500">No data.</p>
-              ) : (
-                <div className="space-y-2">
-                  {data.byLossReason.map((r: any) => (
-                    <div key={r.lossReasonId}>
-                      <div className="flex justify-between text-xs mb-0.5"><span>{r.lossReasonName}</span><span className="text-gray-500">{r.lostCount}</span></div>
-                      <div className="h-2 bg-gray-100 rounded"><div className="h-2 bg-purple-500 rounded" style={{ width: `${(r.lostCount / maxReason) * 100}%` }} /></div>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {/* Deal-level table */}
+          <div className="analytics-chart-card !p-0 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--border-subtle)]">
+              <h4 className="text-[15px] font-medium text-[var(--text-primary)]">Deal-Level Detail</h4>
+              <div className="inline-flex rounded-lg border border-[var(--border)] overflow-hidden">
+                {["", "Won", "Lost"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`px-3 py-1.5 text-[12px] font-medium transition-colors ${
+                      statusFilter === s
+                        ? "bg-[var(--primary)] text-white"
+                        : "bg-[var(--surface)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)]"
+                    }`}
+                  >
+                    {s || "All"}
+                  </button>
+                ))}
+              </div>
             </div>
+            {dealDetails.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="crm-table">
+                  <thead>
+                    <tr>
+                      <th className="crm-th">Deal</th>
+                      <th className="crm-th">Status</th>
+                      <th className="crm-th">Value</th>
+                      <th className="crm-th">Customer</th>
+                      <th className="crm-th">Territory</th>
+                      <th className="crm-th">Competitors</th>
+                      <th className="crm-th">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dealDetails.map((d: any) => (
+                      <tr key={d.id} className="crm-tr">
+                        <td className="crm-td">
+                          <Link href={`/deals/${d.id}`} className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]">
+                            {d.dealName}
+                          </Link>
+                        </td>
+                        <td className="crm-td">
+                          <StatusPill status={d.status} />
+                        </td>
+                        <td className="crm-td">${d.dealValue.toLocaleString()}</td>
+                        <td className="crm-td">{d.customerName}</td>
+                        <td className="crm-td">{d.territory}</td>
+                        <td className="crm-td">
+                          <div className="flex flex-wrap gap-1">
+                            {(d.competitors || []).map((name: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] bg-[var(--surface-2)] text-[var(--text-secondary)]"
+                              >
+                                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: getChartColor(name) }} />
+                                {name}
+                              </span>
+                            ))}
+                            {(!d.competitors || d.competitors.length === 0) && <span className="text-[var(--text-muted)]">—</span>}
+                          </div>
+                        </td>
+                        <td className="crm-td text-[var(--text-secondary)]">{new Date(d.updatedAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState message="No deals match the filter." />
+            )}
           </div>
-        </div>
+        </>
       )}
     </PageContainer>
-  );
-}
-
-function Stat({ label, value, color }: { label: string; value: React.ReactNode; color: string }) {
-  return (
-    <div className={`rounded-lg p-4 ${color}`}>
-      <div className="text-xs font-medium opacity-80">{label}</div>
-      <div className="text-xl font-bold mt-1">{value}</div>
-    </div>
-  );
-}
-
-function BarRow({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
-  const pct = total > 0 ? (value / total) * 100 : 0;
-  return (
-    <div>
-      <div className="flex justify-between text-xs mb-0.5"><span>{label}</span><span className="text-gray-500">{value} ({Math.round(pct)}%)</span></div>
-      <div className="h-3 bg-gray-100 rounded"><div className={`h-3 ${color} rounded`} style={{ width: `${pct}%` }} /></div>
-    </div>
   );
 }

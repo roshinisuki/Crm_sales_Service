@@ -102,7 +102,7 @@ export default function ManufacturingDashboard() {
           label="Total Samples"
           value={stats.samples.total}
           icon={<FlaskConical size={20} />}
-          variant="orange"
+          variant="brand"
           subtitle={`${stats.samples.new} new, ${stats.samples.approved} approved`}
         />
         <SummaryCard

@@ -108,7 +108,7 @@ export default function QuotationListPage() {
     <PageContainer className="space-y-4 p-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Quotation Management</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Quotations</h1>
           <p className="text-sm text-slate-500 mt-0.5">Manage customer quotations</p>
         </div>
         <button onClick={() => router.push("/quotations/new")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">

@@ -1,11 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
+import {
+  KPICard, AnalyticsPageHeader, FilterSelect,
+  EmptyState, LoadingState, UserAvatar,
+} from "@/components/shared/AnalyticsComponents";
+import { ArrowLeft, Building2, Users, DollarSign, MapPin } from "lucide-react";
 
 export default function TerritoryAccountsPage() {
   const { user } = useAuth();
@@ -39,7 +44,8 @@ export default function TerritoryAccountsPage() {
               customerName: a.customer.name,
               customerCode: a.customer.customerCode,
               city: a.customer.city,
-              assignedExec: a.customer.assignedUser?.name || "—",
+              assignedExec: a.customer.assignedUser?.name,
+              assignedExecRole: a.customer.assignedUser?.role,
               revenue,
               territoryId: territories[i].id,
               territoryName: territories[i].name,
@@ -60,50 +66,81 @@ export default function TerritoryAccountsPage() {
 
   const filtered = filterTerritory ? accounts.filter(a => a.territoryId === filterTerritory) : accounts;
 
-  return (
-    <PageContainer className="space-y-4 p-0">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800">Territory Accounts</h1>
-        <p className="text-sm text-slate-500 mt-0.5">All customer accounts assigned to territories</p>
-      </div>
+  // Summary metrics
+  const summary = useMemo(() => {
+    const totalRevenue = filtered.reduce((s, a) => s + a.revenue, 0);
+    const uniqueCustomers = new Set(filtered.map(a => a.customerName)).size;
+    const uniqueExecs = new Set(filtered.map(a => a.assignedExec).filter(Boolean)).size;
+    return { totalAccounts: filtered.length, totalRevenue, uniqueCustomers, uniqueExecs };
+  }, [filtered]);
 
-      <div className="flex flex-wrap items-center gap-3 mb-5">
-        <select value={filterTerritory} onChange={(e) => setFilterTerritory(e.target.value)} className="px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">All Territories</option>
-          {territories.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        <Link href="/territories" className="text-sm text-blue-600 hover:underline ml-auto">← Back to territories</Link>
+  return (
+    <PageContainer className="space-y-5 p-0">
+      <AnalyticsPageHeader title="Territory Accounts" subtitle="All customer accounts assigned to territories">
+        <Link href="/territories" className="text-[13px] text-[var(--accent)] hover:underline inline-flex items-center gap-1">
+          <ArrowLeft size={14} /> Back to territories
+        </Link>
+      </AnalyticsPageHeader>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <FilterSelect
+          value={filterTerritory}
+          onChange={setFilterTerritory}
+          options={territories.map(t => ({ value: t.id, label: t.name }))}
+          placeholder="All Territories"
+        />
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState />
       ) : filtered.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500">No territory accounts found.</div>
+        <EmptyState message="No territory accounts found." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Customer Name</th>
-                <th className="px-4 py-3 font-semibold">Territory</th>
-                <th className="px-4 py-3 font-semibold">Assigned Sales Exec</th>
-                <th className="px-4 py-3 font-semibold">City</th>
-                <th className="px-4 py-3 font-semibold">Revenue</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {filtered.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium">{a.customerName} <span className="text-gray-400 text-xs">({a.customerCode})</span></td>
-                  <td className="px-4 py-3"><Link href={`/territories/${a.territoryId}`} className="text-blue-600 hover:underline">{a.territoryName}</Link></td>
-                  <td className="px-4 py-3 text-gray-600">{a.assignedExec}</td>
-                  <td className="px-4 py-3 text-gray-600">{a.city || "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{formatCurrency(a.revenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {/* Summary KPI row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KPICard label="Total Accounts" value={summary.totalAccounts} icon={<Building2 size={20} />} />
+            <KPICard label="Total Revenue" value={formatCurrency(summary.totalRevenue)} icon={<DollarSign size={20} />} />
+            <KPICard label="Unique Customers" value={summary.uniqueCustomers} icon={<Users size={20} />} />
+            <KPICard label="Active Execs" value={summary.uniqueExecs} icon={<MapPin size={20} />} />
+          </div>
+
+          {/* Table */}
+          <div className="analytics-chart-card !p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="crm-table">
+                <thead>
+                  <tr>
+                    <th className="crm-th">Customer</th>
+                    <th className="crm-th">Territory</th>
+                    <th className="crm-th">Assigned Sales Exec</th>
+                    <th className="crm-th">City</th>
+                    <th className="crm-th text-right">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((a) => (
+                    <tr key={a.id} className="crm-tr">
+                      <td className="crm-td">
+                        <span className="font-medium text-[var(--text-primary)]">{a.customerName}</span>{" "}
+                        <span className="text-[11px] text-[var(--text-muted)]">({a.customerCode})</span>
+                      </td>
+                      <td className="crm-td">
+                        <Link href={`/territories/${a.territoryId}`} className="text-[var(--accent)] hover:underline">{a.territoryName}</Link>
+                      </td>
+                      <td className="crm-td">
+                        <UserAvatar name={a.assignedExec} role={a.assignedExecRole} size="sm" />
+                      </td>
+                      <td className="crm-td text-[var(--text-secondary)]">{a.city || "—"}</td>
+                      <td className="crm-td text-right text-[var(--text-secondary)]">{formatCurrency(a.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </PageContainer>
   );

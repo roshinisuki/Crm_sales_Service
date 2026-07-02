@@ -26,7 +26,7 @@ interface HandshakeLoaderProps {
 
 export function HandshakeLoader({
   size = 64,
-  accent = '#F77F00',
+  accent = '#2090FF',
   variant = 'ripple',
   label,
   fullScreen = false,

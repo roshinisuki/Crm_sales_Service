@@ -21,6 +21,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       lossReasonId: body.lossReasonId || null,
       competitorWonPrice: body.competitorWonPrice ?? null,
       ourFinalPrice: body.ourFinalPrice ?? null,
+      lostReason: body.lostReason || null,
       lessonsLearned: body.lessonsLearned || null,
     },
   });
