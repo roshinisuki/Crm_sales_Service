@@ -24,6 +24,7 @@ const V1_ITEMS: ModuleSearchItem[] = [
   // Sub-modules
   { key: 'leads-new',       label: 'New Leads',          href: '/leads?status=New',                      icon: '👤', keywords: ['new lead', 'add lead'],                      type: 'submodule', parentLabel: 'Leads' },
   { key: 'leads-followup',  label: "Today's Follow-up",  href: '/leads?status=TodayFollowUp',            icon: '👤', keywords: ['followup today', 'due today'],                type: 'submodule', parentLabel: 'Leads' },
+  { key: 'leads-upcoming',  label: "Upcoming Follow-ups",  href: '/leads?status=UpcomingFollowUp',            icon: '👤', keywords: ['upcoming', 'followup', 'due'],                type: 'submodule', parentLabel: 'Leads' },
   { key: 'leads-lost',      label: 'Lost Leads',         href: '/leads?status=Lost',                     icon: '👤', keywords: ['lost', 'lost lead'],                          type: 'submodule', parentLabel: 'Leads' },
   // Settings
   { key: 'settings-users',        label: 'Users',               href: '/user-master',              icon: '⚙️', keywords: ['user', 'team', 'member'],          type: 'setting' },

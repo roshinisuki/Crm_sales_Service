@@ -117,12 +117,12 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
       {/* Logo Section */}
       <div
         className={cn(
-          "flex items-center border-b border-white/[0.06] relative",
-          collapsed ? "justify-center py-3 px-0" : "justify-between py-3 px-4"
+          "flex items-center justify-center border-b border-white/[0.06] relative",
+          collapsed ? "px-2 pt-6 pb-5" : "px-4 pt-6 pb-5"
         )}
       >
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-14 h-14 flex items-center justify-center shrink-0 rounded-lg" style={{ filter: "drop-shadow(0 0 6px rgba(255,255,255,0.25))" }}>
+          <div className="w-14 h-14 flex items-center justify-center shrink-0 rounded-lg">
             <Logo theme={logoTheme} variant="mark-only" size={56} />
           </div>
           {!collapsed && (
@@ -134,10 +134,9 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
         <button
           onClick={toggleCollapse}
           className={cn(
-            "flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200",
+            "absolute right-2 flex items-center justify-center w-8 h-8 rounded-lg transition-all duration-200",
             "text-white/60 hover:text-white hover:bg-white/[0.1]",
-            "focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 focus:ring-offset-[var(--sidebar-bg)]",
-            collapsed ? "absolute right-2" : ""
+            "focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 focus:ring-offset-[var(--sidebar-bg)]"
           )}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-expanded={collapsed}

@@ -232,7 +232,7 @@ export async function getFollowUpsAction(params?: {
       where: whereClause,
       include: {
         customer: { select: { id: true, name: true, customerCode: true, status: true } },
-        lead: { select: { id: true, name: true, leadCode: true, status: true } },
+        lead: { select: { id: true, name: true, leadCode: true, status: true, companyName: true } },
         assignedUser: { select: { id: true, name: true, email: true } },
         completedBy: { select: { id: true, name: true, email: true } },
       },
@@ -316,6 +316,8 @@ export async function createFollowUpAction(data: any) {
       data: {
         customerId: validated.customerId || null,
         leadId: validated.leadId || null,
+        entityType: validated.leadId ? "lead" : (validated.customerId ? "account" : null),
+        entityId: validated.leadId || validated.customerId || null,
         assignedUserId: validated.assignedUserId || userPayload.id,
         nextMeetingDate: validated.nextMeetingDate,
         dueDate: validated.nextMeetingDate, // Align dueDate with nextMeetingDate
@@ -492,6 +494,8 @@ export async function completeFollowUpWithStatusAction(data: {
         data: {
           customerId: followUp.customerId || null,
           leadId: followUp.leadId || null,
+          entityType: followUp.leadId ? "lead" : (followUp.customerId ? "account" : null),
+          entityId: followUp.leadId || followUp.customerId || null,
           assignedUserId: followUp.assignedUserId,
           nextMeetingDate: new Date(nextMeetingDate),
           dueDate: new Date(nextMeetingDate),
@@ -1062,6 +1066,24 @@ export async function updateFollowUpAction(id: string, data: {
   }
 }
 
+export function parseFollowUpRemarks(remarks: string | null) {
+  if (!remarks) return { remarks: "", mode: "Virtual", location: "" };
+  const trimmed = remarks.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return {
+        remarks: parsed.remarks || parsed.agenda || "",
+        mode: parsed.mode || "Virtual",
+        location: parsed.location || "",
+      };
+    } catch {
+      // ignore and fall back
+    }
+  }
+  return { remarks, mode: "Virtual", location: "" };
+}
+
 export async function getFollowUpByIdAction(id: string) {
   try {
     const userPayload = await verifyAuth();
@@ -1106,23 +1128,25 @@ export async function getFollowUpByIdAction(id: string) {
       },
     });
 
-    if (!followUp) {
-      return { success: false, message: "Follow-up not found" };
-    }
+    if (!followUp) return { success: false, message: "Follow-up not found" };
 
     // Access scope check
     if (!checkRecordScope(userPayload, followUp, "FollowUp")) {
       return { success: false, message: "Unauthorized: Access denied." };
     }
 
-    // Check RBAC: Executive can only view their own
     if (userPayload.role === "SalesExecutive" && followUp.assignedUserId !== userPayload.id) {
       return { success: false, message: "Unauthorized: You do not own this follow-up" };
     }
 
+    const parsedRemarks = parseFollowUpRemarks(followUp.remarks || followUp.notes);
+
     // Serialize dates
     const serialized = {
       ...followUp,
+      mode: parsedRemarks.mode,
+      location: parsedRemarks.location,
+      agenda: parsedRemarks.remarks,
       scheduledTime: followUp.nextMeetingDate.toISOString(),
       nextMeetingDate: followUp.nextMeetingDate.toISOString(),
       dueDate: followUp.dueDate ? followUp.dueDate.toISOString() : null,

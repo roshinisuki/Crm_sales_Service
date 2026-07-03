@@ -637,7 +637,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         break;
       case "log-followup-activity": {
         // Find the pending follow-up and redirect to activity form
-        const pendingFu = followups.find((f: any) => f.status === "Pending" || f.status === "Overdue");
+        const pendingFu = followups.find((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue");
         if (pendingFu) {
           const fuType = (pendingFu.type || "Call").toLowerCase();
           router.push(`/activities/new?type=${fuType}&leadId=${lead.id}&followUpId=${pendingFu.id}`);
@@ -647,7 +647,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         break;
       }
       case "reschedule-followup": {
-        const pendingFu = followups.find((f: any) => f.status === "Pending" || f.status === "Overdue");
+        const pendingFu = followups.find((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue");
         if (pendingFu) {
           router.push(`/follow-up/${pendingFu.id}`);
         } else {
@@ -759,6 +759,46 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 Respond within {minsLeft} minutes to meet the response SLA.
               </p>
             </div>
+          </div>
+        );
+      })()}
+
+      {/* ---- Next Follow-Up Banner ---- */}
+      {(() => {
+        const upcomingPending = followups.filter((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue");
+        if (upcomingPending.length === 0) return null;
+        
+        // Sort chronologically to get the nearest next follow-up
+        const nextFu = [...upcomingPending].sort((a: any, b: any) => new Date(a.nextMeetingDate).getTime() - new Date(b.nextMeetingDate).getTime())[0];
+        const nextDate = new Date(nextFu.nextMeetingDate);
+        const isOverdue = nextDate < new Date();
+        
+        return (
+          <div className={cn(
+            "crm-card p-4 flex items-center gap-3 border-l-4 transition-all",
+            isOverdue ? "border-red-500 bg-red-50/60 border-y border-r border-red-200" : "border-blue-500 bg-blue-50/50 border-y border-r border-blue-100"
+          )}>
+            <CalendarClock className={cn("shrink-0", isOverdue ? "text-red-600" : "text-blue-600")} size={20} />
+            <div className="flex-1">
+              <p className={cn("text-sm font-bold", isOverdue ? "text-red-700" : "text-blue-755")}>
+                {isOverdue ? "Overdue Follow-up" : "Next Scheduled Follow-up"} &middot; {nextFu.type || "Call"}
+              </p>
+              <p className={cn("text-xs mt-0.5", isOverdue ? "text-red-600" : "text-blue-600")}>
+                Scheduled for {nextDate.toLocaleString()} &mdash; Assigned to {nextFu.assignedUser?.name || "System"}
+                {nextFu.remarks && <span className="block italic mt-0.5 font-medium">&ldquo;{nextFu.remarks}&rdquo;</span>}
+              </p>
+            </div>
+            {!isConverted && !isLost && (
+              <button
+                onClick={() => router.push(`/activities/new?type=${(nextFu.type || "Call").toLowerCase()}&leadId=${lead.id}&followUpId=${nextFu.id}`)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                  isOverdue ? "bg-red-600 hover:bg-red-750 text-white shadow-sm" : "bg-blue-600 hover:bg-blue-750 text-white shadow-sm"
+                )}
+              >
+                Log Activity
+              </button>
+            )}
           </div>
         );
       })()}

@@ -15,6 +15,7 @@ import {
 } from "@/app/actions/followUps";
 import { getCustomersAction } from "@/app/actions/customers";
 import { getUsersAction } from "@/app/actions/users";
+import { getLeadsAction } from "@/app/actions/leads";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
@@ -72,6 +73,7 @@ export default function FollowUpsPage() {
   const searchParams = useSearchParams();
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [leads, setLeads] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>({ total: 0, pending: 0, overdue: 0, completedToday: 0 });
   const [loading, setLoading] = useState(true);
@@ -91,7 +93,9 @@ export default function FollowUpsPage() {
   const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(null);
 
   // Form Fields
+  const [selectedEntityType, setSelectedEntityType] = useState<"lead" | "account">("account");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedLeadId, setSelectedLeadId] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [phoneNo, setPhoneNo] = useState("");
   const [emailId, setEmailId] = useState("");
@@ -130,17 +134,21 @@ export default function FollowUpsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [res, custRes, usersRes, sumRes] = await Promise.all([
+      const [res, custRes, usersRes, sumRes, leadsRes] = await Promise.all([
         getFollowUpsListAction(),
         getCustomersAction(),
         getUsersAction(),
-        getFollowUpsSummaryAction()
+        getFollowUpsSummaryAction(),
+        getLeadsAction()
       ]);
       if (res.success && res.data) {
         setFollowUps(res.data);
       }
       if (custRes.success && custRes.data) {
         setCustomers(custRes.data);
+      }
+      if (leadsRes?.success && leadsRes.data) {
+        setLeads(leadsRes.data);
       }
       if (usersRes?.success && usersRes.data) {
         setUsers(usersRes.data.filter((u: any) => u.isActive && (u.role === "SalesExecutive" || u.role === "SalesManager")));
@@ -180,26 +188,35 @@ export default function FollowUpsPage() {
     loadData();
   }, [statusFilter]);
 
-  // Sync Customer fields in Drawer
+  // Sync Lead/Customer fields in Drawer
   useEffect(() => {
-    if (selectedCustomerId) {
+    if (selectedEntityType === "account" && selectedCustomerId) {
       const cust = customers.find(c => c.id === selectedCustomerId);
       if (cust) {
         setCompanyName(getCompanyName(cust.name));
         setPhoneNo(cust.phone || "—");
         setEmailId(cust.email || "—");
       }
+    } else if (selectedEntityType === "lead" && selectedLeadId) {
+      const ld = leads.find(l => l.id === selectedLeadId);
+      if (ld) {
+        setCompanyName(ld.companyName || "—");
+        setPhoneNo(ld.phone || "—");
+        setEmailId(ld.email || "—");
+      }
     } else {
       setCompanyName("");
       setPhoneNo("");
       setEmailId("");
     }
-  }, [selectedCustomerId, customers]);
+  }, [selectedEntityType, selectedCustomerId, selectedLeadId, customers, leads]);
 
   const handleOpenAddDrawer = () => {
     setDrawerMode("add");
     setEditingFollowUpId(null);
+    setSelectedEntityType("account");
     setSelectedCustomerId("");
+    setSelectedLeadId("");
     setCompanyName("");
     setPhoneNo("");
     setEmailId("");
@@ -224,7 +241,15 @@ export default function FollowUpsPage() {
   const handleOpenEditDrawer = (f: any) => {
     setDrawerMode("edit");
     setEditingFollowUpId(f.id);
-    setSelectedCustomerId(f.customerId);
+    const entityType = f.leadId ? "lead" : "account";
+    setSelectedEntityType(entityType);
+    if (entityType === "lead") {
+      setSelectedLeadId(f.leadId || "");
+      setSelectedCustomerId("");
+    } else {
+      setSelectedCustomerId(f.customerId || "");
+      setSelectedLeadId("");
+    }
     
     // Parse Date & Time
     if (f.nextMeetingDate) {
@@ -235,7 +260,7 @@ export default function FollowUpsPage() {
       setFollowUpTime(`${hours}:${minutes}`);
     }
 
-    setFollowUpType(f.visitType === "OUTBOUND" ? "Meeting" : "Call");
+    setFollowUpType(f.type || f.visitType === "OUTBOUND" ? "Meeting" : "Call");
     setPriority(f.priority || "Medium");
     setAssignedToId(f.assignedUserId);
     setStatus(f.status);
@@ -261,7 +286,8 @@ export default function FollowUpsPage() {
     setFieldErrors({});
 
     let errors: Record<string, string> = {};
-    if (!selectedCustomerId) errors.customer = "Customer is required";
+    if (selectedEntityType === "account" && !selectedCustomerId) errors.customer = "Account is required";
+    if (selectedEntityType === "lead" && !selectedLeadId) errors.lead = "Lead is required";
     if (!followUpDate) errors.date = "Date is required";
     if (!followUpTime) errors.time = "Time is required";
     if (user?.role !== "SalesExecutive" && !assignedToId) errors.assignedTo = "Assignee is required";
@@ -279,7 +305,8 @@ export default function FollowUpsPage() {
       if (drawerMode === "add") {
         // Create Action
         const res = await createFollowUpAction({
-          customerId: selectedCustomerId,
+          customerId: selectedEntityType === "account" ? selectedCustomerId : null,
+          leadId: selectedEntityType === "lead" ? selectedLeadId : null,
           nextMeetingDate: combinedDateTime,
           remarks: discussionNotes,
           notes: discussionNotes,
@@ -287,6 +314,7 @@ export default function FollowUpsPage() {
           sourceType: "MANUAL",
           assignedUserId: user?.role === "SalesExecutive" ? user.id : assignedToId,
           autoCreated: false,
+          type: followUpType as any,
         });
 
         if (res.success) {
@@ -294,7 +322,8 @@ export default function FollowUpsPage() {
           if (nextFollowUpDate && nextFollowUpTime) {
             const nextDateTime = new Date(`${nextFollowUpDate}T${nextFollowUpTime}`);
             await createFollowUpAction({
-              customerId: selectedCustomerId,
+              customerId: selectedEntityType === "account" ? selectedCustomerId : null,
+              leadId: selectedEntityType === "lead" ? selectedLeadId : null,
               nextMeetingDate: nextDateTime,
               remarks: `Next scheduled meeting details. Type: ${nextFollowUpType}`,
               notes: `Next scheduled meeting details. Type: ${nextFollowUpType}`,
@@ -302,6 +331,7 @@ export default function FollowUpsPage() {
               sourceType: "MANUAL",
               assignedUserId: user?.role === "SalesExecutive" ? user.id : assignedToId,
               autoCreated: false,
+              type: nextFollowUpType as any,
             });
           }
 
@@ -398,11 +428,20 @@ export default function FollowUpsPage() {
   };
 
   // Client Filtering logic
+  // Client Filtering logic
+  const [entityTypeFilter, setEntityTypeFilter] = useState<"All" | "Leads" | "Accounts">("All");
+
   const filtered = followUps.filter((f) => {
-    const custName = (f.customerName || "").toLowerCase();
+    const custName = (f.customerName || f.leadName || "").toLowerCase();
     const notesStr = (f.notes || f.remarks || "").toLowerCase();
     const term = search.toLowerCase();
     const matchesSearch = custName.includes(term) || notesStr.includes(term);
+
+    // Entity Type Filter
+    if (entityTypeFilter !== "All") {
+      if (entityTypeFilter === "Leads" && !f.leadId) return false;
+      if (entityTypeFilter === "Accounts" && !f.customerId) return false;
+    }
 
     // Status Filter
     if (statusFilter !== "All") {
@@ -486,7 +525,7 @@ export default function FollowUpsPage() {
       {/* ── Table Filter Toolbar ── */}
       <div className="crm-card mt-6 overflow-hidden flex flex-col">
         <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <h3 className="text-lg font-extrabold text-slate-800">Leads List</h3>
+          <h3 className="text-lg font-extrabold text-slate-800">Follow Ups Hub</h3>
           
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {/* Search */}
@@ -500,6 +539,17 @@ export default function FollowUpsPage() {
                 className="w-full sm:w-56 pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all font-medium text-slate-700"
               />
             </div>
+
+            {/* Entity type select */}
+            <select
+              value={entityTypeFilter}
+              onChange={(e) => setEntityTypeFilter(e.target.value as any)}
+              className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50 cursor-pointer focus:outline-none hover:bg-slate-100/60 transition-colors"
+            >
+              <option value="All">All Types</option>
+              <option value="Leads">Leads Only</option>
+              <option value="Accounts">Accounts Only</option>
+            </select>
 
             {/* Status select */}
             <select
@@ -582,7 +632,8 @@ export default function FollowUpsPage() {
                   const isToday = f.badgeStatus === "TODAY" && !isCompleted;
 
                   // Initials Circle
-                  const nameParts = (f.customerName || "U").split(" ");
+                  const displayName = f.customerName || f.leadName || "Unknown";
+                  const nameParts = displayName.split(" ");
                   const initials = nameParts.map((n: string) => n[0]).join("").substring(0, 2).toUpperCase();
                   const avatarColorClass = AVATAR_COLORS[index % AVATAR_COLORS.length];
 
@@ -590,7 +641,13 @@ export default function FollowUpsPage() {
                     <tr
                       key={f.id}
                       className="crm-tr table-row-clickable"
-                      onClick={() => router.push(`/follow-up/${f.id}`)}
+                      onClick={() => {
+                        if (f.leadId) {
+                          router.push(`/leads/${f.leadId}`);
+                        } else if (f.customerId) {
+                          router.push(`/customer-master/${f.customerId}`);
+                        }
+                      }}
                     >
                       <td className="crm-td text-center text-slate-400 text-xs">{index + 1}</td>
                       <td className="crm-td">
@@ -599,25 +656,26 @@ export default function FollowUpsPage() {
                             {initials}
                           </div>
                           <div className="flex flex-col">
-                            <span className="row-primary-link text-sm block leading-tight">{f.customerName || f.leadName || "Unknown"}</span>
-                            {f.leadId && (
-                              <Link href={`/leads/${f.leadId}`} className="text-[10px] text-blue-500 hover:underline" onClick={e => e.stopPropagation()}>
-                                Lead: {f.leadCode || "View"}
-                              </Link>
-                            )}
-                            {f.customerId && (
-                              <Link href={`/customer-master/${f.customerId}`} className="text-[10px] text-emerald-500 hover:underline" onClick={e => e.stopPropagation()}>
-                                Customer: {f.customerCode || "View"}
-                              </Link>
-                            )}
+                            <span className="row-primary-link text-sm block leading-tight">{displayName}</span>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              {f.leadId ? (
+                                <span className="inline-flex items-center text-[10px] bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5 font-bold">
+                                  Lead
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-100 rounded px-1.5 py-0.5 font-bold">
+                                  Account
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
                       <td className="crm-td text-slate-500 font-medium">
-                        {getCompanyName(f.customerName)}
+                        {f.leadId ? (f.leadCompanyName || "—") : getCompanyName(f.customerName)}
                       </td>
                       <td className="crm-td text-slate-600 font-mono text-xs">
-                        {f.customer?.phone || "+91 9876543210"}
+                        {f.customer?.phone || (f.leadId ? "—" : "+91 9876543210")}
                       </td>
                       <td className="crm-td text-slate-600 font-medium">
                         {f.assignedUser?.name || "System"}
@@ -725,28 +783,78 @@ export default function FollowUpsPage() {
                       Lead Information
                     </h3>
                     
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* Entity Type Toggle & Selector */}
+                    <div className="grid grid-cols-2 gap-3 mb-3">
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
-                          Lead Name <span className="text-red-500">*</span>
+                          Entity Type
                         </label>
                         <select
-                          value={selectedCustomerId}
-                          onChange={(e) => setSelectedCustomerId(e.target.value)}
+                          value={selectedEntityType}
+                          onChange={(e) => {
+                            setSelectedEntityType(e.target.value as any);
+                            setSelectedCustomerId("");
+                            setSelectedLeadId("");
+                            setCompanyName("");
+                            setPhoneNo("");
+                            setEmailId("");
+                          }}
                           disabled={drawerMode === "edit"}
-                          className={`w-full px-3 py-2 rounded-xl bg-slate-50 border text-xs focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all text-slate-700 font-semibold cursor-pointer ${fieldErrors.customer ? "border-red-300 ring-2 ring-red-100" : "border-slate-250"}`}
+                          className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700 font-semibold cursor-pointer focus:outline-none"
                         >
-                          <option value="">Select Account...</option>
-                          {customers.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name} ({c.customerCode})
-                            </option>
-                          ))}
+                          <option value="account">Account</option>
+                          <option value="lead">Lead</option>
                         </select>
-                        {fieldErrors.customer && (
-                          <p className="text-[10px] text-red-500 font-bold mt-1">{fieldErrors.customer}</p>
-                        )}
                       </div>
+
+                      {selectedEntityType === "account" ? (
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            Account Name <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={selectedCustomerId}
+                            onChange={(e) => setSelectedCustomerId(e.target.value)}
+                            disabled={drawerMode === "edit"}
+                            className={`w-full px-3 py-2 rounded-xl bg-slate-50 border text-xs focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all text-slate-700 font-semibold cursor-pointer ${fieldErrors.customer ? "border-red-300 ring-2 ring-red-100" : "border-slate-250"}`}
+                          >
+                            <option value="">Select Account...</option>
+                            {customers.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name} ({c.customerCode})
+                              </option>
+                            ))}
+                          </select>
+                          {fieldErrors.customer && (
+                            <p className="text-[10px] text-red-500 font-bold mt-1">{fieldErrors.customer}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">
+                            Lead Name <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={selectedLeadId}
+                            onChange={(e) => setSelectedLeadId(e.target.value)}
+                            disabled={drawerMode === "edit"}
+                            className={`w-full px-3 py-2 rounded-xl bg-slate-50 border text-xs focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all text-slate-700 font-semibold cursor-pointer ${fieldErrors.lead ? "border-red-300 ring-2 ring-red-100" : "border-slate-250"}`}
+                          >
+                            <option value="">Select Lead...</option>
+                            {leads.map((l) => (
+                              <option key={l.id} value={l.id}>
+                                {l.name} ({l.leadCode})
+                              </option>
+                            ))}
+                          </select>
+                          {fieldErrors.lead && (
+                            <p className="text-[10px] text-red-500 font-bold mt-1">{fieldErrors.lead}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">

@@ -409,6 +409,8 @@ model FollowUp {
   deletedById       String?
   type              String?
   nextFollowupId    String?
+  entityType        String?
+  entityId          String?
   communicationLogs CommunicationLog[]
   assignedUser      User               @relation("AssignedFollowUps", fields: [assignedUserId], references: [id], onUpdate: NoAction)
   company           Company?           @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -426,6 +428,7 @@ model FollowUp {
   @@index([completedById])
   @@index([companyId])
   @@index([type])
+  @@index([entityType, entityId])
   @@index([assignedUserId, status, nextMeetingDate])
 }
 

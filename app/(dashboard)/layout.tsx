@@ -323,6 +323,7 @@ function SidebarContent({
     { href: "/leads", label: "All Leads" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?status=TodayFollowUp", label: "Today's Follow Up" },
+    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-ups" },
     { href: "/leads?status=SQL", label: "SQL" },
     { href: "/leads?status=Overdue", label: "Overdue Leads" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
@@ -331,6 +332,7 @@ function SidebarContent({
     { href: "/leads", label: "All Leads" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?status=TodayFollowUp", label: "Today's Follow-up" },
+    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-ups" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
 

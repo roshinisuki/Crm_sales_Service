@@ -188,13 +188,13 @@
 }
 
 [data-theme="forest-light"] {
-  --brand-primary: #BBDD48; --brand-primary-hover: #234302; --brand-primary-light: #E8F8D8; --brand-primary-border: #A3D97A; --brand-primary-text: #234302;
-  --accent: #BBDD48; --accent-hover: #234302; --accent-soft: rgba(122,181,44,0.12); --accent-text: #234302; --accent-contrast: #FFFFFF;
+  --brand-primary: #3A7A0A; --brand-primary-hover: #1E4A04; --brand-primary-light: #D6EEC5; --brand-primary-border: #5FA830; --brand-primary-text: #1E4A04;
+  --accent: #3A7A0A; --accent-hover: #1E4A04; --accent-soft: rgba(58,122,10,0.10); --accent-text: #1E4A04; --accent-contrast: #FFFFFF;
   --bg: #F9FAFB; --surface: #FFFFFF; --surface-1: #F9FAFB; --surface-2: #F3F4F6; --surface-offset: #EAF5EE;
   --border: #E5E7EB; --border-subtle: #F3F4F6; --border-default: #E5E7EB;
   --text-primary: #111827; --text-secondary: #6B7280; --text-muted: #9CA3AF; --text-tertiary: #9CA3AF; --text-on-brand: #FFFFFF;
   --table-header-bg: color-mix(in srgb, var(--brand-primary) 8%, var(--surface)); --table-header-text: var(--text-secondary); --table-hover-bg: var(--surface-1); --table-selected-bg: var(--accent-soft); --table-row-alt-bg: var(--surface-2);
-  --sidebar-bg: #0E0E0E; --sidebar-hover: color-mix(in srgb, #BBDD48 15%, transparent); --sidebar-active: #BBDD48; --sidebar-active-bg: #BBDD48;
+  --sidebar-bg: #0E0E0E; --sidebar-hover: color-mix(in srgb, #3A7A0A 18%, transparent); --sidebar-active: #3A7A0A; --sidebar-active-bg: #3A7A0A;
   --sidebar-text: #A8A6A0; --sidebar-text-act: #FFFFFF; --sidebar-heading: #A8A6A0;
   --topbar-bg: #F4F9F5; --topbar-border: #DFEFE3;
   --success: var(--status-success); --success-bg: var(--status-success-bg); --warning: var(--status-warning); --warning-bg: var(--status-warning-bg);
@@ -211,13 +211,13 @@
 }
 
 [data-theme="forest-dark"] {
-  --brand-primary: #BBDD48; --brand-primary-hover: #234302; --brand-primary-light: #2A4E0A; --brand-primary-border: #A3D97A; --brand-primary-text: #EAF8D8;
-  --accent: #BBDD48; --accent-hover: #234302; --accent-soft: rgba(122,181,44,0.2); --accent-text: #8CD149; --accent-contrast: #1A1A1A;
+  --brand-primary: #4E9A12; --brand-primary-hover: #2E6007; --brand-primary-light: #1C3A08; --brand-primary-border: #5FA830; --brand-primary-text: #C8EEA0;
+  --accent: #4E9A12; --accent-hover: #2E6007; --accent-soft: rgba(78,154,18,0.18); --accent-text: #80CC40; --accent-contrast: #FFFFFF;
   --bg: #000000; --surface: #0a130e; --surface-1: #101d15; --surface-2: #15261d; --surface-offset: #0B2A15;
   --border: #15261d; --border-subtle: #0f1c15; --border-default: #15261d;
-  --text-primary: #F9FAFB; --text-secondary: #9CA3AF; --text-muted: #6B7280; --text-tertiary: #6B7280; --text-on-brand: #1A1A1A;
-  --table-header-bg: #122017; --table-header-text: #9CA3AF; --table-hover-bg: #101d15; --table-selected-bg: rgba(122,181,44,0.12); --table-row-alt-bg: #0d1a12;
-  --sidebar-bg: #0E0E0E; --sidebar-hover: color-mix(in srgb, #BBDD48 15%, transparent); --sidebar-active: #BBDD48; --sidebar-active-bg: #BBDD48;
+  --text-primary: #F9FAFB; --text-secondary: #9CA3AF; --text-muted: #6B7280; --text-tertiary: #6B7280; --text-on-brand: #FFFFFF;
+  --table-header-bg: #122017; --table-header-text: #9CA3AF; --table-hover-bg: #101d15; --table-selected-bg: rgba(78,154,18,0.14); --table-row-alt-bg: #0d1a12;
+  --sidebar-bg: #0E0E0E; --sidebar-hover: color-mix(in srgb, #4E9A12 18%, transparent); --sidebar-active: #4E9A12; --sidebar-active-bg: #4E9A12;
   --sidebar-text: #A8A6A0; --sidebar-text-act: #FFFFFF; --sidebar-heading: #A8A6A0;
   --topbar-bg: #082110; --topbar-border: #113C1E;
   --success: var(--status-success); --success-bg: rgba(16,185,129,0.2); --warning: var(--status-warning); --warning-bg: rgba(245,158,11,0.2);
@@ -604,7 +604,6 @@ body {
 @utility crm-tr {
   transition: background-color 120ms ease;
   background-color: var(--surface);
-  &:nth-child(even) { background-color: var(--table-row-alt-bg); }
   &:hover { background-color: var(--table-hover-bg); }
   &:last-child td { border-bottom: none; }
 }
@@ -1251,10 +1250,7 @@ html.dark .crm-table-wrapper tbody tr {
   transition: background-color 120ms ease;
 }
 
-html.dark .crm-card tbody tr:nth-child(even),
-html.dark .crm-table-wrapper tbody tr:nth-child(even) {
-  background-color: var(--table-row-alt-bg) !important;
-}
+
 
 html.dark .crm-card tbody tr:hover,
 html.dark .crm-table-wrapper tbody tr:hover,

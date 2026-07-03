@@ -1,0 +1,145 @@
+"use client";
+
+import React, { useState } from "react";
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+
+export type ColumnDef<T> = {
+  header: string;
+  accessorKey?: keyof T | string;
+  cell?: (row: T) => React.ReactNode;
+  width?: string;
+  align?: "left" | "center" | "right";
+  sortable?: boolean;
+};
+
+interface DataTableProps<T> {
+  data: T[];
+  columns: ColumnDef<T>[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    totalCount?: number;
+    pageSize?: number;
+  };
+  onSort?: (key: string, direction: "asc" | "desc") => void;
+  defaultSortKey?: string;
+}
+
+export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey }: DataTableProps<T>) {
+  const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const handleSort = (key: string) => {
+    let newDir: "asc" | "desc" = "asc";
+    if (sortKey === key && sortDir === "asc") {
+      newDir = "desc";
+    }
+    setSortKey(key);
+    setSortDir(newDir);
+    if (onSort) onSort(key, newDir);
+  };
+
+  return (
+    <div className="w-full bg-card border border-border rounded-lg overflow-hidden flex flex-col">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse min-w-max">
+          <thead>
+            <tr className="border-b border-border bg-card">
+              {columns.map((col, idx) => (
+                <th
+                  key={idx}
+                  style={{ width: col.width }}
+                  className={`py-3 px-4 text-[13px] font-medium text-foreground normal-case tracking-normal align-middle ${
+                    col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                  } ${col.sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
+                  onClick={() => {
+                    if (col.sortable && col.accessorKey) {
+                      handleSort(col.accessorKey as string);
+                    }
+                  }}
+                >
+                  <div className={`flex items-center gap-1 ${col.align === "right" ? "justify-end" : col.align === "center" ? "justify-center" : "justify-start"}`}>
+                    {col.header}
+                    {col.sortable && (
+                      <span className="inline-flex flex-col ml-1">
+                        <ChevronUp className={`w-3 h-3 -mb-1 ${sortKey === col.accessorKey && sortDir === "asc" ? "text-foreground" : "text-muted-foreground/40"}`} />
+                        <ChevronDown className={`w-3 h-3 ${sortKey === col.accessorKey && sortDir === "desc" ? "text-foreground" : "text-muted-foreground/40"}`} />
+                      </span>
+                    )}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="py-8 text-center text-sm text-muted-foreground">
+                  No data available.
+                </td>
+              </tr>
+            ) : (
+              data.map((row, rowIdx) => (
+                <tr
+                  key={rowIdx}
+                  className="bg-card hover:bg-muted/50 dark:hover:bg-muted/30 border-b border-border transition-colors last:border-b-0 group"
+                >
+                  {columns.map((col, colIdx) => (
+                    <td
+                      key={colIdx}
+                      style={{ width: col.width }}
+                      className={`py-3.5 px-4 text-[14px] text-foreground align-middle ${
+                        col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                      }`}
+                    >
+                      {col.cell ? col.cell(row) : col.accessorKey ? (row as any)[col.accessorKey] : null}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {pagination && (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-card">
+          <div className="text-sm text-muted-foreground">
+            {pagination.totalCount !== undefined && pagination.pageSize !== undefined ? (
+              <>
+                Showing{" "}
+                <span className="font-medium text-foreground">
+                  {Math.min((pagination.currentPage - 1) * pagination.pageSize + 1, pagination.totalCount)}
+                </span>{" "}
+                to{" "}
+                <span className="font-medium text-foreground">
+                  {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalCount)}
+                </span>{" "}
+                of <span className="font-medium text-foreground">{pagination.totalCount}</span> entries
+              </>
+            ) : (
+              <>Page {pagination.currentPage} of {pagination.totalPages}</>
+            )}
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+              disabled={pagination.currentPage <= 1}
+              className="p-1 border border-border rounded text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+              disabled={pagination.currentPage >= pagination.totalPages}
+              className="p-1 border border-border rounded text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

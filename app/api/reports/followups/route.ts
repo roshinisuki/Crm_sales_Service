@@ -129,28 +129,10 @@ export async function GET(request: Request) {
         }, 0) / overdueFollowUps.length)
       : 0;
 
-    const now = new Date();
-    const formattedFollowUps = followUps.map((f) => {
-      const daysOverdue = f.nextMeetingDate && new Date(f.nextMeetingDate) < now && f.status !== "Completed" && f.status !== "Cancelled"
-        ? Math.floor((now.getTime() - new Date(f.nextMeetingDate).getTime()) / (1000 * 60 * 60 * 24))
-        : 0;
-      const relatedTo = f.customer?.name || f.lead?.name || "—";
-      return {
-        id: f.id,
-        followupType: f.type || "—",
-        relatedTo,
-        scheduledDatetime: f.nextMeetingDate ? new Date(f.nextMeetingDate).toISOString() : null,
-        assignedToName: f.assignedUser?.name || "—",
-        status: f.status,
-        outcomeNotes: f.completionNotes || f.notes || "",
-        daysOverdue,
-      };
-    });
-
     return NextResponse.json({
       success: true,
       data: {
-        followUps: formattedFollowUps,
+        followUps,
         summary: {
           totalFollowUps,
           pendingCount,

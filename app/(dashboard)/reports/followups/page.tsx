@@ -10,6 +10,7 @@ import { getUsersAction } from "@/app/actions/users";
 import { Calendar, Clock, CheckCircle, AlertCircle, Download } from "lucide-react";
 import { ReportFilterLayout, FilterField, filterInputClass } from "@/components/reports/ReportFilterLayout";
 import ReportActions from "@/components/reports/ReportActions";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 function FollowUpReportContent() {
   const router = useRouter();
@@ -247,33 +248,17 @@ function FollowUpReportContent() {
                         </td>
                         <td className="crm-td px-5 py-4 font-medium text-slate-600">{item.assignedUser?.name || "—"}</td>
                         <td className="crm-td px-5 py-4 text-slate-550 text-xs">
-                          {new Date(item.nextMeetingDate).toLocaleDateString("en-US", {
+                          {item.nextMeetingDate ? new Date(item.nextMeetingDate).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
                             year: "numeric"
-                          })}
+                          }) : "Not scheduled"}
                         </td>
                         <td className="crm-td px-5 py-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                            item.status === "Completed"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : item.status === "Overdue"
-                              ? "bg-red-50 text-red-700 border-red-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}>
-                            {item.status}
-                          </span>
+                          <StatusBadge status={item.status || "Pending"} />
                         </td>
                         <td className="crm-td px-5 py-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                            item.priority === "High"
-                              ? "bg-red-50 text-red-650 border-red-200"
-                              : item.priority === "Low"
-                              ? "bg-emerald-50 text-emerald-650 border-emerald-200"
-                              : "bg-orange-50 text-orange-650 border-orange-200"
-                          }`}>
-                            {item.priority || "Medium"}
-                          </span>
+                          <StatusBadge status={item.priority || "Medium"} />
                         </td>
                         <td className="crm-td px-5 py-4 text-slate-500 text-xs">
                           {isCompleted && item.completedAt ? new Date(item.completedAt).toLocaleDateString("en-US", {

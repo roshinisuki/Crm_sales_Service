@@ -15,7 +15,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
-import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
+import LeadCreatedWorkflowModal from "@/components/leads/LeadCreatedWorkflowModal";
 import { CRMSpinner } from "@/components/CRMSpinner";
 import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import {
@@ -32,6 +32,7 @@ const V2_TABS = [
   { key: "", label: "All Leads" },
   { key: "New", label: "New" },
   { key: "TodayFollowUp", label: "Today's Follow Up" },
+  { key: "UpcomingFollowUp", label: "Upcoming Follow-ups" },
   { key: "SQL", label: "SQL" },
   { key: "Overdue", label: "Overdue" },
   { key: "Lost", label: "Lost" },
@@ -116,9 +117,9 @@ export default function LeadsPage() {
     isOpen: false, title: "", message: "", action: () => {},
   });
 
-  // Success overlay for guided flow after lead creation
-  const [successOverlay, setSuccessOverlay] = useState<{ open: boolean; message: string; primary: SuccessAction; secondary?: SuccessAction; alternate?: SuccessAction }>({
-    open: false, message: "", primary: { label: "", href: "" },
+  // Workflow modal — fires after new lead is created (Plan Visit → Log Activity)
+  const [workflowModal, setWorkflowModal] = useState<{ open: boolean; leadId: string; leadCode: string; leadName: string }>({
+    open: false, leadId: "", leadCode: "", leadName: "",
   });
 
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -141,6 +142,9 @@ export default function LeadsPage() {
   useEffect(() => {
     if (statusParam === "TodayFollowUp") {
       setActiveTab("TodayFollowUp");
+      setStatusFilter("");
+    } else if (statusParam === "UpcomingFollowUp") {
+      setActiveTab("UpcomingFollowUp");
       setStatusFilter("");
     } else if (statusParam) {
       setActiveTab(statusParam);
@@ -215,6 +219,12 @@ export default function LeadsPage() {
           new Date(f.nextMeetingDate) < new Date(startOfToday.getTime() + 86400000)
         );
         if (!hasTodayFU) return false;
+      } else if (activeTab === "UpcomingFollowUp") {
+        if (l.status === "Lost" || l.status === "Converted") return false;
+        const hasUpcomingFU = (l as any).followUps?.some((f: any) =>
+          (f.status === "Pending" || f.status === "Scheduled") && new Date(f.nextMeetingDate) >= startOfToday
+        );
+        if (!hasUpcomingFU) return false;
       } else if (activeTab === "Overdue") {
         // Overdue is a computed filter — not a stored status value.
         // A lead is overdue if it has a pending follow-up with a date in the past
@@ -266,7 +276,23 @@ export default function LeadsPage() {
     });
   }, [leads, dateFrom, dateTo, followUpParam, fuStatusFilter, activeTab, scoreMin, scoreMax]);
 
-  const { page, setPage, totalPages, paged, total } = usePagination(filtered, 10);
+  const sortedAndFiltered = useMemo(() => {
+    let result = filtered;
+    if (activeTab === "UpcomingFollowUp" || activeTab === "TodayFollowUp") {
+      result = [...filtered].sort((a: any, b: any) => {
+        const aPending = a.followUps?.filter((f: any) => f.status === "Pending" || f.status === "Scheduled");
+        const bPending = b.followUps?.filter((f: any) => f.status === "Pending" || f.status === "Scheduled");
+        const aFU = aPending && aPending.length > 0 ? [...aPending].sort((x: any, y: any) => new Date(x.nextMeetingDate).getTime() - new Date(y.nextMeetingDate).getTime())[0] : null;
+        const bFU = bPending && bPending.length > 0 ? [...bPending].sort((x: any, y: any) => new Date(x.nextMeetingDate).getTime() - new Date(y.nextMeetingDate).getTime())[0] : null;
+        if (!aFU) return 1;
+        if (!bFU) return -1;
+        return new Date(aFU.nextMeetingDate).getTime() - new Date(bFU.nextMeetingDate).getTime();
+      });
+    }
+    return result;
+  }, [filtered, activeTab]);
+
+  const { page, setPage, totalPages, paged, total } = usePagination(sortedAndFiltered, 10);
 
   // ── KPI counts ────────────────────────────────────────────────────────────
 
@@ -382,19 +408,14 @@ export default function LeadsPage() {
       setIsModalOpen(false);
       toast.success(formData.id ? "Lead updated successfully." : "Lead created successfully.");
       loadLeads();
-      // Show SuccessOverlay for new leads (not edits)
+      // Open guided workflow modal for new leads (Plan Visit → Log Activity)
       if (!formData.id) {
         const newLead = res.data as any;
-        setSuccessOverlay({
+        setWorkflowModal({
           open: true,
-          message: `Lead ${newLead?.leadCode || ""} created for ${formData.name}`,
-          primary: {
-            label: "Log First Call",
-            icon: <PhoneCall size={16} />,
-            onClick: () => handleLeadContact(newLead?.id || ""),
-          },
-          secondary: { label: "Create Follow-Up Now", href: `/follow-up/new?leadId=${newLead?.id || ""}`, icon: <CalendarClock size={16} /> },
-          alternate: { label: "View All Leads", href: "/leads?status=New" },
+          leadId: newLead?.id || "",
+          leadCode: newLead?.leadCode || "",
+          leadName: formData.name,
         });
       }
     } else {
@@ -467,15 +488,15 @@ export default function LeadsPage() {
           label="Total Leads"
           value={kpiTotal}
           subtitle="All pipeline leads"
-          icon={<Users size={20} />}
-          variant="orange"
+          icon={<Users size={20} className="text-slate-500" />}
+          variant="light"
           onClick={() => { setActiveTab(""); setPage(1); }}
         />
         <SummaryCard
           label="New Leads"
           value={kpiNew}
           subtitle="Awaiting first contact"
-          icon={<PhoneCall size={20} />}
+          icon={<PhoneCall size={20} className="text-blue-500" />}
           variant="blue"
           onClick={() => { setActiveTab("New"); setPage(1); }}
         />
@@ -485,6 +506,7 @@ export default function LeadsPage() {
           subtitle="Scheduled for today"
           icon={<CalendarClock size={20} />}
           variant="indigo"
+          accentWhenPositive={true}
           onClick={() => { setActiveTab("TodayFollowUp"); setPage(1); }}
         />
         <SummaryCard
@@ -493,6 +515,7 @@ export default function LeadsPage() {
           subtitle="Sales Qualified Leads"
           icon={<TrendingUp size={20} />}
           variant="amber"
+          accentWhenPositive={true}
           onClick={() => { setActiveTab("SQL"); setPage(1); }}
         />
         <SummaryCard
@@ -501,6 +524,7 @@ export default function LeadsPage() {
           subtitle="SLA breached / overdue FU"
           icon={<AlertTriangle size={20} />}
           variant="red"
+          accentWhenPositive={true}
           onClick={() => { setActiveTab("Overdue"); setPage(1); }}
         />
       </div>
@@ -603,10 +627,11 @@ export default function LeadsPage() {
             <colgroup>
               <col style={{ width: "45px" }} />
               <col style={{ width: "90px" }} />
-              <col style={{ width: "160px" }} />
-              <col style={{ width: "130px" }} />
+              <col style={{ width: "150px" }} />
+              <col style={{ width: "110px" }} />
               <col style={{ width: "90px" }} />
               <col style={{ width: "110px" }} />
+              <col style={{ width: "120px" }} />
               <col style={{ width: "90px" }} />
               <col style={{ width: "55px" }} />
               <col style={{ width: "90px" }} />
@@ -623,6 +648,7 @@ export default function LeadsPage() {
                 <th className="crm-th">Company</th>
                 <th className="crm-th">Industry</th>
                 <th className="crm-th">Phone</th>
+                <th className="crm-th">Next Follow-up</th>
                 <th className="crm-th">Source</th>
                 <th className="crm-th text-center">Score</th>
                 <th className="crm-th">Status</th>
@@ -650,13 +676,14 @@ export default function LeadsPage() {
                          activeTab === "Duplicate" ? <Copy size={28} className="text-slate-300 dark:text-slate-600" /> :
                          activeTab === "Overdue" ? <AlertTriangle size={28} className="text-slate-300 dark:text-slate-600" /> :
                          activeTab === "SQL" ? <CheckCircle size={28} className="text-slate-300 dark:text-slate-600" /> :
-                         activeTab === "TodayFollowUp" ? <CalendarClock size={28} className="text-slate-300 dark:text-slate-600" /> :
+                         activeTab === "TodayFollowUp" || activeTab === "UpcomingFollowUp" ? <CalendarClock size={28} className="text-slate-300 dark:text-slate-600" /> :
                          <Users size={28} className="text-slate-300 dark:text-slate-600" />}
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
                           {activeTab === "New" ? "No new leads awaiting contact" :
                            activeTab === "TodayFollowUp" ? "No follow-ups due today" :
+                           activeTab === "UpcomingFollowUp" ? "No upcoming follow-ups scheduled" :
                            activeTab === "SQL" ? "No Sales Qualified Leads yet" :
                            activeTab === "Overdue" ? "No overdue leads — all caught up!" :
                            activeTab === "Lost" ? "No lost leads in this period" :
@@ -664,7 +691,7 @@ export default function LeadsPage() {
                            "No leads found"}
                         </p>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                          {activeTab === "TodayFollowUp" ? "Check back tomorrow or view All Leads" :
+                          {activeTab === "TodayFollowUp" || activeTab === "UpcomingFollowUp" ? "Check back tomorrow or view All Leads" :
                            activeTab === "SQL" ? "Qualify leads via BANT checklist to promote" :
                            activeTab === "Duplicate" ? "Duplicates are auto-detected on phone match" :
                            "Try adjusting your filters or add a new lead"}
@@ -692,16 +719,41 @@ export default function LeadsPage() {
                       <span className="text-[11px] font-mono font-bold text-theme-secondary bg-surface-2 px-1.5 py-0.5 rounded">{l.leadCode || "—"}</span>
                     </td>
                     <td className="crm-td">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0", getAvatarColor(l.name))}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={cn("w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 text-white shadow-sm", getAvatarColor(l.name))}>
                           {getInitials(l.name)}
                         </div>
-                        <span className="row-primary-link text-xs truncate">{l.name}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="row-primary-link text-xs font-bold truncate leading-snug">{l.name}</span>
+                          <span className="text-[10px] text-theme-muted truncate">{(l as any).companyName || "—"}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="crm-td text-theme-secondary text-xs truncate">{(l as any).companyName || l.city || "—"}</td>
                     <td className="crm-td text-theme-muted text-xs truncate">{(l as any).industryType || "—"}</td>
                     <td className="crm-td text-theme-secondary text-[11px] font-mono">{l.phone || "—"}</td>
+                    <td className="crm-td">
+                      {(() => {
+                        const fups = (l as any).followUps || [];
+                        const pendingFu = fups.find((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue");
+                        if (!pendingFu) return <span className="text-xs text-theme-muted font-medium">—</span>;
+                        const date = new Date(pendingFu.nextMeetingDate);
+                        const isOverdue = date < new Date();
+                        if (isOverdue) {
+                          return (
+                            <span className="inline-flex items-center text-[10px] bg-red-50 text-red-700 border border-red-150 rounded-lg px-2 py-0.5 font-bold animate-pulse">
+                              Overdue &middot; {date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="text-xs text-theme-secondary font-medium">
+                            {date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}{" "}
+                            {date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        );
+                      })()}
+                    </td>
                     <td className="crm-td text-theme-muted text-xs truncate">{(l as any).leadSource || "—"}</td>
                     <td className="crm-td text-center">
                       {(() => {
@@ -1018,13 +1070,13 @@ export default function LeadsPage() {
         isDestructive
       />
 
-      <SuccessOverlay
-        open={successOverlay.open}
-        message={successOverlay.message}
-        primary={successOverlay.primary}
-        secondary={successOverlay.secondary}
-        alternate={successOverlay.alternate}
-        onClose={() => setSuccessOverlay(o => ({ ...o, open: false }))}
+      {/* Guided post-creation workflow: Lead Created → Plan Visit → Log Activity */}
+      <LeadCreatedWorkflowModal
+        open={workflowModal.open}
+        leadId={workflowModal.leadId}
+        leadCode={workflowModal.leadCode}
+        leadName={workflowModal.leadName}
+        onClose={() => setWorkflowModal(o => ({ ...o, open: false }))}
       />
 
       <LeadImportModal

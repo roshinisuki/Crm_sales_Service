@@ -83,7 +83,7 @@ export function SummaryCard({
 
         {/* Value */}
         <p
-          className="text-[22px] font-medium tracking-tight"
+          className="text-[22px] font-medium tracking-tight leading-normal"
           style={{ color: showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-primary)" }}
         >
           {isNumeric ? (

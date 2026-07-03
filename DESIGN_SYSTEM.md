@@ -1,27 +1,15 @@
 # Suki CRM — Design System
 
-## Table Header Color Rule
-
-- Table headers always use `bg-primary` `text-white`.
-- This automatically follows the user's active theme color (orange, blue, green, purple).
-- The `--primary` CSS variable is mapped to `--accent` (the brand color) in `styles/themes.css` and `app/globals.css`.
-- Never hardcode a specific color for table headers.
-- Header text is always white for readability on any theme color.
-- Use `crm-th` utility class or the `TableHead` shadcn component, both of which apply this rule automatically.
-
 ## Table Standards
 
-- Wrap tables in `crm-card overflow-hidden` or a shadcn `Card` for consistent borders and rounded corners.
-- Use `crm-table` for tables that use the CSS utility system, or the shadcn `Table` primitives.
-- Header row height: `48px` (`h-12`).
-- Data row height: `56px` (`h-14`).
-- Cell padding: `px-4 py-3`.
-- Header text: `text-sm font-semibold uppercase tracking-wider text-white`.
-- Data text: `text-sm text-foreground`.
-- Empty/null values: show `—` in `text-muted-foreground`.
-- Row hover: `hover:bg-muted/50` (light mode), `dark:hover:bg-muted/30` (dark mode).
-- Alternating rows: `odd:bg-background even:bg-muted/20` (light mode), `dark:odd:bg-card dark:even:bg-muted/10` (dark mode).
-- Last row: no border bottom.
+- **Core Component**: All tables must use the shared `DataTable` component from `@/components/shared/DataTable`.
+- **Background**: Tables have a pure white (or card background in dark mode) background. NO alternating row colors (zebra striping).
+- **Row Separation**: Use a single thin (1px) light-gray horizontal divider (`border-b`) between rows.
+- **Hover State**: Rows should have a subtle hover tint (`hover:bg-muted/50` in light, `dark:hover:bg-muted/30` in dark) to help track the current row.
+- **Spacing/Padding**: Generous spacing. Cells must have minimum `14px` vertical padding (`py-3.5` or `py-4`) so rows feel spacious.
+- **Headers**: Distinguishable from body (e.g. subtle bottom border). Header text should be readable: `text-sm font-medium text-foreground`, NOT light gray. Use sentence case or capitalized-first-letter, NOT all-caps. No colored headers (`bg-primary`).
+- **Alignment**: Every column has a fixed width. Content is vertically centered. Text columns left-aligned, numeric columns right-aligned.
+- **Pagination**: Use a consistent pagination control at the bottom of the table. No infinite scroll.
 
 ## Theme Color System
 
