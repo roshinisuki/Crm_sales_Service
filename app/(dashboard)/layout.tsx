@@ -397,9 +397,8 @@ function SidebarContent({
 
   const salesPipelineSubItems = [
     { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
-    { href: "/sales-pipeline/pipeline-list?tab=SalesOpportunity", label: "Qualified" },
+    { href: "/sales-pipeline/pipeline-list?tab=Qualified", label: "Qualified" },
     { href: "/sales-pipeline/pipeline-list?tab=RequirementGathering", label: "Requirement Gathering" },
-    { href: "/sales-pipeline/pipeline-list?tab=TechnicalDiscussion", label: "Technical Discussion" },
     { href: "/sales-pipeline/pipeline-list?tab=MeetingScheduled", label: "Meeting Scheduled" },
     { href: "/sales-pipeline/pipeline-list?tab=DemoConducted", label: "Demo Conducted" },
     { divider: true },
@@ -594,14 +593,14 @@ function SidebarContent({
             theme={logoTheme}
             variant="mark-only"
             size={32}
-            className="transition-all duration-300 hover:scale-105 hover:drop-shadow-[0_0_8px_var(--brand-primary)]"
+            className="transition-all duration-300 hover:scale-105"
           />
         ) : (
           <Logo
             theme={logoTheme}
             variant="full"
             size={40}
-            className="transition-all duration-300 hover:scale-105 hover:drop-shadow-[0_0_8px_var(--brand-primary)]"
+            className="transition-all duration-300 hover:scale-105"
           />
         )}
       </div>

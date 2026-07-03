@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
@@ -9,6 +9,8 @@ import PageContainer from "@/components/PageContainer";
 import { PageShell } from "@/components/ui/PageShell";
 import { SummaryCard } from "@/components/ui/SummaryCard";
 import { CRMSpinner } from "@/components/CRMSpinner";
+import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
+import { REQUESTS_STATUS } from "@/lib/module-status-config";
 import { AlertTriangle, Clock, FileText, TrendingUp, AlertCircle, Trash2 } from "lucide-react";
 
 const statusColors: Record<string, string> = {
@@ -21,18 +23,17 @@ const statusColors: Record<string, string> = {
 
 const statusOptions = ["New", "UnderReview", "CostingPending", "QuotationCreated", "Closed"];
 
-export default function RFQListPage() {
+function RFQListContent() {
   const [rfqs, setRfqs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [stats, setStats] = useState<any>(null);
-  const searchParams = useSearchParams();
   const { user } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
 
-  const statusFilter = searchParams.get("status") || "";
+  const statusFilter = useStatusFromUrl("status");
 
   const loadRFQs = async () => {
     setLoading(true);
@@ -117,7 +118,7 @@ export default function RFQListPage() {
 
   return (
     <PageShell
-      title="RFQ"
+      title="Requests"
       subtitle="Manage Request for Quotations"
       action={
         <button
@@ -141,24 +142,12 @@ export default function RFQListPage() {
           </div>
         )}
 
-        {/* Status Tabs */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => router.push("/rfq")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-          >
-            All
-          </button>
-          {statusOptions.map((s) => (
-            <button
-              key={s}
-              onClick={() => router.push(`/rfq?status=${s}`)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
-            >
-              {s.replace(/([A-Z])/g, " $1").trim()}
-            </button>
-          ))}
-        </div>
+        {/* Status Filter Bar */}
+        <StatusFilterBar
+          statuses={REQUESTS_STATUS}
+          paramKey="status"
+          basePath="/rfq"
+        />
 
         {/* Search */}
         <div className="relative">
@@ -167,7 +156,7 @@ export default function RFQListPage() {
             placeholder="Search by RFQ code or customer name..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+            className="w-full max-w-sm px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
           />
         </div>
 
@@ -198,7 +187,9 @@ export default function RFQListPage() {
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="crm-td text-center py-8 text-muted-foreground">No RFQs found</td></tr>
+                  <tr><td colSpan={9} className="crm-td text-center py-16">
+                    <p className="text-sm font-semibold text-slate-500">No RFQs found</p>
+                  </td></tr>
                 ) : (
                   filtered.map((rfq: any) => {
                     const overdue = isOverdue(rfq);
@@ -260,5 +251,13 @@ export default function RFQListPage() {
         isDestructive={true}
       />
     </PageShell>
+  );
+}
+
+export default function RFQListPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+      <RFQListContent />
+    </Suspense>
   );
 }

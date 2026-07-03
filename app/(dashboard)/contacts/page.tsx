@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getContactsAction, deleteContactAction } from "@/app/actions/contacts";
@@ -11,6 +11,8 @@ import { SummaryCard } from "@/components/ui/SummaryCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
+import { DIRECTORY_STATUS } from "@/lib/module-status-config";
 import { Search, Filter, Plus, BookUser, Pencil, Trash2, Mail, Phone, User, Tag, Users, CheckCircle2, ArchiveX } from "lucide-react";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { CRMSpinner } from "@/components/CRMSpinner";
@@ -18,7 +20,7 @@ import { getInitials, getAvatarColor, cn } from "@/lib/ui-utils";
 
 const CONTACT_TYPES = ["Technical", "Purchase", "Finance", "Management"];
 
-export default function ContactsPage() {
+function ContactsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -28,7 +30,7 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const { startLoading, stopLoading } = useGlobalLoading();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const statusFilter = useStatusFromUrl("status");
   const [typeFilter, setTypeFilter] = useState(searchParams.get("type") || "");
 
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({
@@ -89,7 +91,7 @@ export default function ContactsPage() {
 
   return (
     <PageShell
-      title="Contacts"
+      title="Directory"
       subtitle="Manage contacts linked to customers and leads."
       action={
         <Link href="/contacts/new" className="btn-primary text-xs flex items-center gap-2">
@@ -105,6 +107,13 @@ export default function ContactsPage() {
           <SummaryCard label="Inactive" value={kpiInactive} subtitle="Inactive contacts" icon={<ArchiveX size={20} />} variant="red" />
         </div>
 
+        {/* Status Filter Bar */}
+        <StatusFilterBar
+          statuses={DIRECTORY_STATUS}
+          paramKey="status"
+          basePath="/contacts"
+        />
+
         {/* Filter bar */}
         <div className="crm-card bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative w-full md:w-80">
@@ -118,12 +127,7 @@ export default function ContactsPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-            <div className="flex items-center gap-2 text-xs text-slate-500"><Filter size={14} /> Filter:</div>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-1 focus:ring-[var(--primary)]">
-              <option value="">All Statuses</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+            <div className="flex items-center gap-2 text-xs text-slate-500"><Filter size={14} /> Type:</div>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setTypeFilter("")}
@@ -242,5 +246,13 @@ export default function ContactsPage() {
 
       <ConfirmModal isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.action} onCancel={() => setConfirmState((s) => ({ ...s, isOpen: false }))} />
     </PageShell>
+  );
+}
+
+export default function ContactsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+      <ContactsPageContent />
+    </Suspense>
   );
 }

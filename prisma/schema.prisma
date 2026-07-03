@@ -610,6 +610,10 @@ model OpportunityDetail {
   urgencyPriority        String?
   userRolesPermissions   String?   @db.NVarChar(Max)
   requirementCompletedAt DateTime?
+  sampleRequested        Boolean  @default(false)
+  sampleApproved         Boolean  @default(false)
+  sampleApprovedDate     DateTime?
+  sampleRejectedReason   String?  @db.NVarChar(Max)
   deal                   Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
 }
 
@@ -631,19 +635,21 @@ model CallLog {
 }
 
 model DealStageHistory {
-  id                  Int      @id @default(autoincrement())
-  dealId              String
-  fromStatus          String?
-  toStatus            String
-  changedById         String
-  changedAt           DateTime @default(now())
-  daysInPreviousStage Int?
-  notes               String?  @db.NVarChar(Max)
-  changedBy           User     @relation(fields: [changedById], references: [id], onUpdate: NoAction)
-  deal                Deal     @relation(fields: [dealId], references: [id], onUpdate: NoAction)
+  id                      Int      @id @default(autoincrement())
+  dealId                  String
+  fromStatus              String?
+  toStatus                String
+  changedById             String
+  changedAt               DateTime @default(now())
+  durationInPreviousStage Int?
+  outcomeNotes            String?  @db.NVarChar(Max)
+  stageDataSnapshot       String?  @db.NVarChar(Max)
+  changedBy               User     @relation(fields: [changedById], references: [id], onUpdate: NoAction)
+  deal                    Deal     @relation(fields: [dealId], references: [id], onUpdate: NoAction)
 
   @@index([dealId])
   @@index([changedById])
+  @@index([changedAt])
 }
 
 model SystemConfig {

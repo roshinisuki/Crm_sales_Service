@@ -140,7 +140,7 @@ function FollowUpReportContent() {
         </div>
       }
     >
-      <PageContainer className="space-y-6">
+      <PageContainer className="space-y-6 pt-2">
         {/* KPI Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <SummaryCard
@@ -242,17 +242,17 @@ function FollowUpReportContent() {
                       <tr key={item.id} className="crm-tr hover:bg-slate-50/40 transition-colors">
                         <td className="crm-td px-5 py-4">
                           <div className="flex flex-col">
-                            <span className="font-bold text-slate-800 text-sm block leading-tight">{name}</span>
-                            {subtitle && <span className="text-[10px] text-slate-400 font-bold mt-0.5">{subtitle}</span>}
+                            <span className="font-bold text-slate-800 dark:text-[var(--text-primary)] text-sm block leading-tight">{name}</span>
+                            {subtitle && <span className="text-[10px] text-slate-400 dark:text-[var(--text-muted)] font-bold mt-0.5">{subtitle}</span>}
                           </div>
                         </td>
-                        <td className="crm-td px-5 py-4 font-medium text-slate-600">{item.assignedUser?.name || "—"}</td>
-                        <td className="crm-td px-5 py-4 text-slate-550 text-xs">
+                        <td className="crm-td px-5 py-4 font-medium text-slate-600 dark:text-[var(--text-secondary)]">{item.assignedUser?.name || "—"}</td>
+                        <td className="crm-td px-5 py-4 text-slate-600 dark:text-[var(--text-secondary)] text-xs">
                           {item.nextMeetingDate ? new Date(item.nextMeetingDate).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",
                             year: "numeric"
-                          }) : "Not scheduled"}
+                          }) : "No due date"}
                         </td>
                         <td className="crm-td px-5 py-4">
                           <StatusBadge status={item.status || "Pending"} />
@@ -260,7 +260,7 @@ function FollowUpReportContent() {
                         <td className="crm-td px-5 py-4">
                           <StatusBadge status={item.priority || "Medium"} />
                         </td>
-                        <td className="crm-td px-5 py-4 text-slate-500 text-xs">
+                        <td className="crm-td px-5 py-4 text-slate-600 dark:text-[var(--text-secondary)] text-xs">
                           {isCompleted && item.completedAt ? new Date(item.completedAt).toLocaleDateString("en-US", {
                             month: "short",
                             day: "numeric",

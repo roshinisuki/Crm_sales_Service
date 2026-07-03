@@ -7,21 +7,11 @@ import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
-import PageContainer from "@/components/PageContainer";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  back: "M10 19l-7-7m0 0l7-7m-7 7h18",
-  plus: "M12 4v16m8-8H4",
-  edit: "M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7 M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z",
-  trash: "M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2",
-  search: "M21 21l-4.35-4.35 M11 19a8 8 0 100-16 8 8 0 000 16z",
-};
+import { PageShell } from "@/components/ui/PageShell";
+import { Modal } from "@/components/ui/Modal";
+import { FormField, Input, Select } from "@/components/ui/FormField";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { ArrowLeft, Plus, Pencil, Trash2, Search, X } from "lucide-react";
 
 export default function TerritoryDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -154,32 +144,36 @@ export default function TerritoryDetailPage() {
 
   const canManage = ["Admin", "SalesManager"].includes(user?.role ?? "");
 
-  if (loading) return <PageContainer className="space-y-4 p-0"><div className="py-12 text-center text-sm text-gray-500">Loading...</div></PageContainer>;
-  if (!territory) return <PageContainer className="space-y-4 p-0"><div className="py-12 text-center text-sm text-gray-500">Not found.</div></PageContainer>;
+  if (loading) return <PageShell title="Territory Details"><div className="py-12 text-center text-sm text-slate-500 dark:text-[var(--text-secondary)]">Loading...</div></PageShell>;
+  if (!territory) return <PageShell title="Territory Details"><div className="py-12 text-center text-sm text-slate-500 dark:text-[var(--text-secondary)]">Not found.</div></PageShell>;
 
   return (
-    <PageContainer className="space-y-4 p-0">
-      <Link href="/territories" className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-        <Ico d={icons.back} size={14} /> Back to territories
+    <PageShell title={territory.name}>
+      <Link href="/territories" className="inline-flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline">
+        <ArrowLeft size={14} /> Back to territories
       </Link>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">{territory.name}</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{territory.region} · {territory._count?.accounts ?? 0} accounts</p>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-[var(--text-primary)]">{territory.name}</h1>
+          <p className="text-sm text-slate-500 dark:text-[var(--text-secondary)] mt-0.5">{territory.region} · {territory._count?.accounts ?? 0} accounts</p>
         </div>
         {canManage && !editing && (
-          <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium border rounded-lg hover:bg-gray-50">
-            <Ico d={icons.edit} size={16} /> Edit
+          <button onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium border border-slate-200 dark:border-[var(--border)] rounded-lg hover:bg-slate-50 dark:hover:bg-[var(--surface-2)] transition-colors">
+            <Pencil size={16} /> Edit
           </button>
         )}
       </div>
 
-      <div className="flex gap-1 border-b mb-5">
+      <div className="flex gap-1 border-b border-slate-200 dark:border-[var(--border)] mb-5">
         {(["overview", "accounts"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize border-b-2 -mb-px ${tab === t ? "border-blue-600 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+            className={`px-4 py-2 text-sm font-medium capitalize border-b-2 -mb-px transition-colors ${
+              tab === t 
+                ? "border-[var(--primary)] text-[var(--primary)]" 
+                : "border-transparent text-slate-500 dark:text-[var(--text-secondary)] hover:text-slate-700 dark:hover:text-[var(--text-primary)]"
+            }`}
           >
             {t === "accounts" ? `Territory Accounts (${territory.accounts?.length ?? 0})` : "Overview"}
           </button>
@@ -188,62 +182,58 @@ export default function TerritoryDetailPage() {
 
       {tab === "overview" && (
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-lg border bg-white p-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Territory Details</h4>
+          <div className="rounded-lg border border-slate-200 dark:border-[var(--border)] bg-white dark:bg-[var(--surface)] p-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-[var(--text-secondary)] mb-3">Territory Details</h4>
             {editing ? (
               <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                  <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Region *</label>
-                  <input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">States / Area</label>
-                  <input value={form.states} onChange={(e) => setForm({ ...form, states: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Assigned User</label>
-                  <select value={form.assignedUserId} onChange={(e) => setForm({ ...form, assignedUserId: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+                <FormField label="Name *">
+                  <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </FormField>
+                <FormField label="Region *">
+                  <Input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} />
+                </FormField>
+                <FormField label="States / Area">
+                  <Input value={form.states} onChange={(e) => setForm({ ...form, states: e.target.value })} />
+                </FormField>
+                <FormField label="Assigned User">
+                  <Select value={form.assignedUserId} onChange={(e) => setForm({ ...form, assignedUserId: e.target.value })}>
                     <option value="">— Unassigned —</option>
                     {users.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
-                  </select>
-                </div>
-                <label className="inline-flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
+                  </Select>
+                </FormField>
+                <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-[var(--text-primary)]">
+                  <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="rounded border-slate-300" />
                   Active
                 </label>
                 <div className="flex gap-2 pt-2">
-                  <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-                  <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
+                  <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-sm border border-slate-200 dark:border-[var(--border)] rounded-lg hover:bg-slate-50 dark:hover:bg-[var(--surface-2)] transition-colors">Cancel</button>
+                  <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
                     {saving ? "Saving..." : "Save"}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between py-1.5"><span className="text-gray-500">Name</span><span className="font-medium text-gray-800">{territory.name}</span></div>
-                <div className="flex justify-between py-1.5"><span className="text-gray-500">Region</span><span className="font-medium text-gray-800">{territory.region}</span></div>
-                <div className="flex justify-between py-1.5"><span className="text-gray-500">States / Area</span><span className="font-medium text-gray-800 text-right">{territory.states || "—"}</span></div>
-                <div className="flex justify-between py-1.5"><span className="text-gray-500">Assigned User</span><span className="font-medium text-gray-800">{territory.assignedUser?.name || "—"}</span></div>
-                <div className="flex justify-between py-1.5"><span className="text-gray-500">Status</span><span className={`px-2 py-0.5 rounded-full text-xs ${territory.isActive ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}>{territory.isActive ? "Active" : "Inactive"}</span></div>
+                <div className="flex justify-between py-1.5"><span className="text-slate-500 dark:text-[var(--text-secondary)]">Name</span><span className="font-medium text-slate-800 dark:text-[var(--text-primary)]">{territory.name}</span></div>
+                <div className="flex justify-between py-1.5"><span className="text-slate-500 dark:text-[var(--text-secondary)]">Region</span><span className="font-medium text-slate-800 dark:text-[var(--text-primary)]">{territory.region}</span></div>
+                <div className="flex justify-between py-1.5"><span className="text-slate-500 dark:text-[var(--text-secondary)]">States / Area</span><span className="font-medium text-slate-800 dark:text-[var(--text-primary)] text-right">{territory.states || "—"}</span></div>
+                <div className="flex justify-between py-1.5"><span className="text-slate-500 dark:text-[var(--text-secondary)]">Assigned User</span><span className="font-medium text-slate-800 dark:text-[var(--text-primary)]">{territory.assignedUser?.name || "—"}</span></div>
+                <div className="flex justify-between py-1.5"><span className="text-slate-500 dark:text-[var(--text-secondary)]">Status</span><span className={`px-2 py-0.5 rounded-full text-xs ${territory.isActive ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-slate-100 text-slate-600 dark:bg-[var(--surface-2)] dark:text-[var(--text-secondary)]"}`}>{territory.isActive ? "Active" : "Inactive"}</span></div>
               </div>
             )}
           </div>
-          <div className="rounded-lg border bg-white p-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-3">Sales Targets</h4>
+          <div className="rounded-lg border border-slate-200 dark:border-[var(--border)] bg-white dark:bg-[var(--surface)] p-4">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-[var(--text-secondary)] mb-3">Sales Targets</h4>
             {territory.salesTargets?.length ? (
               <div className="space-y-2 text-sm">
                 {territory.salesTargets.map((st: any) => (
-                  <div key={st.id} className="flex justify-between py-1.5 border-b last:border-0">
-                    <span className="text-gray-600">{st.targetType} · {st.period}</span>
-                    <span className="font-medium text-gray-800">{formatCurrency(st.targetAmount)} <span className="text-gray-400">/ {formatCurrency(st.achievedAmount)}</span></span>
+                  <div key={st.id} className="flex justify-between py-1.5 border-b border-slate-100 dark:border-[var(--border)] last:border-0">
+                    <span className="text-slate-600 dark:text-[var(--text-secondary)]">{st.targetType} · {st.period}</span>
+                    <span className="font-medium text-slate-800 dark:text-[var(--text-primary)]">{formatCurrency(st.targetAmount)} <span className="text-slate-400 dark:text-[var(--text-muted)]">/ {formatCurrency(st.achievedAmount)}</span></span>
                   </div>
                 ))}
               </div>
-            ) : <p className="text-sm text-gray-400">No sales targets set.</p>}
+            ) : <p className="text-sm text-slate-400 dark:text-[var(--text-muted)]">No sales targets set.</p>}
           </div>
         </div>
       )}
@@ -252,99 +242,96 @@ export default function TerritoryDetailPage() {
         <div>
           <div className="flex justify-end mb-3">
             {canManage && (
-              <button onClick={() => setAddAccountOpen(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)]">
-                <Ico d={icons.plus} size={16} /> Add Account
+              <button onClick={() => setAddAccountOpen(true)} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-white bg-[var(--primary)] rounded-lg hover:opacity-90 transition-opacity">
+                <Plus size={16} /> Add Account
               </button>
             )}
           </div>
           {territory.accounts?.length ? (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">Customer Code</th>
-                    <th className="px-4 py-3 font-semibold">Name</th>
-                    <th className="px-4 py-3 font-semibold">City</th>
-                    <th className="px-4 py-3 font-semibold">Assigned Exec</th>
-                    <th className="px-4 py-3 font-semibold">Revenue (Won)</th>
-                    {canManage && <th className="px-4 py-3 font-semibold text-right">Actions</th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[var(--border)] bg-white dark:bg-[var(--surface)]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer Code</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>City</TableHead>
+                    <TableHead>Assigned Exec</TableHead>
+                    <TableHead>Revenue (Won)</TableHead>
+                    {canManage && <TableHead className="text-right">Actions</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {territory.accounts.map((a: any) => {
                     const revenue = a.customer.deals?.reduce((s: number, d: any) => s + d.dealValue, 0) ?? 0;
                     return (
-                      <tr key={a.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-600">{a.customer.customerCode}</td>
-                        <td className="px-4 py-3 font-medium">{a.customer.name}</td>
-                        <td className="px-4 py-3 text-gray-600">{a.customer.city || "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{a.customer.assignedUser?.name || "—"}</td>
-                        <td className="px-4 py-3 text-gray-600">{formatCurrency(revenue)}</td>
+                      <TableRow key={a.id}>
+                        <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{a.customer.customerCode}</TableCell>
+                        <TableCell className="font-medium text-slate-800 dark:text-[var(--text-primary)]">{a.customer.name}</TableCell>
+                        <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{a.customer.city || "—"}</TableCell>
+                        <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{a.customer.assignedUser?.name || "—"}</TableCell>
+                        <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{formatCurrency(revenue)}</TableCell>
                         {canManage && (
-                          <td className="px-4 py-3 text-right">
-                            <button onClick={() => handleRemoveAccount(a.id, a.customer.name)} className="p-1.5 rounded hover:bg-red-50 text-red-600" title="Remove"><Ico d={icons.trash} /></button>
-                          </td>
+                          <TableCell className="text-right">
+                            <button onClick={() => handleRemoveAccount(a.id, a.customer.name)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors" title="Remove"><Trash2 size={16} /></button>
+                          </TableCell>
                         )}
-                      </tr>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           ) : (
-            <div className="py-12 text-center text-sm text-gray-500">No accounts assigned to this territory.</div>
+            <div className="py-12 text-center text-sm text-slate-500 dark:text-[var(--text-secondary)]">No accounts assigned to this territory.</div>
           )}
         </div>
       )}
 
-      {addAccountOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b px-5 py-3">
-              <h3 className="font-semibold">Add Account to Territory</h3>
-              <button onClick={() => setAddAccountOpen(false)} className="text-gray-400 hover:text-gray-600"><Ico d="M6 18L18 6M6 6l12 12" /></button>
+      <Modal
+        open={addAccountOpen}
+        onClose={() => setAddAccountOpen(false)}
+        title="Add Account to Territory"
+      >
+        <div className="space-y-3">
+          <FormField label="Search Customer">
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-2.5 text-slate-400" />
+              <input
+                value={customerSearch}
+                onChange={(e) => searchCustomers(e.target.value)}
+                placeholder="Type customer name or code..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 dark:border-[var(--border)] rounded-lg bg-white dark:bg-[var(--surface-2)] text-slate-800 dark:text-[var(--text-primary)] outline-none focus:ring-2 focus:ring-[var(--primary)]/30 focus:border-[var(--primary)] transition-all"
+              />
             </div>
-            <div className="space-y-3 px-5 py-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Search Customer</label>
-                <div className="relative">
-                  <Ico d={icons.search} size={16} className="absolute left-3 top-2.5 text-gray-400" />
-                  <input
-                    value={customerSearch}
-                    onChange={(e) => searchCustomers(e.target.value)}
-                    placeholder="Type customer name or code..."
-                    className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              {customerResults.length > 0 && (
-                <div className="max-h-48 overflow-y-auto border rounded-lg">
-                  {customerResults.map((c: any) => (
-                    <button
-                      key={c.id}
-                      onClick={() => { setSelectedCustomer(c.id); setCustomerSearch(c.name); setCustomerResults([]); }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${selectedCustomer === c.id ? "bg-blue-50" : ""}`}
-                    >
-                      <span className="font-medium">{c.name}</span> <span className="text-gray-400">({c.customerCode})</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {selectedCustomer && (
-                <p className="text-sm text-green-600">✓ Customer selected</p>
-              )}
+          </FormField>
+          {customerResults.length > 0 && (
+            <div className="max-h-48 overflow-y-auto border border-slate-200 dark:border-[var(--border)] rounded-lg bg-white dark:bg-[var(--surface)]">
+              {customerResults.map((c: any) => (
+                <button
+                  key={c.id}
+                  onClick={() => { setSelectedCustomer(c.id); setCustomerSearch(c.name); setCustomerResults([]); }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-[var(--surface-2)] transition-colors ${
+                    selectedCustomer === c.id ? "bg-orange-50 dark:bg-orange-900/20" : ""
+                  }`}
+                >
+                  <span className="font-medium text-slate-800 dark:text-[var(--text-primary)]">{c.name}</span> <span className="text-slate-400 dark:text-[var(--text-muted)]">({c.customerCode})</span>
+                </button>
+              ))}
             </div>
-            <div className="flex justify-end gap-2 border-t px-5 py-3">
-              <button onClick={() => setAddAccountOpen(false)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleAddAccount} disabled={addingAccount || !selectedCustomer} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50">
-                {addingAccount ? "Adding..." : "Add to Territory"}
-              </button>
-            </div>
-          </div>
+          )}
+          {selectedCustomer && (
+            <p className="text-sm text-emerald-600 dark:text-emerald-400">✓ Customer selected</p>
+          )}
         </div>
-      )}
+        <div className="flex justify-end gap-2 pt-4">
+          <button onClick={() => setAddAccountOpen(false)} className="px-3 py-1.5 text-sm border border-slate-200 dark:border-[var(--border)] rounded-lg hover:bg-slate-50 dark:hover:bg-[var(--surface-2)] transition-colors">Cancel</button>
+          <button onClick={handleAddAccount} disabled={addingAccount || !selectedCustomer} className="px-3 py-1.5 text-sm text-white bg-[var(--primary)] rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity">
+            {addingAccount ? "Adding..." : "Add to Territory"}
+          </button>
+        </div>
+      </Modal>
 
       <ConfirmModal {...confirmState} onCancel={() => setConfirmState({ ...confirmState, isOpen: false })} />
-    </PageContainer>
+    </PageShell>
   );
 }

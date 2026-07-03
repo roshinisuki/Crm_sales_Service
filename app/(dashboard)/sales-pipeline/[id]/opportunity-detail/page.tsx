@@ -14,15 +14,24 @@ import {
   Edit3, FileText, MessageSquare,
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
+import { PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 
-const PIPELINE_STAGES = [
-  { key: "SalesOpportunity", label: "Qualified", order: 1 },
-  { key: "RequirementGathering", label: "Req. Gathering", order: 2 },
-  { key: "MeetingScheduled", label: "Meeting & Demo", order: 3 },
-  { key: "ProposalSent", label: "Proposal", order: 4 },
-  { key: "Negotiation", label: "Negotiation", order: 5 },
-  { key: "Won", label: "Won", order: 6 },
-];
+const STAGE_DISPLAY_LABELS: Record<string, string> = {
+  Qualified: "Qualified",
+  RequirementGathering: "Req. Gathering",
+  MeetingScheduled: "Meeting Scheduled",
+  DemoConducted: "Demo Conducted",
+  Rejected: "Rejected",
+  Lost: "Lost",
+};
+
+const PIPELINE_STAGES = PIPELINE_STAGE_VALUES
+  .filter((s) => s !== "Lost")
+  .map((s, i) => ({
+    key: s,
+    label: STAGE_DISPLAY_LABELS[s] || s,
+    order: PIPELINE_STAGE_ORDER[s] ?? i + 1,
+  }));
 
 const STAKEHOLDER_ROLES = [
   "Decision Maker",
@@ -41,14 +50,12 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  SalesOpportunity: "Qualified",
+  Qualified: "Qualified",
   RequirementGathering: "Requirement Gathering",
-  MeetingScheduled: "Meeting & Demo",
-  DemoConducted: "Demo Conducted (Historical)",
-  ProposalSent: "Proposal Sent",
-  Negotiation: "Negotiation",
-  Won: "Won",
+  MeetingScheduled: "Meeting Scheduled",
+  DemoConducted: "Demo Conducted",
   Lost: "Lost",
+  Rejected: "Rejected",
 };
 
 // Required fields per stage — must be saved before moving forward
@@ -71,11 +78,13 @@ const STAGE_REQUIRED_FIELDS: Record<string, { field: string; label: string }[]> 
     { field: "meetingStatus", label: "Outcome / Status" },
     { field: "nextFollowUpDate", label: "Next Follow-up Date" },
   ],
-  ProposalSent: [
-    { field: "proposedSolution", label: "Proposed Solution" },
+  DemoConducted: [
+    { field: "demoDate", label: "Demo Date" },
+    { field: "demoType", label: "Demo Type" },
+    { field: "demoInterestLevel", label: "Interest Level" },
   ],
-  // Negotiation is optional — no required fields to advance from this stage.
-  Negotiation: [],
+  // Rejected is terminal — no required fields
+  Rejected: [],
 };
 
 const RG_MANDATORY_FIELDS = [
@@ -906,13 +915,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     const isReviewingCompleted = effectiveStage !== deal.status;
 
     const title: Record<string, string> = {
-      SalesOpportunity: "Qualified Details",
+      Qualified: "Qualified Details",
       RequirementGathering: "Requirement Gathering",
-      MeetingScheduled: "Meeting & Demo Details",
-      DemoConducted: "Meeting & Demo Details (Historical)",
-      ProposalSent: "Proposal Details",
-      Negotiation: "Negotiation Details",
-      Won: "Opportunity Summary",
+      MeetingScheduled: "Meeting Details",
+      DemoConducted: "Demo Details",
+      Rejected: "Rejection Details",
       Lost: "Opportunity Summary",
     };
     const stageTitle = isReviewingCompleted
@@ -947,7 +954,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           )}
         </div>
 
-        {effectiveStage === "SalesOpportunity" && (
+        {effectiveStage === "Qualified" && (
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
               Opportunity is qualified. Review or update the qualification details below.
@@ -1582,7 +1589,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             <p className="font-semibold text-rose-800">Invalid Opportunity Stage</p>
             <p className="text-sm text-rose-700 mt-1">
               This opportunity has an invalid stage value: <code className="bg-rose-100 px-1.5 py-0.5 rounded">{deal.status}</code>.
-              Valid stages are: SalesOpportunity, RequirementGathering, MeetingScheduled, ProposalSent, Negotiation, Won, Lost.
+              Valid stages are: Qualified, RequirementGathering, MeetingScheduled, DemoConducted, Rejected, Lost.
               Please contact support to correct this record.
             </p>
           </div>
@@ -1759,6 +1766,45 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       <div className="crm-card p-5">
         <CompetitorIntelligenceTab entity={{ dealId: deal.id, customerId: deal.customerId, currentStage: deal.status }} />
       </div>
+
+      {/* ─── Stage History Timeline ─── */}
+      {deal.stageHistories && deal.stageHistories.length > 0 && (
+        <div className="crm-card p-5">
+          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Stage History</h2>
+          <div className="relative pl-4 space-y-6">
+            <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-slate-200" />
+            {deal.stageHistories.map((history: any, idx: number) => (
+              <div key={history.id} className="relative pl-6">
+                <div className="absolute left-4 w-3 h-3 rounded-full border-2 border-slate-300 bg-white z-10" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-700">
+                      {STAGE_LABELS[history.toStatus] || history.toStatus}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {formatDate(history.changedAt)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    Changed by {history.changedBy?.name || "System"}
+                    {history.fromStatus && (
+                      <span> from {STAGE_LABELS[history.fromStatus] || history.fromStatus}</span>
+                    )}
+                    {history.durationInPreviousStage !== null && (
+                      <span> • {history.durationInPreviousStage} days in previous stage</span>
+                    )}
+                  </div>
+                  {history.outcomeNotes && (
+                    <div className="text-xs text-slate-500 italic">
+                      Note: {history.outcomeNotes}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
 
       {/* ─── Mark Won Confirmation Modal ─── */}

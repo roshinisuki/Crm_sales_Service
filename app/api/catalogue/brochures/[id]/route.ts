@@ -72,13 +72,8 @@ export async function DELETE(
       data: { deletedAt: new Date(), deletedById: user.id },
     });
 
-    const product = await prisma.product.findUnique({ where: { id: doc.entityId } });
-    if (product && product.brochureUrl === doc.fileUrl) {
-      await prisma.product.update({
-        where: { id: doc.entityId },
-        data: { brochureUrl: null },
-      });
-    }
+    // Brochure URL is stored on the CRMDocument record, not on the Product model
+
 
     return NextResponse.json({ success: true });
   } catch (error) {

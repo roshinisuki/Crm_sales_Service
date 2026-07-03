@@ -4,6 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
 import { buildScope } from "@/lib/scopes";
+import { PIPELINE_OPEN_STAGES } from "@/lib/module-status-config";
 
 // GET /api/opportunities — list opportunities (Deal records with opportunityCode)
 export async function GET(request: NextRequest) {
@@ -23,7 +24,6 @@ export async function GET(request: NextRequest) {
   const where: any = {
     ...scope,
     ...(stage ? { status: stage } : {}),
-    ...(overdue === "true" ? { isOverdue: true } : {}),
     ...(search
       ? {
           OR: [
@@ -34,6 +34,26 @@ export async function GET(request: NextRequest) {
         }
       : {}),
   };
+
+  // Dynamic overdue computation: close date passed OR stuck in any open stage > 15 days
+  if (overdue === "true") {
+    const now = new Date();
+    const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+    where.AND = [
+      ...(where.AND || []),
+      {
+        OR: [
+          { expectedCloseDate: { lt: now } },
+          {
+            AND: [
+              { status: { in: PIPELINE_OPEN_STAGES } },
+              { createdAt: { lt: fifteenDaysAgo } },
+            ]
+          }
+        ]
+      }
+    ];
+  }
 
   const [deals, total] = await Promise.all([
     prisma.deal.findMany({
@@ -78,7 +98,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const initialStage = body.status || "SalesOpportunity";
+  const initialStage = body.status || "Qualified";
 
   // Get probability from PipelineStageMaster
   let probabilityPercent = body.probabilityPercent ?? 20;
@@ -121,7 +141,7 @@ export async function POST(request: NextRequest) {
         fromStatus: null,
         toStatus: initialStage,
         changedById: user.id,
-        daysInPreviousStage: 0,
+        durationInPreviousStage: 0,
       },
     });
 

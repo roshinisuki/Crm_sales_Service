@@ -1172,7 +1172,7 @@ export async function convertLeadToDealAction(
         data: { status: "Converted" }
       });
 
-      // 3. Create the Deal (starts at SalesOpportunity stage, not Active)
+      // 3. Create the Deal (starts at Qualified stage, not Active)
       const deal = await tx.deal.create({
         data: {
           dealName,
@@ -1180,7 +1180,7 @@ export async function convertLeadToDealAction(
           dealValue: parseFloat(dealValue as any),
           expectedCloseDate: new Date(expectedCloseDate),
           assignedUserId: lead.assignedUserId || userPayload.id,
-          status: "SalesOpportunity",
+          status: "Qualified",
           companyId: userPayload.companyId,
         }
       });
@@ -1190,7 +1190,7 @@ export async function convertLeadToDealAction(
         data: {
           dealId: deal.id,
           fromStatus: null,
-          toStatus: "SalesOpportunity",
+          toStatus: "Qualified",
           changedById: userPayload.id
         }
       });
@@ -1495,7 +1495,7 @@ export async function convertLeadV2Action(
           dealValue: data.opportunity.estimatedValue || lead.estimatedValue || 0,
           expectedCloseDate: new Date(data.opportunity.expectedCloseDate),
           assignedUserId: lead.assignedUserId || userPayload.id,
-          status: "SalesOpportunity",
+          status: "Qualified",
           companyId: userPayload.companyId,
           // V2 fields
           opportunityCode,
@@ -1523,7 +1523,7 @@ export async function convertLeadV2Action(
         data: {
           dealId: deal.id,
           fromStatus: null,
-          toStatus: "SalesOpportunity",
+          toStatus: "Qualified",
           changedById: userPayload.id,
         },
       });

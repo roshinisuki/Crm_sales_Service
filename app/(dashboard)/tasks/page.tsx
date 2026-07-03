@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getTasksAction, updateTaskAction, deleteTaskAction } from "@/app/actions/tasks";
 import { useToast } from "@/components/ToastProvider";
@@ -10,6 +10,8 @@ import { SummaryCard } from "@/components/ui/SummaryCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
+import { PLANNER_STATUS } from "@/lib/module-status-config";
 import { formatDate, cn } from "@/lib/ui-utils";
 import { Plus, Search, Filter, CheckSquare, Clock, AlertTriangle, CheckCircle2, Pencil, Trash2, CalendarClock, Tag, User2 } from "lucide-react";
 
@@ -23,15 +25,14 @@ const PRIORITY_COLOR: Record<string, string> = {
   Urgent: "bg-red-50 text-red-600",
 };
 
-export default function TasksPage() {
+function TasksPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const toast = useToast();
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "");
+  const statusFilter = useStatusFromUrl("status");
   const [priorityFilter, setPriorityFilter] = useState("");
 
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({
@@ -87,7 +88,7 @@ export default function TasksPage() {
 
   return (
     <PageShell
-      title="Tasks"
+      title="Planner"
       subtitle="Create, assign, and track tasks across your team."
       action={
         <Link href="/tasks/new" className="btn-primary text-xs flex items-center gap-2">
@@ -105,6 +106,13 @@ export default function TasksPage() {
           <SummaryCard label="Completed" value={kpiDone} icon={<CheckCircle2 size={20} />} variant="green" subtitle="Finished tasks" />
         </div>
 
+        {/* Status Filter Bar */}
+        <StatusFilterBar
+          statuses={PLANNER_STATUS}
+          paramKey="status"
+          basePath="/tasks"
+        />
+
         {/* Filter bar */}
         <div className="crm-card bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center justify-between">
           <div className="relative w-full md:w-80">
@@ -118,15 +126,7 @@ export default function TasksPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-            <div className="flex items-center gap-2 text-xs text-slate-500"><Filter size={14} /> Filter:</div>
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none"
-            >
-              <option value="">All Statuses</option>
-              {TASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <div className="flex items-center gap-2 text-xs text-slate-500"><Filter size={14} /> Priority:</div>
             <select
               value={priorityFilter}
               onChange={e => setPriorityFilter(e.target.value)}
@@ -225,5 +225,13 @@ export default function TasksPage() {
         onCancel={() => setConfirmState(s => ({ ...s, isOpen: false }))}
       />
     </PageShell>
+  );
+}
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+      <TasksPageContent />
+    </Suspense>
   );
 }

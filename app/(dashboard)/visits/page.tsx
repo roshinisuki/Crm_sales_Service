@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { SummaryCard } from "@/components/ui/SummaryCard";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
+import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
+import { ACTIVITY_STATUS } from "@/lib/module-status-config";
 import { formatDate, formatDateTime, cn, getCheckInWindow } from "@/lib/ui-utils";
 import {
   Plus, Eye, MapPin, CheckCircle, Clock, CalendarClock,
@@ -47,17 +49,12 @@ const PURPOSE_OPTIONS = [
   "Relationship Visit", "Complaint Resolution",
 ];
 
-export default function VisitsListPage() {
+function VisitsListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
 
-  const getTabFromUrl = useCallback(() => {
-    if (searchParams.get("autoCheckedOut") === "true") return "AUTO_CHECKED_OUT";
-    return searchParams.get("status") || "";
-  }, [searchParams]);
-
-  const [activeTab, setActiveTab] = useState(getTabFromUrl());
+  const activeTab = useStatusFromUrl("status");
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCompliance, setShowCompliance] = useState(false);
@@ -68,9 +65,7 @@ export default function VisitsListPage() {
   const fetchVisits = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (activeTab === "AUTO_CHECKED_OUT") {
-      params.set("autoCheckedOut", "true");
-    } else if (activeTab) {
+    if (activeTab) {
       params.set("status", activeTab);
     }
     const res = await fetch(`/api/visits?${params.toString()}`);
@@ -84,26 +79,8 @@ export default function VisitsListPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    const tabFromUrl = getTabFromUrl();
-    if (tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [getTabFromUrl, activeTab]);
-
-  useEffect(() => {
     fetchVisits();
   }, [fetchVisits]);
-
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    if (tab === "AUTO_CHECKED_OUT") {
-      router.push("/visits?autoCheckedOut=true");
-    } else if (tab) {
-      router.push(`/visits?status=${tab}`);
-    } else {
-      router.push("/visits");
-    }
-  };
 
   const handleCheckIn = async (id: string) => {
     if (!navigator.geolocation) {
@@ -201,7 +178,7 @@ export default function VisitsListPage() {
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <SummaryCard label="Planned" value={kpiPlanned.toString()} icon={<CalendarClock size={20} />} variant="indigo" />
@@ -211,23 +188,12 @@ export default function VisitsListPage() {
           <SummaryCard label="Unavailable" value={kpiUnavailable.toString()} icon={<Clock size={20} />} variant="light" />
         </div>
 
-        {/* Status Tabs */}
-        <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key || "all"}
-              onClick={() => handleTabChange(tab.key)}
-              className={cn(
-                "px-4 py-2.5 text-sm font-bold border-b-2 transition-all whitespace-nowrap",
-                activeTab === tab.key
-                  ? "border-[var(--primary)] text-[var(--primary)]"
-                  : "border-transparent text-slate-400 hover:text-slate-600"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Status Filter Bar */}
+        <StatusFilterBar
+          statuses={ACTIVITY_STATUS}
+          paramKey="status"
+          basePath="/visits"
+        />
 
         {/* Visits Table */}
         <div className="crm-card overflow-hidden">
@@ -248,11 +214,18 @@ export default function VisitsListPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-slate-400">Loading visits...</td>
+                    <td colSpan={8} className="px-5 py-12 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" />
+                        <p className="text-sm text-slate-400">Loading visits...</p>
+                      </div>
+                    </td>
                   </tr>
                 ) : visits.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center text-slate-400">No visits found for the selected criteria.</td>
+                    <td colSpan={8} className="px-5 py-16 text-center">
+                      <p className="text-sm font-semibold text-slate-500">No visits found</p>
+                    </td>
                   </tr>
                 ) : (
                   visits.map((v) => {
@@ -436,5 +409,13 @@ export default function VisitsListPage() {
         </div>
       </Modal>
     </PageShell>
+  );
+}
+
+export default function VisitsListPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+      <VisitsListContent />
+    </Suspense>
   );
 }

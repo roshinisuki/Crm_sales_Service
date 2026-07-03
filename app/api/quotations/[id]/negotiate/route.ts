@@ -62,7 +62,7 @@ export async function POST(
               fromStatus: deal.status,
               toStatus: "Negotiation",
               changedById: user.id,
-              notes: `Moved to negotiation from quotation ${existing.quotationCode}`,
+              outcomeNotes: `Moved to negotiation from quotation ${existing.quotationCode}`,
             },
           });
         }

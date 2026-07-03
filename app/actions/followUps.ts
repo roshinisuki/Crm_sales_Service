@@ -592,10 +592,11 @@ export async function completeFollowUpWithActivityAction(data: {
       return { success: false, message: "Unauthorized: SuperAdmin must access business data via support/impersonation mode." };
     }
 
-    const { followUpId, activityType, content } = data;
+    const { followUpId, activityType, content, status } = data;
 
     if (!followUpId) return { success: false, message: "Follow-Up ID is required." };
-    if (!content?.trim()) return { success: false, message: "Activity content/notes are required." };
+    // Only require content for completed calls/meetings
+    if (status === "Completed" && !content?.trim()) return { success: false, message: "Activity content/notes are required for completed activities." };
 
     const followUp = await prisma.followUp.findUnique({
       where: { id: followUpId },
@@ -1066,7 +1067,7 @@ export async function updateFollowUpAction(id: string, data: {
   }
 }
 
-export function parseFollowUpRemarks(remarks: string | null) {
+export async function parseFollowUpRemarks(remarks: string | null) {
   if (!remarks) return { remarks: "", mode: "Virtual", location: "" };
   const trimmed = remarks.trim();
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
@@ -1139,7 +1140,7 @@ export async function getFollowUpByIdAction(id: string) {
       return { success: false, message: "Unauthorized: You do not own this follow-up" };
     }
 
-    const parsedRemarks = parseFollowUpRemarks(followUp.remarks || followUp.notes);
+    const parsedRemarks = await parseFollowUpRemarks(followUp.remarks || followUp.notes);
 
     // Serialize dates
     const serialized = {

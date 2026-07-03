@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { CRMSpinner } from "@/components/CRMSpinner";
+import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
+import { QUOTES_STATUS } from "@/lib/module-status-config";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -31,19 +33,16 @@ const statusColors: Record<string, string> = {
   Expired: "bg-gray-100 text-gray-500",
 };
 
-const statusOptions = ["Draft", "Sent", "UnderReview", "Accepted", "Rejected", "Expired"];
-
-export default function QuotationListPage() {
+function QuotationListContent() {
   const [quotations, setQuotations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const searchParams = useSearchParams();
   const router = useRouter();
   const toast = useToast();
   const { formatCurrency } = useCurrency();
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
 
-  const statusFilter = searchParams.get("status") || "";
+  const statusFilter = useStatusFromUrl("status");
 
   const [error, setError] = useState("");
 
@@ -108,7 +107,7 @@ export default function QuotationListPage() {
     <PageContainer className="space-y-4 p-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Quotations</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Quotes</h1>
           <p className="text-sm text-slate-500 mt-0.5">Manage customer quotations</p>
         </div>
         <button onClick={() => router.push("/quotations/new")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">
@@ -116,16 +115,15 @@ export default function QuotationListPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-2">
-        <button onClick={() => router.push("/quotations")} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${!statusFilter ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>All</button>
-        {statusOptions.map((s) => (
-          <button key={s} onClick={() => router.push(`/quotations?status=${s}`)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${statusFilter === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}>{s}</button>
-        ))}
-      </div>
+      <StatusFilterBar
+        statuses={QUOTES_STATUS}
+        paramKey="status"
+        basePath="/quotations"
+      />
 
-      <div className="relative mb-3">
+      <div className="relative">
         <Ico d={icons.search} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input type="text" placeholder="Search by QUO code or customer name..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" />
+        <input type="text" placeholder="Search by QUO code or customer name..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full max-w-sm pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" />
       </div>
 
       <div className="crm-card overflow-hidden">
@@ -202,5 +200,13 @@ export default function QuotationListPage() {
 
       <ConfirmModal isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.action} onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })} isDestructive={true} />
     </PageContainer>
+  );
+}
+
+export default function QuotationListPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+      <QuotationListContent />
+    </Suspense>
   );
 }

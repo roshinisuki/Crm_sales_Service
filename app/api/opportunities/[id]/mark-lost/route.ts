@@ -77,8 +77,8 @@ export async function POST(
         fromStatus: deal.status,
         toStatus: "Lost",
         changedById: user.id,
-        daysInPreviousStage,
-        notes: notes || `Lost reason: ${lossReason.name}${competitor_id ? ` (Competitor won)` : ""}`,
+        durationInPreviousStage: daysInPreviousStage,
+        outcomeNotes: notes || `Lost reason: ${lossReason.name}${competitor_id ? ` (Competitor won)` : ""}`,
       },
     });
 

@@ -47,7 +47,7 @@ export function FieldGrid({ fields, className }: FieldGridProps) {
           <dd className={cn(
             "text-sm font-semibold text-slate-700",
             field.truncate && "truncate",
-            field.maxLines && `line-clamp-${field.maxLines}`
+            field.maxLines ? `line-clamp-${field.maxLines}` : ""
           )} title={typeof field.value === "string" ? field.value : undefined}>
             {field.value}
           </dd>

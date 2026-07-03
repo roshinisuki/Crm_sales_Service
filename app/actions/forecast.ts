@@ -22,15 +22,16 @@ export async function getForecastDataAction() {
 
     const scope = buildScope(userPayload!, "Deal");
 
-    // Define standard probabilities for weighted revenue forecasting (BRD V1 stages)
+    // Define standard probabilities for weighted revenue forecasting
     const stageProbabilities: Record<string, number> = {
-      SalesOpportunity: 0.1,
-      RequirementGathering: 0.3,
+      Qualified: 0.2,
+      RequirementGathering: 0.35,
       MeetingScheduled: 0.5,
-      Active: 0.7,
+      DemoConducted: 0.7,
       OnHold: 0.2,
       Won: 1.0,
       Lost: 0.0,
+      Rejected: 0.0,
     };
 
     // Fetch all deals with their assigned user details

@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useToast } from "@/components/ToastProvider";
-import PageContainer from "@/components/PageContainer";
+import { PageShell } from "@/components/ui/PageShell";
 import { CRMSpinner } from "@/components/CRMSpinner";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { ArrowLeft, AlertTriangle } from "lucide-react";
 
 export default function KeyAccountVisitsPage() {
   const toast = useToast();
@@ -29,13 +31,15 @@ export default function KeyAccountVisitsPage() {
   const today = new Date();
 
   return (
-    <PageContainer className="space-y-4 p-0">
+    <PageShell title="Upcoming Visit Schedule">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Upcoming Visit Schedule</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Key accounts with upcoming reviews and visits</p>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-[var(--text-primary)]">Upcoming Visit Schedule</h1>
+          <p className="text-sm text-slate-500 dark:text-[var(--text-secondary)] mt-0.5">Key accounts with upcoming reviews and visits</p>
         </div>
-        <Link href="/key-accounts" className="text-sm text-blue-600 hover:underline">← Back to key accounts</Link>
+        <Link href="/key-accounts" className="inline-flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline">
+          <ArrowLeft size={14} /> Back to key accounts
+        </Link>
       </div>
 
       {loading ? (
@@ -43,42 +47,46 @@ export default function KeyAccountVisitsPage() {
           <CRMSpinner size={36} label="Loading..." />
         </div>
       ) : data.length === 0 ? (
-        <div className="py-12 text-center text-sm text-gray-500">No upcoming visits or reviews found.</div>
+        <div className="py-12 text-center text-sm text-slate-500 dark:text-[var(--text-secondary)]">No upcoming visits or reviews found.</div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Customer</th>
-                <th className="px-4 py-3 font-semibold">Account Manager</th>
-                <th className="px-4 py-3 font-semibold">Next Review Date</th>
-                <th className="px-4 py-3 font-semibold">Last Visit Date</th>
-                <th className="px-4 py-3 font-semibold">Last Outcome</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[var(--border)] bg-white dark:bg-[var(--surface)]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead>Account Manager</TableHead>
+                <TableHead>Next Review Date</TableHead>
+                <TableHead>Last Visit Date</TableHead>
+                <TableHead>Last Outcome</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {data.map((v) => (
-                <tr key={v.id} className={`hover:bg-gray-50 ${v.isOverdue ? "bg-red-50/30" : ""}`}>
-                  <td className="px-4 py-3">
-                    <Link href={`/key-accounts/${v.id}`} className="font-medium text-blue-600 hover:underline">{v.customerName}</Link>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{v.accountManager}</td>
-                  <td className="px-4 py-3">
+                <TableRow key={v.id} className={v.isOverdue ? "bg-red-50/30 dark:bg-red-900/10" : ""}>
+                  <TableCell>
+                    <Link href={`/key-accounts/${v.id}`} className="font-medium text-[var(--primary)] hover:underline">{v.customerName}</Link>
+                  </TableCell>
+                  <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{v.accountManager}</TableCell>
+                  <TableCell>
                     {v.nextReviewDate ? (
-                      <span className={v.isOverdue ? "text-red-600 font-medium" : "text-gray-600"}>
+                      <span className={v.isOverdue ? "text-red-600 dark:text-red-400 font-medium" : "text-slate-600 dark:text-[var(--text-secondary)]"}>
                         {new Date(v.nextReviewDate).toLocaleDateString()}
-                        {v.isOverdue && <span className="ml-1 text-xs">⚠ Overdue</span>}
+                        {v.isOverdue && (
+                          <span className="ml-1 inline-flex items-center gap-1 text-xs bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded">
+                            <AlertTriangle size={10} /> Overdue
+                          </span>
+                        )}
                       </span>
                     ) : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{v.lastVisitDate ? new Date(v.lastVisitDate).toLocaleDateString() : "—"}</td>
-                  <td className="px-4 py-3 text-gray-600">{v.lastOutcome}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{v.lastVisitDate ? new Date(v.lastVisitDate).toLocaleDateString() : "—"}</TableCell>
+                  <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{v.lastOutcome}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
-    </PageContainer>
+    </PageShell>
   );
 }

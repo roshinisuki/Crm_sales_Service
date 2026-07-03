@@ -41,10 +41,9 @@ const V2_EXTRAS: ModuleSearchItem[] = [
   { key: 'deals',             label: 'Deals',              href: '/deals',                                          icon: '🤝', keywords: ['deal', 'won', 'active deal'],               type: 'module' },
   { key: 'forecast',          label: 'Forecast',           href: '/forecast',                                       icon: '🎯', keywords: ['forecast', 'revenue', 'sales target'],      type: 'module' },
   // Pipeline sub-modules
-  { key: 'pipeline-qualified',   label: 'Qualified',       href: '/sales-pipeline/pipeline-list?tab=SalesOpportunity',  icon: '📈', keywords: ['qualified', 'sql'],              type: 'submodule', parentLabel: 'Sales Pipeline' },
-  { key: 'pipeline-meeting',     label: 'Meeting & Demo',  href: '/sales-pipeline/pipeline-list?tab=MeetingScheduled',  icon: '📈', keywords: ['meeting', 'demo', 'scheduled'],  type: 'submodule', parentLabel: 'Sales Pipeline' },
-  { key: 'pipeline-proposal',    label: 'Proposal Sent',   href: '/sales-pipeline/pipeline-list?tab=ProposalSent',      icon: '📈', keywords: ['proposal', 'sent'],              type: 'submodule', parentLabel: 'Sales Pipeline' },
-  { key: 'pipeline-negotiation', label: 'Negotiation',     href: '/sales-pipeline/pipeline-list?tab=Negotiation',       icon: '📈', keywords: ['negotiation', 'negotiate'],      type: 'submodule', parentLabel: 'Sales Pipeline' },
+  { key: 'pipeline-qualified',   label: 'Qualified',       href: '/sales-pipeline/pipeline-list?tab=Qualified',          icon: '📈', keywords: ['qualified', 'sql'],              type: 'submodule', parentLabel: 'Sales Pipeline' },
+  { key: 'pipeline-meeting',     label: 'Meeting Scheduled',href: '/sales-pipeline/pipeline-list?tab=MeetingScheduled',   icon: '📈', keywords: ['meeting', 'demo', 'scheduled'],  type: 'submodule', parentLabel: 'Sales Pipeline' },
+  { key: 'pipeline-demo',        label: 'Demo Conducted',   href: '/sales-pipeline/pipeline-list?tab=DemoConducted',      icon: '📈', keywords: ['demo', 'conducted'],            type: 'submodule', parentLabel: 'Sales Pipeline' },
   // V2 settings
   { key: 'settings-pipeline',  label: 'Pipeline Stages',    href: '/settings/pipeline-stages',    icon: '⚙️', keywords: ['pipeline stage', 'stage'],            type: 'setting' },
   { key: 'settings-notif',     label: 'Notification Rules', href: '/settings/notification-rules', icon: '⚙️', keywords: ['notification', 'alert', 'rule'],      type: 'setting' },

@@ -100,12 +100,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // Sync product brochureUrl
-    await prisma.product.update({
-      where: { id: productId },
-      data: { brochureUrl: fileUrl },
-    });
-
     return NextResponse.json({ success: true, data: doc });
   } catch (error) {
     console.error("POST /api/catalogue/brochures error:", error);

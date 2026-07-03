@@ -8,6 +8,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { getDealsAction } from "@/app/actions/deals";
 
+import { PIPELINE_OPEN_STAGES } from "@/lib/module-status-config";
+
 import { getFollowUpsDueThisWeekAction } from "@/app/actions/activities";
 
 import { useToast } from "@/components/ToastProvider";
@@ -28,15 +30,13 @@ import { Search, Filter, Briefcase, TrendingUp, AlertTriangle, CheckCircle, Cloc
 
 const STAGES = {
 
-  SalesOpportunity: "Qualified",
+  Qualified: "Qualified",
 
   RequirementGathering: "Requirement Gathering",
 
-  MeetingScheduled: "Meeting & Demo",
+  MeetingScheduled: "Meeting Scheduled",
 
-  ProposalSent: "Proposal Sent",
-
-  Negotiation: "Negotiation",
+  DemoConducted: "Demo Conducted",
 
 };
 
@@ -142,21 +142,32 @@ export default function SalesOpportunitiesPage() {
 
         if (stageFilter === "Overdue") {
 
-          // Overdue: expected close date has passed OR stuck in early stages > 15 days
-
+          // Overdue: expected close date has passed OR stuck in any stage > 15 days
           const now = new Date().getTime();
 
           const closeDatePassed = deal.expectedCloseDate && new Date(deal.expectedCloseDate).getTime() < now;
 
           const daysOld = (now - new Date(deal.createdAt).getTime()) / (1000 * 3600 * 24);
 
-          const stuckInEarlyStage = ["SalesOpportunity", "RequirementGathering"].includes(deal.status) && daysOld > 15;
+          const stuckInAnyStage = PIPELINE_OPEN_STAGES.includes(deal.status) && daysOld > 15;
 
-          matchStage = (closeDatePassed || stuckInEarlyStage) && deal.status !== "Lost";
+          matchStage = (closeDatePassed || stuckInAnyStage) && deal.status !== "Lost" && deal.status !== "Rejected";
 
         } else if (stageFilter === "RequirementGathering") {
 
           matchStage = deal.status === "RequirementGathering";
+
+        } else if (stageFilter === "MeetingScheduled") {
+
+          matchStage = deal.status === "MeetingScheduled";
+
+        } else if (stageFilter === "DemoConducted") {
+
+          matchStage = deal.status === "DemoConducted";
+
+        } else if (stageFilter === "Rejected") {
+
+          matchStage = deal.status === "Lost";
 
         } else {
 
@@ -200,7 +211,7 @@ export default function SalesOpportunitiesPage() {
 
     const daysOld = (now - new Date(d.createdAt).getTime()) / (1000 * 3600 * 24);
 
-    const stuckInEarlyStage = ["SalesOpportunity", "RequirementGathering"].includes(d.status) && daysOld > 15;
+    const stuckInEarlyStage = PIPELINE_OPEN_STAGES.includes(d.status) && daysOld > 15;
 
     return closeDatePassed || stuckInEarlyStage;
 
@@ -292,15 +303,13 @@ export default function SalesOpportunitiesPage() {
 
               <option value="">All Stages</option>
 
-              <option value="SalesOpportunity">Qualified</option>
+              <option value="Qualified">Qualified</option>
 
               <option value="RequirementGathering">Requirement Gathering</option>
 
-              <option value="MeetingScheduled">Meeting & Demo</option>
+              <option value="MeetingScheduled">Meeting Scheduled</option>
 
-              <option value="ProposalSent">Proposal Sent</option>
-
-              <option value="Negotiation">Negotiation</option>
+              <option value="DemoConducted">Demo Conducted</option>
 
               <option value="Overdue">Overdue</option>
 

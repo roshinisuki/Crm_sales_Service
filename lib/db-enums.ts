@@ -25,8 +25,11 @@ export type SlaStatus = "Pending" | "Warning" | "Breached" | "Met";
 export type LeadSource = "Website" | "Facebook" | "Instagram" | "LinkedIn" | "Referral" | "WalkIn" | "ColdCall" | "Partner";
 
 export type OpportunityStage =
-  | "SalesOpportunity"
+  | "Qualified"
   | "RequirementGathering"
-  | "MeetingScheduled";
+  | "MeetingScheduled"
+  | "DemoConducted"
+  | "Rejected"
+  | "Lost";
 
 export type DealStatus = "Active" | "Won" | "Lost";

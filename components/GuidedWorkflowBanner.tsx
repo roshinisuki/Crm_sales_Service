@@ -233,7 +233,7 @@ export default function GuidedWorkflowBanner({
     }
   } else if (entityType === "deal") {
     // BRD Variant 1 pipeline stages — guide toward Active Deal conversion
-    if (["SalesOpportunity", "RequirementGathering", "MeetingScheduled"].includes(status)) {
+    if (["Qualified", "RequirementGathering", "MeetingScheduled"].includes(status)) {
       title = `Pipeline Stage: ${status.replace(/([A-Z])/g, " $1").trim()}`;
       description = "Next Action: Complete the requirement gathering and schedule a customer meeting, then convert to an Active Deal.";
       bgClass = "bg-gradient-to-r from-blue-500/10 to-transparent border-blue-500/20";

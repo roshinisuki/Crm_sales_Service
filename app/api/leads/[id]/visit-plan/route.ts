@@ -17,7 +17,7 @@ import { nanoid } from "nanoid";
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) {
@@ -27,7 +27,7 @@ export async function POST(
     return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
   }
 
-  const leadId = params.id;
+  const { id: leadId } = await params;
   if (!leadId) {
     return NextResponse.json({ success: false, message: "Lead ID is required" }, { status: 400 });
   }
@@ -91,14 +91,14 @@ export async function POST(
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   }
 
-  const leadId = params.id;
+  const { id: leadId } = await params;
   const plans = await prisma.communicationLog.findMany({
     where: {
       leadId,

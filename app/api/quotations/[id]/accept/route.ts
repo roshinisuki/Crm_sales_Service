@@ -64,7 +64,7 @@ export async function POST(
               fromStatus: deal.status,
               toStatus: "Won",
               changedById: user.id,
-              notes: `Won via quotation ${existing.quotationCode} acceptance`,
+              outcomeNotes: `Won via quotation ${existing.quotationCode} acceptance`,
             },
           });
         }

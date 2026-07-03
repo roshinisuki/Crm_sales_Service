@@ -49,7 +49,9 @@ export async function transitionDealStatus(
       dealName: true, 
       customerId: true,
       assignedUserId: true,
-      dealValue: true
+      dealValue: true,
+      createdAt: true,
+      updatedAt: true
     },
   });
 
@@ -59,6 +61,25 @@ export async function transitionDealStatus(
 
   // No-op if already at target status
   if (fromStatus === toStatus) return;
+
+  // Calculate duration in previous stage (in days)
+  const previousStageEntry = await db.dealStageHistory.findFirst({
+    where: { dealId, toStatus: fromStatus },
+    orderBy: { changedAt: 'desc' }
+  });
+  
+  const stageEntryDate = previousStageEntry?.changedAt || deal.createdAt;
+  const durationInPreviousStage = Math.floor(
+    (new Date().getTime() - new Date(stageEntryDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  // Capture stage data snapshot (relevant fields for the stage being left)
+  const stageDataSnapshot = JSON.stringify({
+    dealValue: deal.dealValue,
+    assignedUserId: deal.assignedUserId,
+    stageEntryDate: stageEntryDate.toISOString(),
+    updatedAt: deal.updatedAt.toISOString()
+  });
 
   // Enforce stage order from PipelineStageMaster
   const currentStageMaster = await db.pipelineStageMaster.findFirst({
@@ -102,15 +123,56 @@ export async function transitionDealStatus(
     data: { status: toStatus },
   });
 
-  // Record stage history
+  // Record stage history with enhanced audit trail
   await db.dealStageHistory.create({
     data: {
       dealId,
       fromStatus: fromStatus as string,
       toStatus: toStatus as string,
       changedById: ctx.actorId === "system" ? (await getSystemActorId(db)) : ctx.actorId,
+      durationInPreviousStage,
+      outcomeNotes: ctx.reason || null,
+      stageDataSnapshot,
     },
   });
+
+  // RFQ auto-creation on Demo Accepted outcome
+  if (toStatus === "DemoConducted" && ctx.reason?.toLowerCase().includes("accepted")) {
+    const dealWithDetails = await db.deal.findUnique({
+      where: { id: dealId },
+      include: { customer: true, opportunityDetail: true }
+    });
+    
+    if (dealWithDetails) {
+      // Generate RFQ code: RFQ-YYYY-NNNNN
+      const year = new Date().getFullYear();
+      const rfqPrefix = `RFQ-${year}-`;
+      const rfqCount = await db.rFQ.count({
+        where: { rfqCode: { startsWith: rfqPrefix } },
+      });
+      const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
+      
+      await db.rFQ.create({
+        data: {
+          rfqCode,
+          customerId: dealWithDetails.customerId,
+          opportunityId: dealId,
+          status: "New",
+          receivedDate: new Date(),
+          priority: "Normal",
+          companyId: ctx.companyId,
+        }
+      });
+      
+      // Log RFQ creation
+      await logAudit(
+        ctx.actorId,
+        "RFQ",
+        "AutoCreate",
+        `Auto-created RFQ ${rfqCode} for deal "${dealWithDetails.dealName}" on Demo Accepted outcome`
+      );
+    }
+  }
 
   // Sync customer status on Won
   if (toStatus === "Won") {

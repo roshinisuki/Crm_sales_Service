@@ -44,6 +44,7 @@ export async function GET(request: Request) {
             status: true,
             assignedUserId: true,
             dealName: true,
+            companyId: true,
           },
         },
         customer: { select: { name: true } },
@@ -75,7 +76,7 @@ export async function GET(request: Request) {
       // If linked to a deal that is still active (not Won/Lost), regress it to PipelineQualified
       const deal = proposal.deal;
       if (deal && deal.status !== "Won" && deal.status !== "Lost") {
-        await transitionDealStatus(deal.id, "SalesOpportunity", {
+        await transitionDealStatus(deal.id, "Qualified", {
           actorId: "system",
           reason: `Linked proposal "${proposal.proposalNumber}" expired on ${proposal.validUntil.toDateString()}`,
           companyId: deal.companyId || "", // Use deal's companyId for tenant isolation

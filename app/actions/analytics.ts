@@ -69,7 +69,7 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
       where: {
         AND: [
           rbacDealFilter,
-          { status: { in: ["SalesOpportunity", "RequirementGathering", "MeetingScheduled", "Active"] } }
+          { status: { in: ["Qualified", "RequirementGathering", "MeetingScheduled", "DemoConducted"] } }
         ]
       }
     });
@@ -100,7 +100,7 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
       where: {
         AND: [
           rbacDealFilter,
-          { status: { in: ["SalesOpportunity", "RequirementGathering", "MeetingScheduled", "Active"] } }
+          { status: { in: ["Qualified", "RequirementGathering", "MeetingScheduled", "DemoConducted"] } }
         ]
       }
     });
@@ -138,7 +138,7 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
       {
         stage: "Qualified",
         count: await prisma.deal.count({
-          where: { AND: [rbacDealFilter, { status: { in: ["SalesOpportunity", "RequirementGathering"] } }] }
+          where: { AND: [rbacDealFilter, { status: { in: ["Qualified", "RequirementGathering"] } }] }
         })
       },
       {

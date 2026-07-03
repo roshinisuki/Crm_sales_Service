@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { getDealsAction, createDealAction, updateDealAction, deleteDealAction, updateDealStatusAction } from "@/app/actions/deals";
 import { getCustomersAction } from "@/app/actions/customers";
 import { getUsersAction } from "@/app/actions/users";
@@ -16,7 +16,9 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
-import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
+import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
+import { DEALS_STATUS } from "@/lib/module-status-config";
+import { getInitials, getAvatarColor, formatDate, cn } from "@lib/ui-utils";
 import { Plus, Search, Download, Eye, Pencil, Trash2, Briefcase, TrendingUp, CheckCircle, XCircle, PauseCircle } from "lucide-react";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { CRMSpinner } from "@/components/CRMSpinner";
@@ -27,13 +29,12 @@ const emptyForm = {
   originalStatus: "Active",
 };
 
-export default function DealsPage() {
+function DealsPageContent() {
   const router = useRouter();
   const toast  = useToast();
   const { user: currentUser } = useAuth();
   const { formatCurrency, preferredCurrency } = useCurrency();
   const currencySymbol = CURRENCY_SYMBOLS[preferredCurrency as keyof typeof CURRENCY_SYMBOLS] || "₹";
-  const searchParams = useSearchParams();
 
   const [deals,     setDeals]     = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -42,17 +43,7 @@ export default function DealsPage() {
   const { startLoading, stopLoading } = useGlobalLoading();
 
   const [search,      setSearch]      = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form,        setForm]        = useState(emptyForm);
-  const [saving,      setSaving]      = useState(false);
-
-  const statusParam = searchParams ? searchParams.get("status") : null;
-
-  useEffect(() => {
-    setStatusFilter(statusParam || "");
-  }, [statusParam]);
+  const statusFilter = useStatusFromUrl("status");
 
   // ── Data ─────────────────────────────────────────────────────────────────
 
@@ -202,6 +193,19 @@ export default function DealsPage() {
       }
     >
       <PageContainer className="space-y-4 p-0">
+      {/* Status Filter Bar */}
+      <StatusFilterBar
+        statuses={DEALS_STATUS}
+        paramKey="status"
+        basePath="/deals"
+      />
+
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+        <Input placeholder="Search deals..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <SummaryCard label="Total Deals" value={kpiTotal.toString()} icon={<Briefcase size={20} />} variant="orange" />
@@ -212,17 +216,6 @@ export default function DealsPage() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <Input placeholder="Search deals..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
-          </div>
-          <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-40">
-            <option value="">All Statuses</option>
-            {STAGES.map(s => <option key={s} value={s}>{s === "OnHold" ? "On Hold" : s}</option>)}
-          </Select>
-        </div>
-
         <div className="overflow-x-auto">
           <table className="crm-table">
             <thead>
@@ -376,5 +369,13 @@ export default function DealsPage() {
         </form>
       </Modal>
     </PageShell>
+  );
+}
+
+export default function DealsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+      <DealsPageContent />
+    </Suspense>
   );
 }

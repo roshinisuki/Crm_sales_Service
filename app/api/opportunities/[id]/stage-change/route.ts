@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
+import { normalizeStage, PIPELINE_STAGE_ORDER, PIPELINE_STAGE_PROBABILITY, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 
 // POST /api/opportunities/[id]/stage-change
 // Body: { to_stage, notes }
@@ -27,11 +28,11 @@ export async function POST(
     return NextResponse.json({ success: false, message: "to_stage is required" }, { status: 400 });
   }
 
-  // Validate stage value against allowed pipeline stages
-  const VALID_STAGES = ["SalesOpportunity", "RequirementGathering", "MeetingScheduled", "ProposalSent", "Negotiation", "Won", "Lost"];
-  if (!VALID_STAGES.includes(to_stage)) {
+  // Validate stage value against canonical pipeline stages (with normalization)
+  const normalizedStage = normalizeStage(to_stage);
+  if (!normalizedStage) {
     return NextResponse.json(
-      { success: false, message: `Invalid stage "${to_stage}". Valid stages: ${VALID_STAGES.join(", ")}` },
+      { success: false, message: `Invalid stage "${to_stage}". Valid stages: ${PIPELINE_STAGE_VALUES.join(", ")}` },
       { status: 400 }
     );
   }
@@ -54,33 +55,16 @@ export async function POST(
 
   const currentStage = deal.status;
 
-  // No-op if same stage
-  if (currentStage === to_stage) {
+  // Use normalized stage value for all downstream logic
+  const targetStage = normalizedStage;
+
+  // No-op if same stage (use normalized value for comparison)
+  if (currentStage === targetStage) {
     return NextResponse.json({ success: true, message: "Already at this stage", data: deal });
   }
 
-  // Stage order and default probabilities — defined inline (no PipelineStageMaster table needed)
-  const STAGE_ORDER: Record<string, number> = {
-    SalesOpportunity:    1,
-    RequirementGathering: 2,
-    MeetingScheduled:    3,
-    ProposalSent:        4,
-    Negotiation:         5,
-    Won:                 6,
-    Lost:                0,
-  };
-  const STAGE_PROBABILITY: Record<string, number> = {
-    SalesOpportunity:    20,
-    RequirementGathering: 30,
-    MeetingScheduled:    50,
-    ProposalSent:        70,
-    Negotiation:         85,
-    Won:                100,
-    Lost:                  0,
-  };
-
-  const currentOrder = STAGE_ORDER[currentStage] ?? 0;
-  const targetOrder  = STAGE_ORDER[to_stage]     ?? 0;
+  const currentOrder = PIPELINE_STAGE_ORDER[currentStage] ?? 0;
+  const targetOrder  = PIPELINE_STAGE_ORDER[targetStage]   ?? 0;
 
   // If backward stage change, require Sales Manager or Admin
   if (targetOrder < currentOrder) {
@@ -95,7 +79,7 @@ export async function POST(
   // Forward stage change: only allow moving to the next stage in sequence (no skipping),
   // except for jumping to Won when an accepted quotation exists, which bypasses Negotiation.
   const acceptedQuotation = deal.quotations[0];
-  const isJumpToWon = to_stage === "Won" && acceptedQuotation;
+  const isJumpToWon = targetStage === "Won" && acceptedQuotation;
   if (targetOrder > currentOrder && targetOrder !== currentOrder + 1 && !isJumpToWon) {
     return NextResponse.json(
       { success: false, message: "You can only move to the next stage in sequence" },
@@ -141,14 +125,14 @@ export async function POST(
     daysInPreviousStage = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   }
 
-  const newProbability = STAGE_PROBABILITY[to_stage] ?? deal.probabilityPercent;
+  const newProbability = PIPELINE_STAGE_PROBABILITY[targetStage] ?? deal.probabilityPercent;
 
   const result = await prisma.$transaction(async (tx) => {
     // Update deal stage and probability
     const updated = await tx.deal.update({
       where: { id },
       data: {
-        status: to_stage,
+        status: targetStage,
         probabilityPercent: newProbability,
       },
     });
@@ -158,15 +142,15 @@ export async function POST(
       data: {
         dealId: id,
         fromStatus: currentStage,
-        toStatus: to_stage,
+        toStatus: targetStage,
         changedById: user.id,
-        daysInPreviousStage,
-        notes: notes || null,
+        durationInPreviousStage: daysInPreviousStage,
+        outcomeNotes: notes || null,
       },
     });
 
     // Sync customer status to ActiveCustomer when deal is Won
-    if (to_stage === "Won") {
+    if (targetStage === "Won") {
       const customer = await tx.customer.findUnique({
         where: { id: deal.customerId },
         select: { status: true }
@@ -195,11 +179,10 @@ export async function POST(
     const stageFollowUpMap: Record<string, string> = {
       MeetingScheduled: "Confirm attendee list and demo feedback",
       RequirementGathering: "Schedule discovery call",
-      ProposalSent: "Follow up on proposal delivery",
-      Negotiation: "Prepare negotiation terms sheet",
+      DemoConducted: "Follow up on demo outcome and next steps",
     };
 
-    const followUpTitle = stageFollowUpMap[to_stage];
+    const followUpTitle = stageFollowUpMap[targetStage];
     if (followUpTitle) {
       const followUpDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
       await tx.followUp.create({
@@ -227,11 +210,11 @@ export async function POST(
     user.id,
     "Opportunity",
     "StageChange",
-    `Opportunity "${deal.dealName}" stage: ${currentStage} → ${to_stage}${notes ? `. Notes: ${notes}` : ""}`,
+    `Opportunity "${deal.dealName}" stage: ${currentStage} → ${targetStage}${notes ? `. Notes: ${notes}` : ""}`,
     {
       resourceId: id,
       previousState: { stage: currentStage, probabilityPercent: deal.probabilityPercent },
-      newState: { stage: to_stage, probabilityPercent: newProbability },
+      newState: { stage: targetStage, probabilityPercent: newProbability },
       context: extractAuditContext(request),
       severity: targetOrder < currentOrder ? "HIGH" : "WARN",
     }
@@ -260,7 +243,7 @@ export async function POST(
     await dispatchNotification({
       userId: deal.assignedUserId,
       title: "Opportunity Stage Changed",
-      message: `Your opportunity "${deal.dealName}" moved from ${currentStage} to ${to_stage}.`,
+      message: `Your opportunity "${deal.dealName}" moved from ${currentStage} to ${targetStage}.`,
       type: "deal",
       link: `/sales-pipeline/${id}`,
     });
@@ -269,6 +252,6 @@ export async function POST(
   return NextResponse.json({
     success: true,
     data: result,
-    message: `Stage changed from ${currentStage} to ${to_stage}`,
+    message: `Stage changed from ${currentStage} to ${targetStage}`,
   });
 }

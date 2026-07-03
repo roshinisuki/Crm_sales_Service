@@ -68,7 +68,7 @@ export async function POST(
         fromStatus: deal.status,
         toStatus: "Won",
         changedById: user.id,
-        daysInPreviousStage,
+        durationInPreviousStage: daysInPreviousStage,
       },
     });
 

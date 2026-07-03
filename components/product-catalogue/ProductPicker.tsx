@@ -90,7 +90,7 @@ export function ProductPicker({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="lg">
+    <Modal open={isOpen} onClose={onClose} title={title} size="lg">
       <div className="space-y-4">
         {/* Search and Filter */}
         <div className="flex gap-3">

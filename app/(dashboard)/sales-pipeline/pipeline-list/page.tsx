@@ -1,61 +1,42 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
+import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
+import { PIPELINE_STATUS } from "@/lib/module-status-config";
 import { formatDate, cn } from "@/lib/ui-utils";
 import {
   Search, AlertTriangle,
   Download, Zap,
 } from "lucide-react";
 
-const STAGE_TABS = [
-  { key: "all", label: "All" },
-  { key: "SalesOpportunity", label: "Qualified" },
-  { key: "RequirementGathering", label: "Req. Gathering" },
-  { key: "TechnicalDiscussion", label: "Technical Discussion" },
-  { key: "MeetingScheduled", label: "Meeting Scheduled" },
-  { key: "DemoConducted", label: "Demo Conducted" },
-  { key: "overdue", label: "Overdue" },
-  { key: "Rejected", label: "Rejected" },
-];
-
 const STAGE_LABELS: Record<string, string> = {
-  SalesOpportunity: "Qualified",
+  Qualified: "Qualified",
   RequirementGathering: "Req. Gathering",
-  TechnicalDiscussion: "Technical Discussion",
   MeetingScheduled: "Meeting Scheduled",
   DemoConducted: "Demo Conducted",
-  ProposalSent: "Proposal",
-  Negotiation: "Negotiation",
-  Won: "Won",
   Lost: "Lost",
   Rejected: "Rejected",
 };
 
 const STAGE_PILL_COLORS: Record<string, string> = {
-  SalesOpportunity: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50",
+  Qualified: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50",
   RequirementGathering: "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/50",
-  TechnicalDiscussion: "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50",
   MeetingScheduled: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/50",
   DemoConducted: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50",
-  ProposalSent: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-400 dark:border-teal-800/50",
-  Negotiation: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50",
-  Won: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50",
   Lost: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50",
   Rejected: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/50",
 };
 
-export default function SalesPipelineListPage() {
+function SalesPipelineListContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const activeTab = useStatusFromUrl("stage");
   const toast = useToast();
   const { formatCurrency } = useCurrency();
 
-  const initialTab = searchParams.get("tab") || "all";
-  const [activeTab, setActiveTab] = useState(initialTab);
   const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -63,7 +44,7 @@ export default function SalesPipelineListPage() {
   const fetchDeals = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (activeTab !== "all" && activeTab !== "overdue") {
+    if (activeTab && activeTab !== "overdue") {
       params.set("stage", activeTab);
     }
     if (activeTab === "overdue") params.set("overdue", "true");
@@ -83,10 +64,11 @@ export default function SalesPipelineListPage() {
     fetchDeals();
   }, [fetchDeals]);
 
-  // Update tab in URL
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
-    router.push(`/sales-pipeline/pipeline-list?tab=${tab}`);
+  // Build a label lookup from the status config
+  const STATUS_LABELS: Record<string, string> = {
+    "": "All Opportunities",
+    overdue: "Overdue",
+    ...Object.fromEntries(PIPELINE_STATUS.map((s) => [s.value, s.label])),
   };
 
   // KPIs
@@ -119,43 +101,57 @@ export default function SalesPipelineListPage() {
 
   return (
     <PageShell
-      title="Sales Pipeline"
+      title="Pipeline"
       subtitle="Track and manage your opportunities through the sales cycle."
       action={
-        <div className="relative">
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Search size={16} /></span>
-          <input
-            type="text"
-            placeholder="Search opportunity..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg w-64 focus:ring-1 focus:ring-indigo-500"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Search size={16} /></span>
+            <input
+              type="text"
+              placeholder="Search opportunity..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg w-64 focus:ring-1 focus:ring-indigo-500"
+            />
+          </div>
+          <button
+            onClick={handleExport}
+            className="px-4 py-2 bg-white text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors flex items-center gap-1.5"
+          >
+            <Download size={15} /> Export
+          </button>
         </div>
       }
     >
-      <div className="space-y-6">
+      <div className="space-y-4">
+        {/* ─── Status Filter Bar ─── */}
+        <StatusFilterBar
+          statuses={PIPELINE_STATUS}
+          paramKey="stage"
+          basePath="/sales-pipeline/pipeline-list"
+        />
+
         {/* ─── Hero Summary Card ─── */}
         <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[var(--primary)]/10 via-white to-slate-50 p-6 shadow-sm">
           <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex-1 min-w-0">
               <span className={cn(
                 "inline-flex px-2.5 py-1 text-xs font-bold rounded-full border mb-2",
-                activeTab === "all" ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50" :
-                activeTab === "overdue" ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50" :
-                activeTab === "Lost" ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50" :
+                !activeTab ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50" :
+                activeTab === "overdue" || activeTab === "Lost" ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50" :
                 (STAGE_PILL_COLORS[activeTab] || "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50")
               )}>
-                {STAGE_TABS.find((t) => t.key === activeTab)?.label || activeTab}
+                {STATUS_LABELS[activeTab] || activeTab}
               </span>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                {activeTab === "all" ? "All Opportunities" : STAGE_TABS.find((t) => t.key === activeTab)?.label || activeTab}
-              </h1>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                {STATUS_LABELS[activeTab] || activeTab}
+              </h2>
               <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
                 <span className="font-medium">{kpiTotal} active</span>
                 <span className="text-slate-300">•</span>
                 <span className="font-bold text-[var(--primary)]">{formatCurrency(kpiValue)}</span>
-                {activeTab === "all" && kpiOverdue > 0 && (
+                {!activeTab && kpiOverdue > 0 && (
                   <>
                     <span className="text-slate-300">•</span>
                     <span className="font-bold text-rose-600 flex items-center gap-1">
@@ -165,38 +161,11 @@ export default function SalesPipelineListPage() {
                 )}
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExport}
-                className="px-4 py-2 bg-white text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors flex items-center gap-1.5"
-              >
-                <Download size={15} /> Export
-              </button>
-            </div>
           </div>
         </div>
 
         {/* ─── Detailed Pipeline Content ─── */}
         <div className="crm-card overflow-hidden">
-          {/* Stage Tabs */}
-          <div className="flex items-center gap-1 px-4 border-b border-slate-100 overflow-x-auto">
-            {STAGE_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => handleTabChange(tab.key)}
-                className={cn(
-                  "flex items-center gap-1.5 px-4 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap",
-                  activeTab === tab.key
-                    ? "border-[var(--primary)] text-[var(--primary)]"
-                    : "border-transparent text-slate-400 hover:text-slate-600"
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
           {/* Opportunities Table */}
           <div className="overflow-x-auto">
             <table className="crm-table">
@@ -216,11 +185,20 @@ export default function SalesPipelineListPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="crm-td text-center py-12">Loading opportunities...</td>
+                    <td colSpan={9} className="crm-td text-center py-12">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" />
+                        <p className="text-sm text-slate-400">Loading opportunities...</p>
+                      </div>
+                    </td>
                   </tr>
                 ) : deals.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="crm-td text-center py-12 text-muted-foreground">No opportunities found for the selected criteria.</td>
+                    <td colSpan={9} className="crm-td text-center py-16">
+                      <div className="flex flex-col items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-500">No opportunities in {STATUS_LABELS[activeTab] || "this filter"}</p>
+                      </div>
+                    </td>
                   </tr>
                 ) : (
                   deals.map((deal) => {
@@ -299,5 +277,13 @@ export default function SalesPipelineListPage() {
       </div>
 
     </PageShell>
+  );
+}
+
+export default function SalesPipelineListPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+      <SalesPipelineListContent />
+    </Suspense>
   );
 }

@@ -107,7 +107,7 @@ export async function processVisitOutcome(
       await setCustomerStatus(customerId, nextCustomerStatus as any, {
         actorId: systemUser?.id || "system",
         reason: `Visit outcome: ${outcome}${customerDecision ? `, decision: ${customerDecision}` : ""}`,
-        companyId: customer.companyId,
+        companyId: customer.companyId || "",
         isAdminOverride: true, // Allow visit-based activation with reason
       });
     }

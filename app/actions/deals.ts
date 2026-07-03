@@ -191,8 +191,8 @@ export async function createDealAction(data: {
       ? userPayload.id
       : assignedUserId || null;
 
-    // Use same logic as POST /api/opportunities - always start at SalesOpportunity
-    const initialStage = status || "SalesOpportunity";
+    // Use same logic as POST /api/opportunities - always start at Qualified
+    const initialStage = status || "Qualified";
 
     // Get probability from PipelineStageMaster
     let probabilityPercent = 20;
@@ -235,7 +235,7 @@ export async function createDealAction(data: {
           fromStatus: null,
           toStatus: initialStage,
           changedById: userPayload.id,
-          daysInPreviousStage: 0,
+          durationInPreviousStage: 0,
         },
       });
 
@@ -487,8 +487,15 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
     // Negotiation: no pre-validation needed - negotiation details are filled AFTER entering this stage
     // (expectedBudget, commercialTerms, negotiationNotes are all filled during negotiation)
 
+    // Normalize and validate the target stage
+    const { normalizeStage } = await import("@/lib/module-status-config");
+    const normalizedStatus = normalizeStage(status);
+    if (!normalizedStatus) {
+      return { success: false, message: `Invalid stage "${status}". Valid stages: Qualified, RequirementGathering, MeetingScheduled, DemoConducted, Rejected, Lost` };
+    }
+
     // Use centralized transitionDealStatus for all status changes
-    await transitionDealStatus(id, status, {
+    await transitionDealStatus(id, normalizedStatus, {
       actorId: userPayload.id,
       reason: lostReason ? `Lost: ${lostReason}` : undefined,
       companyId: userPayload.companyId!,

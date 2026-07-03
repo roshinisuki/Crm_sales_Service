@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       }
     } else {
       const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(buffer);
+      await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
       const sheet = workbook.worksheets[0];
       if (!sheet) return NextResponse.json({ success: false, message: "Empty Excel file" }, { status: 400 });
       const firstRow = sheet.getRow(1);
@@ -171,7 +171,7 @@ export async function POST(request: Request) {
       } else {
         invalidRows.push({
           rowIndex: idx + 2,
-          errors: result.error.errors.map(e => `${e.path.join(".")}: ${e.message}`),
+          errors: result.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`),
         });
       }
     });

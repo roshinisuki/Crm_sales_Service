@@ -103,12 +103,6 @@ export async function POST(request: Request) {
       },
     });
 
-    // Also update the product's datasheetUrl for backwards compatibility
-    await prisma.product.update({
-      where: { id: productId },
-      data: { datasheetUrl: fileUrl },
-    });
-
     return NextResponse.json({ success: true, data: doc });
   } catch (error) {
     console.error("POST /api/catalogue/datasheets error:", error);

@@ -35,13 +35,7 @@ export async function PUT(
       },
     });
 
-    // Sync product datasheetUrl
-    if (fileUrl !== undefined) {
-      await prisma.product.update({
-        where: { id: doc.entityId },
-        data: { datasheetUrl: fileUrl },
-      });
-    }
+    // Datasheet URL is stored on the CRMDocument record, not on the Product model
 
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
@@ -76,14 +70,7 @@ export async function DELETE(
       data: { deletedAt: new Date(), deletedById: user.id },
     });
 
-    // Clear product datasheetUrl if it matches
-    const product = await prisma.product.findUnique({ where: { id: doc.entityId } });
-    if (product && product.datasheetUrl === doc.fileUrl) {
-      await prisma.product.update({
-        where: { id: doc.entityId },
-        data: { datasheetUrl: null },
-      });
-    }
+    // Datasheet URL is stored on the CRMDocument record, not on the Product model
 
     return NextResponse.json({ success: true });
   } catch (error) {

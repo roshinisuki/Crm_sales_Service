@@ -107,7 +107,7 @@ export async function setCustomerStatus(
   }
 
   // Validate transition is allowed
-  const allowedTransitions = ALLOWED_TRANSITIONS[fromStatus] || [];
+  const allowedTransitions = ALLOWED_TRANSITIONS[fromStatus as CustomerStatus] || [];
   if (!ctx.isAdminOverride && !allowedTransitions.includes(newStatus)) {
     throw new Error(
       `Invalid status transition: ${fromStatus} → ${newStatus}. Allowed: ${allowedTransitions.join(", ")}`
