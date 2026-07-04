@@ -9,6 +9,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
+import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -53,7 +54,7 @@ export default function QuotationDetailPage() {
 
   const [quotation, setQuotation] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"items" | "history" | "revisions" | "approvals">("items");
+  const [activeTab, setActiveTab] = useState<"items" | "history" | "revisions" | "approvals" | "documents">("items");
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void; input?: boolean; inputLabel?: string }>({ isOpen: false, title: "", message: "", action: () => {} });
   const [rejectReason, setRejectReason] = useState("");
   const [rejectReasonId, setRejectReasonId] = useState("");
@@ -454,6 +455,7 @@ export default function QuotationDetailPage() {
           { key: "history", label: "Status History" },
           { key: "revisions", label: "Revisions" },
           { key: "approvals", label: "Approvals" },
+          { key: "documents", label: "Documents" },
         ].map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className={`px-4 py-2 text-sm font-medium border-b-2 cursor-pointer transition-colors ${activeTab === tab.key ? "border-[var(--primary)] text-[var(--primary)]" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{tab.label}</button>
         ))}
@@ -682,6 +684,13 @@ export default function QuotationDetailPage() {
               <p className="text-sm text-slate-400">No approval requests</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Documents Tab */}
+      {activeTab === "documents" && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+          <EntityDocumentTab entityType="Quotation" entityId={quotation.id} defaultDocumentType="Quotation" />
         </div>
       )}
 

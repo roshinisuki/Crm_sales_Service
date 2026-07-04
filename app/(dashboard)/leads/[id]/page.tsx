@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Select } from "@/components/ui/FormField";
 import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
 import { getInitials, getAvatarColor, formatDate, formatDateTime, cn } from "@/lib/ui-utils";
+import { INDUSTRY_TYPES } from "@/lib/industryOptions";
 import { FieldGrid, ScoreIndicator } from "@/components/shared/FieldGrid";
 import { CompactUserAvatar } from "@/components/shared/UserAvatar";
 import { StatusPill } from "@/components/shared/StatusPill";
@@ -25,8 +26,9 @@ import {
   MessageSquare, FileText, XCircle, Zap, Clock,
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
+import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 
-type Tab = "overview" | "followups" | "activities" | "bant" | "competitor";
+type Tab = "overview" | "followups" | "activities" | "bant" | "competitor" | "documents";
 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -704,6 +706,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     { key: "activities", label: `Activities (${activities.length})` },
     { key: "bant",       label: "BANT Checklist" },
     { key: "competitor",  label: "Competitor Intelligence" },
+    { key: "documents",   label: "Documents" },
   ];
 
   return (
@@ -1308,6 +1311,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       {tab === "competitor" && (
         <div className="crm-card p-5">
           <CompetitorIntelligenceTab entity={{ leadId: lead.id, currentStage: lead.status }} />
+        </div>
+      )}
+
+      {/* ---- Documents Tab ---- */}
+      {tab === "documents" && (
+        <div className="crm-card p-5">
+          <EntityDocumentTab entityType="Customer" entityId={lead.customerId || lead.id} />
         </div>
       )}
 
@@ -1930,7 +1940,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                   onChange={e => setConvertForm(p => ({ ...p, industryType: e.target.value }))}
                 >
                   <option value="">Select...</option>
-                  {["Automotive", "Pharma", "Textile", "FMCG", "Infrastructure", "Others"].map(t => (
+                  {INDUSTRY_TYPES.map(t => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </Select>

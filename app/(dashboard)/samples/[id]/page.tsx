@@ -7,6 +7,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
+import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -447,6 +448,11 @@ export default function SampleDetailPage() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Documents Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 mt-6">
+        <EntityDocumentTab entityType="SampleRequest" entityId={sample.id} />
       </div>
 
       <ConfirmModal

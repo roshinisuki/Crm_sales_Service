@@ -18,6 +18,7 @@ import { Pagination, usePagination } from "@/components/ui/Pagination";
 import LeadCreatedWorkflowModal from "@/components/leads/LeadCreatedWorkflowModal";
 import { CRMSpinner } from "@/components/CRMSpinner";
 import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
+import { INDUSTRY_TYPES } from "@/lib/industryOptions";
 import {
   Plus, Search, Download, Pencil, Trash2,
   Users, Phone, CheckCircle, XCircle, PhoneCall, CalendarClock,
@@ -39,7 +40,6 @@ const V2_TABS = [
   { key: "Lost", label: "Lost" },
   { key: "Duplicate", label: "Duplicate" },
 ] as const;
-const INDUSTRY_TYPES = ["Automotive", "Pharma", "Textile", "FMCG", "Infrastructure", "Others"];
 
 function isSlaBreached(l: Lead, now: Date) {
   if (l.slaStatus === "Breached") return true;

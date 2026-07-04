@@ -11,6 +11,7 @@ import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { formatDate, formatDateTime, cn } from "@/lib/ui-utils";
 import { FieldGrid } from "@/components/shared/FieldGrid";
 import { StatusPill } from "@/components/shared/StatusPill";
+import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import {
   CheckCircle, Clock, FileText, Calculator, ArrowRight,
   AlertTriangle, Upload, Download, Trash2, Plus,
@@ -421,35 +422,12 @@ export default function RFQDetailPage() {
 
         {/* Drawings / Attachments */}
         <div className="crm-card p-6">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">Drawings & Attachments</h3>
-          <div className="space-y-3">
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center cursor-pointer hover:border-[var(--primary)] hover:bg-slate-50 transition-all"
-            >
-              <Upload size={24} className="mx-auto text-slate-400 mb-2" />
-              <p className="text-sm text-slate-500">{uploading ? "Uploading..." : "Click to upload drawing or document"}</p>
-              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
-            </div>
-            {documents.length > 0 && (
-              <div className="space-y-2">
-                {documents.map((doc: any) => (
-                  <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
-                    <div className="flex items-center gap-3">
-                      <FileText size={18} className="text-slate-400" />
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{doc.name}</p>
-                        <p className="text-xs text-slate-500">{doc.documentType} · {formatDate(doc.createdAt)}</p>
-                      </div>
-                    </div>
-                    <a href={doc.fileUrl} download className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 cursor-pointer" title="Download">
-                      <Download size={16} />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <EntityDocumentTab
+            entityType="RFQ"
+            entityId={rfq.id}
+            defaultDocumentType="Drawing"
+            allowedDocumentTypes={["Drawing", "TechnicalSpec", "Other"]}
+          />
         </div>
 
         {/* Costing Sheet Section — visible after Costing Pending */}

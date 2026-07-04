@@ -57,45 +57,24 @@ export function ThemeProvider({
 
   const [pendingTheme, setPendingTheme] = useState<ThemeName | null>(null);
 
-  // Initialize and merge client localStorage preferences if logged out / not stored in DB
+  // DEBUG: log the initial props received from the server
+  if (typeof window !== "undefined") {
+    console.log("[ThemeProvider] initial props", { initialTheme, initialMode, userId });
+  }
+
+  // Hydration guard: ensure the server-rendered theme attributes are re-applied
+  // to the document after React mounts. We do NOT read localStorage here —
+  // initialTheme/initialMode from the root layout are the single source of truth.
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const storedTheme = localStorage.getItem("suki-theme");
-      const storedMode = localStorage.getItem("suki-mode");
-
-      // Migrate 'orange'/'ember' to 'blue'
-      if (storedTheme === "orange" || storedTheme === "ember") {
-        localStorage.setItem("suki-theme", "blue");
-      }
-
-      const activeTheme = migrateTheme(initialTheme || localStorage.getItem("suki-theme") || DEFAULT_THEME_NAME);
-      const activeMode = migrateMode(initialMode || localStorage.getItem("suki-mode") || DEFAULT_THEME_MODE);
-
-      setThemeState(activeTheme);
-      setModeState(activeMode);
-      applyTheme(activeTheme, activeMode);
-    }
-  }, [initialTheme, initialMode]);
-
-  // Apply theme changes to document & cache
-  useEffect(() => {
+    console.log("[ThemeProvider] applying theme", { theme, mode });
     applyTheme(theme, mode);
   }, [theme, mode]);
 
-  // Sync tabs
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "suki-theme") setThemeState(migrateTheme(e.newValue));
-      if (e.key === "suki-mode") setModeState(migrateMode(e.newValue));
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
   const persistPreferences = useCallback(async (newTheme?: ThemeName, newMode?: ThemeMode) => {
+    console.log("[ThemeProvider] persisting preferences", { userId, newTheme, newMode });
     if (userId) {
       try {
-        await fetch("/api/me/preferences", {
+        const res = await fetch("/api/me/preferences", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -103,34 +82,41 @@ export function ThemeProvider({
             themeMode: newMode,
           }),
         });
+        const data = await res.json();
+        console.log("[ThemeProvider] preferences response", data);
       } catch (err) {
-        console.error("Failed to persist theme preferences", err);
+        console.error("[ThemeProvider] failed to persist theme preferences", err);
       }
     }
   }, [userId]);
 
   const setTheme = useCallback((t: ThemeName) => {
+    console.log("[ThemeProvider] setTheme called", t);
     setThemeState(t);
     persistPreferences(t, undefined);
   }, [persistPreferences]);
 
   const setMode = useCallback((m: ThemeMode) => {
+    console.log("[ThemeProvider] setMode called", m);
     setModeState(m);
     persistPreferences(undefined, m);
   }, [persistPreferences]);
 
   const toggleMode = useCallback(() => {
     const nextMode = mode === "light" ? "dark" : "light";
+    console.log("[ThemeProvider] toggleMode", { from: mode, to: nextMode });
     setModeState(nextMode);
     persistPreferences(undefined, nextMode);
   }, [mode, persistPreferences]);
 
   const requestThemeChange = useCallback((newTheme: ThemeName) => {
+    console.log("[ThemeProvider] requestThemeChange", { current: theme, requested: newTheme });
     if (newTheme === theme) return;
     setPendingTheme(newTheme);
   }, [theme]);
 
   const confirmThemeChange = useCallback(() => {
+    console.log("[ThemeProvider] confirmThemeChange", pendingTheme);
     if (!pendingTheme) return;
     setThemeState(pendingTheme);
     persistPreferences(pendingTheme, undefined);
@@ -138,6 +124,7 @@ export function ThemeProvider({
   }, [pendingTheme, persistPreferences]);
 
   const cancelThemeChange = useCallback(() => {
+    console.log("[ThemeProvider] cancelThemeChange");
     setPendingTheme(null);
   }, []);
 

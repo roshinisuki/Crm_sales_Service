@@ -8,6 +8,7 @@ import { createCallAction } from "@/app/actions/activities";
 import { createDealAction, updateDealAction, updateDealStatusAction, deleteDealAction } from "@/app/actions/deals";
 import { getUsersAction } from "@/app/actions/users";
 import { useAuth } from "@/components/AuthProvider";
+import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { useToast } from "@/components/ToastProvider";
 import { FieldGrid } from "@/components/shared/FieldGrid";
 import { CompactUserAvatar } from "@/components/shared/UserAvatar";
@@ -523,6 +524,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
           { id: "quotations", label: `Quotations (${customer.quotations?.length || 0})` },
           { id: "rfqs", label: `RFQs (${customer.rfqs?.length || 0})` },
           { id: "visits", label: `Visits (${(customer.customerVisits?.length || 0)})` },
+          { id: "documents", label: "Documents" },
           { id: "timeline", label: "Activity Timeline" },
         ].map((tab) => (
           <button
@@ -684,6 +686,12 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
             ) : (
               <p className="text-sm text-slate-500 italic">No active opportunities.</p>
             )}
+          </div>
+        )}
+
+        {activeTab === "documents" && (
+          <div className="crm-card p-5">
+            <EntityDocumentTab entityType="Customer" entityId={customer.id} />
           </div>
         )}
 

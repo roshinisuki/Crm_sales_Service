@@ -4,10 +4,13 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { validateResetToken, saveNewPassword } from "@/app/actions/auth";
+import Logo from "@/components/Logo";
+import { useLogoTheme } from "@/lib/use-logo-theme";
+import { useTheme } from "@/lib/useTheme";
 
 function Spinner({ small }: { small?: boolean }) {
   return (
-    <svg className={`animate-spin text-white ${small ? "h-4 w-4" : "h-6 w-6"}`} viewBox="0 0 24 24" fill="none">
+    <svg className={`animate-spin text-[var(--text-on-brand)] ${small ? "h-4 w-4" : "h-6 w-6"}`} viewBox="0 0 24 24" fill="none">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
@@ -35,10 +38,10 @@ function getStrength(p: string) {
   if (/[A-Z]/.test(p)) score++;
   if (/[0-9]/.test(p)) score++;
   if (/[!@#$%^&*]/.test(p)) score++;
-  if (score <= 1) return { level: score, label: "Weak", color: "#ba1a1a" };
-  if (score === 2) return { level: score, label: "Fair", color: "#e6a817" };
-  if (score === 3) return { level: score, label: "Good", color: "#2e7d32" };
-  return { level: score, label: "Strong", color: "#1565c0" };
+  if (score <= 1) return { level: score, label: "Weak", color: "var(--error)" };
+  if (score === 2) return { level: score, label: "Fair", color: "var(--warning)" };
+  if (score === 3) return { level: score, label: "Good", color: "var(--success)" };
+  return { level: score, label: "Strong", color: "var(--brand-primary)" };
 }
 
 function ResetForm() {
@@ -90,7 +93,7 @@ function ResetForm() {
         <div className="w-12 h-12 rounded-full bg-[var(--brand-primary)] flex items-center justify-center">
           <Spinner />
         </div>
-        <p className="text-[14px] text-[#44474d]">Validating your reset link…</p>
+        <p className="text-[14px] text-[var(--text-secondary)]">Validating your reset link…</p>
       </div>
     );
   }
@@ -99,19 +102,19 @@ function ResetForm() {
   if (!tokenValid) {
     return (
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-[#ffdad6] flex items-center justify-center mx-auto mb-5">
-          <svg className="w-7 h-7 text-[#ba1a1a]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="w-14 h-14 rounded-full bg-[var(--error-bg)] flex items-center justify-center mx-auto mb-5">
+          <svg className="w-7 h-7 text-[var(--error)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
         </div>
-        <h2 className="text-[20px] font-semibold text-[#191c1e] mb-2">Link Invalid or Expired</h2>
-        <p className="text-[14px] text-[#44474d] leading-[22px] mb-6">{tokenError}</p>
+        <h2 className="text-[20px] font-semibold text-[var(--text-primary)] mb-2">Link Invalid or Expired</h2>
+        <p className="text-[14px] text-[var(--text-secondary)] leading-[22px] mb-6">{tokenError}</p>
         <Link href="/forgot-password"
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-[8px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-[14px] font-semibold transition-colors">
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-[8px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--text-on-brand)] text-[14px] font-semibold transition-colors">
           Request New Reset Link
         </Link>
         <div className="mt-5">
-          <Link href="/login" className="text-[13px] font-medium text-[#44474d] hover:text-[var(--brand-primary)]">Back to Login</Link>
+          <Link href="/login" className="text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--brand-primary)]">Back to Login</Link>
         </div>
       </div>
     );
@@ -121,13 +124,13 @@ function ResetForm() {
   if (success) {
     return (
       <div className="text-center py-4">
-        <div className="w-14 h-14 rounded-full bg-[#e6f4ea] flex items-center justify-center mx-auto mb-5">
-          <svg className="w-7 h-7 text-[#2e7d32]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="w-14 h-14 rounded-full bg-[var(--success-bg)] flex items-center justify-center mx-auto mb-5">
+          <svg className="w-7 h-7 text-[var(--success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h2 className="text-[22px] font-semibold text-[#191c1e] mb-2">Password Updated!</h2>
-        <p className="text-[14px] text-[#44474d]">Redirecting you to login…</p>
+        <h2 className="text-[22px] font-semibold text-[var(--text-primary)] mb-2">Password Updated!</h2>
+        <p className="text-[14px] text-[var(--text-secondary)]">Redirecting you to login…</p>
         <div className="flex justify-center mt-4">
           <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center">
             <Spinner small />
@@ -141,28 +144,28 @@ function ResetForm() {
   return (
     <>
       <div className="mb-7">
-        <h1 className="text-[24px] font-semibold text-[#191c1e] mb-2 tracking-[-0.01em]">Set new password</h1>
-        <p className="text-[14px] text-[#44474d] leading-[20px]">Choose a strong password for your  SUKI  CRM account.</p>
+        <h1 className="text-[24px] font-semibold text-[var(--text-primary)] mb-2 tracking-[-0.01em]">Set new password</h1>
+        <p className="text-[14px] text-[var(--text-secondary)] leading-[20px]">Choose a strong password for your  SUKI  CRM account.</p>
       </div>
 
       {error && (
-        <div className="mb-5 p-3 rounded-[8px] bg-[#ffdad6] border border-[#ffb4ab] text-[13px] text-[#93000a] font-medium text-center">{error}</div>
+        <div className="mb-5 p-3 rounded-[8px] bg-[var(--error-bg)] border border-[var(--error-border)] text-[13px] text-[var(--error)] font-medium text-center">{error}</div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5" noValidate>
         {/* New Password */}
         <div>
-          <label htmlFor="reset-password" className="block text-[12px] font-semibold text-[#191c1e] mb-2 tracking-[0.05em] uppercase">New Password</label>
+          <label htmlFor="reset-password" className="block text-[12px] font-semibold text-[var(--text-primary)] mb-2 tracking-[0.05em] uppercase">New Password</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[var(--text-muted)]">
                 <rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
             </span>
             <input id="reset-password" type={showPassword ? "text" : "password"} required autoFocus value={password}
               onChange={e => setPassword(e.target.value)} placeholder="Min 8 chars, A-Z, 0-9, !@#$"
-              className="w-full pl-11 pr-12 py-3 rounded-[8px] border border-[#e2e8f0] bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all" />
-            <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#75777e] hover:text-[#191c1e]">
+              className="w-full pl-11 pr-12 py-3 rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] text-[var(--text-primary)] text-[14px] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 transition-all" />
+            <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
               <EyeIcon visible={showPassword} />
             </button>
           </div>
@@ -170,7 +173,7 @@ function ResetForm() {
             <div className="mt-2">
               <div className="flex gap-1 mb-1">
                 {[1, 2, 3, 4].map(l => (
-                  <div key={l} className="h-1.5 flex-1 rounded-full transition-all" style={{ background: strength.level >= l ? strength.color : "#e0e3e5" }} />
+                  <div key={l} className="h-1.5 flex-1 rounded-full transition-all" style={{ background: strength.level >= l ? strength.color : "var(--border)" }} />
                 ))}
               </div>
               <p className="text-[12px]" style={{ color: strength.color }}>Strength: <strong>{strength.label}</strong></p>
@@ -180,35 +183,35 @@ function ResetForm() {
 
         {/* Confirm Password */}
         <div>
-          <label htmlFor="reset-confirm" className="block text-[12px] font-semibold text-[#191c1e] mb-2 tracking-[0.05em] uppercase">Confirm Password</label>
+          <label htmlFor="reset-confirm" className="block text-[12px] font-semibold text-[var(--text-primary)] mb-2 tracking-[0.05em] uppercase">Confirm Password</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[#75777e]">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="w-[18px] h-[18px] text-[var(--text-muted)]">
                 <rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
             </span>
             <input id="reset-confirm" type={showConfirm ? "text" : "password"} required value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)} placeholder="Re-enter your password"
-              className={`w-full pl-11 pr-12 py-3 rounded-[8px] border bg-white text-[#191c1e] text-[14px] placeholder:text-[#c4c6ce] focus:outline-none focus:ring-2 transition-all ${confirmPassword ? (passwordsMatch ? "border-[#2e7d32] focus:border-[#2e7d32] focus:ring-[#2e7d32]/20" : "border-[#ba1a1a] focus:border-[#ba1a1a] focus:ring-[#ba1a1a]/20") : "border-[#e2e8f0] focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)]/20"}`} />
-            <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#75777e] hover:text-[#191c1e]">
+              className={`w-full pl-11 pr-12 py-3 rounded-[8px] border bg-[var(--surface-1)] text-[var(--text-primary)] text-[14px] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 transition-all ${confirmPassword ? (passwordsMatch ? "border-[var(--success)] focus:border-[var(--success)] focus:ring-[var(--success)]/20" : "border-[var(--error)] focus:border-[var(--error)] focus:ring-[var(--error)]/20") : "border-[var(--border)] focus:border-[var(--brand-primary)] focus:ring-[var(--brand-primary)]/20"}`} />
+            <button type="button" onClick={() => setShowConfirm(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
               <EyeIcon visible={showConfirm} />
             </button>
           </div>
           {confirmPassword && (
-            <p className={`mt-1.5 text-[12px] font-medium ${passwordsMatch ? "text-[#2e7d32]" : "text-[#ba1a1a]"}`}>
+            <p className={`mt-1.5 text-[12px] font-medium ${passwordsMatch ? "text-[var(--success)]" : "text-[var(--error)]"}`}>
               {passwordsMatch ? "✓ Passwords match" : "✗ Passwords do not match"}
             </p>
           )}
         </div>
 
         <button type="submit" disabled={loading || !passwordsMatch}
-          className="w-full mt-4 py-3.5 px-6 rounded-[8px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-white text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          className="w-full mt-4 py-3.5 px-6 rounded-[8px] bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] text-[var(--text-on-brand)] text-[14px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
           {loading ? <><Spinner small />Saving Password…</> : <>Save New Password<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg></>}
         </button>
       </form>
 
-      <div className="mt-6 pt-6 border-t border-[#eceef0] text-center">
-        <Link href="/login" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#44474d] hover:text-[var(--brand-primary)] transition-colors">
+      <div className="mt-6 pt-6 border-t border-[var(--border)] text-center">
+        <Link href="/login" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-colors">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
           Back to Login
         </Link>
@@ -218,19 +221,25 @@ function ResetForm() {
 }
 
 export default function ResetPasswordPage() {
+  const { theme: serverTheme, mode: serverMode } = useTheme();
+  const logoTheme = useLogoTheme({
+    initialColor: serverTheme,
+    initialIsDark: serverMode === "dark",
+  });
+
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[#f7f9fb] p-6 font-sans">
+    <main className="min-h-screen flex items-center justify-center bg-[var(--bg)] p-6 font-sans">
       <div className="w-full max-w-[440px]">
         <div className="flex justify-center mb-8">
-          <img src="/logo.png" alt=" SUKI  CRM" className="w-[60px] h-[60px] object-contain" />
+          <Logo theme={logoTheme} variant="full" size={60} />
         </div>
-        <div className="bg-white rounded-[16px] border border-[#e2e8f0] shadow-[0px_2px_8px_rgba(11,31,58,0.06)] px-8 py-10 sm:px-12 sm:py-12">
+        <div className="bg-[var(--surface)] rounded-[16px] border border-[var(--border)] shadow-[0px_2px_8px_rgba(11,31,58,0.06)] px-8 py-10 sm:px-12 sm:py-12">
           <Suspense fallback={
             <div className="flex flex-col items-center gap-4 py-8">
               <div className="w-12 h-12 rounded-full bg-[var(--brand-primary)] flex items-center justify-center">
                 <Spinner />
               </div>
-              <p className="text-[14px] text-[#44474d]">Loading…</p>
+              <p className="text-[14px] text-[var(--text-secondary)]">Loading…</p>
             </div>
           }>
             <ResetForm />

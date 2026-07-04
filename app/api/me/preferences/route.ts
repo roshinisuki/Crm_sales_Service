@@ -13,6 +13,7 @@ export async function GET() {
       where: { id: userPayload.id },
       select: { theme: true, themeMode: true }
     });
+    console.log("[api/me/preferences GET]", { userId: userPayload.id, theme: user?.theme, themeMode: user?.themeMode });
     return NextResponse.json({
       success: true,
       theme: user?.theme || "ocean",
@@ -36,6 +37,7 @@ export async function PUT(request: Request) {
     }
     const body = await request.json();
     const { theme, themeMode } = body;
+    console.log("[api/me/preferences PUT] received", { userId: userPayload.id, theme, themeMode });
 
     const data: any = {};
     if (theme) {
@@ -46,6 +48,7 @@ export async function PUT(request: Request) {
     if (themeMode) {
       data.themeMode = migrateMode(themeMode);
     }
+    console.log("[api/me/preferences PUT] saving", data);
 
     const updated = await prisma.user.update({
       where: { id: userPayload.id },
@@ -53,6 +56,7 @@ export async function PUT(request: Request) {
       select: { theme: true, themeMode: true }
     });
 
+    console.log("[api/me/preferences PUT] saved", { theme: updated.theme, themeMode: updated.themeMode });
     return NextResponse.json({
       success: true,
       theme: updated.theme,

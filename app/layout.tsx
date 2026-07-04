@@ -6,6 +6,8 @@ import { GlobalLoadingProvider } from "@/components/GlobalLoadingProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { getMeAction } from "@/app/actions/auth";
 import { migrateTheme, migrateMode, DEFAULT_THEME_NAME, DEFAULT_THEME_MODE } from "@/lib/theme";
+import { cookies } from "next/headers";
+import { readThemeCookies } from "@/lib/theme-cookies";
 
 const inter = { className: "font-sans" };
 
@@ -30,14 +32,37 @@ export default async function RootLayout({
   const userRes = await getMeAction();
   const initialUser = userRes.success ? userRes.data : null;
 
-  // Resolve theme from user profile (DB), falling back to BLUE default.
-  const themeColor = migrateTheme(initialUser?.theme || DEFAULT_THEME_NAME);
-  const themeMode = migrateMode(initialUser?.themeMode || DEFAULT_THEME_MODE);
+  // If a user is logged in, the DB is the source of truth.
+  // If logged out, fall back to the theme cookie so the login page keeps the last theme.
+  const cookieStore = await cookies();
+  const cookieTheme = readThemeCookies(cookieStore.toString());
+
+  const themeColor = initialUser?.id
+    ? migrateTheme(initialUser.theme)
+    : cookieTheme.theme;
+  const themeMode = initialUser?.id
+    ? migrateMode(initialUser.themeMode)
+    : cookieTheme.mode;
   const isDark = themeMode === "dark";
+
+  // DEBUG: log the resolved theme on the server so we can trace mismatches
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[layout] resolved theme", { userId: initialUser?.id, dbTheme: initialUser?.theme, dbMode: initialUser?.themeMode, cookieTheme: cookieTheme.theme, cookieMode: cookieTheme.mode, resolvedTheme: themeColor, resolvedMode: themeMode });
+  }
+
+  const antiFoucScript = `
+    (function() {
+      var html = document.documentElement;
+      html.setAttribute("data-theme", "${themeColor}");
+      html.setAttribute("data-mode", "${themeMode}");
+      ${isDark ? "html.classList.add(\"dark\");" : "html.classList.remove(\"dark\");"}
+    })();
+  `;
 
   return (
     <html lang="en" data-theme={themeColor} data-mode={themeMode} className={isDark ? "dark" : ""} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: antiFoucScript }} />
       </head>
       <body className={inter.className}>
         <ThemeProvider

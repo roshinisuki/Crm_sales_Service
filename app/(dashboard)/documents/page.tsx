@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import UploadDocumentModal from "@/components/documents/UploadDocumentModal";
+import DocumentPreviewModal from "@/components/documents/DocumentPreviewModal";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -24,19 +26,19 @@ const icons = {
 };
 
 const docTypeFilters = [
-  { value: "", label: "All Documents" },
-  { value: "Drawing", label: "Drawings" },
-  { value: "TechnicalSpec", label: "Technical Specs" },
-  { value: "NDA", label: "NDAs" },
-  { value: "Quotation", label: "Quotations" },
-  { value: "PurchaseOrder", label: "Purchase Orders" },
-  { value: "Agreement", label: "Agreements" },
-  { value: "Brochure", label: "Brochures" },
+  { value: "", label: "All Documents", icon: "📂" },
+  { value: "Drawing", label: "Drawings", icon: "📐" },
+  { value: "TechnicalSpec", label: "Technical Specs", icon: "📋" },
+  { value: "NDA", label: "NDAs", icon: "🤝" },
+  { value: "Quotation", label: "Quotations", icon: "💰" },
+  { value: "PurchaseOrder", label: "Purchase Orders", icon: "📋" },
+  { value: "Agreement", label: "Agreements", icon: "📜" },
+  { value: "Brochure", label: "Brochures", icon: "📖" },
 ];
 
 const entityTypeLabels: Record<string, string> = {
   Customer: "Customer",
-  Deal: "Deal",
+  Deal: "Opportunity",
   RFQ: "RFQ",
   PurchaseOrder: "PO",
   Negotiation: "Negotiation",
@@ -45,9 +47,14 @@ const entityTypeLabels: Record<string, string> = {
   Product: "Product",
 };
 
-const entityLinkMap: Record<string, (id: string, code?: string) => string> = {
+const entityIcons: Record<string, string> = {
+  Customer: "🏢", Deal: "📈", RFQ: "📄", Quotation: "💰",
+  PurchaseOrder: "📋", SampleRequest: "🧪", Negotiation: "🤝", Product: "📦",
+};
+
+const entityLinkMap: Record<string, (id: string) => string> = {
   Customer: (id) => `/customer-master/${id}`,
-  Deal: (id) => `/deals/${id}`,
+  Deal: (id) => `/sales-pipeline/${id}`,
   RFQ: (id) => `/rfq/${id}`,
   PurchaseOrder: (id) => `/purchase-orders/${id}`,
   Negotiation: (id) => `/negotiations/${id}`,
@@ -55,24 +62,44 @@ const entityLinkMap: Record<string, (id: string, code?: string) => string> = {
   SampleRequest: (id) => `/samples/${id}`,
 };
 
+const TYPE_BADGE_COLORS: Record<string, string> = {
+  Drawing: "bg-blue-100 text-blue-700",
+  TechnicalSpec: "bg-purple-100 text-purple-700",
+  NDA: "bg-amber-100 text-amber-700",
+  Quotation: "bg-emerald-100 text-emerald-700",
+  PurchaseOrder: "bg-indigo-100 text-indigo-700",
+  Agreement: "bg-rose-100 text-rose-700",
+  Brochure: "bg-cyan-100 text-cyan-700",
+  Invoice: "bg-orange-100 text-orange-700",
+  Contract: "bg-slate-100 text-slate-700",
+  Other: "bg-gray-100 text-gray-600",
+};
+
+function formatSize(bytes?: number): string {
+  if (!bytes) return "—";
+  if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(0)} KB`;
+}
+
 export default function DocumentsListPage() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<any>(null);
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const router = useRouter();
   const toast = useToast();
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
-  const [entityNames, setEntityNames] = useState<Record<string, string>>({});
 
   const typeFilter = searchParams.get("type") || "";
 
-  const loadDocuments = async () => {
+  const loadDocuments = useCallback(async (search?: string) => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (typeFilter) params.documentType = typeFilter;
+      if (search) params.search = search;
       let allData: any[] = [];
       let page = 1;
       let totalPages = 1;
@@ -86,22 +113,21 @@ export default function DocumentsListPage() {
         page++;
       }
       setDocuments(allData);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load documents");
     } finally {
       setLoading(false);
     }
-  };
+  }, [typeFilter, toast]);
 
   useEffect(() => {
     loadDocuments();
-  }, [typeFilter]);
+  }, [loadDocuments]);
 
-  const filtered = documents.filter((d: any) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return d.documentCode?.toLowerCase().includes(q) || d.name?.toLowerCase().includes(q) || d.documentType?.toLowerCase().includes(q);
-  });
+  useEffect(() => {
+    const timer = setTimeout(() => loadDocuments(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const handleDelete = (id: string) => {
     setConfirmState({
@@ -114,7 +140,7 @@ export default function DocumentsListPage() {
           const data = await res.json();
           if (data.success) {
             toast.success("Document deleted");
-            loadDocuments();
+            setDocuments(prev => prev.filter(d => d.id !== id));
           } else {
             toast.error(data.message || "Failed to delete");
           }
@@ -125,6 +151,18 @@ export default function DocumentsListPage() {
     });
   };
 
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const stats = {
+    total: documents.length,
+    drawings: documents.filter(d => d.documentType === "Drawing").length,
+    ndas: documents.filter(d => d.documentType === "NDA").length,
+    thisMonth: documents.filter(d => new Date(d.createdAt) > thirtyDaysAgo).length,
+  };
+
+  const currentTabLabel = docTypeFilters.find(f => f.value === typeFilter)?.label ?? "Documents";
+  const currentTabIcon = docTypeFilters.find(f => f.value === typeFilter)?.icon ?? "📂";
+
   return (
     <PageContainer>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
@@ -133,14 +171,32 @@ export default function DocumentsListPage() {
           <p className="text-sm text-gray-500 mt-0.5">Manage all your business documents in one place</p>
         </div>
         <button
-          onClick={() => router.push("/documents/new")}
+          onClick={() => setUploadOpen(true)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
         >
           <Ico d={icons.plus} size={16} /> Upload Document
         </button>
       </div>
 
-      {/* Sidebar sub-filters */}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: "Total Documents", value: stats.total, icon: "📂", color: "text-slate-700" },
+          { label: "Drawings", value: stats.drawings, icon: "📐", color: "text-blue-600" },
+          { label: "NDAs", value: stats.ndas, icon: "🤝", color: "text-amber-600" },
+          { label: "Uploaded This Month", value: stats.thisMonth, icon: "📤", color: "text-emerald-600" },
+        ].map((card) => (
+          <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-2xl">{card.icon}</span>
+              <span className={`text-2xl font-bold ${card.color}`}>{card.value}</span>
+            </div>
+            <p className="text-xs font-medium text-slate-500">{card.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Tab Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
         {docTypeFilters.map((f) => (
           <Link
@@ -164,69 +220,105 @@ export default function DocumentsListPage() {
         </div>
         <input
           type="text"
-          placeholder="Search documents..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search documents…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
         />
       </div>
 
-      {/* Table */}
+      {/* Table / Empty State */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Code</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Name</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Type</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Related To</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Uploaded By</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-700">Uploaded Date</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400">Loading documents...</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-gray-400">No documents found</td></tr>
-              ) : (
-                filtered.map((doc: any) => {
+        {loading ? (
+          <div className="text-center py-12 text-gray-400 text-sm">Loading documents…</div>
+        ) : documents.length === 0 ? (
+          <div className="text-center py-16 px-4">
+            <div className="text-4xl mb-3">{currentTabIcon}</div>
+            <div className="font-semibold text-sm text-slate-700 mb-1">No {currentTabLabel} found</div>
+            <div className="text-xs text-slate-400 mb-4">
+              {searchQuery ? `No results for "${searchQuery}"` : "Upload your first document to get started"}
+            </div>
+            <button
+              onClick={() => setUploadOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)]"
+            >
+              <Ico d={icons.plus} size={16} /> Upload Document
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Code</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Name</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Type</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Related To</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Version</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">File Size</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Uploaded By</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Date</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {documents.map((doc: any) => {
                   const linkBuilder = entityLinkMap[doc.entityType];
-                  const relatedLabel = `${entityTypeLabels[doc.entityType] || doc.entityType}`;
+                  const entityLabel = entityTypeLabels[doc.entityType] || doc.entityType;
+                  const entityIcon = entityIcons[doc.entityType] ?? "📎";
                   return (
                     <tr key={doc.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{doc.documentCode}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{doc.name}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)]">
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_COLORS[doc.documentType] ?? "bg-gray-100 text-gray-600"}`}>
                           {doc.documentType}
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {linkBuilder ? (
-                          <Link href={linkBuilder(doc.entityId)} className="text-[var(--primary)] hover:underline text-xs">
-                            {relatedLabel}
-                          </Link>
+                        {doc.entityType && doc.relatedEntityName ? (
+                          linkBuilder ? (
+                            <Link
+                              href={linkBuilder(doc.entityId)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--primary)]/10 text-[var(--primary)] hover:bg-[var(--primary)]/20"
+                            >
+                              {entityIcon} {doc.relatedEntityName}
+                            </Link>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                              {entityIcon} {doc.relatedEntityName}
+                            </span>
+                          )
+                        ) : doc.entityType ? (
+                          <span className="text-xs text-slate-400">{entityIcon} {entityLabel}</span>
                         ) : (
-                          <span className="text-gray-500 text-xs">{relatedLabel}</span>
+                          <span className="text-xs text-slate-300">—</span>
                         )}
                       </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">v{doc.version ?? 1}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{formatSize(doc.fileSize)}</td>
                       <td className="px-4 py-3 text-gray-600">{doc.uploadedBy?.name || "—"}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs">
                         {new Date(doc.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setPreviewDoc(doc)}
+                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-600"
+                            title="Preview"
+                          >
+                            <Ico d={icons.eye} size={15} />
+                          </button>
                           <a
                             href={doc.fileUrl}
                             target="_blank"
                             rel="noopener noreferrer"
+                            download={doc.name}
                             className="p-1.5 rounded-md hover:bg-gray-100 text-gray-600"
-                            title="View/Download"
+                            title="Download"
                           >
-                            <Ico d={icons.eye} size={15} />
+                            <Ico d={icons.download} size={15} />
                           </a>
                           {(user?.role === "Admin" || user?.role === "SalesManager" || doc.uploadedById === user?.id) && (
                             <button
@@ -241,12 +333,29 @@ export default function DocumentsListPage() {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      <UploadDocumentModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onSuccess={(doc) => {
+          setDocuments(prev => [doc, ...prev]);
+          setUploadOpen(false);
+          toast.success("Document uploaded successfully");
+        }}
+      />
+
+      <DocumentPreviewModal
+        document={previewDoc}
+        isOpen={!!previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        onDelete={handleDelete}
+      />
 
       <ConfirmModal
         isOpen={confirmState.isOpen}

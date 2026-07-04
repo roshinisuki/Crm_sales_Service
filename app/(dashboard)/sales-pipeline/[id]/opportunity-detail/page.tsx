@@ -14,6 +14,7 @@ import {
   Edit3, FileText, MessageSquare,
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
+import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 
 const STAGE_DISPLAY_LABELS: Record<string, string> = {
@@ -2289,6 +2290,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       {/* ─── Competitor Intelligence ─── */}
       <div className="crm-card p-5">
         <CompetitorIntelligenceTab entity={{ dealId: deal.id, customerId: deal.customerId, currentStage: deal.status }} />
+      </div>
+
+      {/* ─── Documents ─── */}
+      <div className="crm-card p-5">
+        <EntityDocumentTab entityType="Deal" entityId={deal.id} />
       </div>
 
       {/* ─── Stage History Timeline ─── */}
