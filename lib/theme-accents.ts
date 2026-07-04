@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react";
 
 export const THEME_ACCENTS = {
-  orange:    "#F77F00",
-  blue:      "#8ECAE6",
-  green:     "#65B017",
-  purple:    "#4a0875",
-  purpleDark:"#b07ce8",
-  dark:      "#FFFFFF",
+  blue:    "#2090FF",
+  green:   "#7f9e15",
+  purple:  "#CD69ED",
+  dark:    "#FFFFFF",
+  // Legacy names kept for backward compatibility
+  orange:  "#F77F00",
 } as const;
 
 export type ThemeAccentKey = keyof typeof THEME_ACCENTS;
@@ -17,8 +17,8 @@ function colorKeyToAccent(colorKey: string): ThemeAccentKey {
   if (colorKey === "forest" || colorKey === "green")       return "green";
   if (colorKey === "ember"  || colorKey === "orange")      return "orange";
   if (colorKey === "ocean"  || colorKey === "blue")        return "blue";
-  if (colorKey === "purple" || colorKey === "obsidian")    return "purple";
-  if (colorKey === "black" || colorKey === "neutral" || colorKey === "dark") return "dark";
+  if (colorKey === "purple" || colorKey === "obsidian" || colorKey === "black") return "purple";
+  if (colorKey === "dark")                                 return "dark";
   return "blue";
 }
 
@@ -26,7 +26,7 @@ function readAccentFromDOM(): ThemeAccentKey {
   if (typeof window === "undefined") return "blue";
   // New system: separate data-theme attribute
   const attr = document.documentElement.getAttribute("data-theme") ?? "blue";
-  // Could be "orange", "blue", "green", "purple" (new) or "ember-light" (legacy)
+  // Could be "blue", "green", "purple", "dark" (new) or "ember-light" (legacy)
   const sep = attr.lastIndexOf("-");
   const color = sep > 0 ? attr.slice(0, sep) : attr;
   return colorKeyToAccent(color);

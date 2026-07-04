@@ -50,10 +50,10 @@ export default function DashboardHeader({
   const now = useClock();
 
   // Theme — single source of truth from ThemeProvider
-  const { theme, mode, setTheme, toggleMode } = useTheme();
+  const { theme, mode, requestThemeChange, toggleMode } = useTheme();
 
   const changeTheme = (t: string) => {
-    setTheme(t as any);
+    requestThemeChange(t as any);
   };
 
   // Search

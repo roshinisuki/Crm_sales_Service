@@ -72,53 +72,53 @@ export function SalesKpiCards({ kpis }: { kpis: any }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-      <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active Leads</p>
-          <h3 className="text-3xl font-black text-slate-800"><CountUp end={kpis.totalLeads || 0} /></h3>
-          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-md w-fit">
+          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Active Leads</p>
+          <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100"><CountUp end={kpis.totalLeads || 0} /></h3>
+          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded-md w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             {kpis.qualifiedLeads} Qualified
           </p>
         </div>
-        <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+        <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
           <Ico d={SalesIcons.leads} size={28} />
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Active Deals</p>
-          <h3 className="text-3xl font-black text-slate-800"><CountUp end={kpis.openDeals || 0} /></h3>
-          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md w-fit">
+          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Active Deals</p>
+          <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100"><CountUp end={kpis.openDeals || 0} /></h3>
+          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded-md w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             In Pipeline
           </p>
         </div>
-        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/30 text-amber-500 dark:text-amber-400 flex items-center justify-center shrink-0">
           <Ico d={SalesIcons.chart} size={28} />
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pipeline Value</p>
-          <h3 className="text-3xl font-black text-slate-800">{(() => { const p = parseCountValue(formatCurrency(kpis.pipelineRevenue || 0)); return <CountUp end={p.end} prefix={p.prefix} decimals={p.decimals} />; })()}</h3>
-          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-[var(--primary)] bg-red-50 px-2 py-0.5 rounded-md w-fit">
+          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Pipeline Value</p>
+          <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100">{(() => { const p = parseCountValue(formatCurrency(kpis.pipelineRevenue || 0)); return <CountUp end={p.end} prefix={p.prefix} decimals={p.decimals} />; })()}</h3>
+          <p className="text-[10px] font-bold mt-1.5 flex items-center gap-1 text-[var(--primary)] bg-red-50 dark:bg-rose-950/20 px-2 py-0.5 rounded-md w-fit">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
             Closed: {formatCurrency(kpis.wonRevenue || 0)}
           </p>
         </div>
-        <div className="w-14 h-14 rounded-2xl bg-red-50 text-[var(--primary)] flex items-center justify-center shrink-0">
+        <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-rose-950/30 text-[var(--primary)] flex items-center justify-center shrink-0">
           <Ico d={SalesIcons.revenue} size={28} />
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
+      <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 p-6 rounded-3xl shadow-sm flex items-center justify-between hover:shadow-md transition-shadow">
         <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Conversion</p>
-          <h3 className="text-3xl font-black text-slate-800"><CountUp end={kpis.conversionRate || 0} suffix="%" decimals={1} /></h3>
-          <p className="text-[10px] font-bold mt-1.5 text-slate-400">
+          <p className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-widest mb-1">Conversion</p>
+          <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100"><CountUp end={kpis.conversionRate || 0} suffix="%" decimals={1} /></h3>
+          <p className="text-[10px] font-bold mt-1.5 text-slate-400 dark:text-slate-500">
             {kpis.wonDeals} Won / {(kpis.openDeals || 0) + (kpis.wonDeals || 0)} Total
           </p>
         </div>

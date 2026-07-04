@@ -102,7 +102,7 @@ function KpiStrip({ dashboardData, salesData, formatCurrency }: any) {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>
               {k.label}
             </span>
             <span
@@ -211,7 +211,7 @@ function SalesLineCard({ formatCurrency }: { formatCurrency: (v: number) => stri
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <p style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+          <p style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
             Overall Sales
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "4px" }}>
@@ -317,13 +317,43 @@ function VisitorsBarCard() {
   const values = [58, 42, 74, 61, 69, 65, 87, 57, 25, 18, 13, 11];
   const accentIdx = 6;
 
+  const [accentColor, setAccentColor] = useState("#3b82f6");
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const updateColors = () => {
+        const dark = document.documentElement.classList.contains("dark");
+        setIsDark(dark);
+        const style = window.getComputedStyle(document.documentElement);
+        const acc = style.getPropertyValue("--accent").trim();
+        if (acc) setAccentColor(acc);
+      };
+
+      updateColors();
+
+      const observer = new MutationObserver(updateColors);
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme", "class"]
+      });
+
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  const normalBarColor = isDark ? "rgba(255, 255, 255, 0.12)" : "rgba(148, 163, 184, 0.2)";
+  const highlightedBarColor = accentColor;
+  const gridColor = isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(148, 163, 184, 0.12)";
+  const tickColor = isDark ? "#94a3b8" : "#64748b";
+
   const data = {
     labels,
     datasets: [
       {
         data: values,
         backgroundColor: values.map((_, i) =>
-          i === accentIdx ? "#3b82f6" : "var(--border)"
+          i === accentIdx ? highlightedBarColor : normalBarColor
         ),
         borderRadius: 8,
         borderSkipped: false as const,
@@ -335,8 +365,8 @@ function VisitorsBarCard() {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c: any) => ` ${c.raw} visitors` } } },
     scales: {
-      x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10 } } },
-      y: { grid: { color: "rgba(0,0,0,0.05)" }, border: { display: false }, ticks: { font: { size: 10 } } },
+      x: { grid: { display: false }, border: { display: false }, ticks: { color: tickColor, font: { size: 10 } } },
+      y: { grid: { color: gridColor }, border: { display: false }, ticks: { color: tickColor, font: { size: 10 } } },
     },
   };
 

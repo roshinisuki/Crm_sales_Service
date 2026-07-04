@@ -59,14 +59,13 @@ export function StatusPill({
   const colors = STATUS_COLORS[status] || fallback;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full font-medium whitespace-nowrap ${className ?? ""}`}
+      className={`inline-flex items-center gap-1 rounded-full font-semibold whitespace-nowrap leading-none ${className ?? ""}`}
       style={{
         background: colors.bg,
         color: colors.text,
         border: `1px solid ${colors.border}`,
         fontSize: size === "sm" ? "11px" : "12px",
-        fontWeight: 600,
-        padding: size === "sm" ? "3px 9px" : "4px 12px",
+        padding: size === "sm" ? "2px 8px" : "4px 12px",
       }}
     >
       {status}

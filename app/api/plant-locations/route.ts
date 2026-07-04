@@ -21,7 +21,6 @@ export async function GET(request: Request) {
       where: { 
         customerId,
         isActive: true,
-        deletedAt: null,
       },
       orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
     });

@@ -18,7 +18,7 @@ import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
 import { DEALS_STATUS } from "@/lib/module-status-config";
-import { getInitials, getAvatarColor, formatDate, cn } from "@lib/ui-utils";
+import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import { Plus, Search, Download, Eye, Pencil, Trash2, Briefcase, TrendingUp, CheckCircle, XCircle, PauseCircle } from "lucide-react";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { CRMSpinner } from "@/components/CRMSpinner";
@@ -44,6 +44,10 @@ function DealsPageContent() {
 
   const [search,      setSearch]      = useState("");
   const statusFilter = useStatusFromUrl("status");
+
+  const [form, setForm] = useState(emptyForm);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // ── Data ─────────────────────────────────────────────────────────────────
 

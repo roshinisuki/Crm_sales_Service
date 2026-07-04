@@ -592,7 +592,8 @@ export async function saveUserThemeAction(theme: string) {
       return { success: false, message: "Unauthorized" };
     }
 
-    const validThemes = ["ember", "ocean", "forest", "obsidian"];
+    // Accept both new direct keys (blue/green/purple/dark) and legacy DB names
+    const validThemes = ["blue", "green", "purple", "dark", "ocean", "forest", "obsidian", "ember"];
     if (!validThemes.includes(theme)) {
       return { success: false, message: "Invalid theme" };
     }

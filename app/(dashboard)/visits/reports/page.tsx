@@ -199,7 +199,7 @@ export default function VisitReportsPage() {
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
           <h3 className="text-sm font-bold text-slate-800 mb-2">Needs Review</h3>
           <p className="text-3xl font-bold text-orange-600">{summary.needsReview}</p>
-          <p className="text-xs text-slate-500 mt-1">Visits active > 12h without checkout</p>
+          <p className="text-xs text-slate-500 mt-1">Visits active &gt; 12h without checkout</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
           <h3 className="text-sm font-bold text-slate-800 mb-2">No Show</h3>

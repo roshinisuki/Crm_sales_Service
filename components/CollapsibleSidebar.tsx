@@ -108,9 +108,13 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
     <aside
       ref={sidebarRef}
       className={cn(
-        "flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-white/[0.06] transition-all duration-300 ease-in-out",
+        "flex flex-col h-full border-r border-white/[0.08] transition-all duration-300 ease-in-out",
         collapsed ? "w-[72px]" : "w-[220px]"
       )}
+      style={{
+        background: "linear-gradient(170deg, #13182E 0%, #0C1020 50%, #080C18 100%)",
+        boxShadow: "4px 0 32px rgba(0,0,0,0.45), inset -1px 0 0 rgba(255,255,255,0.05)"
+      }}
       role="navigation"
       aria-label="Main navigation"
     >

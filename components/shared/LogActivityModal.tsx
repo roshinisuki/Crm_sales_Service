@@ -401,7 +401,7 @@ export function LogActivityModal({
           <button
             onClick={handleSubmit}
             disabled={submitting || !content.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-[var(--accent-contrast)] bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
           >
             {submitting ? "Saving..." : "Log Activity"}
           </button>

@@ -15,7 +15,7 @@ interface LogoProps {
 const ACCENT: Record<LogoTheme, string> = {
   orange:  "var(--brand-primary, #FF6901)",  // orange gradient
   blue:    "var(--brand-primary, #2090FF)",  // blue gradient
-  green:   "var(--brand-primary, #BBDD48)",  // forest green gradient
+  green:   "var(--brand-primary, #7f9e15)",  // forest green gradient
   purple:  "var(--brand-primary, #CD69ED)",  // deep purple gradient
   dark:    "#FFFFFF",  // login page explicit all-white
   neutral: "#FFFFFF",  // obsidian-light fallback to white on dark sidebar
@@ -25,7 +25,7 @@ const ACCENT: Record<LogoTheme, string> = {
 const GLOW_HEX: Record<LogoTheme, string> = {
   orange:  "#FF6901",
   blue:    "#2090FF",
-  green:   "#BBDD48",
+  green:   "#7f9e15",
   purple:  "#CD69ED",
   dark:    "#FFFFFF",
   neutral: "#FFFFFF",

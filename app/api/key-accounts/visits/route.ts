@@ -35,7 +35,6 @@ export async function GET(_request: NextRequest) {
             select: {
               checkInTime: true,
               outcomeType: true,
-              outcomeNotes: true,
               visitType: true,
               locationVerified: true,
               outcomeNotes: true,

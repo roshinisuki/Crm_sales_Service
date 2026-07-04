@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
         resourceId: visit.id,
         newState: { status: "AUTO_CHECKED_OUT", autoCheckedOut: true, reason: "No manual checkout within 12h window" },
         context: extractAuditContext(request),
-        severity: "WARNING",
+        severity: "WARN",
       });
     }
 

@@ -52,6 +52,107 @@ function NavLink({ item, active, onClick, collapsed }: { item: NavItem; active: 
   );
 }
 
+// ─── Route matching helpers ──────────────────────────────────────────────────
+
+function parseQuery(str?: string): Record<string, string> {
+  if (!str) return {};
+  const params = new URLSearchParams(str);
+  const obj: Record<string, string> = {};
+  params.forEach((val, key) => {
+    obj[key.toLowerCase()] = val.toLowerCase();
+  });
+  return obj;
+}
+
+export function isBasePathActive(currentPath: string, targetHref: string): boolean {
+  const targetPath = targetHref.split("?")[0].split("#")[0];
+  const currentCleanPath = currentPath.split("?")[0].split("#")[0];
+
+  const getSegments = (p: string) => p.split("/").filter(Boolean);
+  const currentSegments = getSegments(currentCleanPath);
+  const targetSegments = getSegments(targetPath);
+
+  if (currentSegments.length === 0 || targetSegments.length === 0) {
+    return false;
+  }
+
+  const parentSegmentsCount = ["admin", "settings", "customer", "reports"].includes(targetSegments[0]) ? 2 : 1;
+
+  for (let i = 0; i < parentSegmentsCount; i++) {
+    if (targetSegments[i] !== currentSegments[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function isRouteActive(
+  currentPath: string,
+  currentQueryString: string,
+  targetHref: string,
+  allSectionHrefs: string[]
+): boolean {
+  const currentCleanPath = currentPath.split("?")[0].split("#")[0];
+  const currentQuery = parseQuery(currentQueryString);
+
+  const getScore = (href: string) => {
+    const [targetPath, targetQueryStr] = href.split("?");
+    const targetCleanPath = targetPath.split("#")[0];
+
+    const getSegments = (p: string) => p.split("/").filter(Boolean);
+    const currentSegments = getSegments(currentCleanPath);
+    const targetSegments = getSegments(targetCleanPath);
+
+    // Calculate matching path segments
+    let matchingSegments = 0;
+    for (let i = 0; i < targetSegments.length; i++) {
+      if (currentSegments[i] === targetSegments[i]) {
+        matchingSegments++;
+      } else {
+        break;
+      }
+    }
+
+    // Target path must match and be a prefix/exact match of the current path
+    if (matchingSegments < targetSegments.length) {
+      return -1;
+    }
+
+    // Check if base path matches
+    if (!isBasePathActive(currentCleanPath, targetCleanPath)) {
+      return -1;
+    }
+
+    // Verify all query parameters of the target are present and match
+    const targetQuery = parseQuery(targetQueryStr);
+    let matchCount = 0;
+    for (const [key, val] of Object.entries(targetQuery)) {
+      if (currentQuery[key] !== val) {
+        return -1;
+      }
+      matchCount++;
+    }
+
+    // Score combines path specificity (number of segments) and query matches
+    return matchingSegments * 100 + matchCount;
+  };
+
+  const targetScore = getScore(targetHref);
+  if (targetScore < 0) return false;
+
+  // Find if there is any other href in this section with a higher score
+  for (const siblingHref of allSectionHrefs) {
+    if (siblingHref === targetHref) continue;
+    const siblingScore = getScore(siblingHref);
+    if (siblingScore > targetScore) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // ─── ExpandableNavSection ─────────────────────────────────────────────────────
 
 function ExpandableNavSection({
@@ -76,16 +177,15 @@ function ExpandableNavSection({
   const searchParams = useSearchParams();
   const searchString = searchParams ? searchParams.toString() : "";
 
+  const allHrefs = subItems.map(item => item.href).filter((href): href is string => !!href);
+
   const isSubActive = (href: string): boolean => {
-    const [path, query] = href.split("?");
-    if (pathname !== path) return false;
-    if (!query) return searchString === "";
-    return searchString === query;
+    return isRouteActive(pathname, searchString, href, allHrefs);
   };
 
   const isSectionActive = subItems.some((item) => {
     if (item.divider || !item.href) return false;
-    return isSubActive(item.href);
+    return isBasePathActive(pathname, item.href);
   });
 
   useEffect(() => {
@@ -102,9 +202,12 @@ function ExpandableNavSection({
         <button
           title={label}
           className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg text-sm font-medium transition-colors"
-          style={{ color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)" }}
-          onMouseEnter={e => { if (!isSectionActive) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
-          onMouseLeave={e => { if (!isSectionActive) e.currentTarget.style.background = "transparent"; }}
+          style={{
+            color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)",
+            background: isSectionActive ? "color-mix(in srgb, var(--brand-primary) 10%, transparent)" : "transparent"
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = isSectionActive ? "color-mix(in srgb, var(--brand-primary) 15%, transparent)" : "var(--sidebar-hover)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = isSectionActive ? "color-mix(in srgb, var(--brand-primary) 10%, transparent)" : "transparent"; }}
         >
           <span style={{ color: isSectionActive ? "var(--sidebar-active)" : "var(--sidebar-heading)" }}>{icon}</span>
         </button>
@@ -122,7 +225,7 @@ function ExpandableNavSection({
             return (
               <Link key={href} href={href} onClick={onNavClick}
                 className="block px-3 py-1.5 text-[12px] rounded-md mx-1 transition-colors"
-                style={isActive ? { color: "var(--sidebar-active)", fontWeight: 600, background: "rgba(255,255,255,0.04)" } : { color: "var(--sidebar-text)" }}
+                style={isActive ? { color: "var(--sidebar-text-act)", fontWeight: 600, background: "var(--sidebar-active-bg)" } : { color: "var(--sidebar-text)" }}
                 onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
                 onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
               >
@@ -144,13 +247,14 @@ function ExpandableNavSection({
         )}
         style={{
           fontSize: collapsed ? undefined : "13.5px",
-          color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)"
+          color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)",
+          background: "transparent"
         }}
-        onMouseEnter={e => { if (!isSectionActive) e.currentTarget.style.background = "var(--sidebar-hover)"; }}
-        onMouseLeave={e => { if (!isSectionActive) e.currentTarget.style.background = "transparent"; }}
+        onMouseEnter={e => { e.currentTarget.style.background = "var(--sidebar-hover)"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
       >
         <div className="flex items-center gap-3">
-          <span className={cn("transition-colors shrink-0")} style={{ color: isSectionActive ? "var(--sidebar-active)" : "var(--sidebar-heading)" }}>
+          <span className={cn("transition-colors shrink-0")} style={{ color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-heading)" }}>
             {icon}
           </span>
           <span className="whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
@@ -159,7 +263,7 @@ function ExpandableNavSection({
           {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
-      
+
       {isOpen && (
         <div className="overflow-hidden pl-4 pr-1 py-1 space-y-1 border-l border-white/10 ml-5">
           {subItems.map((sub, idx) => {
@@ -181,7 +285,7 @@ function ExpandableNavSection({
                 style={{
                   fontSize: "12.5px",
                   ...(isActive
-                    ? { color: "var(--sidebar-active)", fontWeight: 600, background: "rgba(255,255,255,0.04)" }
+                    ? { color: "var(--sidebar-text-act)", fontWeight: 600, background: "var(--sidebar-active-bg)" }
                     : { color: "var(--sidebar-text)" }
                   )
                 }}
@@ -932,14 +1036,14 @@ function SidebarContent({
           <Logo
             theme={logoTheme}
             variant="mark-only"
-            size={48}
+            size={38}
             className="transition-all duration-300 hover:scale-105"
           />
         ) : (
           <Logo
             theme={logoTheme}
             variant="full"
-            size={56}
+            size={46}
             className="transition-all duration-300 hover:scale-105"
           />
         )}
@@ -1168,17 +1272,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
       )}
 
-      {/* ── Sidebar ── */}
       <aside
         className={cn(
-          "shrink-0 flex flex-col h-full z-20 shadow-xl border-r border-white/[0.07] transition-all duration-300 ease-in-out",
+          "shrink-0 flex flex-col h-full z-20 border-r border-white/[0.08] transition-all duration-300 ease-in-out",
           // Desktop: show sidebar always
           "hidden md:flex",
           isCollapsed ? "w-[72px]" : "w-[236px]",
           // Mobile: show as drawer when open
           mobileDrawerOpen && "fixed inset-y-0 left-0 md:hidden flex w-[260px] z-50"
         )}
-        style={{ background: "var(--sidebar-bg)" }}
+        style={{
+          background: "linear-gradient(170deg, #13182E 0%, #0C1020 50%, #080C18 100%)",
+          boxShadow: "4px 0 32px rgba(0,0,0,0.45), inset -1px 0 0 rgba(255,255,255,0.05)"
+        }}
       >
         <SidebarContent
           pathname={pathname}

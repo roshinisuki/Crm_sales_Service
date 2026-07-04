@@ -69,8 +69,8 @@ export function SummaryCard({
         {/* Label + icon */}
         <div className="flex items-center justify-between">
           <p
-            className="text-[11px] uppercase tracking-[0.04em]"
-            style={{ color: showAccent ? "var(--accent-text)" : "var(--text-muted)" }}
+            className="text-[11px] uppercase tracking-[0.04em] font-semibold"
+            style={{ color: showAccent ? "var(--accent-text)" : "var(--text-secondary)" }}
           >
             {label}
           </p>

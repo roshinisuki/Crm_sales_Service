@@ -10,7 +10,7 @@ type StatusType =
   | "Low" | "Medium" | "High"
   | string;
 
-const statusConfig: Record<string, { classes: string; dot: string; label?: string }> = {
+const statusConfig: Record<string, { classes: string; dot: string; label?: string; style?: Record<string, any> }> = {
   // Lead statuses
   New:         { classes: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/50",         dot: "bg-blue-400" },
   Contacted:   { classes: "bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-400 dark:border-cyan-800/50",          dot: "bg-cyan-400" },
@@ -83,8 +83,8 @@ export function StatusBadge({ status, showDot = false, size = "sm", pulse = fals
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 border font-semibold rounded-full",
-        size === "sm" ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
+        "inline-flex items-center gap-1.5 border font-semibold rounded-full leading-none",
+        size === "sm" ? "px-2 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
         isPriority ? "dark:bg-[var(--badge-bg)] dark:text-[var(--badge-text)] dark:border-[var(--badge-border)]" : "",
         config.classes,
         className,

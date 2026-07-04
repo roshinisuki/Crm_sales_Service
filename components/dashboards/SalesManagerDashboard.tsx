@@ -89,26 +89,32 @@ const REVENUE_COLORS = ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B"];
 
 // ── KPI Widget ───────────────────────────────────────────────────────────────
 function KPIWidget({ label, value, prefix, suffix, decimals, icon, trend, comparison, color, accentBg }: KPIWidgetProps) {
-  const trendColor = trend ? (trend.up ? "#1D9E75" : "#E24B4A") : undefined;
+  const trendColor = trend ? (trend.up ? "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" : "text-rose-600 bg-rose-50 dark:bg-rose-950/30") : "";
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      className="rounded-[10px] border p-5 flex flex-col gap-3 h-full shadow-sm hover:shadow-md transition-shadow"
-      style={{ background: "var(--surface-2)", borderColor: "var(--border-subtle)" }}
+      transition={{ duration: 0.3 }}
+      className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-5 flex flex-col justify-between h-full shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05),0_10px_20px_-2px_rgba(0,0,0,0.03)] hover:shadow-[0_4px_16px_-3px_rgba(0,0,0,0.08),0_12px_24px_-2px_rgba(0,0,0,0.04)] transition-all duration-300"
     >
-      <p className="text-[11px] uppercase tracking-[0.04em]" style={{ color: "var(--text-muted)" }}>{label}</p>
-      <p className="text-[22px] font-medium tracking-tight" style={{ color: "var(--text-primary)" }}>
-        <CountUp end={value} prefix={prefix} suffix={suffix} decimals={decimals || 0} />
-      </p>
-      <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{label}</p>
+          <h3 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
+            <CountUp end={value} prefix={prefix} suffix={suffix} decimals={decimals || 0} />
+          </h3>
+        </div>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${accentBg}`}>
+          {icon}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-4 pt-3 border-t border-slate-50 dark:border-slate-800/50">
         {trend && (
-          <span className="text-[11px]" style={{ color: trendColor }}>
+          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${trendColor}`}>
             {trend.value}
           </span>
         )}
-        <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{comparison}</span>
+        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">{comparison}</span>
       </div>
     </motion.div>
   );
@@ -118,13 +124,15 @@ function KPIWidget({ label, value, prefix, suffix, decimals, icon, trend, compar
 function ChartTooltip({ active, payload, label, formatter }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-slate-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl border border-slate-700">
-      <p className="font-semibold mb-1">{label}</p>
+    <div className="bg-slate-900/95 dark:bg-slate-950/95 text-white text-xs rounded-xl px-3.5 py-2.5 shadow-xl border border-slate-850 dark:border-slate-800 backdrop-blur-sm">
+      <p className="font-bold mb-1.5 text-slate-200">{label}</p>
       {payload.map((entry: any, idx: number) => (
-        <p key={idx} className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
-          <span>{entry.name}:</span>
-          <span className="font-bold">{formatter ? formatter(entry.value) : entry.value}</span>
+        <p key={idx} className="flex items-center justify-between gap-6 py-0.5">
+          <span className="flex items-center gap-2 text-slate-400">
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color || entry.fill }} />
+            {entry.name}:
+          </span>
+          <span className="font-extrabold text-white">{formatter ? formatter(entry.value) : entry.value}</span>
         </p>
       ))}
     </div>
@@ -135,17 +143,17 @@ function ChartTooltip({ active, payload, label, formatter }: any) {
 function SectionCard({ title, subtitle, action, children, className }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.1 }}
-      className={`bg-white rounded-2xl border border-slate-200/70 shadow-sm p-6 h-full ${className ?? ""}`}
+      transition={{ duration: 0.3 }}
+      className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05),0_10px_20px_-2px_rgba(0,0,0,0.03)] p-6 h-full ${className ?? ""}`}
     >
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h3 className="text-base font-bold text-slate-800">{title}</h3>
-          {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">{title}</h3>
+          {subtitle && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{subtitle}</p>}
         </div>
-        {action}
+        {action && <div className="shrink-0">{action}</div>}
       </div>
       {children}
     </motion.div>
@@ -287,7 +295,7 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
         <select
           value={dateRange}
           onChange={(e) => setDateRange(e.target.value)}
-          className="px-4 py-2 text-xs font-medium rounded-xl border border-slate-200 bg-white text-slate-600 outline-none cursor-pointer hover:bg-slate-50 transition-colors"
+          className="px-4.5 py-2.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-905 text-slate-600 dark:text-slate-300 outline-none cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/80 shadow-sm transition-all"
         >
           <option value="alltime">All Time</option>
           <option value="last30days">Last 30 Days</option>
@@ -296,102 +304,61 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
         </select>
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-6">
         {/* ══ 1. MANAGER KPI SECTION ══ */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <KPIWidget
             label="Team Quota Attainment"
             value={teamQuotaAttainment}
             suffix="%"
-            icon={<Target size={20} className="text-blue-600" />}
+            icon={<Target size={18} className="text-blue-600 dark:text-blue-400" />}
             trend={{ value: teamQuotaAttainment >= 75 ? "On track" : "Behind", up: teamQuotaAttainment >= 75 }}
             comparison="current month"
             sparklineData={generateSparkline(teamQuotaAttainment || 50, "up")}
             color="text-slate-800"
-            accentBg="bg-blue-50"
+            accentBg="bg-blue-50/70 dark:bg-blue-950/40"
           />
           <KPIWidget
             label="Deals at Risk"
             value={dealsAtRisk}
-            icon={<AlertTriangle size={20} className={dealsAtRisk > 0 ? "text-red-600" : "text-emerald-600"} />}
+            icon={<AlertTriangle size={18} className={dealsAtRisk > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"} />}
             trend={{ value: dealsAtRisk > 0 ? "Needs attention" : "All clear", up: dealsAtRisk === 0 }}
             comparison="past due or stale"
             sparklineData={generateSparkline(dealsAtRisk || 1, "down")}
             color="text-slate-800"
-            accentBg={dealsAtRisk > 0 ? "bg-red-50" : "bg-emerald-50"}
+            accentBg={dealsAtRisk > 0 ? "bg-rose-50/70 dark:bg-rose-950/40" : "bg-emerald-50/70 dark:bg-emerald-950/40"}
           />
           <KPIWidget
             label="Open Pipeline Value"
             value={openPipelineParsed.end}
             prefix={openPipelineParsed.prefix}
             decimals={openPipelineParsed.decimals}
-            icon={<DollarSign size={20} className="text-emerald-600" />}
+            icon={<DollarSign size={18} className="text-emerald-600 dark:text-emerald-400" />}
             trend={{ value: "Active", up: true }}
             comparison="open deals"
             sparklineData={generateSparkline(openPipelineParsed.end || 100000, "up")}
             color="text-slate-800"
-            accentBg="bg-emerald-50"
+            accentBg="bg-emerald-50/70 dark:bg-emerald-950/40"
           />
           <KPIWidget
             label="Avg Deal Cycle"
             value={avgDealCycle}
             suffix=" days"
-            icon={<Clock size={20} className="text-purple-600" />}
+            icon={<Clock size={18} className="text-purple-600 dark:text-purple-400" />}
             trend={{ value: avgDealCycle > 0 ? (avgDealCycle <= 30 ? "Fast" : "Slow") : "—", up: avgDealCycle <= 30 }}
             comparison="won deals"
             sparklineData={generateSparkline(avgDealCycle || 15, "down")}
             color="text-slate-800"
-            accentBg="bg-purple-50"
+            accentBg="bg-purple-50/70 dark:bg-purple-950/40"
           />
         </div>
 
-        {/* ══ 2. SALES PERFORMANCE ANALYTICS ══ */}
-        <SectionCard
-          title="Sales Performance Analytics"
-          subtitle="Monthly revenue vs leads converted trend"
-          action={
-            <div className="flex items-center gap-4 text-xs font-medium">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-500" />Revenue</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-purple-500" />Leads Converted</span>
-            </div>
-          }
-        >
-          <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={performanceData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <YAxis
-                domain={[0, (dataMax: number) => roundUpYAxisMax(dataMax)]}
-                tick={{ fontSize: 12, fill: "#94A3B8" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-              />
-              <Tooltip
-                content={
-                  <ChartTooltip
-                    formatter={(v: number, name: string) =>
-                      name === "Leads Converted" ? `${v} leads` : formatCurrency(v)
-                    }
-                  />
-                }
-              />
-              <Bar dataKey="revenue" name="Revenue" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={24} />
-              <Line dataKey="leads" name="Leads Converted" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 3, fill: "#8B5CF6" }} />
-            </ComposedChart>
-          </ResponsiveContainer>
-          {hasSparseData && (
-            <p className="text-xs text-slate-400 mt-3 italic">
-              Showing available data — full trend appears as more months are recorded.
-            </p>
-          )}
-        </SectionCard>
-
-        {/* ══ 3. NEEDS YOUR ATTENTION PANEL ══ */}
-        <SectionCard
-          title="Needs Your Attention"
-          subtitle="Action items requiring your intervention"
-        >
+        {/* ══ 2. NEEDS YOUR ATTENTION PANEL (Moved to top priority context) ══ */}
+        <div className="bg-slate-50/50 dark:bg-slate-900/30 rounded-3xl p-5 border border-slate-100 dark:border-slate-800/60">
+          <div className="mb-4">
+            <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">Needs Your Attention</h4>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">High priority action items requiring review</p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <AttentionCard
               icon={<AlertTriangle size={18} />}
@@ -422,51 +389,97 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
               color="purple"
             />
           </div>
+        </div>
+
+        {/* ══ 3. SALES PERFORMANCE ANALYTICS ══ */}
+        <SectionCard
+          title="Sales Performance Analytics"
+          subtitle="Monthly revenue vs leads converted trend"
+          action={
+            <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-blue-500" />Revenue</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500" />Leads Converted</span>
+            </div>
+          }
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={performanceData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" dark-stroke="#1E293B" vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis
+                domain={[0, (dataMax: number) => roundUpYAxisMax(dataMax)]}
+                tick={{ fontSize: 11, fill: "#94A3B8" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                content={
+                  <ChartTooltip
+                    formatter={(v: number, name: string) =>
+                      name === "Leads Converted" ? `${v} leads` : formatCurrency(v)
+                    }
+                  />
+                }
+              />
+              <Bar dataKey="revenue" name="Revenue" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={20} />
+              <Line dataKey="leads" name="Leads Converted" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 3, fill: "#8B5CF6" }} activeDot={{ r: 5 }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+          {hasSparseData && (
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-3 italic text-center">
+              Showing available data — full trend appears as more months are recorded.
+            </p>
+          )}
         </SectionCard>
 
-        {/* ══ 4 & 5. PIPELINE OVERVIEW + CONVERSION FUNNEL ══ */}
+        {/* ══ 4. PIPELINE OVERVIEW + CONVERSION FUNNEL ══ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Pipeline Doughnut */}
           <SectionCard title="Sales Pipeline Overview" subtitle="Deal distribution across stages">
             {pipelineData.length > 0 ? (
-              <div className="flex flex-col items-center">
-                <ResponsiveContainer width="100%" height={240}>
-                  <PieChart>
-                    <Pie
-                      data={pipelineData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {pipelineData.map((entry: any, idx: number) => (
-                        <Cell key={idx} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2 w-full">
+              <div className="flex flex-col sm:flex-row items-center justify-around gap-6">
+                <div className="w-full sm:w-1/2 flex justify-center">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={pipelineData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {pipelineData.map((entry: any, idx: number) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="w-full sm:w-1/2 space-y-2.5">
                   {pipelineData.map((entry: any, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2 text-xs">
-                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-                      <span className="text-slate-600 truncate flex-1">{entry.name}</span>
-                      <span className="font-bold text-slate-800">{entry.value}</span>
+                    <div key={idx} className="flex items-center justify-between text-xs border-b border-slate-50 dark:border-slate-800/50 pb-1.5">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+                        <span className="text-slate-600 dark:text-slate-400 truncate">{entry.name}</span>
+                      </div>
+                      <span className="font-extrabold text-slate-800 dark:text-slate-200">{entry.value}</span>
                     </div>
                   ))}
                 </div>
               </div>
             ) : (
-              <div className="h-[240px] flex items-center justify-center text-slate-400 text-sm">No pipeline data available</div>
+              <div className="h-[200px] flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">No pipeline data available</div>
             )}
           </SectionCard>
 
           {/* Conversion Funnel */}
           <SectionCard title="Conversion Funnel" subtitle="Lead-to-close conversion journey">
             {funnelStages.length > 0 ? (
-              <div className="space-y-2">
+              <div className="space-y-3.5">
                 {funnelStages.map((stage: any, idx: number) => {
                   const maxCount = Math.max(...funnelStages.map((s: any) => s.count || 0), 1);
                   const widthPct = Math.max((stage.count / maxCount) * 100, 12);
@@ -475,27 +488,27 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                     ? Math.round(((prevCount - stage.count) / prevCount) * 100)
                     : 0;
                   return (
-                    <div key={idx}>
+                    <div key={idx} className="space-y-1">
                       {idx > 0 && dropPct > 0 && (
-                        <div className="flex items-center gap-2 text-xs text-slate-400 mb-1 pl-2">
-                          <ChevronRight size={12} className="rotate-90" />
-                          <span>{100 - dropPct}% pass-through · {dropPct}% drop-off</span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400 dark:text-slate-500 pl-24">
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                          <span>{100 - dropPct}% conversion rate · {dropPct}% drop-off</span>
                         </div>
                       )}
                       <div className="flex items-center gap-3">
-                        <div className="w-28 shrink-0 text-right">
-                          <span className="text-xs font-medium text-slate-600">{stage.stage}</span>
+                        <div className="w-20 shrink-0 text-right">
+                          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate block">{stage.stage}</span>
                         </div>
                         <div className="flex-1 relative">
                           <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${widthPct}%` }}
-                            transition={{ duration: 0.6, delay: idx * 0.1 }}
-                            className="h-8 rounded-lg flex items-center justify-between px-3"
-                            style={{ backgroundColor: stage.color }}
+                             initial={{ width: 0 }}
+                             animate={{ width: `${widthPct}%` }}
+                             transition={{ duration: 0.5, delay: idx * 0.05 }}
+                             className="h-7.5 rounded-lg flex items-center justify-between px-3 shadow-sm"
+                             style={{ backgroundColor: stage.color }}
                           >
                             <span className="text-xs font-bold text-white">{stage.count}</span>
-                            <span className="text-xs font-medium text-white/80">{stage.pct}%</span>
+                            <span className="text-[10px] font-bold text-white/90">{stage.pct}%</span>
                           </motion.div>
                         </div>
                       </div>
@@ -504,27 +517,26 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                 })}
               </div>
             ) : (
-              <div className="h-[200px] flex items-center justify-center text-slate-400 text-sm">No funnel data available</div>
+              <div className="h-[200px] flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">No funnel data available</div>
             )}
           </SectionCard>
         </div>
 
-        {/* ══ 6. REP LEADERBOARD ══ */}
+        {/* ══ 5. REP LEADERBOARD ══ */}
         <SectionCard
           title="Rep Leaderboard"
           subtitle="Sales executive performance with quota attainment"
           action={
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-slate-400">Sort by:</span>
+            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setSortBy("revenue")}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${sortBy === "revenue" ? "bg-blue-50 text-blue-600" : "text-slate-500 hover:bg-slate-50"}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === "revenue" ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"}`}
               >
                 Revenue Won
               </button>
               <button
                 onClick={() => setSortBy("quota")}
-                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${sortBy === "quota" ? "bg-blue-50 text-blue-600" : "text-slate-500 hover:bg-slate-50"}`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${sortBy === "quota" ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"}`}
               >
                 Quota Attainment
               </button>
@@ -532,21 +544,21 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
           }
         >
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">#</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Executive</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Leads</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Won</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Conv. Rate</th>
-                  <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Revenue</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider min-w-[140px]">Quota Attainment</th>
+                <tr className="border-b border-slate-100 dark:border-slate-800/50">
+                  <th className="py-3 px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-12">Rank</th>
+                  <th className="py-3 px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Executive</th>
+                  <th className="py-3 px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-right">Leads</th>
+                  <th className="py-3 px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-right">Won</th>
+                  <th className="py-3 px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-right">Conv. Rate</th>
+                  <th className="py-3 px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider text-right">Revenue</th>
+                  <th className="py-3 px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider min-w-[150px]">Quota Attainment</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedAgents.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-8 text-slate-400 text-sm">No team performance data</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-slate-400 dark:text-slate-500 text-sm">No team performance data</td></tr>
                 ) : (
                   sortedAgents.map((agent: any, idx: number) => {
                     const quotaPct = Math.min(agent.quotaAttainment || 0, 100);
@@ -554,45 +566,45 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                     return (
                       <motion.tr
                         key={idx}
-                        initial={{ opacity: 0, x: -10 }}
+                        initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.3, delay: idx * 0.05 }}
-                        className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors"
+                        transition={{ duration: 0.25, delay: idx * 0.04 }}
+                        className="border-b border-slate-50 dark:border-slate-800/40 hover:bg-slate-50/55 dark:hover:bg-slate-800/20 transition-colors"
                       >
-                        <td className="py-3 px-3">
-                          <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                            idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-slate-200 text-slate-600" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-slate-100 text-slate-400"
+                        <td className="py-3.5 px-4">
+                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-extrabold ${
+                            idx === 0 ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400" : idx === 1 ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" : idx === 2 ? "bg-orange-50 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400" : "bg-slate-50/50 text-slate-400 dark:bg-slate-900 dark:text-slate-500"
                           }`}>
                             {idx + 1}
                           </span>
                         </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-extrabold shrink-0 shadow-sm">
                               {agent.name?.charAt(0).toUpperCase() || "?"}
                             </div>
-                            <span className="text-sm font-medium text-slate-800">{agent.name}</span>
+                            <span className="text-sm font-semibold text-slate-750 dark:text-slate-200">{agent.name}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-right text-sm text-slate-700 font-medium">{agent.leadCount || agent.dealsCount || 0}</td>
-                        <td className="py-3 px-3 text-right text-sm text-slate-700 font-medium">{agent.wonCount}</td>
-                        <td className="py-3 px-3 text-right">
-                          <span className={`text-sm font-bold ${agent.conversionRate >= 30 ? "text-emerald-600" : agent.conversionRate >= 15 ? "text-amber-600" : "text-red-500"}`}>
+                        <td className="py-3.5 px-4 text-right text-sm text-slate-600 dark:text-slate-400 font-semibold">{agent.leadCount || agent.dealsCount || 0}</td>
+                        <td className="py-3.5 px-4 text-right text-sm text-slate-600 dark:text-slate-400 font-semibold">{agent.wonCount}</td>
+                        <td className="py-3.5 px-4 text-right">
+                          <span className={`text-xs font-extrabold px-2 py-0.5 rounded-full ${agent.conversionRate >= 30 ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" : agent.conversionRate >= 15 ? "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400"}`}>
                             {agent.conversionRate}%
                           </span>
                         </td>
-                        <td className="py-3 px-3 text-right text-sm font-bold text-slate-800">{formatCurrency(agent.revenue || 0)}</td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[80px]">
+                        <td className="py-3.5 px-4 text-right text-sm font-bold text-slate-800 dark:text-slate-100">{formatCurrency(agent.revenue || 0)}</td>
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden min-w-[100px]">
                               <motion.div
                                 initial={{ width: 0 }}
                                 animate={{ width: `${quotaPct}%` }}
-                                transition={{ duration: 0.6, delay: idx * 0.05 }}
+                                transition={{ duration: 0.5, delay: idx * 0.04 }}
                                 className={`h-full rounded-full bg-gradient-to-r ${quotaColor}`}
                               />
                             </div>
-                            <span className="text-xs font-bold text-slate-600 whitespace-nowrap">{quotaPct}%</span>
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">{quotaPct}%</span>
                           </div>
                         </td>
                       </motion.tr>
@@ -604,22 +616,22 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
           </div>
         </SectionCard>
 
-        {/* ══ 6 & 7. LEAD SOURCE + REVENUE INSIGHTS ══ */}
+        {/* ══ 6. LEAD SOURCE + REVENUE INSIGHTS ══ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Lead Source Analysis */}
           <SectionCard title="Lead Source Analysis" subtitle="Volume and conversion by channel">
             {sourceData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={Math.min(280, Math.max(160, sourceData.length * 40 + 40))}>
+              <ResponsiveContainer width="100%" height={220}>
                 <BarChart
                   data={sourceData}
                   layout="vertical"
-                  margin={{ top: 5, right: 40, bottom: 5, left: 10 }}
+                  margin={{ top: 5, right: 30, bottom: 5, left: 10 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" dark-stroke="#1E293B" horizontal={false} />
                   <XAxis
                     type="number"
                     domain={[0, "dataMax + 1"]}
-                    tick={{ fontSize: 11, fill: "#94A3B8" }}
+                    tick={{ fontSize: 10, fill: "#94A3B8" }}
                     axisLine={false}
                     tickLine={false}
                   />
@@ -629,10 +641,10 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                     tick={{ fontSize: 11, fill: "#64748B" }}
                     axisLine={false}
                     tickLine={false}
-                    width={90}
+                    width={85}
                   />
                   <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="count" name="Lead Volume" radius={[0, 6, 6, 0]} barSize={22} maxBarSize={28}>
+                  <Bar dataKey="count" name="Lead Volume" radius={[0, 4, 4, 0]} barSize={16}>
                     {sourceData.map((entry: any, idx: number) => (
                       <Cell key={idx} fill={entry.isUnknown ? "#CBD5E1" : entry.color} />
                     ))}
@@ -640,14 +652,14 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[280px] flex items-center justify-center text-slate-400 text-sm">No lead source data</div>
+              <div className="h-[220px] flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">No lead source data</div>
             )}
             {sourceData.length > 0 && (
-              <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-100">
+              <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/60">
                 {sourceData.slice(0, 3).map((s: any, idx: number) => (
-                  <div key={idx} className="text-center">
-                    <p className="text-xs text-slate-400">{s.isUnknown ? "Unknown" : s.source}</p>
-                    <p className="text-sm font-bold text-slate-800 mt-0.5">{s.conversionRate}% conv</p>
+                  <div key={idx} className="text-center bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-xl border border-slate-50 dark:border-slate-800/40">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{s.isUnknown ? "Unknown" : s.source}</p>
+                    <p className="text-sm font-extrabold text-slate-800 dark:text-slate-200 mt-1">{s.conversionRate}% conv</p>
                   </div>
                 ))}
               </div>
@@ -659,21 +671,21 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
             title="Revenue Insights"
             subtitle="Monthly breakdown by category"
             action={
-              <div className="flex items-center gap-3 text-xs font-medium flex-wrap">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-500" />Products</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-purple-500" />Services</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-500" />Renewals</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-500" />Upsells</span>
+              <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex-wrap">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-500" />Products</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-purple-500" />Services</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />Renewals</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />Upsells</span>
               </div>
             }
           >
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={280}>
               <BarChart data={revenueBreakdown} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" dark-stroke="#1E293B" vertical={false} />
+                <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
                 <YAxis
                   domain={[0, (dataMax: number) => roundUpYAxisMax(dataMax)]}
-                  tick={{ fontSize: 11, fill: "#94A3B8" }}
+                  tick={{ fontSize: 10, fill: "#94A3B8" }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
@@ -682,38 +694,38 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                 <Bar dataKey="products" name="Products" stackId="a" fill="#3B82F6" />
                 <Bar dataKey="services" name="Services" stackId="a" fill="#8B5CF6" />
                 <Bar dataKey="renewals" name="Renewals" stackId="a" fill="#10B981" />
-                <Bar dataKey="upsells" name="Upsells" stackId="a" fill="#F59E0B" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="upsells" name="Upsells" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </SectionCard>
         </div>
 
-        {/* ══ 8. RECENT ACTIVITIES ══ */}
+        {/* ══ 7. RECENT ACTIVITIES ══ */}
         <SectionCard title="Recent Activities" subtitle="Latest team actions and updates">
           {recentActivities.length > 0 ? (
-            <div className="relative">
-              <div className="absolute left-[17px] top-1.5 bottom-1.5 w-px bg-slate-100" />
-              <div className="space-y-3">
+            <div className="relative pt-2">
+              <div className="absolute left-[17px] top-3.5 bottom-3.5 w-px bg-slate-100 dark:bg-slate-800" />
+              <div className="space-y-4">
                 {recentActivities.map((item, idx) => (
                   <motion.div
                     key={idx}
-                    initial={{ opacity: 0, x: -10 }}
+                    initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: idx * 0.05 }}
-                    className="flex items-start gap-2.5 relative"
+                    transition={{ duration: 0.25, delay: idx * 0.04 }}
+                    className="flex items-start gap-3.5 relative"
                   >
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 z-10 ${item.iconBg}`}>
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 z-10 shadow-sm border border-white dark:border-slate-800 ${item.iconBg}`}>
                       {item.icon}
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
-                      <p className="text-sm font-medium text-slate-800 truncate">{item.title}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <div className="w-4 h-4 rounded-full bg-gradient-to-br from-slate-400 to-slate-500 flex items-center justify-center text-white text-[8px] font-bold shrink-0">
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{item.title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-[8px] font-extrabold shrink-0">
                           {item.actor?.charAt(0).toUpperCase() || "S"}
                         </div>
-                        <span className="text-xs text-slate-400">{item.actor}</span>
-                        <span className="text-xs text-slate-300">·</span>
-                        <span className="text-xs text-slate-400">{timeAgo(item.timestamp)}</span>
+                        <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">{item.actor}</span>
+                        <span className="text-xs text-slate-300 dark:text-slate-750">·</span>
+                        <span className="text-xs font-medium text-slate-400 dark:text-slate-500">{timeAgo(item.timestamp)}</span>
                       </div>
                     </div>
                   </motion.div>
@@ -721,7 +733,7 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
               </div>
             </div>
           ) : (
-            <div className="h-24 flex items-center justify-center text-slate-400 text-sm">No recent activities</div>
+            <div className="h-20 flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">No recent activities</div>
           )}
         </SectionCard>
       </div>
@@ -732,25 +744,29 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
 // ── Attention Card Component ─────────────────────────────────────────────────
 function AttentionCard({ icon, label, count, href, color }: { icon: React.ReactNode; label: string; count: number; href: string; color: "red" | "amber" | "blue" | "purple" }) {
   const colorMap = {
-    red: { bg: "bg-red-50", text: "text-red-600", border: "border-red-200" },
-    amber: { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" },
-    blue: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
-    purple: { bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-200" },
+    red: { bg: "bg-rose-50/60 dark:bg-rose-950/20", iconBg: "bg-rose-100 dark:bg-rose-900/40", text: "text-rose-600 dark:text-rose-400", border: "border-rose-100 dark:border-rose-950" },
+    amber: { bg: "bg-amber-50/60 dark:bg-amber-950/20", iconBg: "bg-amber-100 dark:bg-amber-900/40", text: "text-amber-600 dark:text-amber-400", border: "border-amber-100 dark:border-amber-950" },
+    blue: { bg: "bg-blue-50/60 dark:bg-blue-950/20", iconBg: "bg-blue-100 dark:bg-blue-900/40", text: "text-blue-600 dark:text-blue-400", border: "border-blue-100 dark:border-blue-950" },
+    purple: { bg: "bg-purple-50/60 dark:bg-purple-950/20", iconBg: "bg-purple-100 dark:bg-purple-900/40", text: "text-purple-600 dark:text-purple-400", border: "border-purple-100 dark:border-purple-950" },
   };
   const c = colorMap[color];
   return (
     <a
       href={href}
-      className={`flex items-center gap-3 p-4 rounded-xl border ${c.border} ${c.bg} hover:shadow-md transition-shadow group`}
+      className={`flex items-center justify-between p-4 rounded-2xl border ${c.border} ${c.bg} hover:shadow-[0_4px_12px_rgba(0,0,0,0.03)] hover:-translate-y-0.5 transition-all duration-300 group`}
     >
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${c.bg} ${c.text}`}>
-        {icon}
+      <div className="flex items-center gap-3.5 min-w-0">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${c.iconBg} ${c.text}`}>
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{label}</p>
+          <p className={`text-xl font-extrabold tracking-tight ${c.text} mt-0.5`}>{count}</p>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs text-slate-500 font-medium">{label}</p>
-        <p className={`text-xl font-bold ${c.text}`}>{count}</p>
+      <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 shadow-sm border border-slate-100 dark:border-slate-700/60 opacity-60 group-hover:opacity-100 transition-opacity">
+        <ChevronRight size={14} className="text-slate-400 dark:text-slate-350" />
       </div>
-      <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
     </a>
   );
 }

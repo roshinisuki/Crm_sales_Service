@@ -438,7 +438,7 @@ function LoginContent() {
           <div className="w-full max-w-[380px] flex flex-col">
           {/* Logo mark */}
           <div className="flex items-center justify-center mb-10">
-            <Logo theme={logoTheme} variant="full" size={56} />
+            <Logo theme={logoTheme} variant="full" size={48} />
           </div>
 
           <Banners />

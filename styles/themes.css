@@ -27,14 +27,14 @@
   --status-info-border:   #BFDBFE;
 }
 
-/* ─── Sidebar: always black for ALL themes/modes ───────────────────────────── */
+/* ─── Sidebar: premium dark gradient for ALL themes/modes ──────────────────── */
 :root[data-theme] {
-  --bg-sidebar:        #0E0E0E;
-  --sidebar-bg:        #0E0E0E;
+  --bg-sidebar:        linear-gradient(170deg, #13182E 0%, #0C1020 50%, #080C18 100%);
+  --sidebar-bg:        linear-gradient(170deg, #13182E 0%, #0C1020 50%, #080C18 100%);
   --sidebar-text:      #A8A6A0;
   --sidebar-text-act:  #FFFFFF;
   --sidebar-heading:   #A8A6A0;
-  --sidebar-border:    rgba(255,255,255,0.06);
+  --sidebar-border:    rgba(255,255,255,0.08);
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -231,15 +231,15 @@
    GREEN THEME (forest green gradient)
    ════════════════════════════════════════════════════════════════════════════ */
 :root[data-theme="green"][data-mode="light"] {
-  --brand-primary:        #BBDD48;
+  --brand-primary:        #7f9e15;
   --brand-primary-hover:  #234302;
   --brand-primary-light:  #E8F8D8;
   --brand-primary-border: #A3D97A;
   --brand-primary-text:   #234302;
 
-  --accent:        #BBDD48;
+  --accent:        #7f9e15;
   --accent-hover:  #234302;
-  --accent-soft:   rgba(122,181,44,0.12);
+  --accent-soft:   rgba(127,158,21,0.12);
   --accent-text:   #234302;
   --accent-contrast: #FFFFFF;
 
@@ -277,15 +277,15 @@
 }
 
 :root[data-theme="green"][data-mode="dark"] {
-  --brand-primary:        #BBDD48;
+  --brand-primary:        #7f9e15;
   --brand-primary-hover:  #234302;
   --brand-primary-light:  #2A4E0A;
   --brand-primary-border: #A3D97A;
   --brand-primary-text:   #EAF8D8;
 
-  --accent:        #BBDD48;
+  --accent:        #7f9e15;
   --accent-hover:  #234302;
-  --accent-soft:   rgba(122,181,44,0.2);
+  --accent-soft:   rgba(127,158,21,0.2);
   --accent-text:   #8CD149;
   --accent-contrast: #1A1A1A;
 
@@ -297,7 +297,7 @@
   --table-header-bg: #122017;
   --table-header-text: #9CA3AF;
   --table-hover-bg: #101d15;
-  --table-selected-bg: rgba(122,181,44,0.12);
+  --table-selected-bg: rgba(127,158,21,0.12);
   --table-row-alt-bg: #0d1a12;
 
   --sidebar-hover: color-mix(in srgb, var(--brand-primary) 15%, transparent);
@@ -431,3 +431,4 @@
 [data-theme="obsidian-dark"]  { color-scheme: dark; }
 [data-theme="black-light"]    { color-scheme: light; }
 [data-theme="black-dark"]     { color-scheme: dark; }
+

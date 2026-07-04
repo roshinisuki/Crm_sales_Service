@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/ui-utils";
 
 export type ColumnDef<T> = {
   header: string;
@@ -41,30 +42,41 @@ export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey
   };
 
   return (
-    <div className="w-full bg-card border border-border rounded-lg overflow-hidden flex flex-col">
+    <div className="crm-table-wrapper flex flex-col w-full">
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-max">
+        <table className="crm-table min-w-max">
           <thead>
-            <tr className="border-b border-border bg-card">
+            <tr>
               {columns.map((col, idx) => (
                 <th
                   key={idx}
                   style={{ width: col.width }}
-                  className={`py-3 px-4 text-[13px] font-medium text-foreground normal-case tracking-normal align-middle ${
-                    col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
-                  } ${col.sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
+                  className={cn(
+                    "crm-th",
+                    col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                    col.sortable && "cursor-pointer select-none hover:bg-muted/50"
+                  )}
                   onClick={() => {
                     if (col.sortable && col.accessorKey) {
                       handleSort(col.accessorKey as string);
                     }
                   }}
                 >
-                  <div className={`flex items-center gap-1 ${col.align === "right" ? "justify-end" : col.align === "center" ? "justify-center" : "justify-start"}`}>
+                  <div className={cn(
+                    "flex items-center gap-1",
+                    col.align === "right" ? "justify-end" : col.align === "center" ? "justify-center" : "justify-start"
+                  )}>
                     {col.header}
                     {col.sortable && (
                       <span className="inline-flex flex-col ml-1">
-                        <ChevronUp className={`w-3 h-3 -mb-1 ${sortKey === col.accessorKey && sortDir === "asc" ? "text-foreground" : "text-muted-foreground/40"}`} />
-                        <ChevronDown className={`w-3 h-3 ${sortKey === col.accessorKey && sortDir === "desc" ? "text-foreground" : "text-muted-foreground/40"}`} />
+                        <ChevronUp className={cn(
+                          "w-3 h-3 -mb-1",
+                          sortKey === col.accessorKey && sortDir === "asc" ? "text-foreground" : "text-muted-foreground/40"
+                        )} />
+                        <ChevronDown className={cn(
+                          "w-3 h-3",
+                          sortKey === col.accessorKey && sortDir === "desc" ? "text-foreground" : "text-muted-foreground/40"
+                        )} />
                       </span>
                     )}
                   </div>
@@ -75,7 +87,7 @@ export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey
           <tbody>
             {data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="py-8 text-center text-sm text-muted-foreground">
+                <td colSpan={columns.length} className="crm-td text-center text-sm text-muted-foreground">
                   No data available.
                 </td>
               </tr>
@@ -83,15 +95,16 @@ export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey
               data.map((row, rowIdx) => (
                 <tr
                   key={rowIdx}
-                  className="bg-card hover:bg-muted/50 dark:hover:bg-muted/30 border-b border-border transition-colors last:border-b-0 group"
+                  className="crm-tr group"
                 >
                   {columns.map((col, colIdx) => (
                     <td
                       key={colIdx}
                       style={{ width: col.width }}
-                      className={`py-3.5 px-4 text-[14px] text-foreground align-middle ${
+                      className={cn(
+                        "crm-td",
                         col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
-                      }`}
+                      )}
                     >
                       {col.cell ? col.cell(row) : col.accessorKey ? (row as any)[col.accessorKey] : null}
                     </td>

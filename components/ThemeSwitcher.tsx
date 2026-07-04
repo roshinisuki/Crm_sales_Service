@@ -6,20 +6,20 @@ import { Sun, Moon } from "lucide-react";
 
 const THEME_DOTS: { key: ThemeName; color: string; label: string }[] = [
   { key: "blue",   color: "#2090FF", label: "Blue" },
-  { key: "green",  color: "#BBDD48", label: "Green" },
+  { key: "green",  color: "#7f9e15", label: "Green" },
   { key: "purple", color: "#CD69ED", label: "Purple" },
   { key: "orange", color: "#FF6901", label: "Orange" },
 ];
 
 export function ThemeSwitcher({ className }: { className?: string }) {
-  const { theme, mode, setTheme, toggleMode } = useTheme();
+  const { theme, mode, requestThemeChange, toggleMode } = useTheme();
 
   return (
     <div className={cn("flex items-center gap-1.5 px-2 py-1 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg", className)}>
       {THEME_DOTS.map((dot) => (
         <button
           key={dot.key}
-          onClick={() => setTheme(dot.key)}
+          onClick={() => requestThemeChange(dot.key)}
           title={dot.label}
           className={cn(
             "w-3 h-3 rounded-full border transition-transform hover:scale-110",
@@ -27,7 +27,7 @@ export function ThemeSwitcher({ className }: { className?: string }) {
           )}
           style={{
             backgroundColor: dot.color,
-            borderColor: "rgba(0,0,0,0.1)",
+            borderColor: "rgba(0,0,0,0.15)",
           }}
         />
       ))}

@@ -513,6 +513,7 @@ export default function NewVisitPage() {
                   />
                 </FormField>
               </div>
+            </div>
 
             {/* Attendees Multi-Select */}
             <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">

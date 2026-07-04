@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
   }, {} as Record<string, { total: number; missed: number }>);
   const missedVisitRateByExecutive = Object.entries(visitsByExecutive).map(([executiveId, data]) => ({
     executiveId,
-    executiveName: users.find((u) => u.id === executiveId)?.name || "Unknown",
+    executiveName: visits.find((v) => v.hostedBy === executiveId)?.host?.name || "Unknown",
     totalPlanned: data.total,
     missed: data.missed,
     missedRate: data.total > 0 ? Math.round((data.missed / data.total) * 1000) / 10 : 0,
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
     }, {} as Record<string, number>);
   const officeVisitsByHostList = Object.entries(officeVisitsByHost).map(([hostId, total]) => ({
     hostId,
-    hostName: users.find((u) => u.id === hostId)?.name || "Unknown",
+    hostName: visits.find((v) => v.hostedBy === hostId)?.host?.name || "Unknown",
     total,
   }));
 

@@ -5,10 +5,10 @@ const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  <div className="crm-table-wrapper w-full overflow-auto">
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
+      className={cn("crm-table", className)}
       {...props}
     />
   </div>
@@ -19,7 +19,7 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+  <thead ref={ref} className={cn("[&_tr]:border-b [&_tr]:border-border", className)} {...props} />
 ))
 TableHeader.displayName = "TableHeader"
 
@@ -42,7 +42,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "h-14 border-b border-border transition-colors hover:bg-muted/50 cursor-pointer odd:bg-background even:bg-muted/20 dark:odd:bg-card dark:even:bg-muted/10 dark:hover:bg-muted/30 data-[state=selected]:bg-muted",
+      "crm-tr cursor-pointer data-[state=selected]:bg-[var(--table-selected-bg)]",
       className
     )}
     {...props}
@@ -57,7 +57,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      "h-12 px-4 py-3 text-left align-middle text-sm font-semibold uppercase tracking-wider text-white bg-primary/80 border-b border-primary/20 [&:has([width])]:w-[width]",
+      "crm-th [&:has([width])]:w-[width]",
       className
     )}
     {...props}
@@ -72,7 +72,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "px-4 py-3 align-middle text-sm text-foreground [&:has([width])]:w-[width]",
+      "crm-td [&:has([width])]:w-[width]",
       className
     )}
     {...props}

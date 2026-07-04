@@ -12,8 +12,8 @@ export type LogoTheme = "orange" | "blue" | "green" | "purple" | "dark" | "neutr
 export function getLogoTheme(colorKey: string, _isDark: boolean): LogoTheme {
   // Never override the accent color in dark mode.
   // The sidebar background is always dark — orange/blue/green/purple stays visible.
-  // theme="dark" (all-white logo) is only used explicitly on the login page.
-  if (colorKey === "obsidian" || colorKey === "neutral") return "dark";
+  // theme="dark" (all-white logo) is used for the dark brand theme.
+  if (colorKey === "dark" || colorKey === "obsidian" || colorKey === "neutral") return "dark";
   if (colorKey === "purple" || colorKey === "black")    return "purple";
   if (colorKey === "forest"   || colorKey === "green")   return "green";
   if (colorKey === "ember"    || colorKey === "orange")  return "orange";
