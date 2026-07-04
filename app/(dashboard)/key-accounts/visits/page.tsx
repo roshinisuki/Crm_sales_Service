@@ -6,7 +6,7 @@ import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { CRMSpinner } from "@/components/CRMSpinner";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { ArrowLeft, AlertTriangle, MapPin, CalendarClock } from "lucide-react";
 
 export default function KeyAccountVisitsPage() {
   const toast = useToast();
@@ -56,8 +56,10 @@ export default function KeyAccountVisitsPage() {
                 <TableHead>Customer</TableHead>
                 <TableHead>Account Manager</TableHead>
                 <TableHead>Next Review Date</TableHead>
+                <TableHead>Planned Visit</TableHead>
                 <TableHead>Last Visit Date</TableHead>
                 <TableHead>Last Outcome</TableHead>
+                <TableHead>Visit Type</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -79,8 +81,29 @@ export default function KeyAccountVisitsPage() {
                       </span>
                     ) : "—"}
                   </TableCell>
+                  <TableCell>
+                    {v.plannedVisitDate ? (
+                      <Link href={`/visits/${v.plannedVisitId}`} className="inline-flex items-center gap-1.5 text-sm text-[var(--primary)] hover:underline">
+                        <CalendarClock size={12} />
+                        {new Date(v.plannedVisitDate).toLocaleDateString()}
+                        {v.plannedVisitTime && <span className="text-xs text-slate-400">{v.plannedVisitTime}</span>}
+                        {v.plannedVisitPurpose && <span className="text-xs text-slate-400">· {v.plannedVisitPurpose}</span>}
+                      </Link>
+                    ) : "—"}
+                  </TableCell>
                   <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{v.lastVisitDate ? new Date(v.lastVisitDate).toLocaleDateString() : "—"}</TableCell>
                   <TableCell className="text-slate-600 dark:text-[var(--text-secondary)]">{v.lastOutcome}</TableCell>
+                  <TableCell>
+                    {v.lastVisitType ? (
+                      <span className="inline-flex items-center gap-1 text-xs">
+                        {v.lastVisitType === "field_visit" ? <MapPin size={10} /> : null}
+                        {v.lastVisitType === "field_visit" ? "Field" : "Office"}
+                        {v.lastLocationVerified === false && (
+                          <span title="Location unverified" className="text-amber-500"><AlertTriangle size={10} /></span>
+                        )}
+                      </span>
+                    ) : "—"}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

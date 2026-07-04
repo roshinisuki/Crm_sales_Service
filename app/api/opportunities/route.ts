@@ -36,6 +36,7 @@ export async function GET(request: NextRequest) {
   };
 
   // Dynamic overdue computation: close date passed OR stuck in any open stage > 15 days
+  // Uses stageEnteredAt (when the deal entered the current stage) with fallback to createdAt
   if (overdue === "true") {
     const now = new Date();
     const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
@@ -47,7 +48,12 @@ export async function GET(request: NextRequest) {
           {
             AND: [
               { status: { in: PIPELINE_OPEN_STAGES } },
-              { createdAt: { lt: fifteenDaysAgo } },
+              {
+                OR: [
+                  { stageEnteredAt: { lt: fifteenDaysAgo } },
+                  { stageEnteredAt: null, createdAt: { lt: fifteenDaysAgo } },
+                ]
+              }
             ]
           }
         ]

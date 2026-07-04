@@ -19,6 +19,8 @@ const statusColors: Record<string, string> = {
   CHECKED_OUT: "bg-teal-100 text-teal-700",
   COMPLETED: "bg-green-100 text-green-700",
   MISSED: "bg-red-100 text-red-700",
+  NEEDS_REVIEW: "bg-orange-100 text-orange-700",
+  NO_SHOW: "bg-red-100 text-red-700",
   CUSTOMER_UNAVAILABLE: "bg-slate-100 text-slate-700",
 };
 
@@ -28,6 +30,8 @@ const statusLabels: Record<string, string> = {
   CHECKED_OUT: "Checked Out",
   COMPLETED: "Completed",
   MISSED: "Missed",
+  NEEDS_REVIEW: "Needs Review",
+  NO_SHOW: "No Show",
   CUSTOMER_UNAVAILABLE: "Unavailable",
 };
 
@@ -36,7 +40,29 @@ export default function VisitReportsPage() {
   const { user } = useAuth();
 
   const [visits, setVisits] = useState<any[]>([]);
-  const [summary, setSummary] = useState({ total: 0, planned: 0, checkedIn: 0, checkedOut: 0, completed: 0, missed: 0, unavailable: 0, avgDuration: 0, completionRate: 0, keyAccountComplianceRate: 0 });
+  const [summary, setSummary] = useState({
+    total: 0,
+    planned: 0,
+    checkedIn: 0,
+    checkedOut: 0,
+    completed: 0,
+    missed: 0,
+    needsReview: 0,
+    noShow: 0,
+    unavailable: 0,
+    autoCheckedOut: 0,
+    avgDuration: 0,
+    completionRate: 0,
+    fieldVisits: 0,
+    officeVisits: 0,
+    fieldAvgDuration: 0,
+    officeAvgDuration: 0,
+    gpsComplianceRate: 0,
+    locationVerifiedRate: 0,
+    keyAccountComplianceRate: 0,
+    missedVisitRateByExecutive: [] as { executiveId: string; executiveName: string; totalPlanned: number; missed: number; missedRate: number }[],
+    officeVisitsByHost: [] as { hostId: string; hostName: string; total: number }[],
+  });
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -123,8 +149,11 @@ export default function VisitReportsPage() {
           { label: "Checked Out", value: summary.checkedOut, color: "text-teal-600" },
           { label: "Completed", value: summary.completed, color: "text-green-600" },
           { label: "Missed", value: summary.missed, color: "text-red-600" },
-          { label: "Unavailable", value: summary.unavailable, color: "text-slate-600" },
-          { label: "Avg Duration (min)", value: summary.avgDuration, color: "text-amber-600" },
+          { label: "Needs Review", value: summary.needsReview, color: "text-orange-600" },
+          { label: "No Show", value: summary.noShow, color: "text-red-600" },
+          { label: "Auto Checked Out", value: summary.autoCheckedOut, color: "text-orange-600" },
+          { label: "Completion Rate", value: `${summary.completionRate}%`, color: "text-emerald-600" },
+          { label: "Avg Duration", value: `${summary.avgDuration} min`, color: "text-amber-600" },
         ].map((card) => (
           <div key={card.label} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.label}</p>
@@ -133,12 +162,102 @@ export default function VisitReportsPage() {
         ))}
       </div>
 
+      {/* Visit Type Breakdown */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+        <h3 className="text-sm font-bold text-slate-800 mb-3">Visit Type Breakdown</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-blue-50 rounded-xl p-4">
+            <p className="text-xs font-semibold text-blue-700">Field Visits</p>
+            <p className="text-2xl font-bold text-blue-800">{summary.fieldVisits}</p>
+            <p className="text-xs text-blue-600 mt-1">Avg: {summary.fieldAvgDuration} min</p>
+          </div>
+          <div className="bg-purple-50 rounded-xl p-4">
+            <p className="text-xs font-semibold text-purple-700">Office Visits</p>
+            <p className="text-2xl font-bold text-purple-800">{summary.officeVisits}</p>
+            <p className="text-xs text-purple-600 mt-1">Avg: {summary.officeAvgDuration} min</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Additional Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-2">GPS Compliance</h3>
+          <p className="text-3xl font-bold text-emerald-600">{summary.gpsComplianceRate}%</p>
+          <p className="text-xs text-slate-500 mt-1">Field visits within 500m of registered site</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-2">Auto Checked Out</h3>
+          <p className="text-3xl font-bold text-orange-600">{summary.autoCheckedOut}</p>
+          <p className="text-xs text-slate-500 mt-1">Reps forgetting to check out</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-2">Location Verification</h3>
+          <p className="text-3xl font-bold text-emerald-600">{summary.locationVerifiedRate}%</p>
+          <p className="text-xs text-slate-500 mt-1">Visits with verified GPS check-in</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-2">Needs Review</h3>
+          <p className="text-3xl font-bold text-orange-600">{summary.needsReview}</p>
+          <p className="text-xs text-slate-500 mt-1">Visits active > 12h without checkout</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-2">No Show</h3>
+          <p className="text-3xl font-bold text-red-600">{summary.noShow}</p>
+          <p className="text-xs text-slate-500 mt-1">Office visits where customer didn't arrive</p>
+        </div>
+      </div>
+
+      {/* Missed Visit Rate by Executive */}
+      {summary.missedVisitRateByExecutive.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-3">Missed Visit Rate by Executive</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Executive</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600">Total Planned</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600">Missed</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600">Missed Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.missedVisitRateByExecutive.map((exec) => (
+                  <tr key={exec.executiveId} className="border-b border-slate-100">
+                    <td className="px-3 py-2 text-sm text-slate-700">{exec.executiveName}</td>
+                    <td className="px-3 py-2 text-sm text-slate-700 text-right">{exec.totalPlanned}</td>
+                    <td className="px-3 py-2 text-sm text-slate-700 text-right">{exec.missed}</td>
+                    <td className="px-3 py-2 text-sm text-slate-700 text-right">{exec.missedRate}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Office Visits by Host */}
+      {summary.officeVisitsByHost.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+          <h3 className="text-sm font-bold text-slate-800 mb-3">Office Visits by Host</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {summary.officeVisitsByHost.map((host) => (
+              <div key={host.hostId} className="bg-purple-50 rounded-xl p-3">
+                <p className="text-xs font-semibold text-purple-700">{host.hostName}</p>
+                <p className="text-xl font-bold text-purple-800">{host.total}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <div><label className="block text-xs font-semibold text-slate-600 mb-1">Start Date</label><input type="date" value={filters.startDate} onChange={(e) => setFilters({ ...filters, startDate: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
           <div><label className="block text-xs font-semibold text-slate-600 mb-1">End Date</label><input type="date" value={filters.endDate} onChange={(e) => setFilters({ ...filters, endDate: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
-          <div><label className="block text-xs font-semibold text-slate-600 mb-1">Status</label><select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer"><option>All</option><option>Planned</option><option>Checked In</option><option>Checked Out</option><option>Completed</option><option>Missed</option><option>Unavailable</option></select></div>
+          <div><label className="block text-xs font-semibold text-slate-600 mb-1">Status</label><select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer"><option>All</option><option>Planned</option><option>Checked In</option><option>Checked Out</option><option>Completed</option><option>Missed</option><option>Needs Review</option><option>No Show</option><option>Unavailable</option></select></div>
           <div><label className="block text-xs font-semibold text-slate-600 mb-1">Hosted By</label><select value={filters.hostedBy} onChange={(e) => setFilters({ ...filters, hostedBy: e.target.value })} className="w-full px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer"><option value="">All Users</option>{users.map((u: any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1">Customer</label>

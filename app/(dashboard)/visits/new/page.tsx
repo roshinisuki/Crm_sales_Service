@@ -7,7 +7,7 @@ import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { cn } from "@/lib/ui-utils";
 import { getCustomersAction } from "@/app/actions/customers";
-import { Search, X, Check } from "lucide-react";
+import { Search, X, Check, MapPin, Building2, CalendarClock, Users } from "lucide-react";
 
 const PURPOSE_OPTIONS = [
   "Demo", "Technical Discussion", "Commercial Meeting",
@@ -19,17 +19,16 @@ export default function NewVisitPage() {
   const toast = useToast();
 
   const [customers, setCustomers] = useState<any[]>([]);
-  const [plantLocations, setPlantLocations] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [plantLocationSearch, setPlantLocationSearch] = useState("");
 
   const [form, setForm] = useState({
+    visitType: "field_visit",
     customerId: "",
-    plantLocationId: "",
+    location: "",
     purpose: "",
     plannedDate: "",
     plannedTime: "09:00",
@@ -37,6 +36,16 @@ export default function NewVisitPage() {
     linkedOpportunityId: "",
     agenda: "",
     attendeeContactIds: [] as string[],
+    // Office visit specific
+    visitorNames: "",
+    meetingRoom: "",
+    documentsExchanged: "",
+    hostedByUserIds: [] as string[],
+    visitors: [] as { name: string; designation?: string }[],
+    // Field visit specific
+    travelMode: "",
+    distanceTraveledKm: "",
+    expenseAmount: "",
   });
 
   // Fetch customers
@@ -49,23 +58,17 @@ export default function NewVisitPage() {
     });
   }, []);
 
-  // Fetch plant locations and contacts when customer is selected
+  // Fetch contacts and opportunities when customer is selected
   const loadCustomerData = useCallback(async (customerId: string) => {
     if (!customerId) {
-      setPlantLocations([]);
       setContacts([]);
       setOpportunities([]);
       return;
     }
-    const [locRes, contactRes, oppRes] = await Promise.all([
-      fetch(`/api/plant-locations?customerId=${customerId}`),
+    const [contactRes, oppRes] = await Promise.all([
       fetch(`/api/contacts?customerId=${customerId}`),
       fetch(`/api/opportunities?search=&customerId=${customerId}`),
     ]);
-    if (locRes.ok) {
-      const locData = await locRes.json();
-      setPlantLocations(locData.data || []);
-    }
     if (contactRes.ok) {
       const contactData = await contactRes.json();
       setContacts(contactData.data || []);
@@ -80,11 +83,10 @@ export default function NewVisitPage() {
     setForm((prev) => ({
       ...prev,
       customerId,
-      plantLocationId: "",
+      location: "",
       attendeeContactIds: [],
       linkedOpportunityId: "",
     }));
-    setPlantLocationSearch("");
     loadCustomerData(customerId);
   };
 
@@ -97,19 +99,44 @@ export default function NewVisitPage() {
     }));
   };
 
+  const addVisitor = () => {
+    setForm((prev) => ({
+      ...prev,
+      visitors: [...prev.visitors, { name: "", designation: "" }],
+    }));
+  };
+
+  const removeVisitor = (idx: number) => {
+    setForm((prev) => ({
+      ...prev,
+      visitors: prev.visitors.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const updateVisitor = (idx: number, field: "name" | "designation", value: string) => {
+    setForm((prev) => {
+      const updated = [...prev.visitors];
+      updated[idx] = { ...updated[idx], [field]: value };
+      return { ...prev, visitors: updated };
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.customerId) { toast.error("Please select an account"); return; }
     if (!form.purpose) { toast.error("Purpose is required"); return; }
     if (!form.plannedDate) { toast.error("Planned date is required"); return; }
+    if (form.visitType === "field_visit" && !form.location) { toast.error("Location is required for field visits"); return; }
+    if (form.visitType === "office_visit" && !form.visitorNames && form.visitors.length === 0) { toast.error("Visitor names or visitor list is required for office visits"); return; }
     setSaving(true);
     try {
       const res = await fetch("/api/visits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          visitType: form.visitType,
           customerId: form.customerId,
-          plantLocationId: form.plantLocationId || undefined,
+          location: form.visitType === "field_visit" ? form.location : undefined,
           purpose: form.purpose,
           plannedDate: form.plannedDate,
           plannedTime: form.plannedTime,
@@ -117,6 +144,14 @@ export default function NewVisitPage() {
           attendeeContactIds: form.attendeeContactIds,
           linkedOpportunityId: form.linkedOpportunityId || undefined,
           agenda: form.agenda,
+          visitorNames: form.visitType === "office_visit" ? form.visitorNames : undefined,
+          meetingRoom: form.visitType === "office_visit" ? form.meetingRoom : undefined,
+          documentsExchanged: form.visitType === "office_visit" ? form.documentsExchanged : undefined,
+          hostedByUserIds: form.visitType === "office_visit" ? form.hostedByUserIds : undefined,
+          visitors: form.visitType === "office_visit" ? form.visitors : undefined,
+          travelMode: form.visitType === "field_visit" ? form.travelMode : undefined,
+          distanceTraveledKm: form.visitType === "field_visit" && form.distanceTraveledKm ? parseFloat(form.distanceTraveledKm) : undefined,
+          expenseAmount: form.visitType === "field_visit" && form.expenseAmount ? parseFloat(form.expenseAmount) : undefined,
         }),
       });
       const data = await res.json();
@@ -144,13 +179,21 @@ export default function NewVisitPage() {
   return (
     <PageShell
       title="Plan Visit"
-      subtitle="Schedule a customer visit with attendees and plant location"
+      subtitle="Schedule a customer visit with attendees and location"
       breadcrumb={[{ label: "Visits", href: "/visits" }]}
     >
-      <form onSubmit={handleSubmit} className="space-y-6 max-w-3xl">
+      <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
         {/* Account Search */}
-        <div className="crm-card p-6 space-y-4">
-          <h3 className="text-sm font-bold text-slate-800">Account</h3>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Select Account</h3>
+              <p className="text-sm text-slate-500">Choose the customer you want to visit</p>
+            </div>
+          </div>
           <FormField label="Search Account" required>
             <div className="relative">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -159,26 +202,31 @@ export default function NewVisitPage() {
                 placeholder="Search by name or code..."
                 value={customerSearch}
                 onChange={(e) => setCustomerSearch(e.target.value)}
-                className="pl-9"
+                className="pl-9 rounded-xl"
               />
             </div>
           </FormField>
           {form.customerId ? (
-            <div className="flex items-center justify-between p-3 bg-[var(--primary)]/5 border border-[var(--primary)]/20 rounded-lg">
-              <div>
-                <p className="text-sm font-bold text-slate-800">{selectedCustomer?.name}</p>
-                <p className="text-xs text-slate-500">{selectedCustomer?.customerCode} — {selectedCustomer?.city}</p>
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+                  <Check className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">{selectedCustomer?.name}</p>
+                  <p className="text-xs text-slate-500">{selectedCustomer?.customerCode} — {selectedCustomer?.city}</p>
+                </div>
               </div>
               <button
                 type="button"
-                onClick={() => { setForm({ ...form, customerId: "" }); setPlantLocations([]); setContacts([]); }}
-                className="text-slate-400 hover:text-rose-500"
+                onClick={() => { setForm({ ...form, customerId: "" }); setContacts([]); }}
+                className="text-slate-400 hover:text-rose-500 transition-colors"
               >
                 <X size={16} />
               </button>
             </div>
           ) : (
-            <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+            <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
               {filteredCustomers.length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-4">No accounts found</p>
               ) : (
@@ -187,7 +235,7 @@ export default function NewVisitPage() {
                     key={c.id}
                     type="button"
                     onClick={() => handleCustomerSelect(c.id)}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors"
+                    className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
                   >
                     <p className="text-sm font-bold text-slate-700">{c.name}</p>
                     <p className="text-xs text-slate-400">{c.customerCode} — {c.city}</p>
@@ -201,56 +249,210 @@ export default function NewVisitPage() {
         {/* Visit Details */}
         {form.customerId && (
           <>
-            <div className="crm-card p-6 space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Visit Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Plant Location">
-                  <div className="relative mb-2">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Search plant locations..."
-                      value={plantLocationSearch}
-                      onChange={(e) => setPlantLocationSearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
-                    />
-                  </div>
-                  <Select
-                    value={form.plantLocationId}
-                    onChange={(e) => setForm({ ...form, plantLocationId: e.target.value })}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                  <CalendarClock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Visit Details</h3>
+                  <p className="text-sm text-slate-500">Configure visit type and location</p>
+                </div>
+              </div>
+              <FormField label="Visit Type" required>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, visitType: "field_visit" })}
+                    className={`p-5 rounded-xl border-2 transition-all ${
+                      form.visitType === "field_visit"
+                        ? "border-[var(--primary)] bg-gradient-to-br from-[var(--primary)]/10 to-[var(--primary)]/5"
+                        : "border-slate-200 hover:border-slate-300 bg-white hover:shadow-md"
+                    }`}
                   >
-                    <option value="">-- Select Plant Location --</option>
-                    {plantLocations
-                      .filter((loc) => {
-                        if (!plantLocationSearch) return true;
-                        const q = plantLocationSearch.toLowerCase();
+                    <div className="flex flex-col items-center gap-3">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                        form.visitType === "field_visit" ? "bg-[var(--primary)]" : "bg-slate-100"
+                      }`}>
+                        <MapPin className={`w-7 h-7 ${form.visitType === "field_visit" ? "text-white" : "text-slate-500"}`} />
+                      </div>
+                      <div className="text-center">
+                        <p className={`text-base font-semibold ${form.visitType === "field_visit" ? "text-[var(--primary)]" : "text-slate-700"}`}>Field Visit</p>
+                        <p className="text-xs text-slate-500">We travel to customer</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, visitType: "office_visit" })}
+                    className={`p-5 rounded-xl border-2 transition-all ${
+                      form.visitType === "office_visit"
+                        ? "border-[var(--primary)] bg-gradient-to-br from-[var(--primary)]/10 to-[var(--primary)]/5"
+                        : "border-slate-200 hover:border-slate-300 bg-white hover:shadow-md"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center gap-3">
+                      <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                        form.visitType === "office_visit" ? "bg-[var(--primary)]" : "bg-slate-100"
+                      }`}>
+                        <Building2 className={`w-7 h-7 ${form.visitType === "office_visit" ? "text-white" : "text-slate-500"}`} />
+                      </div>
+                      <div className="text-center">
+                        <p className={`text-base font-semibold ${form.visitType === "office_visit" ? "text-[var(--primary)]" : "text-slate-700"}`}>Office Visit</p>
+                        <p className="text-xs text-slate-500">Customer travels to us</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </FormField>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {form.visitType === "field_visit" && (
+                  <FormField label="Location" required hint="Enter the customer's address or location">
+                    <Input
+                      type="text"
+                      value={form.location || ""}
+                      onChange={(e) => setForm({ ...form, location: e.target.value })}
+                      placeholder="e.g. 123 Industrial Area, City"
+                    />
+                  </FormField>
+                )}
+                {form.visitType === "office_visit" && (
+                  <FormField label="Visitor Names" required>
+                    <Input
+                      type="text"
+                      value={form.visitorNames}
+                      onChange={(e) => setForm({ ...form, visitorNames: e.target.value })}
+                      placeholder="Enter visitor names from customer..."
+                    />
+                  </FormField>
+                )}
+                {form.visitType === "office_visit" && (
+                  <FormField label="Meeting Room">
+                    <Input
+                      type="text"
+                      value={form.meetingRoom}
+                      onChange={(e) => setForm({ ...form, meetingRoom: e.target.value })}
+                      placeholder="e.g. Conference Room A"
+                    />
+                  </FormField>
+                )}
+                {form.visitType === "field_visit" && (
+                  <>
+                    <FormField label="Travel Mode">
+                      <Select
+                        value={form.travelMode}
+                        onChange={(e) => setForm({ ...form, travelMode: e.target.value })}
+                        className="rounded-xl"
+                      >
+                        <option value="">Select travel mode...</option>
+                        <option value="Car">Car</option>
+                        <option value="Bike">Bike</option>
+                        <option value="Public Transport">Public Transport</option>
+                        <option value="Flight">Flight</option>
+                        <option value="Other">Other</option>
+                      </Select>
+                    </FormField>
+                    <FormField label="Estimated Distance (km)">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={form.distanceTraveledKm}
+                        onChange={(e) => setForm({ ...form, distanceTraveledKm: e.target.value })}
+                        placeholder="e.g. 25.5"
+                        className="rounded-xl"
+                      />
+                    </FormField>
+                    <FormField label="Estimated Expense (₹)">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.expenseAmount}
+                        onChange={(e) => setForm({ ...form, expenseAmount: e.target.value })}
+                        placeholder="e.g. 500.00"
+                        className="rounded-xl"
+                      />
+                    </FormField>
+                  </>
+                )}
+                {form.visitType === "office_visit" && (
+                  <FormField label="Documents Exchanged">
+                    <Textarea
+                      rows={2}
+                      value={form.documentsExchanged}
+                      onChange={(e) => setForm({ ...form, documentsExchanged: e.target.value })}
+                      placeholder="e.g., Brochure, Quotation, Technical datasheet..."
+                      className="rounded-xl"
+                    />
+                  </FormField>
+                )}
+                {form.visitType === "office_visit" && (
+                  <FormField label="Host(s) (multi-select)">
+                    <div className="flex flex-wrap gap-2">
+                      {users.filter((u) => u.role !== "Customer").map((u) => {
+                        const isSelected = form.hostedByUserIds.includes(u.id);
                         return (
-                          loc.locationName?.toLowerCase().includes(q) ||
-                          loc.city?.toLowerCase().includes(q) ||
-                          loc.address?.toLowerCase().includes(q)
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => setForm((prev) => ({
+                              ...prev,
+                              hostedByUserIds: isSelected
+                                ? prev.hostedByUserIds.filter((id) => id !== u.id)
+                                : [...prev.hostedByUserIds, u.id],
+                            }))}
+                            className={cn(
+                              "px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all",
+                              isSelected
+                                ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
+                                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300"
+                            )}
+                          >
+                            {u.name}
+                          </button>
                         );
-                      })
-                      .map((loc) => (
-                        <option key={loc.id} value={loc.id}>
-                          {loc.locationName} — {loc.city || "N/A"}
-                          {loc.isPrimary ? " (Primary)" : ""}
-                        </option>
-                      ))}
-                  </Select>
-                  {form.plantLocationId && (
+                      })}
+                    </div>
+                  </FormField>
+                )}
+                <FormField label="Visitor List (optional)">
+                  <div className="space-y-2">
+                    {form.visitors.map((v, idx) => (
+                      <div key={idx} className="flex gap-2">
+                        <Input
+                          value={v.name}
+                          onChange={(e) => updateVisitor(idx, "name", e.target.value)}
+                          placeholder="Visitor name"
+                          className="rounded-xl"
+                        />
+                        <Input
+                          value={v.designation || ""}
+                          onChange={(e) => updateVisitor(idx, "designation", e.target.value)}
+                          placeholder="Designation (optional)"
+                          className="rounded-xl"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeVisitor(idx)}
+                          className="text-rose-500 hover:text-rose-700"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ))}
                     <button
                       type="button"
-                      onClick={() => setForm({ ...form, plantLocationId: "" })}
-                      className="mt-2 text-xs text-slate-500 hover:text-rose-500 flex items-center gap-1"
+                      onClick={addVisitor}
+                      className="text-sm text-[var(--primary)] font-medium hover:underline"
                     >
-                      <X size={12} /> Clear selection
+                      + Add Visitor
                     </button>
-                  )}
+                  </div>
                 </FormField>
                 <FormField label="Purpose" required>
                   <Select
                     value={form.purpose}
                     onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+                    className="rounded-xl"
                   >
                     <option value="">Select purpose...</option>
                     {PURPOSE_OPTIONS.map((p) => (
@@ -258,62 +460,77 @@ export default function NewVisitPage() {
                     ))}
                   </Select>
                 </FormField>
-                <FormField label="Planned Date" required>
-                  <Input
-                    type="date"
-                    value={form.plannedDate}
-                    onChange={(e) => setForm({ ...form, plannedDate: e.target.value })}
-                    min={new Date().toISOString().split("T")[0]}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Planned Date" required>
+                    <Input
+                      type="date"
+                      value={form.plannedDate}
+                      onChange={(e) => setForm({ ...form, plannedDate: e.target.value })}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="rounded-xl"
+                    />
+                  </FormField>
+                  <FormField label="Planned Time">
+                    <Input
+                      type="time"
+                      value={form.plannedTime}
+                      onChange={(e) => setForm({ ...form, plannedTime: e.target.value })}
+                      className="rounded-xl"
+                    />
+                  </FormField>
+                  <FormField label="Assigned To">
+                    <Select
+                      value={form.assignedTo}
+                      onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                      className="rounded-xl"
+                    >
+                      <option value="">Yourself (default)</option>
+                      {users.filter((u) => u.role !== "Customer").map((u) => (
+                        <option key={u.id} value={u.id}>{u.name}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="Link Opportunity (optional)">
+                    <Select
+                      value={form.linkedOpportunityId}
+                      onChange={(e) => setForm({ ...form, linkedOpportunityId: e.target.value })}
+                      className="rounded-xl"
+                    >
+                      <option value="">None</option>
+                      {opportunities.map((opp) => (
+                        <option key={opp.id} value={opp.id}>{opp.dealName} ({opp.opportunityCode})</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </div>
+                <FormField label="Agenda">
+                  <Textarea
+                    rows={3}
+                    value={form.agenda}
+                    onChange={(e) => setForm({ ...form, agenda: e.target.value })}
+                    placeholder="Visit agenda and discussion points..."
+                    className="rounded-xl"
                   />
-                </FormField>
-                <FormField label="Planned Time">
-                  <Input
-                    type="time"
-                    value={form.plannedTime}
-                    onChange={(e) => setForm({ ...form, plannedTime: e.target.value })}
-                  />
-                </FormField>
-                <FormField label="Assigned To">
-                  <Select
-                    value={form.assignedTo}
-                    onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-                  >
-                    <option value="">Yourself (default)</option>
-                    {users.filter((u) => u.role !== "Customer").map((u) => (
-                      <option key={u.id} value={u.id}>{u.name}</option>
-                    ))}
-                  </Select>
-                </FormField>
-                <FormField label="Link Opportunity (optional)">
-                  <Select
-                    value={form.linkedOpportunityId}
-                    onChange={(e) => setForm({ ...form, linkedOpportunityId: e.target.value })}
-                  >
-                    <option value="">None</option>
-                    {opportunities.map((opp) => (
-                      <option key={opp.id} value={opp.id}>{opp.dealName} ({opp.opportunityCode})</option>
-                    ))}
-                  </Select>
                 </FormField>
               </div>
-              <FormField label="Agenda">
-                <Textarea
-                  rows={3}
-                  value={form.agenda}
-                  onChange={(e) => setForm({ ...form, agenda: e.target.value })}
-                  placeholder="Visit agenda and discussion points..."
-                />
-              </FormField>
-            </div>
 
             {/* Attendees Multi-Select */}
-            <div className="crm-card p-6 space-y-4">
-              <h3 className="text-sm font-bold text-slate-800">Attendees</h3>
-              <p className="text-xs text-slate-500">Select contacts from this account to attend the visit.</p>
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Attendees</h3>
+                  <p className="text-sm text-slate-500">Select contacts from this account to attend the visit</p>
+                </div>
+              </div>
               {contacts.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-4">No contacts found for this account.</p>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                  <p className="text-sm text-slate-400">No contacts found for this account</p>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {contacts.map((c) => {
                     const isSelected = form.attendeeContactIds.includes(c.id);
                     return (
@@ -322,35 +539,44 @@ export default function NewVisitPage() {
                         type="button"
                         onClick={() => toggleAttendee(c.id)}
                         className={cn(
-                          "flex items-center justify-between p-3 rounded-lg border transition-all text-left",
+                          "flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
                           isSelected
-                            ? "border-[var(--primary)] bg-[var(--primary)]/5"
-                            : "border-slate-200 bg-slate-50 hover:bg-slate-100"
+                            ? "border-[var(--primary)] bg-gradient-to-r from-[var(--primary)]/10 to-[var(--primary)]/5"
+                            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:shadow-sm"
                         )}
                       >
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{c.name}</p>
-                          <p className="text-xs text-slate-500">{c.designation || c.contactType}</p>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            isSelected ? "bg-[var(--primary)]" : "bg-slate-200"
+                          }`}>
+                            {isSelected ? <Check size={16} className="text-white" /> : <span className="text-xs font-bold text-slate-500">{c.name.charAt(0)}</span>}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{c.name}</p>
+                            <p className="text-xs text-slate-500">{c.designation || c.contactType}</p>
+                          </div>
                         </div>
-                        {isSelected && <Check size={16} className="text-[var(--primary)]" />}
                       </button>
                     );
                   })}
                 </div>
               )}
               {form.attendeeContactIds.length > 0 && (
-                <p className="text-xs font-bold text-slate-600">
-                  {form.attendeeContactIds.length} attendee{form.attendeeContactIds.length !== 1 ? "s" : ""} selected
-                </p>
+                <div className="mt-3 flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
+                  <Check size={16} className="text-green-600" />
+                  <p className="text-sm font-semibold text-green-800">
+                    {form.attendeeContactIds.length} attendee{form.attendeeContactIds.length !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
               )}
             </div>
 
             {/* Submit */}
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-4">
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2.5 bg-[var(--primary)] text-white font-bold text-sm rounded-xl hover:bg-[var(--primary-hover)] disabled:opacity-70"
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-[var(--primary)] to-[var(--primary-hover)] text-white font-bold text-sm rounded-xl hover:shadow-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {saving ? "Planning..." : "Plan Visit"}
               </button>

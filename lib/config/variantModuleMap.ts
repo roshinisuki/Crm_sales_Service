@@ -42,8 +42,11 @@ const V2_EXTRAS: ModuleSearchItem[] = [
   { key: 'forecast',          label: 'Forecast',           href: '/forecast',                                       icon: '🎯', keywords: ['forecast', 'revenue', 'sales target'],      type: 'module' },
   // Pipeline sub-modules
   { key: 'pipeline-qualified',   label: 'Qualified',       href: '/sales-pipeline/pipeline-list?tab=Qualified',          icon: '📈', keywords: ['qualified', 'sql'],              type: 'submodule', parentLabel: 'Sales Pipeline' },
+  { key: 'pipeline-rg',          label: 'Requirement Gathering', href: '/sales-pipeline/pipeline-list?tab=RequirementGathering', icon: '📈', keywords: ['requirement', 'gathering', 'rg'], type: 'submodule', parentLabel: 'Sales Pipeline' },
   { key: 'pipeline-meeting',     label: 'Meeting Scheduled',href: '/sales-pipeline/pipeline-list?tab=MeetingScheduled',   icon: '📈', keywords: ['meeting', 'demo', 'scheduled'],  type: 'submodule', parentLabel: 'Sales Pipeline' },
   { key: 'pipeline-demo',        label: 'Demo Conducted',   href: '/sales-pipeline/pipeline-list?tab=DemoConducted',      icon: '📈', keywords: ['demo', 'conducted'],            type: 'submodule', parentLabel: 'Sales Pipeline' },
+  { key: 'pipeline-overdue',     label: 'Overdue',          href: '/sales-pipeline/pipeline-list?tab=overdue',            icon: '📈', keywords: ['overdue', 'stale'],             type: 'submodule', parentLabel: 'Sales Pipeline' },
+  { key: 'pipeline-rejected',    label: 'Rejected',         href: '/sales-pipeline/pipeline-list?tab=Rejected',           icon: '📈', keywords: ['rejected', 'declined'],         type: 'submodule', parentLabel: 'Sales Pipeline' },
   // V2 settings
   { key: 'settings-pipeline',  label: 'Pipeline Stages',    href: '/settings/pipeline-stages',    icon: '⚙️', keywords: ['pipeline stage', 'stage'],            type: 'setting' },
   { key: 'settings-notif',     label: 'Notification Rules', href: '/settings/notification-rules', icon: '⚙️', keywords: ['notification', 'alert', 'rule'],      type: 'setting' },

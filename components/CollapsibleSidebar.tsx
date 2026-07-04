@@ -122,8 +122,8 @@ export default function CollapsibleSidebar({ user, loading, onLogout }: Collapsi
         )}
       >
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="w-14 h-14 flex items-center justify-center shrink-0 rounded-lg">
-            <Logo theme={logoTheme} variant="mark-only" size={56} />
+          <div className="w-6 h-6 flex items-center justify-center shrink-0 rounded-lg">
+            <Logo theme={logoTheme} variant="mark-only" size={24} />
           </div>
           {!collapsed && (
             <div className="overflow-hidden whitespace-nowrap animate-in fade-in slide-in-from-left-2 duration-200">

@@ -21,6 +21,8 @@ import {
   Target,
   Activity,
   ChevronRight,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import {
   BarChart,
@@ -156,12 +158,15 @@ function SectionCard({ title, subtitle, action, children, className }: { title: 
 export default function SalesManagerDashboard({ dashboardData, salesData, user, loadData, dateRange, setDateRange }: any) {
   const { formatCurrency } = useCurrency();
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [sortBy, setSortBy] = useState<"revenue" | "quota">("revenue");
 
   const kpis = salesData?.kpis || {};
   const funnel = salesData?.funnel || [];
   const leadSources = salesData?.leadSources || [];
   const agentPerformance = salesData?.agentPerformance || [];
   const revenueTrend = salesData?.revenueTrend || [];
+  const managerMetrics = salesData?.managerMetrics || {};
+  const needsAttention = salesData?.needsAttention || {};
 
   // Build recent activities from dashboardData
   useEffect(() => {
@@ -197,8 +202,13 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
         timestamp: v.checkInTime || v.createdAt,
       });
     });
-    activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    setRecentActivities(activities.slice(0, 5));
+    // Filter out test data (mashes like "vbnm", "test", "asdf")
+    const filtered = activities.filter((a) => {
+      const name = (a.title || "").toLowerCase();
+      return !/^(vbnm|test|asdf|qwerty)/i.test(name);
+    });
+    filtered.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    setRecentActivities(filtered.slice(0, 5));
   }, [dashboardData]);
 
   // ── Prepare chart data ─────────────────────────────────────────────────────
@@ -245,6 +255,30 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
   const conversionRate = kpis.conversionRate || 0;
   const revParsed = parseCountValue(formatCurrency(revenueWon));
 
+  // ── Y-axis rounding helper ─────────────────────────────────────────────────
+  const roundUpYAxisMax = (dataMax: number): number => {
+    if (dataMax <= 0) return 500000;
+    if (dataMax <= 500000) return 500000;
+    if (dataMax <= 1000000) return 1000000;
+    return Math.ceil(dataMax / 1000000) * 1000000;
+  };
+
+  // ── Sorted agent performance ───────────────────────────────────────────────
+  const sortedAgents = [...agentPerformance].sort((a, b) => {
+    if (sortBy === "quota") return (b.quotaAttainment || 0) - (a.quotaAttainment || 0);
+    return (b.revenue || 0) - (a.revenue || 0);
+  });
+
+  // ── Sparse data check ──────────────────────────────────────────────────────
+  const hasSparseData = revenueTrend.length > 0 && revenueTrend.every((t: any) => t.revenue === 0);
+
+  // ── Manager KPI values ─────────────────────────────────────────────────────
+  const teamQuotaAttainment = managerMetrics.teamQuotaAttainment || 0;
+  const dealsAtRisk = managerMetrics.dealsAtRiskCount || 0;
+  const openPipelineValue = managerMetrics.openPipelineValue || 0;
+  const avgDealCycle = managerMetrics.avgDealCycle || 0;
+  const openPipelineParsed = parseCountValue(formatCurrency(openPipelineValue));
+
   return (
     <PageShell
       title="Sales Manager Dashboard"
@@ -263,50 +297,51 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
       }
     >
       <div className="space-y-5">
-        {/* ══ 1. EXECUTIVE KPI SECTION ══ */}
+        {/* ══ 1. MANAGER KPI SECTION ══ */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <KPIWidget
-            label="Total Leads"
-            value={totalLeads}
-            icon={<Users size={20} className="text-blue-600" />}
-            trend={{ value: "+12.4%", up: true }}
-            comparison="vs last month"
-            sparklineData={generateSparkline(totalLeads || 50, "up")}
+            label="Team Quota Attainment"
+            value={teamQuotaAttainment}
+            suffix="%"
+            icon={<Target size={20} className="text-blue-600" />}
+            trend={{ value: teamQuotaAttainment >= 75 ? "On track" : "Behind", up: teamQuotaAttainment >= 75 }}
+            comparison="current month"
+            sparklineData={generateSparkline(teamQuotaAttainment || 50, "up")}
             color="text-slate-800"
             accentBg="bg-blue-50"
           />
           <KPIWidget
-            label="Qualified Leads"
-            value={qualifiedLeads}
-            icon={<UserCheck size={20} className="text-purple-600" />}
-            trend={{ value: "+8.1%", up: true }}
-            comparison="vs last month"
-            sparklineData={generateSparkline(qualifiedLeads || 30, "up")}
+            label="Deals at Risk"
+            value={dealsAtRisk}
+            icon={<AlertTriangle size={20} className={dealsAtRisk > 0 ? "text-red-600" : "text-emerald-600"} />}
+            trend={{ value: dealsAtRisk > 0 ? "Needs attention" : "All clear", up: dealsAtRisk === 0 }}
+            comparison="past due or stale"
+            sparklineData={generateSparkline(dealsAtRisk || 1, "down")}
             color="text-slate-800"
-            accentBg="bg-purple-50"
+            accentBg={dealsAtRisk > 0 ? "bg-red-50" : "bg-emerald-50"}
           />
           <KPIWidget
-            label="Revenue Won"
-            value={revParsed.end}
-            prefix={revParsed.prefix}
-            decimals={revParsed.decimals}
+            label="Open Pipeline Value"
+            value={openPipelineParsed.end}
+            prefix={openPipelineParsed.prefix}
+            decimals={openPipelineParsed.decimals}
             icon={<DollarSign size={20} className="text-emerald-600" />}
-            trend={{ value: "+15.3%", up: true }}
-            comparison="vs last month"
-            sparklineData={generateSparkline(revParsed.end || 100000, "up")}
+            trend={{ value: "Active", up: true }}
+            comparison="open deals"
+            sparklineData={generateSparkline(openPipelineParsed.end || 100000, "up")}
             color="text-slate-800"
             accentBg="bg-emerald-50"
           />
           <KPIWidget
-            label="Conversion Rate"
-            value={conversionRate}
-            suffix="%"
-            icon={<TrendingUp size={20} className="text-orange-600" />}
-            trend={{ value: "+3.2%", up: true }}
-            comparison="Higher than avg"
-            sparklineData={generateSparkline(conversionRate || 20, "up")}
+            label="Avg Deal Cycle"
+            value={avgDealCycle}
+            suffix=" days"
+            icon={<Clock size={20} className="text-purple-600" />}
+            trend={{ value: avgDealCycle > 0 ? (avgDealCycle <= 30 ? "Fast" : "Slow") : "—", up: avgDealCycle <= 30 }}
+            comparison="won deals"
+            sparklineData={generateSparkline(avgDealCycle || 15, "down")}
             color="text-slate-800"
-            accentBg="bg-orange-50"
+            accentBg="bg-purple-50"
           />
         </div>
 
@@ -325,15 +360,71 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
             <ComposedChart data={performanceData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, "dataMax + 1000"]} tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip content={<ChartTooltip formatter={(v: number) => formatCurrency(v)} />} />
+              <YAxis
+                domain={[0, (dataMax: number) => roundUpYAxisMax(dataMax)]}
+                tick={{ fontSize: 12, fill: "#94A3B8" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+              />
+              <Tooltip
+                content={
+                  <ChartTooltip
+                    formatter={(v: number, name: string) =>
+                      name === "Leads Converted" ? `${v} leads` : formatCurrency(v)
+                    }
+                  />
+                }
+              />
               <Bar dataKey="revenue" name="Revenue" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={24} />
               <Line dataKey="leads" name="Leads Converted" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 3, fill: "#8B5CF6" }} />
             </ComposedChart>
           </ResponsiveContainer>
+          {hasSparseData && (
+            <p className="text-xs text-slate-400 mt-3 italic">
+              Showing available data — full trend appears as more months are recorded.
+            </p>
+          )}
         </SectionCard>
 
-        {/* ══ 3 & 5. PIPELINE OVERVIEW + CONVERSION FUNNEL ══ */}
+        {/* ══ 3. NEEDS YOUR ATTENTION PANEL ══ */}
+        <SectionCard
+          title="Needs Your Attention"
+          subtitle="Action items requiring your intervention"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <AttentionCard
+              icon={<AlertTriangle size={18} />}
+              label="Inactive Deals"
+              count={needsAttention.inactiveDeals || 0}
+              href="/deals?status=risk"
+              color="red"
+            />
+            <AttentionCard
+              icon={<Clock size={18} />}
+              label="Overdue Follow-ups"
+              count={needsAttention.overdueFollowUps || 0}
+              href="/follow-up?status=Overdue"
+              color="amber"
+            />
+            <AttentionCard
+              icon={<Users size={18} />}
+              label="Unassigned Leads"
+              count={needsAttention.unassignedLeads || 0}
+              href="/leads?status=unassigned"
+              color="blue"
+            />
+            <AttentionCard
+              icon={<FileText size={18} />}
+              label="Pending Approvals"
+              count={needsAttention.pendingApprovals || 0}
+              href="/approvals?status=Pending"
+              color="purple"
+            />
+          </div>
+        </SectionCard>
+
+        {/* ══ 4 & 5. PIPELINE OVERVIEW + CONVERSION FUNNEL ══ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Pipeline Doughnut */}
           <SectionCard title="Sales Pipeline Overview" subtitle="Deal distribution across stages">
@@ -418,10 +509,27 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
           </SectionCard>
         </div>
 
-        {/* ══ 4. TEAM PERFORMANCE DASHBOARD ══ */}
+        {/* ══ 6. REP LEADERBOARD ══ */}
         <SectionCard
-          title="Team Performance Dashboard"
-          subtitle="Sales executive leaderboard with key metrics"
+          title="Rep Leaderboard"
+          subtitle="Sales executive performance with quota attainment"
+          action={
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-400">Sort by:</span>
+              <button
+                onClick={() => setSortBy("revenue")}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${sortBy === "revenue" ? "bg-blue-50 text-blue-600" : "text-slate-500 hover:bg-slate-50"}`}
+              >
+                Revenue Won
+              </button>
+              <button
+                onClick={() => setSortBy("quota")}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-colors ${sortBy === "quota" ? "bg-blue-50 text-blue-600" : "text-slate-500 hover:bg-slate-50"}`}
+              >
+                Quota Attainment
+              </button>
+            </div>
+          }
         >
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -433,16 +541,16 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                   <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Won</th>
                   <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Conv. Rate</th>
                   <th className="text-right py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Revenue</th>
-                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Progress</th>
+                  <th className="text-left py-3 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider min-w-[140px]">Quota Attainment</th>
                 </tr>
               </thead>
               <tbody>
-                {agentPerformance.length === 0 ? (
+                {sortedAgents.length === 0 ? (
                   <tr><td colSpan={7} className="text-center py-8 text-slate-400 text-sm">No team performance data</td></tr>
                 ) : (
-                  agentPerformance.map((agent: any, idx: number) => {
-                    const maxRevenue = Math.max(...agentPerformance.map((a: any) => a.revenue || 0), 1);
-                    const progressPct = Math.round(((agent.revenue || 0) / maxRevenue) * 100);
+                  sortedAgents.map((agent: any, idx: number) => {
+                    const quotaPct = Math.min(agent.quotaAttainment || 0, 100);
+                    const quotaColor = quotaPct >= 75 ? "from-emerald-500 to-emerald-400" : quotaPct >= 50 ? "from-amber-500 to-amber-400" : "from-red-500 to-red-400";
                     return (
                       <motion.tr
                         key={idx}
@@ -466,7 +574,7 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                             <span className="text-sm font-medium text-slate-800">{agent.name}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-3 text-right text-sm text-slate-700 font-medium">{agent.dealsCount}</td>
+                        <td className="py-3 px-3 text-right text-sm text-slate-700 font-medium">{agent.leadCount || agent.dealsCount || 0}</td>
                         <td className="py-3 px-3 text-right text-sm text-slate-700 font-medium">{agent.wonCount}</td>
                         <td className="py-3 px-3 text-right">
                           <span className={`text-sm font-bold ${agent.conversionRate >= 30 ? "text-emerald-600" : agent.conversionRate >= 15 ? "text-amber-600" : "text-red-500"}`}>
@@ -475,13 +583,16 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                         </td>
                         <td className="py-3 px-3 text-right text-sm font-bold text-slate-800">{formatCurrency(agent.revenue || 0)}</td>
                         <td className="py-3 px-3">
-                          <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <motion.div
-                              initial={{ width: 0 }}
-                              animate={{ width: `${progressPct}%` }}
-                              transition={{ duration: 0.6, delay: idx * 0.05 }}
-                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-500"
-                            />
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden min-w-[80px]">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${quotaPct}%` }}
+                                transition={{ duration: 0.6, delay: idx * 0.05 }}
+                                className={`h-full rounded-full bg-gradient-to-r ${quotaColor}`}
+                              />
+                            </div>
+                            <span className="text-xs font-bold text-slate-600 whitespace-nowrap">{quotaPct}%</span>
                           </div>
                         </td>
                       </motion.tr>
@@ -523,7 +634,7 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
                   <Tooltip content={<ChartTooltip />} />
                   <Bar dataKey="count" name="Lead Volume" radius={[0, 6, 6, 0]} barSize={22} maxBarSize={28}>
                     {sourceData.map((entry: any, idx: number) => (
-                      <Cell key={idx} fill={entry.color} />
+                      <Cell key={idx} fill={entry.isUnknown ? "#CBD5E1" : entry.color} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -535,7 +646,7 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
               <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-slate-100">
                 {sourceData.slice(0, 3).map((s: any, idx: number) => (
                   <div key={idx} className="text-center">
-                    <p className="text-xs text-slate-400">{s.source}</p>
+                    <p className="text-xs text-slate-400">{s.isUnknown ? "Unknown" : s.source}</p>
                     <p className="text-sm font-bold text-slate-800 mt-0.5">{s.conversionRate}% conv</p>
                   </div>
                 ))}
@@ -560,7 +671,13 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
               <BarChart data={revenueBreakdown} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, "dataMax + 1000"]} tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <YAxis
+                  domain={[0, (dataMax: number) => roundUpYAxisMax(dataMax)]}
+                  tick={{ fontSize: 11, fill: "#94A3B8" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                />
                 <Tooltip content={<ChartTooltip formatter={(v: number) => formatCurrency(v)} />} />
                 <Bar dataKey="products" name="Products" stackId="a" fill="#3B82F6" />
                 <Bar dataKey="services" name="Services" stackId="a" fill="#8B5CF6" />
@@ -609,5 +726,31 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
         </SectionCard>
       </div>
     </PageShell>
+  );
+}
+
+// ── Attention Card Component ─────────────────────────────────────────────────
+function AttentionCard({ icon, label, count, href, color }: { icon: React.ReactNode; label: string; count: number; href: string; color: "red" | "amber" | "blue" | "purple" }) {
+  const colorMap = {
+    red: { bg: "bg-red-50", text: "text-red-600", border: "border-red-200" },
+    amber: { bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" },
+    blue: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
+    purple: { bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-200" },
+  };
+  const c = colorMap[color];
+  return (
+    <a
+      href={href}
+      className={`flex items-center gap-3 p-4 rounded-xl border ${c.border} ${c.bg} hover:shadow-md transition-shadow group`}
+    >
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${c.bg} ${c.text}`}>
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-slate-500 font-medium">{label}</p>
+        <p className={`text-xl font-bold ${c.text}`}>{count}</p>
+      </div>
+      <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 transition-colors shrink-0" />
+    </a>
   );
 }

@@ -61,6 +61,7 @@ export async function PUT(
   if (body.contactId !== undefined) updateData.contactId = body.contactId || null;
   if (body.productId !== undefined) updateData.productId = body.productId;
   if (body.rfqId !== undefined) updateData.rfqId = body.rfqId || null;
+  if (body.opportunityId !== undefined) updateData.opportunityId = body.opportunityId || null;
   if (body.quantity !== undefined) updateData.quantity = body.quantity ? parseFloat(body.quantity) : 1;
   if (body.specifications !== undefined) updateData.specifications = body.specifications || null;
   if (body.assignedUserId !== undefined) updateData.assignedUserId = body.assignedUserId || null;

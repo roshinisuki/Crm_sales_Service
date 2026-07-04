@@ -67,6 +67,7 @@ export async function POST(
         probabilityPercent: 0,
         lostReasonRefId: lost_reason_id,
         lostReason: lossReason.name,
+        stageEnteredAt: new Date(),
       },
     });
 

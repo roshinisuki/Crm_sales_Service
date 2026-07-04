@@ -121,53 +121,44 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
     // Conversion rate: Won / Total Deals
     const conversionRate = totalDealsCount > 0 ? Math.round((wonDealsCount / totalDealsCount) * 100) : 0;
 
-    // 2. Sales Funnel Chart Data (BRD Variant 1: Lead → Opportunity → Deal)
+    // 2. Sales Funnel Chart Data — CUMULATIVE (each stage includes all downstream stages)
+    const newLeadCount = await prisma.lead.count({
+      where: { AND: [rbacCustomerFilter, { status: "New" }] }
+    });
+    const contactedLeadCount = await prisma.lead.count({
+      where: { AND: [rbacCustomerFilter, { status: "Contacted" }] }
+    });
+    const allDealCount = await prisma.deal.count({
+      where: { AND: [rbacDealFilter, { status: { notIn: ["Lost"] } }] }
+    });
+    const qualifiedDealCount = await prisma.deal.count({
+      where: { AND: [rbacDealFilter, { status: { in: ["Qualified", "RequirementGathering", "MeetingScheduled", "ProposalSent", "Negotiation", "Active", "Won"] } }] }
+    });
+    const meetingDealCount = await prisma.deal.count({
+      where: { AND: [rbacDealFilter, { status: { in: ["MeetingScheduled", "ProposalSent", "Negotiation", "Active", "Won"] } }] }
+    });
+    const activeDealCount = await prisma.deal.count({
+      where: { AND: [rbacDealFilter, { status: { in: ["Active", "Won"] } }] }
+    });
+
+    // Cumulative: top-of-funnel includes everything downstream
     const funnelStages = [
-      {
-        stage: "New Lead",
-        count: await prisma.lead.count({
-          where: { AND: [rbacCustomerFilter, { status: "New" }] }
-        })
-      },
-      {
-        stage: "Contacted",
-        count: await prisma.lead.count({
-          where: { AND: [rbacCustomerFilter, { status: "Contacted" }] }
-        })
-      },
-      {
-        stage: "Qualified",
-        count: await prisma.deal.count({
-          where: { AND: [rbacDealFilter, { status: { in: ["Qualified", "RequirementGathering"] } }] }
-        })
-      },
-      {
-        stage: "Meeting Scheduled",
-        count: await prisma.deal.count({
-          where: { AND: [rbacDealFilter, { status: "MeetingScheduled" }] }
-        })
-      },
-      {
-        stage: "Active Deal",
-        count: await prisma.deal.count({
-          where: { AND: [rbacDealFilter, { status: "Active" }] }
-        })
-      },
-      {
-        stage: "Closed Won",
-        count: wonDealsCount
-      }
+      { stage: "New Lead",       count: newLeadCount + contactedLeadCount + allDealCount },
+      { stage: "Contacted",      count: contactedLeadCount + allDealCount },
+      { stage: "Qualified",      count: qualifiedDealCount },
+      { stage: "Meeting Scheduled", count: meetingDealCount },
+      { stage: "Active Deal",   count: activeDealCount },
+      { stage: "Closed Won",    count: wonDealsCount },
     ];
 
-    // 3. Lead Source Analytics
-    // Group customers by leadSource
-    const customersBySource = await prisma.customer.groupBy({
+    // 3. Lead Source Analytics — group by Lead.leadSource for conversion calculation
+    const leadsBySource = await prisma.lead.groupBy({
       by: ["leadSource"],
       _count: { id: true },
       where: rbacCustomerFilter
     });
 
-    // We can also aggregate deal value per source by querying won deals
+    // Aggregate won deal value per source via customer relationship
     const wonDealsWithSource = await prisma.deal.findMany({
       where: {
         AND: [
@@ -189,18 +180,19 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
       sourceWonCountMap[source] = (sourceWonCountMap[source] || 0) + 1;
     });
 
-    const sourceAnalytics = customersBySource.map((s) => {
+    const sourceAnalytics = leadsBySource.map((s) => {
       const sourceName = s.leadSource || "Unknown";
       const totalLeadsForSource = s._count.id;
       const wonCount = sourceWonCountMap[sourceName] || 0;
       const totalRevenue = sourceValueMap[sourceName] || 0;
-      const convRate = totalLeadsForSource > 0 ? Math.round((wonCount / totalLeadsForSource) * 100) : 0;
+      const convRate = totalLeadsForSource > 0 ? Math.min(Math.round((wonCount / totalLeadsForSource) * 100), 100) : 0;
 
       return {
         source: sourceName,
         count: totalLeadsForSource,
         revenue: totalRevenue,
-        conversionRate: convRate
+        conversionRate: convRate,
+        isUnknown: !s.leadSource || s.leadSource === "",
       };
     });
 
@@ -211,6 +203,10 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
         where: { role: "SalesExecutive", companyId: userPayload.companyId },
         select: { id: true, name: true }
       });
+
+      // Current month period for quota lookup
+      const _now = new Date();
+      const _currentPeriod = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}`;
 
       const performancePromises = executives.map(async (exec) => {
         const totalAssignedDeals = await prisma.deal.count({
@@ -240,12 +236,38 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
         const totalWonValue = sumVal._sum.dealValue || 0;
         const conv = totalAssignedDeals > 0 ? Math.round((wonAssignedDeals / totalAssignedDeals) * 100) : 0;
 
+        // Fetch individual quota for this exec
+        const execTarget = await prisma.salesTarget.findFirst({
+          where: {
+            assignedUserId: exec.id,
+            companyId: userPayload.companyId,
+            period: _currentPeriod,
+          },
+          select: { targetAmount: true, achievedAmount: true },
+        });
+        const targetAmount = execTarget?.targetAmount || 0;
+        const achievedAmount = execTarget?.achievedAmount || totalWonValue;
+        const quotaAttainment = targetAmount > 0 ? Math.min(Math.round((achievedAmount / targetAmount) * 100), 100) : 0;
+
+        // Count leads for this exec
+        const leadCount = await prisma.lead.count({
+          where: {
+            assignedUserId: exec.id,
+            companyId: userPayload.companyId,
+            ...(dateCutoff ? { createdAt: { gte: dateCutoff } } : {})
+          }
+        });
+
         return {
           name: exec.name,
           dealsCount: totalAssignedDeals,
           wonCount: wonAssignedDeals,
           revenue: totalWonValue,
-          conversionRate: conv
+          conversionRate: conv,
+          leadCount,
+          targetAmount,
+          achievedAmount,
+          quotaAttainment,
         };
       });
 
@@ -301,6 +323,121 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
         revenue: trendMap[key]
       }));
 
+    // 6. Manager-specific metrics (only computed for non-executive roles)
+    let managerMetrics: any = {};
+    let needsAttention: any = {};
+
+    if (userPayload.role !== "SalesExecutive") {
+      // Team Quota Attainment: sum of achievedAmount / sum of targetAmount for current month
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+      const currentPeriod = `${currentYear}-${String(currentMonth).padStart(2, "0")}`;
+
+      const salesTargets = await prisma.salesTarget.findMany({
+        where: {
+          companyId: userPayload.companyId,
+          period: currentPeriod,
+        },
+        select: { targetAmount: true, achievedAmount: true },
+      });
+
+      const totalTarget = salesTargets.reduce((sum, t) => sum + t.targetAmount, 0);
+      const totalAchieved = salesTargets.reduce((sum, t) => sum + t.achievedAmount, 0);
+      const teamQuotaAttainment = totalTarget > 0 ? Math.round((totalAchieved / totalTarget) * 100) : 0;
+
+      // Deals at Risk: open deals past expectedCloseDate OR not updated in 7+ days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const dealsAtRiskCount = await prisma.deal.count({
+        where: {
+          AND: [
+            rbacDealFilter,
+            { status: { notIn: ["Won", "Lost", "OnHold"] } },
+            {
+              OR: [
+                { expectedCloseDate: { lt: now } },
+                { updatedAt: { lt: sevenDaysAgo } },
+              ],
+            },
+          ],
+        },
+      });
+
+      // Open Pipeline Value: sum of dealValue for all open deals
+      const openPipelineSum = await prisma.deal.aggregate({
+        _sum: { dealValue: true },
+        where: {
+          AND: [
+            rbacDealFilter,
+            { status: { notIn: ["Won", "Lost", "OnHold"] } },
+          ],
+        },
+      });
+      const openPipelineValue = openPipelineSum._sum.dealValue || 0;
+
+      // Avg Deal Cycle: average days from Deal.createdAt to Deal.updatedAt for Won deals
+      const wonDealsForCycle = await prisma.deal.findMany({
+        where: {
+          AND: [
+            rbacDealFilter,
+            { status: "Won" },
+          ],
+        },
+        select: { createdAt: true, updatedAt: true },
+      });
+
+      let avgDealCycle = 0;
+      if (wonDealsForCycle.length > 0) {
+        const totalDays = wonDealsForCycle.reduce((sum, d) => {
+          const diff = new Date(d.updatedAt).getTime() - new Date(d.createdAt).getTime();
+          return sum + Math.max(diff / (1000 * 60 * 60 * 24), 0);
+        }, 0);
+        avgDealCycle = Math.round(totalDays / wonDealsForCycle.length);
+      }
+
+      managerMetrics = {
+        teamQuotaAttainment,
+        dealsAtRiskCount,
+        openPipelineValue,
+        avgDealCycle,
+      };
+
+      // Needs Attention counts
+      const overdueFollowUpsCount = await prisma.followUp.count({
+        where: {
+          status: "Pending",
+          nextMeetingDate: { lt: now },
+          companyId: userPayload.companyId,
+        },
+      });
+
+      const unassignedLeadsCount = await prisma.lead.count({
+        where: {
+          AND: [
+            rbacCustomerFilter,
+            { assignedUserId: null },
+            { status: { notIn: ["Converted", "Lost", "Duplicate"] } },
+          ],
+        },
+      });
+
+      const pendingApprovalsCount = await prisma.approvalRequest.count({
+        where: {
+          companyId: userPayload.companyId,
+          status: "Pending",
+        },
+      }).catch(() => 0);
+
+      needsAttention = {
+        overdueFollowUps: overdueFollowUpsCount,
+        unassignedLeads: unassignedLeadsCount,
+        pendingApprovals: pendingApprovalsCount,
+        inactiveDeals: dealsAtRiskCount,
+      };
+    }
+
     return {
       success: true,
       data: {
@@ -317,6 +454,8 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
         leadSources: sourceAnalytics,
         agentPerformance,
         revenueTrend,
+        managerMetrics,
+        needsAttention,
         customerScoreTrend: await getCustomerScoreTrendData(userPayload, trendCutoff),
       }
     };

@@ -16,11 +16,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { gps_lat, gps_lng } = body;
-
-    if (gps_lat == null || gps_lng == null) {
-      return NextResponse.json({ success: false, message: "gps_lat and gps_lng are required" }, { status: 400 });
-    }
+    const { gps_lat, gps_lng, checkedInBy, manualLocationNote, locationVerified } = body;
 
     const visit = await prisma.customerVisit.findFirst({
       where: { id, deletedAt: null, companyId: user.companyId },
@@ -28,6 +24,14 @@ export async function POST(
     });
 
     if (!visit) return NextResponse.json({ success: false, message: "Visit not found" }, { status: 404 });
+
+    // Validate visit type and required fields
+    // Field visit: GPS is preferred but not blocking — allow manual location note if GPS denied
+    if (visit.visitType === "office_visit") {
+      if (!checkedInBy) {
+        return NextResponse.json({ success: false, message: "Receptionist/host name is required for office visits" }, { status: 400 });
+      }
+    }
 
     // Validate visit status = PLANNED
     if (visit.status !== "PLANNED") {
@@ -90,26 +94,53 @@ export async function POST(
       }
     }
 
-    // Calculate distance from plant location if coordinates exist
+    // Calculate distance from plant location if coordinates exist (field visits only)
     let warning: string | null = null;
     let gpsAnomaly = false;
-    if (visit.plantLocation?.gpsLat && visit.plantLocation?.gpsLng) {
+    let gpsDistanceFromSite: number | null = null;
+    const hasGps = gps_lat != null && gps_lng != null;
+    const isLocationVerified = locationVerified !== false && hasGps;
+
+    if (visit.visitType === "field_visit" && hasGps && visit.plantLocation?.gpsLat && visit.plantLocation?.gpsLng) {
       const distance = haversineDistance(gps_lat, gps_lng, visit.plantLocation.gpsLat, visit.plantLocation.gpsLng);
-      if (distance > 1) {
-        warning = `Check-in location is ${distance.toFixed(2)} km from registered plant address`;
+      gpsDistanceFromSite = distance;
+      if (distance > 0.5) { // 500m tolerance as per spec
+        warning = `Check-in location is ${distance.toFixed(2)} km from registered plant address (tolerance: 500m)`;
         gpsAnomaly = true;
       }
     }
 
+    if (visit.visitType === "field_visit" && !hasGps && !manualLocationNote) {
+      return NextResponse.json({ success: false, message: "Either GPS coordinates or a manual location note is required for field visit check-in" }, { status: 400 });
+    }
+
+    // Update visit based on visit type
+    const updateData: any = {
+      checkInTime: new Date(),
+      status: "CHECKED_IN",
+    };
+
+    if (visit.visitType === "field_visit") {
+      if (hasGps) {
+        updateData.gpsLat = parseFloat(gps_lat);
+        updateData.gpsLng = parseFloat(gps_lng);
+        updateData.gpsAnomaly = gpsAnomaly;
+        updateData.gpsDistanceFromSite = gpsDistanceFromSite;
+        updateData.locationVerified = true;
+      } else {
+        updateData.locationVerified = false;
+        updateData.manualLocationNote = manualLocationNote || null;
+        warning = "Check-in recorded without GPS — location unverified.";
+      }
+    } else if (visit.visitType === "office_visit") {
+      // Store receptionist/host confirmation
+      updateData.checkInBy = checkedInBy;
+      updateData.signInTime = new Date();
+    }
+
     const updated = await prisma.customerVisit.update({
       where: { id },
-      data: {
-        checkInTime: new Date(),
-        gpsLat: parseFloat(gps_lat),
-        gpsLng: parseFloat(gps_lng),
-        gpsAnomaly,
-        status: "CHECKED_IN",
-      },
+      data: updateData,
       include: {
         customer: { select: { id: true, name: true } },
         host: { select: { id: true, name: true } },
@@ -117,9 +148,22 @@ export async function POST(
       },
     });
 
-    await logAudit(user.id, "CustomerVisit", "CheckIn", `Checked in for visit to ${visit.customer?.name}`, {
+    // Log status transition
+    await prisma.customerVisitStatusLog.create({
+      data: {
+        visitId: id,
+        fromStatus: "PLANNED",
+        toStatus: "CHECKED_IN",
+        changedBy: user.id,
+        changedAt: new Date(),
+        companyId: user.companyId,
+        reason: visit.visitType === "field_visit" ? "Check-in with GPS validation" : "Check-in with reception confirmation",
+      },
+    });
+
+    await logAudit(user.id, "CustomerVisit", "CheckIn", `Checked in for ${visit.visitType} visit to ${visit.customer?.name}`, {
       resourceId: id,
-      newState: { status: "CHECKED_IN", gps_lat, gps_lng, gpsAnomaly },
+      newState: { status: "CHECKED_IN", visitType: visit.visitType, ...updateData },
       context: extractAuditContext(request),
       severity: "INFO",
     });

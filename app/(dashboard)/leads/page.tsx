@@ -35,6 +35,7 @@ const V2_TABS = [
   { key: "UpcomingFollowUp", label: "Upcoming Follow-ups" },
   { key: "SQL", label: "SQL" },
   { key: "Overdue", label: "Overdue" },
+  { key: "Unassigned", label: "Unassigned" },
   { key: "Lost", label: "Lost" },
   { key: "Duplicate", label: "Duplicate" },
 ] as const;
@@ -146,6 +147,9 @@ export default function LeadsPage() {
     } else if (statusParam === "UpcomingFollowUp") {
       setActiveTab("UpcomingFollowUp");
       setStatusFilter("");
+    } else if (statusParam === "unassigned") {
+      setActiveTab("Unassigned");
+      setStatusFilter("");
     } else if (statusParam) {
       setActiveTab(statusParam);
       setStatusFilter(statusParam);
@@ -236,6 +240,9 @@ export default function LeadsPage() {
         if (!hasOverdueFU && !isSlaBreached(l, now)) return false;
       } else if (activeTab === "Duplicate") {
         if (l.status !== "Duplicate") return false;
+      } else if (activeTab === "Unassigned") {
+        if (l.status === "Lost" || l.status === "Converted" || l.status === "Duplicate") return false;
+        if (l.assignedUserId) return false;
       } else if (activeTab && activeTab !== "") {
         if (l.status !== activeTab) return false;
       }

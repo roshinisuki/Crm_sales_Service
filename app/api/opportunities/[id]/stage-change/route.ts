@@ -22,7 +22,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const { to_stage, notes } = body;
+  const { to_stage, notes, demoOutcome, rejectedReason, demoFollowUpDate } = body;
 
   if (!to_stage) {
     return NextResponse.json({ success: false, message: "to_stage is required" }, { status: 400 });
@@ -66,8 +66,11 @@ export async function POST(
   const currentOrder = PIPELINE_STAGE_ORDER[currentStage] ?? 0;
   const targetOrder  = PIPELINE_STAGE_ORDER[targetStage]   ?? 0;
 
-  // If backward stage change, require Sales Manager or Admin
-  if (targetOrder < currentOrder) {
+  // Terminal stages (Rejected, Lost) have order 0 — they're not backward moves, they're terminal exits
+  const isTerminalExit = (targetStage === "Rejected" || targetStage === "Lost");
+
+  // If backward stage change (non-terminal), require Sales Manager or Admin
+  if (targetOrder < currentOrder && !isTerminalExit) {
     if (!["SalesManager", "Admin"].includes(user.role)) {
       return NextResponse.json(
         { success: false, message: "Stage rollback requires Manager approval" },
@@ -76,19 +79,43 @@ export async function POST(
     }
   }
 
-  // Forward stage change: only allow moving to the next stage in sequence (no skipping),
-  // except for jumping to Won when an accepted quotation exists, which bypasses Negotiation.
-  const acceptedQuotation = deal.quotations[0];
-  const isJumpToWon = targetStage === "Won" && acceptedQuotation;
-  if (targetOrder > currentOrder && targetOrder !== currentOrder + 1 && !isJumpToWon) {
+  // Forward stage change: only allow moving to the next stage in sequence (no skipping)
+  // Terminal exits (Rejected, Lost) can happen from any stage
+  if (targetOrder > currentOrder && targetOrder !== currentOrder + 1 && !isTerminalExit) {
     return NextResponse.json(
       { success: false, message: "You can only move to the next stage in sequence" },
       { status: 400 }
     );
   }
 
-  // Won gate is now enforced in the central transitionDealStatus function
-  // Duplicate check removed here to avoid inconsistency
+  // Validate demoOutcome when moving to DemoConducted
+  if (targetStage === "DemoConducted" && !demoOutcome) {
+    return NextResponse.json(
+      { success: false, message: "demoOutcome (Accepted/Rejected/Follow-up needed) is required when moving to DemoConducted" },
+      { status: 400 }
+    );
+  }
+  if (demoOutcome && !["Accepted", "Rejected", "Follow-up needed"].includes(demoOutcome)) {
+    return NextResponse.json(
+      { success: false, message: "demoOutcome must be 'Accepted', 'Rejected', or 'Follow-up needed'" },
+      { status: 400 }
+    );
+  }
+  // V2: Follow-up needed requires a follow-up date
+  if (demoOutcome === "Follow-up needed" && !demoFollowUpDate) {
+    return NextResponse.json(
+      { success: false, message: "demoFollowUpDate is required when demoOutcome is 'Follow-up needed'" },
+      { status: 400 }
+    );
+  }
+
+  // Validate rejectedReason when moving to Rejected
+  if (targetStage === "Rejected" && !rejectedReason) {
+    return NextResponse.json(
+      { success: false, message: "rejectedReason is required when moving to Rejected" },
+      { status: 400 }
+    );
+  }
 
   // Requirement Gathering → next stage: server-side re-validate mandatory fields
   if (currentStage === "RequirementGathering") {
@@ -115,6 +142,33 @@ export async function POST(
         { status: 400 }
       );
     }
+    // V2: Require tech discussion confirmed checkbox
+    if (!(d as any).techDiscussionConfirmed) {
+      return NextResponse.json(
+        { success: false, message: "Cannot move forward. Please confirm technical discussion in Part B." },
+        { status: 400 }
+      );
+    }
+  }
+
+  // MeetingScheduled → next stage: server-side validate meeting details (P3 fix)
+  if (currentStage === "MeetingScheduled") {
+    const d = deal.opportunityDetail || {};
+    const meetingMandatory = [
+      { key: "meetingDate", label: "Meeting Date" },
+      { key: "meetingType", label: "Meeting/Demo Type" },
+      { key: "meetingStatus", label: "Outcome / Status" },
+    ];
+    const missing = meetingMandatory.filter((f) => {
+      const val = (d as any)[f.key];
+      return val === null || val === undefined || (typeof val === "string" && val.trim() === "");
+    });
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { success: false, message: `Cannot move forward. Please fill: ${missing.map((m) => m.label).join(", ")}.` },
+        { status: 400 }
+      );
+    }
   }
 
   // Calculate days_in_previous_stage
@@ -128,12 +182,19 @@ export async function POST(
   const newProbability = PIPELINE_STAGE_PROBABILITY[targetStage] ?? deal.probabilityPercent;
 
   const result = await prisma.$transaction(async (tx) => {
-    // Update deal stage and probability
+    // Update deal stage, probability, and stage entry timestamp
     const updated = await tx.deal.update({
       where: { id },
       data: {
         status: targetStage,
         probabilityPercent: newProbability,
+        stageEnteredAt: new Date(),
+        // Set demoOutcome when entering DemoConducted
+        ...(targetStage === "DemoConducted" && demoOutcome ? { demoOutcome } : {}),
+        // V2: Save demoFollowUpDate when Follow-up needed
+        ...(targetStage === "DemoConducted" && demoOutcome === "Follow-up needed" && demoFollowUpDate ? { demoFollowUpDate: new Date(demoFollowUpDate) } : {}),
+        // Set rejectedReason when entering Rejected
+        ...(targetStage === "Rejected" && rejectedReason ? { rejectedReason } : {}),
       },
     });
 
@@ -145,41 +206,20 @@ export async function POST(
         toStatus: targetStage,
         changedById: user.id,
         durationInPreviousStage: daysInPreviousStage,
-        outcomeNotes: notes || null,
+        outcomeNotes: notes || (demoOutcome ? `Demo ${demoOutcome}${demoFollowUpDate ? ` — follow-up on ${demoFollowUpDate}` : ""}` : null) || (rejectedReason ? `Rejected: ${rejectedReason}` : null) || null,
       },
     });
 
-    // Sync customer status to ActiveCustomer when deal is Won
-    if (targetStage === "Won") {
-      const customer = await tx.customer.findUnique({
-        where: { id: deal.customerId },
-        select: { status: true }
-      });
-      
-      if (customer && customer.status !== "ActiveCustomer") {
-        await tx.customer.update({
-          where: { id: deal.customerId },
-          data: { status: "ActiveCustomer" }
-        });
-        
-        // Write AccountStatusHistory
-        await tx.accountStatusHistory.create({
-          data: {
-            customerId: deal.customerId,
-            fromStatus: customer.status,
-            toStatus: "ActiveCustomer",
-            changedById: user.id,
-            changedAt: new Date(),
-          },
-        });
-      }
-    }
+    // Customer status sync on Won is handled by Deals module, not Sales Pipeline
+    // Won is a Deals module status — pipeline exits at DemoConducted (Accepted → RFQ) or Rejected/Lost
 
     // Auto-create stage-appropriate follow-up
     const stageFollowUpMap: Record<string, string> = {
       MeetingScheduled: "Confirm attendee list and demo feedback",
       RequirementGathering: "Schedule discovery call",
       DemoConducted: "Follow up on demo outcome and next steps",
+      Rejected: "Internal review: understand rejection reasons and lessons learned",
+      Lost: "Internal review: analyze loss reasons and improvement areas",
     };
 
     const followUpTitle = stageFollowUpMap[targetStage];
@@ -202,6 +242,32 @@ export async function POST(
       });
     }
 
+    // Auto-create RFQ when DemoConducted with Accepted outcome
+    if (targetStage === "DemoConducted" && demoOutcome === "Accepted") {
+      const existingRfq = await tx.rFQ.findFirst({
+        where: { opportunityId: deal.id },
+      });
+      if (!existingRfq) {
+        const year = new Date().getFullYear();
+        const rfqPrefix = `RFQ-${year}-`;
+        const rfqCount = await tx.rFQ.count({
+          where: { rfqCode: { startsWith: rfqPrefix } },
+        });
+        const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
+        await tx.rFQ.create({
+          data: {
+            rfqCode,
+            customerId: deal.customerId,
+            opportunityId: deal.id,
+            status: "New",
+            receivedDate: new Date(),
+            priority: "Normal",
+            companyId: user.companyId,
+          },
+        });
+      }
+    }
+
     return updated;
   });
 
@@ -210,7 +276,7 @@ export async function POST(
     user.id,
     "Opportunity",
     "StageChange",
-    `Opportunity "${deal.dealName}" stage: ${currentStage} → ${targetStage}${notes ? `. Notes: ${notes}` : ""}`,
+    `Opportunity "${deal.dealName}" stage: ${currentStage} → ${targetStage}${demoOutcome ? ` (Demo ${demoOutcome})` : ""}${rejectedReason ? ` (Reason: ${rejectedReason})` : ""}${notes ? `. Notes: ${notes}` : ""}`,
     {
       resourceId: id,
       previousState: { stage: currentStage, probabilityPercent: deal.probabilityPercent },

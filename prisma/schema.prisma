@@ -73,6 +73,9 @@ model User {
   approvedVisits              MarketingVisit[]            @relation("ApprovedVisits")
   marketingVisits             MarketingVisit[]            @relation("ExecutiveVisits")
   approvedNegotiations        Negotiation[]               @relation("ApprovedNegotiations")
+  visitStatusChanges         CustomerVisitStatusLog[]
+  assignedVisits             CustomerVisit[]             @relation("AssignedVisits")
+  visitHosts                 VisitHost[]                 @relation("VisitHosts")
   assignedNegotiations        Negotiation[]               @relation("AssignedNegotiations")
   negotiationDeletedBy        Negotiation[]               @relation("NegotiationDeletedBy")
   negotiationRevisions        NegotiationRevision[]       @relation("NegotiationRevisions")
@@ -209,6 +212,7 @@ model CustomerVisit {
   id                        String                  @id @default(uuid())
   customerId                String
   hostedBy                  String
+  visitType                  String                  @default("field_visit") // field_visit or office_visit
   purpose                   String
   checkInTime               DateTime?
   checkOutTime              DateTime?
@@ -252,14 +256,40 @@ model CustomerVisit {
   longVisitJustification    String?                 @db.NVarChar(Max)
   visited4HrWarningSent     Boolean                 @default(false)
   visited8HrAlertSent       Boolean                 @default(false)
+  // Office visit specific fields
+  visitorNames              String?                 @db.NVarChar(Max)
+  meetingRoom               String?
+  signInTime                DateTime?
+  signOutTime               DateTime?
+  documentsExchanged        String?                 @db.NVarChar(Max)
+  // Field visit specific fields
+  gpsDistanceFromSite       Float?
+  travelMode                String?
+  distanceTraveledKm        Float?
+  expenseAmount             Float?
+  locationVerified          Boolean                 @default(true)
+  manualLocationNote        String?                 @db.NVarChar(Max)
+  // Unified fields
+  outcomeNotes              String?                 @db.NVarChar(Max)
+  nextActionDate            DateTime?
+  nextActionNotes           String?                 @db.NVarChar(Max)
+  entityType                String?
+  entityId                  String?
+  assignedUserId            String?
+  cancelledReason           String?                 @db.NVarChar(Max)
+  checkInBy                 String?
   company                   Company?                @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer                  Customer                @relation(fields: [customerId], references: [id], onUpdate: NoAction)
   host                      User                    @relation(fields: [hostedBy], references: [id], onUpdate: NoAction)
+  assignedUser              User?                   @relation("AssignedVisits", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   linkedOpportunity         Deal?                   @relation("VisitLinkedOpportunity", fields: [linkedOpportunityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   parentVisit               CustomerVisit?          @relation("VisitFollowUps", fields: [parentVisitId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   childVisits               CustomerVisit[]         @relation("VisitFollowUps")
   plantLocation             PlantLocation?          @relation(fields: [plantLocationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   visitAttendees            CustomerVisitAttendee[]
+  visitHosts                VisitHost[]
+  visitors                  VisitVisitor[]
+  statusLogs                CustomerVisitStatusLog[]
 
   @@index([customerId])
   @@index([hostedBy])
@@ -268,6 +298,9 @@ model CustomerVisit {
   @@index([plantLocationId])
   @@index([linkedOpportunityId])
   @@index([parentVisitId])
+  @@index([entityType, entityId])
+  @@index([assignedUserId])
+  @@index([visitType])
 }
 
 model CustomerVisitAttendee {
@@ -280,6 +313,48 @@ model CustomerVisitAttendee {
 
   @@index([visitId])
   @@index([contactId])
+}
+
+model VisitHost {
+  id        String        @id @default(uuid())
+  visitId   String
+  userId    String
+  createdAt DateTime      @default(now())
+  visit     CustomerVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  user      User          @relation("VisitHosts", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([visitId])
+  @@index([userId])
+}
+
+model VisitVisitor {
+  id          String        @id @default(uuid())
+  visitId     String
+  name        String
+  designation String?
+  createdAt   DateTime      @default(now())
+  visit       CustomerVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([visitId])
+}
+
+model CustomerVisitStatusLog {
+  id              String    @id @default(uuid())
+  visitId         String
+  fromStatus      String
+  toStatus        String
+  changedBy       String
+  changedAt       DateTime
+  reason          String?   @db.NVarChar(Max)
+  companyId       String?
+
+  visit           CustomerVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  changedByUser     User         @relation(fields: [changedBy], references: [id], onUpdate: NoAction)
+
+  @@index([visitId])
+  @@index([changedBy])
+  @@index([toStatus])
+  @@index([companyId])
 }
 
 model MarketingVisit {
@@ -468,7 +543,7 @@ model Deal {
   expectedCloseDate    DateTime
   assignedUserId       String?
   notes                String?              @db.NVarChar(Max)
-  status               String               @default("Active")
+  status               String               @default("Qualified")
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
   discountPercent      Float                @default(0.0)
@@ -487,6 +562,10 @@ model Deal {
   lostReasonRefId      String?
   opportunityCode      String?
   probabilityPercent   Int                  @default(20)
+  demoOutcome          String?              // "Accepted" | "Rejected" | "Follow-up needed" | null — set when DemoConducted stage transitions
+  stageEnteredAt       DateTime?            // Timestamp when current stage was entered — for per-stage overdue computation
+  rejectedReason       String?              @db.NVarChar(Max) // Reason for rejection (distinct from lostReason)
+  demoFollowUpDate     DateTime?            // V2: Follow-up date when demoOutcome is "Follow-up needed"
   approvalHistory      ApprovalHistory[]
   linkedVisits         CustomerVisit[]      @relation("VisitLinkedOpportunity")
   assignedUser         User?                @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -614,6 +693,13 @@ model OpportunityDetail {
   sampleApproved         Boolean  @default(false)
   sampleApprovedDate     DateTime?
   sampleRejectedReason   String?  @db.NVarChar(Max)
+  // V2 fields
+  requiresSamples        String?  // "yes" | "no" | null — set during Qualified stage
+  sampleStatus           String?  // "pending" | "approved" | "rejected" | null — tracks sample management branch
+  techDiscussionDate     DateTime?  // V2 Part B: technical discussion date
+  techDiscussionAttendees String?  @db.NVarChar(Max) // V2 Part B: attendees
+  techDiscussionQuestions String?  @db.NVarChar(Max) // V2 Part B: questions raised
+  techDiscussionConfirmed Boolean  @default(false) // V2 Part B: exit gate checkbox
   deal                   Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
 }
 
@@ -1312,6 +1398,7 @@ model SampleRequest {
   contactId        String?
   productId        String
   rfqId            String?
+  opportunityId    String?   // V2: link sample to pipeline deal
   status           String    @default("New")
   requestDate      DateTime  @default(now())
   sentDate         DateTime?

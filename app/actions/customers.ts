@@ -253,6 +253,10 @@ export async function createCustomerAction(data: any) {
       return { success: false, message: "Customer Name is required" };
     }
 
+    if (!leadSource || leadSource.trim() === "") {
+      return { success: false, message: "Lead Source is required" };
+    }
+
     // GSTIN validation (15-char format) - optional but unique if provided
     if (gstNumber) {
       const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
@@ -309,7 +313,7 @@ export async function createCustomerAction(data: any) {
         city,
         status: status || "Prospect",
         assignedUserId: finalAssignedUserId,
-        leadSource: leadSource || null,
+        leadSource: leadSource,
         companyId: userPayload.companyId,
         // V2 fields
         gstNumber,
@@ -373,6 +377,10 @@ export async function updateCustomerAction(data: any) {
 
     if (!id || !customerCode || !name) {
       return { success: false, message: "ID, Customer Code and Name are required" };
+    }
+
+    if (!leadSource || leadSource.trim() === "") {
+      return { success: false, message: "Lead Source is required" };
     }
 
     const currentCustomer = await prisma.customer.findUnique({ where: { id } });

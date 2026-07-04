@@ -206,6 +206,12 @@ export default function CustomerMasterPage() {
       return;
     }
 
+    if (!formData.leadSource || formData.leadSource.trim() === "") {
+      setErrorMsg("Lead Source is required");
+      setFormLoading(false);
+      return;
+    }
+
     let res;
     if (formData.id) {
       res = await updateCustomerAction(formData);
@@ -595,7 +601,7 @@ export default function CustomerMasterPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Lead Source</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">Lead Source <span className="text-red-500">*</span></label>
                     <select 
                       value={formData.leadSource}
                       onChange={(e) => setFormData({ ...formData, leadSource: e.target.value })}

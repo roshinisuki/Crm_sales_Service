@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     ...(isExport ? {} : { take: 100 }),
   });
 
-  // Summary
+  // Summary metrics per specification
   const total = visits.length;
   const completed = visits.filter((v) => v.status === "COMPLETED").length;
   const missed = visits.filter((v) => v.status === "MISSED").length;
@@ -73,10 +73,62 @@ export async function GET(request: NextRequest) {
   const checkedIn = visits.filter((v) => v.status === "CHECKED_IN").length;
   const checkedOut = visits.filter((v) => v.status === "CHECKED_OUT").length;
   const unavailable = visits.filter((v) => v.status === "CUSTOMER_UNAVAILABLE").length;
-  const completionRate = total > 0 ? Math.round((completed / total) * 1000) / 10 : 0;
-  const avgDuration = total > 0
-    ? Math.round(visits.reduce((sum, v) => sum + (v.durationMinutes || 0), 0) / total)
+  const autoCheckedOut = visits.filter((v) => v.status === "AUTO_CHECKED_OUT").length;
+  
+  // Completion rate: % of Planned that reach Completed (not Missed)
+  const plannedTotal = planned + missed + completed; // Total planned visits that have a terminal status
+  const completionRate = plannedTotal > 0 ? Math.round((completed / plannedTotal) * 1000) / 10 : 0;
+  
+  // Total visits by type
+  const fieldVisits = visits.filter((v) => v.visitType === "field_visit").length;
+  const officeVisits = visits.filter((v) => v.visitType === "office_visit").length;
+  
+  // Average visit duration, split by type
+  const fieldVisitsWithDuration = visits.filter((v) => v.visitType === "field_visit" && v.durationMinutes != null);
+  const officeVisitsWithDuration = visits.filter((v) => v.visitType === "office_visit" && v.durationMinutes != null);
+  const fieldAvgDuration = fieldVisitsWithDuration.length > 0
+    ? Math.round(fieldVisitsWithDuration.reduce((sum, v) => sum + (v.durationMinutes || 0), 0) / fieldVisitsWithDuration.length)
     : 0;
+  const officeAvgDuration = officeVisitsWithDuration.length > 0
+    ? Math.round(officeVisitsWithDuration.reduce((sum, v) => sum + (v.durationMinutes || 0), 0) / officeVisitsWithDuration.length)
+    : 0;
+  const avgDuration = visits.filter((v) => v.durationMinutes != null).length > 0
+    ? Math.round(visits.reduce((sum, v) => sum + (v.durationMinutes || 0), 0) / visits.filter((v) => v.durationMinutes != null).length)
+    : 0;
+
+  // GPS compliance % — field visits where check-in location matched registered site within 500m tolerance
+  const fieldVisitsWithGps = visits.filter((v) => v.visitType === "field_visit" && v.gpsAnomaly !== null);
+  const gpsCompliant = fieldVisitsWithGps.filter((v) => !v.gpsAnomaly).length;
+  const gpsComplianceRate = fieldVisitsWithGps.length > 0 ? Math.round((gpsCompliant / fieldVisitsWithGps.length) * 1000) / 10 : 0;
+
+  // Missed-visit rate per executive
+  const visitsByExecutive = visits.reduce((acc, v) => {
+    if (!acc[v.hostedBy]) acc[v.hostedBy] = { total: 0, missed: 0 };
+    acc[v.hostedBy].total++;
+    if (v.status === "MISSED") acc[v.hostedBy].missed++;
+    return acc;
+  }, {} as Record<string, { total: number; missed: number }>);
+  const missedVisitRateByExecutive = Object.entries(visitsByExecutive).map(([executiveId, data]) => ({
+    executiveId,
+    executiveName: users.find((u) => u.id === executiveId)?.name || "Unknown",
+    totalPlanned: data.total,
+    missed: data.missed,
+    missedRate: data.total > 0 ? Math.round((data.missed / data.total) * 1000) / 10 : 0,
+  }));
+
+  // Office visits breakdown by host
+  const officeVisitsByHost = visits
+    .filter((v) => v.visitType === "office_visit")
+    .reduce((acc, v) => {
+      if (!acc[v.hostedBy]) acc[v.hostedBy] = 0;
+      acc[v.hostedBy]++;
+      return acc;
+    }, {} as Record<string, number>);
+  const officeVisitsByHostList = Object.entries(officeVisitsByHost).map(([hostId, total]) => ({
+    hostId,
+    hostName: users.find((u) => u.id === hostId)?.name || "Unknown",
+    total,
+  }));
 
   // Key account compliance: key accounts with a visit in the period
   const keyAccounts = await prisma.customer.findMany({
@@ -107,7 +159,26 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    summary: { total, planned, checkedIn, checkedOut, completed, missed, unavailable, completionRate, avgDuration, keyAccountComplianceRate },
+    summary: { 
+      total, 
+      planned, 
+      checkedIn, 
+      checkedOut, 
+      completed, 
+      missed, 
+      unavailable, 
+      autoCheckedOut,
+      completionRate, 
+      avgDuration,
+      fieldVisits,
+      officeVisits,
+      fieldAvgDuration,
+      officeAvgDuration,
+      gpsComplianceRate,
+      missedVisitRateByExecutive,
+      officeVisitsByHost: officeVisitsByHostList,
+      keyAccountComplianceRate 
+    },
     visits: formattedVisits,
   });
 }

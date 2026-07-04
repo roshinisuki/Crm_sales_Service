@@ -701,7 +701,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const TABS: { key: Tab; label: string }[] = [
     { key: "overview",   label: "Overview" },
     { key: "followups",  label: `Follow Ups (${followups.length})` },
-    { key: "activities", label: `Activities (${notes.length})` },
+    { key: "activities", label: `Activities (${activities.length})` },
     { key: "bant",       label: "BANT Checklist" },
     { key: "competitor",  label: "Competitor Intelligence" },
   ];

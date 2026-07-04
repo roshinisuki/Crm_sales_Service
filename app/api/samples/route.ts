@@ -22,6 +22,9 @@ export async function GET(request: NextRequest) {
   if (customerId) where.customerId = customerId;
   if (assignedUserId) where.assignedUserId = assignedUserId;
   if (productId) where.productId = productId;
+  // V2: filter by opportunityId
+  const opportunityId = searchParams.get("opportunityId");
+  if (opportunityId) where.opportunityId = opportunityId;
 
   const [samples, total] = await Promise.all([
     prisma.sampleRequest.findMany({
@@ -69,6 +72,7 @@ export async function POST(request: NextRequest) {
       contactId: body.contactId || null,
       productId: body.productId,
       rfqId: body.rfqId || null,
+      opportunityId: body.opportunityId || null,
       quantity: body.quantity ? parseFloat(body.quantity) : 1,
       specifications: body.specifications || null,
       assignedUserId: body.assignedUserId || null,

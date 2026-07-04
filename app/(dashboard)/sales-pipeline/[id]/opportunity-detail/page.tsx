@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { formatDate, cn } from "@/lib/ui-utils";
 import {
-  ArrowLeft, CheckCircle,
+  ArrowLeft, CheckCircle, XCircle,
   ChevronRight, Save, AlertTriangle, Calendar,
   Edit3, FileText, MessageSquare,
 } from "lucide-react";
@@ -26,7 +26,7 @@ const STAGE_DISPLAY_LABELS: Record<string, string> = {
 };
 
 const PIPELINE_STAGES = PIPELINE_STAGE_VALUES
-  .filter((s) => s !== "Lost")
+  .filter((s) => s !== "Lost" && s !== "Rejected")
   .map((s, i) => ({
     key: s,
     label: STAGE_DISPLAY_LABELS[s] || s,
@@ -110,6 +110,10 @@ const getMissingMandatoryFields = (formData: any) => {
 type StepState = "completed" | "active" | "future";
 
 const getStepState = (stageKey: string, currentStage: string): StepState => {
+  // Terminal stages — all pipeline steps are completed
+  if (currentStage === "Lost" || currentStage === "Rejected" || currentStage === "Won") {
+    return "completed";
+  }
   const stageIndex = PIPELINE_STAGES.findIndex((s) => s.key === stageKey);
   const currentIndex = PIPELINE_STAGES.findIndex((s) => s.key === currentStage);
   if (stageIndex < currentIndex) return "completed";
@@ -139,24 +143,18 @@ const canEditOpportunity = (user: { role: Role; id: string } | null, deal: any) 
 };
 
 const canChangeStage = (user: { role: Role; id: string } | null, deal: any) => {
-  if (!user || deal.status === "Won" || deal.status === "Lost") return false;
+  if (!user || deal.status === "Won" || deal.status === "Lost" || deal.status === "Rejected") return false;
   if (MANAGER_ROLES.includes(user.role)) return true;
   if (user.role === "SalesExecutive" && deal.assignedUserId === user.id) return true;
   return false;
 };
 
 const canAddFollowUp = (user: { role: Role; id: string } | null, deal: any) => {
-  if (!user || deal.status === "Won" || deal.status === "Lost") return false;
+  if (!user || deal.status === "Won" || deal.status === "Lost" || deal.status === "Rejected") return false;
   if (SALES_ROLES.includes(user.role)) return true;
   return false;
 };
 
-const canMarkWon = (user: { role: Role; id: string } | null, deal: any, hasAcceptedQuotation: boolean) => {
-  if (!user || !hasAcceptedQuotation || deal.status === "Won" || deal.status === "Lost") return false;
-  if (MANAGER_ROLES.includes(user.role)) return true;
-  if (user.role === "SalesExecutive" && deal.assignedUserId === user.id) return true;
-  return false;
-};
 
 function ProposalQuotationGuide({
   opportunityId,
@@ -456,9 +454,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   // Modals
   const [showLostModal, setShowLostModal] = useState(false);
   const [showStakeholderModal, setShowStakeholderModal] = useState(false);
-  const [showWonConfirm, setShowWonConfirm] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
   const [showFollowUpModal, setShowFollowUpModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [rejectForm, setRejectForm] = useState({ rejectedReason: "", notes: "" });
   const [followUpForm, setFollowUpForm] = useState({ title: "", nextMeetingDate: "", priority: "Medium", notes: "" });
 
   // Stage review/edit state: which stage form is currently rendered (does NOT mutate deal.status)
@@ -471,12 +470,17 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   // RG form state
   const [rgForm, setRgForm] = useState<any>({});
-  const [rgExpanded, setRgExpanded] = useState<Record<string, boolean>>({ customer_info: true, business_req: false, tech_req: false, commercial_info: false, internal_notes: false });
+  const [rgExpanded, setRgExpanded] = useState<Record<string, boolean>>({ customer_info: true, business_req: false, tech_req: false, tech_discussion: false, commercial_info: false, internal_notes: false });
   const [rgSaving, setRgSaving] = useState(false);
   const [rgAttempted, setRgAttempted] = useState(false);
   const [stageMoving, setStageMoving] = useState(false);
   const [linkedQuotations, setLinkedQuotations] = useState<any[]>([]);
   const [linkedQuotationsLoading, setLinkedQuotationsLoading] = useState(false);
+  // V2: Sample management state
+  const [products, setProducts] = useState<any[]>([]);
+  const [linkedSample, setLinkedSample] = useState<any>(null);
+  const [sampleForm, setSampleForm] = useState({ productId: "", quantity: "1", specifications: "" });
+  const [sampleSaving, setSampleSaving] = useState(false);
 
   const fetchLinkedQuotations = useCallback(async () => {
     setLinkedQuotationsLoading(true);
@@ -600,6 +604,14 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         developmentEffort: d.developmentEffort || "",
         implementationEffort: d.implementationEffort || "",
         supportRequirements: d.supportRequirements || "",
+        // V2: Sample management + technical discussion
+        requiresSamples: d.requiresSamples || "",
+        sampleStatus: d.sampleStatus || "",
+        techDiscussionDate: d.techDiscussionDate ? d.techDiscussionDate.split("T")[0] : "",
+        techDiscussionAttendees: d.techDiscussionAttendees || "",
+        techDiscussionQuestions: d.techDiscussionQuestions || "",
+        techDiscussionConfirmed: d.techDiscussionConfirmed || false,
+        demoFollowUpDate: d.demoFollowUpDate ? d.demoFollowUpDate.split("T")[0] : "",
       });
       } else {
         const msg = json.message || `Failed to load opportunity (HTTP ${res.status})`;
@@ -613,6 +625,32 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     }
     setLoading(false);
   }, [id]);
+
+  // V2: Fetch linked sample for this opportunity
+  const fetchLinkedSample = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/samples?opportunityId=${id}`);
+      const json = await res.json();
+      if (json.success && json.data && json.data.length > 0) {
+        setLinkedSample(json.data[0]); // first sample linked to this deal
+      } else {
+        setLinkedSample(null);
+      }
+    } catch {
+      setLinkedSample(null);
+    }
+  }, [id]);
+
+  // V2: Fetch products for sample creation
+  const fetchProducts = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/catalogue/products?pageSize=100`);
+      const json = await res.json();
+      if (json.success) setProducts(json.data || []);
+    } catch {
+      // silent
+    }
+  }, []);
 
   const fetchContacts = useCallback(async () => {
     const res = await fetch(`/api/opportunities/${id}/contacts`);
@@ -653,7 +691,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     fetchLossReasons();
     fetchCompetitors();
     fetchLinkedQuotations();
-  }, [fetchDeal, fetchContacts, fetchLossReasons, fetchCompetitors, fetchLinkedQuotations]);
+    fetchLinkedSample();
+    fetchProducts();
+  }, [fetchDeal, fetchContacts, fetchLossReasons, fetchCompetitors, fetchLinkedQuotations, fetchLinkedSample, fetchProducts]);
 
   useEffect(() => {
     if (showStakeholderModal) fetchAllContacts();
@@ -683,10 +723,31 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     return PIPELINE_STAGES[idx + 1].key;
   };
 
-  const handleSaveAndMove = async (toStage: string) => {
+  const handleSaveAndMove = async (toStage: string, options?: { demoOutcome?: "Accepted" | "Rejected" | "Follow-up needed" }) => {
     if (!toStage) return;
     setStageMoving(true);
     try {
+      // V2: Sample Management branch — if Qualified and requiresSamples=yes, save sampleStatus and hold
+      if (deal.status === "Qualified" && rgForm.requiresSamples === "yes" && toStage === "RequirementGathering") {
+        // Save details with sampleStatus pending
+        const saveRes = await fetch(`/api/opportunities/${id}/details`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...rgForm, sampleStatus: "pending" }),
+        });
+        if (!saveRes.ok) {
+          const json = await saveRes.json().catch(() => ({}));
+          toast.error(json.message || "Failed to save stage details");
+          setStageMoving(false);
+          return;
+        }
+        toast.success("Sample request flagged. Opportunity held at Qualified until sample is resolved.");
+        fetchDeal();
+        fetchLinkedSample();
+        setStageMoving(false);
+        return;
+      }
+
       // 1. Save current stage details first
       const saveRes = await fetch(`/api/opportunities/${id}/details`, {
         method: "PUT",
@@ -704,7 +765,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       const res = await fetch(`/api/opportunities/${id}/stage-change`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to_stage: toStage }),
+        body: JSON.stringify({
+          to_stage: toStage,
+          ...(options?.demoOutcome ? { demoOutcome: options.demoOutcome } : {}),
+          ...(options?.demoOutcome === "Follow-up needed" && rgForm.demoFollowUpDate ? { demoFollowUpDate: rgForm.demoFollowUpDate } : {}),
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -736,18 +801,28 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     }
   };
 
-  const handleMarkWon = async () => {
-    const res = await fetch(`/api/opportunities/${id}/mark-won`, {
+  const handleMarkRejected = async () => {
+    if (!rejectForm.rejectedReason.trim()) {
+      toast.error("Rejection reason is required");
+      return;
+    }
+    const res = await fetch(`/api/opportunities/${id}/stage-change`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to_stage: "Rejected",
+        rejectedReason: rejectForm.rejectedReason,
+        notes: rejectForm.notes || undefined,
+      }),
     });
     if (res.ok) {
-      toast.success("Opportunity marked as Won!");
-      setShowWonConfirm(false);
+      toast.success("Opportunity marked as Rejected");
+      setShowRejectModal(false);
+      setRejectForm({ rejectedReason: "", notes: "" });
       fetchDeal();
     } else {
-      const json = await res.json();
-      toast.error(json.message || "Failed to mark as Won");
+      const json = await res.json().catch(() => ({}));
+      toast.error(json.message || "Failed to mark as Rejected");
     }
   };
 
@@ -949,13 +1024,269 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">{stageTitle}</h3>
-          {canEditOpportunity(user, deal) && !isWonOrLost && (
+          {canEditOpportunity(user, deal) && !isTerminalStage && (
             <span className="text-xs text-slate-400">Save changes at the bottom of the form</span>
           )}
         </div>
 
         {effectiveStage === "Qualified" && (
           <div className="space-y-4">
+            {/* V2: Inline Sample Management Panel */}
+            {rgForm.requiresSamples === "yes" && (
+              <div className="border-2 border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
+                <div className="px-4 py-3 bg-amber-100/50 border-b border-amber-200">
+                  <h4 className="text-sm font-bold text-amber-800 flex items-center gap-2">
+                    📦 Sample Management
+                  </h4>
+                  <p className="text-xs text-amber-700 mt-0.5">Opportunity is held at Qualified until sample is resolved</p>
+                </div>
+                <div className="p-4 space-y-4">
+                  {/* No sample yet — show creation form */}
+                  {!linkedSample && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <FormField label="Select Product" required>
+                          <Select
+                            value={sampleForm.productId}
+                            onChange={(e) => setSampleForm({ ...sampleForm, productId: e.target.value })}
+                          >
+                            <option value="">-- Select Product --</option>
+                            {products.map((p: any) => (
+                              <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>
+                            ))}
+                          </Select>
+                        </FormField>
+                        <FormField label="Quantity" required>
+                          <Input
+                            type="number"
+                            min="1"
+                            value={sampleForm.quantity}
+                            onChange={(e) => setSampleForm({ ...sampleForm, quantity: e.target.value })}
+                          />
+                        </FormField>
+                        <div className="flex items-end">
+                          <button
+                            onClick={async () => {
+                              if (!sampleForm.productId) { toast.error("Please select a product"); return; }
+                              setSampleSaving(true);
+                              try {
+                                const res = await fetch("/api/samples", {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    customerId: deal.customerId,
+                                    productId: sampleForm.productId,
+                                    quantity: sampleForm.quantity,
+                                    specifications: sampleForm.specifications,
+                                    opportunityId: id,
+                                  }),
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                  toast.success("Sample request created (New)");
+                                  setLinkedSample(data.data);
+                                  setSampleForm({ productId: "", quantity: "1", specifications: "" });
+                                } else {
+                                  toast.error(data.message || "Failed to create sample");
+                                }
+                              } catch {
+                                toast.error("Failed to create sample");
+                              } finally {
+                                setSampleSaving(false);
+                              }
+                            }}
+                            disabled={sampleSaving}
+                            className="w-full px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors disabled:opacity-50"
+                          >
+                            {sampleSaving ? "Creating..." : "Create Sample Request"}
+                          </button>
+                        </div>
+                      </div>
+                      <FormField label="Specifications / Notes">
+                        <Textarea
+                          rows={2}
+                          value={sampleForm.specifications}
+                          onChange={(e) => setSampleForm({ ...sampleForm, specifications: e.target.value })}
+                          placeholder="Sample specifications or special requirements..."
+                        />
+                      </FormField>
+                    </div>
+                  )}
+
+                  {/* Sample exists — show status flow */}
+                  {linkedSample && (
+                    <div className="space-y-3">
+                      {/* Sample info card */}
+                      <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{linkedSample.sampleCode}</p>
+                            <p className="text-xs text-slate-500">
+                              {linkedSample.product ? `${linkedSample.product.productCode} - ${linkedSample.product.name}` : "—"}
+                              {" · Qty: "}{linkedSample.quantity}
+                            </p>
+                          </div>
+                          <span className={cn(
+                            "inline-block px-2.5 py-0.5 rounded-full text-xs font-medium",
+                            linkedSample.status === "New" && "bg-blue-100 text-blue-700",
+                            linkedSample.status === "UnderReview" && "bg-amber-100 text-amber-700",
+                            linkedSample.status === "SentToCustomer" && "bg-purple-100 text-purple-700",
+                            linkedSample.status === "Approved" && "bg-green-100 text-green-700",
+                            linkedSample.status === "Rejected" && "bg-red-100 text-red-700",
+                            linkedSample.status === "Revision" && "bg-orange-100 text-orange-700",
+                          )}>
+                            {linkedSample.status}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => router.push(`/samples/${linkedSample.id}`)}
+                          className="text-xs font-medium text-[var(--primary)] hover:underline"
+                        >
+                          View Details →
+                        </button>
+                      </div>
+
+                      {/* Status flow buttons */}
+                      {linkedSample.status !== "Approved" && linkedSample.status !== "Rejected" && (
+                        <div className="flex flex-wrap gap-2">
+                          {linkedSample.status === "New" && (
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`/api/samples/${linkedSample.id}`, {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ status: "UnderReview" }),
+                                });
+                                if (res.ok) { toast.success("Sample moved to Under Review"); fetchLinkedSample(); }
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                            >
+                              → Under Review
+                            </button>
+                          )}
+                          {linkedSample.status === "UnderReview" && (
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`/api/samples/${linkedSample.id}`, {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ status: "SentToCustomer" }),
+                                });
+                                if (res.ok) { toast.success("Sample sent to customer"); fetchLinkedSample(); }
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition-colors"
+                            >
+                              → Sent to Customer
+                            </button>
+                          )}
+                          {linkedSample.status === "SentToCustomer" && (
+                            <>
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch(`/api/samples/${linkedSample.id}`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ status: "Approved", customerFeedback: "Sample approved by customer" }),
+                                  });
+                                  if (res.ok) {
+                                    toast.success("Sample Approved — advancing to Requirement Gathering");
+                                    // Update opportunity sampleStatus + advance stage
+                                    await fetch(`/api/opportunities/${id}/details`, {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ sampleStatus: "approved" }),
+                                    });
+                                    await fetch(`/api/opportunities/${id}/stage-change`, {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ to_stage: "RequirementGathering" }),
+                                    });
+                                    fetchDeal();
+                                    fetchLinkedSample();
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-colors"
+                              >
+                                ✓ Approve Sample → Advance to RG
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch(`/api/samples/${linkedSample.id}`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ status: "Rejected", customerFeedback: "Sample rejected by customer" }),
+                                  });
+                                  if (res.ok) {
+                                    toast.error("Sample Rejected — moving opportunity to Rejected");
+                                    await fetch(`/api/opportunities/${id}/details`, {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ sampleStatus: "rejected" }),
+                                    });
+                                    await fetch(`/api/opportunities/${id}/stage-change`, {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ to_stage: "Rejected", rejectedReason: "Sample rejected" }),
+                                    });
+                                    fetchDeal();
+                                    fetchLinkedSample();
+                                  }
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors"
+                              >
+                                ✗ Reject Sample → Move to Rejected
+                              </button>
+                            </>
+                          )}
+                          {(linkedSample.status === "UnderReview" || linkedSample.status === "SentToCustomer") && (
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`/api/samples/${linkedSample.id}`, {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ status: "Revision", revisionNotes: "Revision requested" }),
+                                });
+                                if (res.ok) { toast.success("Sample sent for revision"); fetchLinkedSample(); }
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 transition-colors"
+                            >
+                              ↻ Revision
+                            </button>
+                          )}
+                          {linkedSample.status === "Revision" && (
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`/api/samples/${linkedSample.id}`, {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ status: "UnderReview" }),
+                                });
+                                if (res.ok) { toast.success("Sample back to Under Review"); fetchLinkedSample(); }
+                              }}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                            >
+                              → Under Review
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Approved/Rejected final state */}
+                      {linkedSample.status === "Approved" && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700 font-medium">
+                          ✅ Sample approved — opportunity advanced to Requirement Gathering
+                        </div>
+                      )}
+                      {linkedSample.status === "Rejected" && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 font-medium">
+                          ❌ Sample rejected — opportunity moved to Rejected
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             <p className="text-sm text-slate-600">
               Opportunity is qualified. Review or update the qualification details below.
             </p>
@@ -974,6 +1305,16 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   <option value="">Select...</option>
                   <option value="Yes">Yes</option>
                   <option value="No">No</option>
+                </Select>
+              </FormField>
+              <FormField label="Customer requires samples?" className="md:col-span-2">
+                <Select
+                  value={rgForm.requiresSamples || ""}
+                  onChange={(e) => setRgForm({ ...rgForm, requiresSamples: e.target.value })}
+                >
+                  <option value="">Select...</option>
+                  <option value="yes">Yes — route to Sample Management</option>
+                  <option value="no">No — proceed to Requirement Gathering</option>
                 </Select>
               </FormField>
               <FormField label="Notes" className="md:col-span-2">
@@ -1095,6 +1436,40 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               )}
             </div>
 
+            {/* V2 Part B — Technical Discussion (closing step of Requirement Gathering) */}
+            <div className="border-2 border-[var(--primary)]/30 rounded-xl overflow-hidden bg-[var(--primary)]/[0.02]">
+              <button onClick={() => toggleRGSection("tech_discussion")} className="w-full px-4 py-3 bg-[var(--primary)]/5 flex items-center justify-between text-sm font-bold text-slate-700 hover:bg-[var(--primary)]/10 transition-colors">
+                <span>Part B — Technical Discussion (Closing Step)</span>
+                <ChevronRight size={16} className={cn("transition-transform", rgExpanded.tech_discussion && "rotate-90")} />
+              </button>
+              {rgExpanded.tech_discussion && (
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Discussion Date" required>
+                    <Input type="date" value={rgForm.techDiscussionDate || ""} onChange={(e) => setRgForm({ ...rgForm, techDiscussionDate: e.target.value })} />
+                  </FormField>
+                  <FormField label="Attendees" required>
+                    <Input value={rgForm.techDiscussionAttendees || ""} onChange={(e) => setRgForm({ ...rgForm, techDiscussionAttendees: e.target.value })} placeholder="Names of participants" />
+                  </FormField>
+                  <FormField label="Technical Questions Raised" className="md:col-span-2">
+                    <Textarea rows={3} value={rgForm.techDiscussionQuestions || ""} onChange={(e) => setRgForm({ ...rgForm, techDiscussionQuestions: e.target.value })} placeholder="Key technical questions and concerns discussed..." />
+                  </FormField>
+                  <FormField label="Requirements technically confirmed?" required className="md:col-span-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={rgForm.techDiscussionConfirmed || false}
+                        onChange={(e) => setRgForm({ ...rgForm, techDiscussionConfirmed: e.target.checked })}
+                        className="w-5 h-5 rounded border-2 border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)] cursor-pointer"
+                      />
+                      <span className="text-sm font-medium text-slate-700">
+                        I confirm that requirements have been technically validated with the customer
+                      </span>
+                    </label>
+                  </FormField>
+                </div>
+              )}
+            </div>
+
             {/* Commercial Information */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <button onClick={() => toggleRGSection("commercial_info")} className="w-full px-4 py-3 bg-slate-50 flex items-center justify-between text-sm font-bold text-slate-700 hover:bg-slate-100 transition-colors">
@@ -1178,17 +1553,49 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     <option value="Solution Review">Solution Review</option>
                   </Select>
                 </FormField>
-                <FormField label="Meeting/Demo Date"><Input type="date" value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} /></FormField>
+                <FormField label="Meeting/Demo Date" required>
+                  <Input type="date" value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} />
+                  {rgForm.meetingDate && (
+                    <span className="text-xs text-slate-500 mt-1 block">
+                      {(() => {
+                        const d = new Date(rgForm.meetingDate);
+                        const today = new Date(); today.setHours(0,0,0,0);
+                        const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        if (diff === 0) return "📅 Today";
+                        if (diff === 1) return "📅 Tomorrow";
+                        if (diff > 1) return `📅 In ${diff} days`;
+                        if (diff === -1) return "📅 Yesterday";
+                        return `📅 ${Math.abs(diff)} days ago`;
+                      })()}
+                    </span>
+                  )}
+                </FormField>
+                <FormField label="Meeting Mode">
+                  <Select value={rgForm.meetingMode || ""} onChange={(e) => setRgForm({ ...rgForm, meetingMode: e.target.value })}>
+                    <option value="">Select...</option>
+                    <option value="Zoom">Zoom</option>
+                    <option value="Customer site visit">Customer site visit</option>
+                    <option value="Direct visit">Direct visit</option>
+                    <option value="Call">Call</option>
+                  </Select>
+                </FormField>
+                <FormField label="Assigned Rep">
+                  <Input value={deal.assignedUserName || rgForm.assignedRep || ""} onChange={(e) => setRgForm({ ...rgForm, assignedRep: e.target.value })} placeholder="Auto-assigned" />
+                </FormField>
                 <FormField label="Outcome / Status">
                   <Select value={rgForm.meetingStatus || ""} onChange={(e) => setRgForm({ ...rgForm, meetingStatus: e.target.value })}>
                     <option value="">Select...</option>
                     <option value="Scheduled">Scheduled</option>
+                    <option value="Held">Held — mark meeting as conducted</option>
                     <option value="Completed">Completed</option>
                     <option value="Cancelled">Cancelled</option>
                     <option value="Rescheduled">Rescheduled</option>
                   </Select>
                 </FormField>
                 <FormField label="Next Follow-up Date"><Input type="date" value={rgForm.nextFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, nextFollowUpDate: e.target.value })} /></FormField>
+                <FormField label="Demo Follow-up Date (if follow-up needed)">
+                  <Input type="date" value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
+                </FormField>
               </div>
             </div>
 
@@ -1242,6 +1649,46 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 <FormField label="Questions Raised"><Textarea rows={2} value={rgForm.demoQuestionsRaised || ""} onChange={(e) => setRgForm({ ...rgForm, demoQuestionsRaised: e.target.value })} /></FormField>
               </div>
             </details>
+
+            {/* Demo Outcome Banner — shown when DemoConducted stage is active or being reviewed */}
+            {effectiveStage === "DemoConducted" && deal.demoOutcome && (
+              <div className={cn(
+                "rounded-xl p-4 flex items-center gap-3",
+                deal.demoOutcome === "Accepted" ? "bg-green-50 border border-green-200" :
+                deal.demoOutcome === "Follow-up needed" ? "bg-amber-50 border border-amber-200" :
+                "bg-orange-50 border border-orange-200"
+              )}>
+                {deal.demoOutcome === "Accepted" ? (
+                  <CheckCircle size={20} className="text-green-600 shrink-0" />
+                ) : deal.demoOutcome === "Follow-up needed" ? (
+                  <AlertTriangle size={20} className="text-amber-600 shrink-0" />
+                ) : (
+                  <XCircle size={20} className="text-orange-600 shrink-0" />
+                )}
+                <div>
+                  <p className={cn(
+                    "text-sm font-bold",
+                    deal.demoOutcome === "Accepted" ? "text-green-800" :
+                    deal.demoOutcome === "Follow-up needed" ? "text-amber-800" :
+                    "text-orange-800"
+                  )}>
+                    Demo {deal.demoOutcome}
+                  </p>
+                  <p className={cn(
+                    "text-xs mt-0.5",
+                    deal.demoOutcome === "Accepted" ? "text-green-600" :
+                    deal.demoOutcome === "Follow-up needed" ? "text-amber-600" :
+                    "text-orange-600"
+                  )}>
+                    {deal.demoOutcome === "Accepted"
+                      ? "RFQ has been auto-created. The opportunity will proceed to RFQ → Quotation → Negotiation → Deal Won in the Deals module."
+                      : deal.demoOutcome === "Follow-up needed"
+                      ? `Follow-up pending${deal.demoFollowUpDate ? ` on ${new Date(deal.demoFollowUpDate).toLocaleDateString("en-IN")}` : ""}. Card stays here until the follow-up date.`
+                      : "The customer rejected the demo. Opportunity has been moved to Rejected terminal stage."}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1309,7 +1756,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         {canEditOpportunity(user, deal) && (
           <div className="pt-6 border-t border-slate-100 mt-6">
             {(() => {
-              if (isWonOrLost) {
+              if (isTerminalStage) {
                 return (
                   <div className="flex justify-end">
                     <button
@@ -1366,11 +1813,17 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               const allMandatoryFilled = missing.length === 0;
               const isRg = effectiveStage === "RequirementGathering";
               const attemptedFlag = isRg ? rgAttempted : false;
+              // V2: RG exit gate requires tech discussion confirmed
+              const techGatePassed = !isRg || rgForm.techDiscussionConfirmed === true;
+              const canAdvance = allMandatoryFilled && techGatePassed;
 
               return (
                 <div className="flex flex-col items-end gap-3">
                   {attemptedFlag && missing.length > 0 && (
                     <p className="text-xs text-rose-500 font-medium">Please fill: {missing.map((m) => m.label).join(", ")}</p>
+                  )}
+                  {attemptedFlag && isRg && !techGatePassed && (
+                    <p className="text-xs text-rose-500 font-medium">Please confirm technical discussion in Part B to proceed</p>
                   )}
                   <div className="flex items-center gap-3">
                     <button
@@ -1388,16 +1841,86 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     >
                       {rgSaving ? "Saving..." : "Save Details"}
                     </button>
-                    {nextStage && (
+                    {nextStage && nextStage === "DemoConducted" && (
+                      <>
+                        <button
+                          onClick={() => {
+                            if (isRg) setRgAttempted(true);
+                            if (canAdvance) handleSaveAndMove(nextStage, { demoOutcome: "Accepted" });
+                          }}
+                          disabled={!canAdvance || stageMoving}
+                          style={{
+                            background: canAdvance ? "#16A34A" : "var(--color-background-secondary, #e2e8f0)",
+                            color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
+                            padding: "10px 24px",
+                            borderRadius: "8px",
+                            fontWeight: 500,
+                            cursor: allMandatoryFilled ? "pointer" : "not-allowed",
+                            border: "none",
+                            transition: "background 0.15s",
+                          }}
+                          className="text-sm font-medium flex items-center gap-2"
+                        >
+                          {stageMoving ? "Moving..." : <><CheckCircle size={16} /> Demo Accepted →</>}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (isRg) setRgAttempted(true);
+                            if (canAdvance) {
+                              if (!rgForm.demoFollowUpDate) {
+                                toast.error("Please set a follow-up date in the demo details above");
+                                return;
+                              }
+                              handleSaveAndMove(nextStage, { demoOutcome: "Follow-up needed" });
+                            }
+                          }}
+                          disabled={!canAdvance || stageMoving}
+                          style={{
+                            background: canAdvance ? "#F59E0B" : "var(--color-background-secondary, #e2e8f0)",
+                            color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
+                            padding: "10px 24px",
+                            borderRadius: "8px",
+                            fontWeight: 500,
+                            cursor: canAdvance ? "pointer" : "not-allowed",
+                            border: "none",
+                            transition: "background 0.15s",
+                          }}
+                          className="text-sm font-medium flex items-center gap-2"
+                        >
+                          {stageMoving ? "Moving..." : <><AlertTriangle size={16} /> Follow-up Needed →</>}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (isRg) setRgAttempted(true);
+                            if (canAdvance) handleSaveAndMove(nextStage, { demoOutcome: "Rejected" });
+                          }}
+                          disabled={!canAdvance || stageMoving}
+                          style={{
+                            background: canAdvance ? "#EA580C" : "var(--color-background-secondary, #e2e8f0)",
+                            color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
+                            padding: "10px 24px",
+                            borderRadius: "8px",
+                            fontWeight: 500,
+                            cursor: allMandatoryFilled ? "pointer" : "not-allowed",
+                            border: "none",
+                            transition: "background 0.15s",
+                          }}
+                          className="text-sm font-medium flex items-center gap-2"
+                        >
+                          {stageMoving ? "Moving..." : <><XCircle size={16} /> Demo Rejected →</>}
+                        </button>
+                      </>
+                    )}
+                    {nextStage && nextStage !== "DemoConducted" && (
                       <button
                         onClick={() => {
                           if (isRg) setRgAttempted(true);
-                          if (allMandatoryFilled) handleSaveAndMove(nextStage);
+                          if (canAdvance) handleSaveAndMove(nextStage);
                         }}
-                        disabled={!allMandatoryFilled || stageMoving}
+                        disabled={!canAdvance || stageMoving}
                         style={{
-                          background: allMandatoryFilled ? "var(--brand-primary, var(--primary))" : "var(--color-background-secondary, #e2e8f0)",
-                          color: allMandatoryFilled ? "#fff" : "var(--text-tertiary, #64748b)",
+                          background: canAdvance ? "var(--brand-primary, var(--primary))" : "var(--color-background-secondary, #e2e8f0)",
+                          color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
                           padding: "10px 24px",
                           borderRadius: "8px",
                           fontWeight: 500,
@@ -1565,9 +2088,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s.key === deal.status);
   const hasAcceptedQuotation = deal.quotations?.some((q: any) => q.status === "Accepted");
-  const isWonOrLost = deal.status === "Won" || deal.status === "Lost";
-  const isValidStage = currentStageIndex !== -1 || isWonOrLost;
-  const progressPercent = isWonOrLost
+  const isTerminalStage = deal.status === "Won" || deal.status === "Lost" || deal.status === "Rejected";
+  const isValidStage = currentStageIndex !== -1 || isTerminalStage;
+  const progressPercent = isTerminalStage
     ? (deal.status === "Won" ? 100 : 0)
     : Math.round(((currentStageIndex + 1) / PIPELINE_STAGES.length) * 100);
 
@@ -1697,12 +2220,13 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             <p className="text-xs text-slate-400 mt-0.5">Stage-specific actions for {STAGE_LABELS[deal.status] || deal.status}</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {["ProposalSent", "Negotiation"].includes(deal.status) && canMarkWon(user, deal, hasAcceptedQuotation) && (
+            {/* Terminal exit button — Mark Rejected only (Lost belongs to Negotiations module) */}
+            {deal.status !== "Won" && deal.status !== "Lost" && deal.status !== "Rejected" && canChangeStage(user, deal) && (
               <button
-                onClick={() => setShowWonConfirm(true)}
-                className="px-4 py-2 bg-emerald-600 text-white font-bold text-sm rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1.5"
+                onClick={() => setShowRejectModal(true)}
+                className="px-4 py-2 bg-orange-600 text-white font-bold text-sm rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-1.5"
               >
-                <CheckCircle size={15} /> Mark Won
+                <XCircle size={15} /> Mark Rejected
               </button>
             )}
           </div>
@@ -1714,7 +2238,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           <div className="flex items-center gap-1 overflow-x-auto">
             {PIPELINE_STAGES.map((stage, idx) => {
               const stepState = getStepState(stage.key, deal.status);
-              const isLost = deal.status === "Lost";
+              const isTerminal = deal.status === "Lost" || deal.status === "Rejected";
               const isClickable = stepState === "completed" || stepState === "active";
               const tooltip = getStepTooltip(stage.key, stepState, STAGE_LABELS[deal.status] || deal.status);
               const isViewing = viewingStage === stage.key;
@@ -1736,7 +2260,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                         stepState === "completed" && "bg-[#16A34A] text-white border-[#16A34A]",
                         stepState === "active" && "bg-[var(--primary)] text-white border-[var(--primary)] ring-4 ring-[var(--primary)]/20",
                         stepState === "future" && "bg-white text-slate-300 border-slate-200",
-                        isLost && "bg-rose-100 text-rose-400 border-rose-200"
+                        isTerminal && (deal.status === "Rejected" ? "bg-orange-100 text-orange-400 border-orange-200" : "bg-rose-100 text-rose-400 border-rose-200")
                       )}
                     >
                       {stepState === "completed" ? <CheckCircle size={14} /> : idx + 1}
@@ -1744,7 +2268,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     <span
                       className={cn(
                         "text-xs font-semibold whitespace-nowrap",
-                        stepState === "active" ? "text-[var(--primary)]" : stepState === "completed" ? "text-[#16A34A]" : isLost ? "text-rose-400" : "text-slate-400"
+                        stepState === "active" ? "text-[var(--primary)]" : stepState === "completed" ? "text-[#16A34A]" : isTerminal ? (deal.status === "Rejected" ? "text-orange-400" : "text-rose-400") : "text-slate-400"
                       )}
                     >
                       {stage.label}
@@ -1807,36 +2331,56 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       )}
 
 
-      {/* ─── Mark Won Confirmation Modal ─── */}
+      {/* ─── Mark Rejected Modal ─── */}
       <Modal
-        open={showWonConfirm}
-        onClose={() => setShowWonConfirm(false)}
-        title="Mark as Won"
-        subtitle="Confirm this opportunity as Won"
-        size="sm"
+        open={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        title="Mark as Rejected"
+        subtitle="Record rejection reason for this opportunity"
+        size="md"
         footer={
           <>
-            <button onClick={() => setShowWonConfirm(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
-            <button onClick={handleMarkWon} className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700">Confirm Won</button>
+            <button onClick={() => setShowRejectModal(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+            <button onClick={handleMarkRejected} className="px-4 py-2 bg-orange-600 text-white text-sm font-bold rounded-lg hover:bg-orange-700">Mark Rejected</button>
           </>
         }
       >
-        <div className="p-6">
+        <div className="p-6 space-y-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-              <CheckCircle size={20} />
+            <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+              <XCircle size={20} />
             </div>
             <div>
               <p className="text-sm font-semibold text-slate-700">
-                Are you sure you want to mark "{deal.dealName}" as Won?
+                Mark "{deal.dealName}" as Rejected?
               </p>
               <p className="text-xs text-slate-500 mt-1">
-                {hasAcceptedQuotation
-                  ? "This will set the customer to Active and record the win."
-                  : "An Accepted Quotation is required before marking Won."}
+                The customer explicitly rejected the demo or proposal. This will exit the pipeline.
               </p>
             </div>
           </div>
+          <FormField label="Rejection Reason" required>
+            <Select
+              value={rejectForm.rejectedReason}
+              onChange={(e) => setRejectForm({ ...rejectForm, rejectedReason: e.target.value })}
+            >
+              <option value="">Select reason...</option>
+              <option value="Price">Price</option>
+              <option value="Timing">Timing</option>
+              <option value="Competitor">Competitor</option>
+              <option value="No budget">No budget</option>
+              <option value="Requirements not met">Requirements not met</option>
+              <option value="Other">Other</option>
+            </Select>
+          </FormField>
+          <FormField label="Additional Notes">
+            <Textarea
+              rows={2}
+              value={rejectForm.notes}
+              onChange={(e) => setRejectForm({ ...rejectForm, notes: e.target.value })}
+              placeholder="Any additional context..."
+            />
+          </FormField>
         </div>
       </Modal>
 

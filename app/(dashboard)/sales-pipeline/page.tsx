@@ -110,7 +110,7 @@ export default function SalesOpportunitiesPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const stage = params.get("stage");
-    const tab = stage === "Overdue" ? "overdue" : stage === "Rejected" ? "Lost" : stage || "all";
+    const tab = stage === "Overdue" ? "overdue" : stage || "all";
     router.replace(`/sales-pipeline/pipeline-list${tab !== "all" ? `?tab=${tab}` : ""}`);
   }, [router]);
 

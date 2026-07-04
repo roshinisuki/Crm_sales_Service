@@ -18,6 +18,8 @@ const STATUS_PILLS: Record<string, string> = {
   CHECKED_OUT: "bg-teal-50 text-teal-700 border-teal-200",
   COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   MISSED: "bg-rose-50 text-rose-700 border-rose-200",
+  NEEDS_REVIEW: "bg-orange-50 text-orange-700 border-orange-200",
+  NO_SHOW: "bg-red-50 text-red-700 border-red-200",
   CUSTOMER_UNAVAILABLE: "bg-slate-100 text-slate-700 border-slate-300",
 };
 
@@ -27,6 +29,8 @@ const STATUS_LABELS: Record<string, string> = {
   CHECKED_OUT: "Checked Out",
   COMPLETED: "Completed",
   MISSED: "Missed",
+  NEEDS_REVIEW: "Needs Review",
+  NO_SHOW: "No Show",
   CUSTOMER_UNAVAILABLE: "Customer Unavailable",
 };
 
@@ -54,6 +58,10 @@ export default function VisitDetailPage() {
   const [showReschedule, setShowReschedule] = useState(false);
   const [showAddAttendee, setShowAddAttendee] = useState(false);
   const [showCustomerUnavailable, setShowCustomerUnavailable] = useState(false);
+  const [showGpsDenied, setShowGpsDenied] = useState(false);
+  const [manualLocationNote, setManualLocationNote] = useState("");
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [accountContacts, setAccountContacts] = useState<any[]>([]);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [checkInTooLate, setCheckInTooLate] = useState(false);
@@ -66,6 +74,9 @@ export default function VisitDetailPage() {
     followup_type: "",
     followup_datetime: "",
     long_visit_justification: "",
+    outcomeNotes: "",
+    nextActionDate: "",
+    nextActionNotes: "",
   });
 
   const [customerUnavailableForm, setCustomerUnavailableForm] = useState({
@@ -99,6 +110,12 @@ export default function VisitDetailPage() {
             setAccountContacts(contactsJson.data || []);
           }
         }
+        // Fetch attachments
+        const attRes = await fetch(`/api/visits/${id}/attachments`);
+        if (attRes.ok) {
+          const attJson = await attRes.json();
+          if (attJson.success) setAttachments(attJson.data || []);
+        }
       }
     } else {
       toast.error("Failed to load visit");
@@ -111,8 +128,14 @@ export default function VisitDetailPage() {
   }, [loadVisit]);
 
   const handleCheckIn = async () => {
+    if (visit?.visitType === "office_visit") {
+      // Office visit check-in handled via modal with checkedInBy field
+      setShowOfficeCheckIn(true);
+      return;
+    }
     if (!navigator.geolocation) {
-      toast.error("Geolocation is not supported by this browser");
+      setShowGpsDenied(true);
+      setManualLocationNote("");
       return;
     }
     setGpsLoading(true);
@@ -142,48 +165,112 @@ export default function VisitDetailPage() {
       },
       (err) => {
         setGpsLoading(false);
-        toast.error(`Failed to get location: ${err.message}`);
+        setShowGpsDenied(true);
+        setManualLocationNote("");
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handleManualCheckIn = async () => {
+    if (!manualLocationNote.trim()) {
+      toast.error("Please enter a location note");
+      return;
+    }
+    const res = await fetch(`/api/visits/${id}/checkin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locationVerified: false, manualLocationNote }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      toast.success("Checked in (location unverified)");
+      if (json.warning) toast.warning(json.warning);
+      setShowGpsDenied(false);
+      setManualLocationNote("");
+      loadVisit();
+    } else {
+      toast.error(json.message || "Check-in failed");
+    }
+  };
+
+  const [showOfficeCheckIn, setShowOfficeCheckIn] = useState(false);
+  const [officeCheckedInBy, setOfficeCheckedInBy] = useState("");
+
+  const handleOfficeCheckIn = async () => {
+    if (!officeCheckedInBy.trim()) {
+      toast.error("Please enter the receptionist/host name");
+      return;
+    }
+    const res = await fetch(`/api/visits/${id}/checkin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checkedInBy: officeCheckedInBy }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      toast.success("Checked in successfully");
+      setShowOfficeCheckIn(false);
+      setOfficeCheckedInBy("");
+      loadVisit();
+    } else {
+      toast.error(json.message || "Check-in failed");
+    }
   };
 
   const handleCheckOut = () => {
-    if (!navigator.geolocation) {
-      toast.error("Geolocation is not supported by this browser");
-      return;
+    if (visit?.visitType === "field_visit" && navigator.geolocation) {
+      setGpsLoading(true);
+      toast.info("Capturing your location...");
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          const res = await fetch(`/api/visits/${id}/checkout`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ gps_lat: latitude, gps_lng: longitude, outcomeNotes: completeForm.outcomeNotes, nextActionDate: completeForm.nextActionDate, nextActionNotes: completeForm.nextActionNotes }),
+          });
+          const json = await res.json();
+          setGpsLoading(false);
+          if (json.success) {
+            toast.success("Checked out");
+            if (json.warning) toast.warning(json.warning);
+            loadVisit();
+          } else {
+            toast.error(json.message || "Failed");
+          }
+        },
+        (err) => {
+          setGpsLoading(false);
+          // Allow checkout without GPS
+          handleCheckOutWithoutGps();
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      handleCheckOutWithoutGps();
     }
-    setGpsLoading(true);
-    toast.info("Capturing your location...");
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        const res = await fetch(`/api/visits/${id}/checkout`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ gps_lat: latitude, gps_lng: longitude }),
-        });
-        const json = await res.json();
-        setGpsLoading(false);
-        if (json.success) {
-          toast.success("Checked out");
-          if (json.warning) toast.warning(json.warning);
-          loadVisit();
-        } else {
-          toast.error(json.message || "Failed");
-        }
-      },
-      (err) => {
-        setGpsLoading(false);
-        toast.error(`Failed to get location: ${err.message}`);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+  };
+
+  const handleCheckOutWithoutGps = async () => {
+    const res = await fetch(`/api/visits/${id}/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ outcomeNotes: completeForm.outcomeNotes, nextActionDate: completeForm.nextActionDate, nextActionNotes: completeForm.nextActionNotes }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      toast.success("Checked out");
+      if (json.warning) toast.warning(json.warning);
+      loadVisit();
+    } else {
+      toast.error(json.message || "Failed");
+    }
   };
 
   const handleComplete = async () => {
-    if (!completeForm.visit_summary.trim()) {
-      toast.error("Visit summary is required");
+    if (!completeForm.visit_summary.trim() && !completeForm.outcomeNotes.trim()) {
+      toast.error("Visit summary / outcome notes are required");
       return;
     }
     if (!completeForm.outcome_type) {
@@ -289,6 +376,48 @@ export default function VisitDetailPage() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size exceeds 10MB limit");
+      return;
+    }
+    setUploadingFile(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("description", `Attachment for visit ${visit?.purpose || ""}`);
+    try {
+      const res = await fetch(`/api/visits/${id}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success("File uploaded");
+        loadVisit();
+      } else {
+        toast.error(json.message || "Upload failed");
+      }
+    } catch {
+      toast.error("Upload failed");
+    } finally {
+      setUploadingFile(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteAttachment = async (docId: string) => {
+    const res = await fetch(`/api/visits/${id}/attachments?docId=${docId}`, { method: "DELETE" });
+    const json = await res.json();
+    if (json.success) {
+      toast.success("Attachment deleted");
+      loadVisit();
+    } else {
+      toast.error(json.message || "Failed");
+    }
+  };
+
   if (loading) return <PageShell title="Visit Details"><p className="text-slate-400 p-6">Loading...</p></PageShell>;
   if (!visit) return (
     <PageShell title="Visit Details">
@@ -315,10 +444,10 @@ export default function VisitDetailPage() {
       ]
     : TIMELINE_STEPS;
   const currentStepIndex = timelineSteps.findIndex((s) => s.key === visit.status);
-  const canComplete = visit.status === "CHECKED_OUT" && visit.checkOutGpsLocation != null;
+  const canComplete = visit.status === "CHECKED_OUT";
   const checkInWindow = visit.status === "PLANNED" ? getCheckInWindow(visit.plannedDate, visit.plannedTime) : null;
   const completeSubmitEnabled =
-    completeForm.visit_summary.trim().length > 0 &&
+    (completeForm.visit_summary.trim().length > 0 || completeForm.outcomeNotes.trim().length > 0) &&
     completeForm.outcome_type !== "" &&
     (!visit.longVisit || completeForm.long_visit_justification.trim().length >= 20);
 
@@ -709,6 +838,9 @@ export default function VisitDetailPage() {
                     followup_type: "",
                     followup_datetime: "",
                     long_visit_justification: "",
+                    outcomeNotes: "",
+                    nextActionDate: "",
+                    nextActionNotes: "",
                   });
                   setShowComplete(true);
                 }}
@@ -780,6 +912,14 @@ export default function VisitDetailPage() {
               placeholder="Enter visit outcome: discussions, decisions, next steps"
             />
           </FormField>
+          <FormField label="Outcome Notes" hint="Structured outcome notes (optional if summary provided)">
+            <Textarea
+              rows={3}
+              value={completeForm.outcomeNotes}
+              onChange={(e) => setCompleteForm({ ...completeForm, outcomeNotes: e.target.value })}
+              placeholder="Structured outcome notes — key findings, action items, risks..."
+            />
+          </FormField>
           <FormField label="Outcome" required>
             <Select
               value={completeForm.outcome_type}
@@ -799,6 +939,22 @@ export default function VisitDetailPage() {
               placeholder="e.g. Send quotation, Schedule demo..."
             />
           </FormField>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField label="Next Action Date" hint="Sets a follow-up reminder when provided">
+              <Input
+                type="date"
+                value={completeForm.nextActionDate}
+                onChange={(e) => setCompleteForm({ ...completeForm, nextActionDate: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Next Action Notes">
+              <Input
+                value={completeForm.nextActionNotes}
+                onChange={(e) => setCompleteForm({ ...completeForm, nextActionNotes: e.target.value })}
+                placeholder="Notes for the follow-up..."
+              />
+            </FormField>
+          </div>
           {visit.longVisit && (
             <FormField label="Justification for Extended Visit" required>
               <Textarea
@@ -941,6 +1097,104 @@ export default function VisitDetailPage() {
           </FormField>
         </div>
       </Modal>
+
+      {/* GPS Denied — Manual Location Note Modal */}
+      <Modal
+        open={showGpsDenied}
+        onClose={() => { setShowGpsDenied(false); setManualLocationNote(""); }}
+        title="Check In Without GPS"
+        subtitle="GPS location could not be captured. Enter a manual location note to proceed."
+        size="sm"
+        footer={
+          <>
+            <button onClick={() => { setShowGpsDenied(false); setManualLocationNote(""); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+            <button onClick={handleManualCheckIn} className="px-4 py-2 bg-amber-600 text-white text-sm font-bold rounded-lg hover:bg-amber-700">Check In (Unverified)</button>
+          </>
+        }
+      >
+        <div className="p-6 space-y-4">
+          <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <AlertTriangle size={14} className="inline mr-1.5" />
+            Location will be marked as unverified.
+          </div>
+          <FormField label="Manual Location Note" required>
+            <Textarea
+              value={manualLocationNote}
+              onChange={(e) => setManualLocationNote(e.target.value)}
+              placeholder="Describe your current location..."
+              rows={3}
+            />
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* Office Visit Check-In Modal */}
+      <Modal
+        open={showOfficeCheckIn}
+        onClose={() => setShowOfficeCheckIn(false)}
+        title="Office Visit Check-In"
+        subtitle="Enter receptionist/host confirmation"
+        size="sm"
+        footer={
+          <>
+            <button onClick={() => setShowOfficeCheckIn(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+            <button onClick={handleOfficeCheckIn} className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-bold rounded-lg hover:bg-[var(--primary-hover)]">Check In</button>
+          </>
+        }
+      >
+        <div className="p-6 space-y-4">
+          <FormField label="Receptionist/Host Name" required>
+            <Input
+              value={officeCheckedInBy}
+              onChange={(e) => setOfficeCheckedInBy(e.target.value)}
+              placeholder="Enter the name of the person who checked in the visitor"
+            />
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* Attachments Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Attachments</h3>
+            <p className="text-sm text-slate-500">Upload documents, photos, or files related to this visit</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mb-4">
+          <label className="px-4 py-2 bg-[var(--primary)] text-white font-bold text-sm rounded-lg hover:bg-[var(--primary-hover)] cursor-pointer flex items-center gap-1.5">
+            <FileText size={15} /> Upload File
+            <input type="file" className="hidden" onChange={handleFileUpload} disabled={uploadingFile} />
+          </label>
+          {uploadingFile && <span className="text-sm text-slate-400">Uploading...</span>}
+        </div>
+        {attachments.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-4">No attachments yet</p>
+        ) : (
+          <div className="space-y-2">
+            {attachments.map((doc) => (
+              <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <FileText size={18} className="text-slate-400" />
+                  <div>
+                    <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-slate-800 hover:text-[var(--primary)]">{doc.name}</a>
+                    <p className="text-xs text-slate-400">{doc.uploadedBy?.name || "Unknown"} · {formatDate(doc.createdAt)}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDeleteAttachment(doc.id)}
+                  className="text-slate-400 hover:text-rose-500 transition-colors"
+                >
+                  <AlertTriangle size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </PageShell>
   );
 }

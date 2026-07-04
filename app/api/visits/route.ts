@@ -10,8 +10,10 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
+  const visitType = searchParams.get("visitType");
   const customerId = searchParams.get("customerId");
   const hostedBy = searchParams.get("hostedBy");
+  const assignedUserId = searchParams.get("assignedUserId");
   const autoCheckedOut = searchParams.get("autoCheckedOut") === "true";
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = 50;
@@ -21,8 +23,10 @@ export async function GET(request: NextRequest) {
     companyId: user.companyId,
   };
   if (status) where.status = status;
+  if (visitType) where.visitType = visitType;
   if (customerId) where.customerId = customerId;
   if (hostedBy) where.hostedBy = hostedBy;
+  if (assignedUserId) where.assignedUserId = assignedUserId;
   if (autoCheckedOut) where.autoCheckedOut = true;
 
   // SalesExecutive sees only own visits
@@ -34,7 +38,10 @@ export async function GET(request: NextRequest) {
       include: {
         customer: { select: { id: true, name: true, customerCode: true, city: true } },
         host: { select: { id: true, name: true } },
+        assignedUser: { select: { id: true, name: true } },
         plantLocation: { select: { id: true, locationName: true, city: true, gpsLat: true, gpsLng: true } },
+        visitHosts: { include: { user: { select: { id: true, name: true } } } },
+        visitors: true,
         _count: { select: { visitAttendees: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -55,8 +62,9 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
   const {
+    visitType,
     customerId,
-    plantLocationId,
+    location,
     purpose,
     plannedDate,
     plannedTime,
@@ -65,12 +73,37 @@ export async function POST(request: NextRequest) {
     linkedOpportunityId,
     agenda,
     priority,
+    visitorNames,
+    meetingRoom,
+    // New unified fields
+    hostedByUserIds,
+    visitors,
+    entityType,
+    entityId,
+    travelMode,
+    distanceTraveledKm,
+    expenseAmount,
+    documentsExchanged,
   } = body;
 
   // Validate required fields
-  if (!customerId || !purpose || !plannedDate) {
+  if (!customerId || !purpose || !plannedDate || !visitType) {
     return NextResponse.json(
-      { success: false, message: "customerId, purpose, and plannedDate are required" },
+      { success: false, message: "customerId, purpose, plannedDate, and visitType are required" },
+      { status: 400 }
+    );
+  }
+
+  // Validate visit-specific required fields
+  if (visitType === "field_visit" && !location) {
+    return NextResponse.json(
+      { success: false, message: "Location is required for field visits" },
+      { status: 400 }
+    );
+  }
+  if (visitType === "office_visit" && !visitorNames && !(visitors && visitors.length > 0)) {
+    return NextResponse.json(
+      { success: false, message: "visitorNames or visitors list is required for office visits" },
       { status: 400 }
     );
   }
@@ -82,19 +115,6 @@ export async function POST(request: NextRequest) {
   });
   if (!customer) {
     return NextResponse.json({ success: false, message: "Account not found" }, { status: 404 });
-  }
-
-  // Validate plant_location belongs to account (if provided)
-  if (plantLocationId) {
-    const plantLoc = await prisma.plantLocation.findFirst({
-      where: { id: plantLocationId, customerId },
-    });
-    if (!plantLoc) {
-      return NextResponse.json(
-        { success: false, message: "Plant location does not belong to this account" },
-        { status: 400 }
-      );
-    }
   }
 
   // Validate planned datetime > NOW()
@@ -110,17 +130,29 @@ export async function POST(request: NextRequest) {
     // Create the visit
     const visit = await tx.customerVisit.create({
       data: {
+        visitType: visitType || "field_visit",
         customerId,
-        plantLocationId: plantLocationId || null,
+        manualLocationNote: visitType === "field_visit" ? location : null,
         purpose,
         plannedDate: plannedDateTime,
         plannedTime: plannedTime || "09:00",
         agenda: agenda || null,
         priority: priority || "Normal",
         hostedBy: assignedTo || user.id,
+        assignedUserId: assignedTo || user.id,
         status: "PLANNED",
         linkedOpportunityId: linkedOpportunityId || null,
         companyId: user.companyId,
+        visitorNames: visitType === "office_visit" ? visitorNames : null,
+        meetingRoom: visitType === "office_visit" ? meetingRoom : null,
+        documentsExchanged: visitType === "office_visit" ? documentsExchanged : null,
+        // Field visit optional fields
+        travelMode: visitType === "field_visit" ? travelMode : null,
+        distanceTraveledKm: visitType === "field_visit" ? distanceTraveledKm : null,
+        expenseAmount: visitType === "field_visit" ? expenseAmount : null,
+        // Entity linking
+        entityType: entityType || null,
+        entityId: entityId || null,
       },
     });
 
@@ -134,6 +166,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Insert visit_host rows (office visit multi-host)
+    if (hostedByUserIds && Array.isArray(hostedByUserIds) && hostedByUserIds.length > 0) {
+      await tx.visitHost.createMany({
+        data: hostedByUserIds.map((userId: string) => ({
+          visitId: visit.id,
+          userId,
+        })),
+      });
+    }
+
+    // Insert visit_visitor rows (office visit dynamic visitor list)
+    if (visitors && Array.isArray(visitors) && visitors.length > 0) {
+      await tx.visitVisitor.createMany({
+        data: visitors.map((v: { name: string; designation?: string }) => ({
+          visitId: visit.id,
+          name: v.name,
+          designation: v.designation || null,
+        })),
+      });
+    }
+
     return visit;
   });
 
@@ -143,8 +196,11 @@ export async function POST(request: NextRequest) {
     include: {
       customer: { select: { id: true, name: true, customerCode: true } },
       host: { select: { id: true, name: true } },
+      assignedUser: { select: { id: true, name: true } },
       plantLocation: { select: { id: true, locationName: true, address: true } },
       visitAttendees: { include: { contact: { select: { id: true, name: true, designation: true } } } },
+      visitHosts: { include: { user: { select: { id: true, name: true } } } },
+      visitors: true,
     },
   });
 

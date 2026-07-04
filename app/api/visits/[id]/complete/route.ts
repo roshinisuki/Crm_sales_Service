@@ -18,12 +18,12 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { visit_summary, next_action, outcome_type, create_followup, followup_type, followup_datetime } = body;
+    const { visit_summary, next_action, outcome_type, create_followup, followup_type, followup_datetime, outcomeNotes, nextActionDate, nextActionNotes } = body;
 
-    // Require visit_summary
-    if (!visit_summary || !visit_summary.trim()) {
+    // Require visit_summary or outcomeNotes
+    if ((!visit_summary || !visit_summary.trim()) && (!outcomeNotes || !outcomeNotes.trim())) {
       return NextResponse.json(
-        { success: false, message: "visit_summary is required to complete a visit" },
+        { success: false, message: "Visit summary / outcome notes are required to complete a visit" },
         { status: 400 }
       );
     }
@@ -43,16 +43,10 @@ export async function POST(
 
     if (!visit) return NextResponse.json({ success: false, message: "Visit not found" }, { status: 404 });
 
-    // Completion is gated behind checkout with GPS
+    // Completion is gated behind checkout
     if (visit.status !== "CHECKED_OUT") {
       return NextResponse.json(
         { success: false, message: `Cannot complete — visit must be checked out first (current: ${visit.status})` },
-        { status: 400 }
-      );
-    }
-    if (!visit.checkOutGpsLocation) {
-      return NextResponse.json(
-        { success: false, message: "Cannot complete — checkout GPS location is missing. Please check out again with GPS enabled." },
         { status: 400 }
       );
     }
@@ -77,14 +71,40 @@ export async function POST(
         where: { id },
         data: {
           status: "COMPLETED",
-          visitSummary: visit_summary,
+          visitSummary: visit_summary || outcomeNotes,
+          outcomeNotes: outcomeNotes || visit_summary,
           nextAction: next_action || null,
+          nextActionDate: nextActionDate ? new Date(nextActionDate) : null,
+          nextActionNotes: nextActionNotes || null,
           outcomeType: outcome_type,
           ...(visit.longVisit && body.long_visit_justification
             ? { longVisitJustification: body.long_visit_justification.trim() }
             : {}),
         },
       });
+
+      // Create follow-up if nextActionDate is provided (unified follow-ups integration)
+      if (nextActionDate) {
+        await tx.followUp.create({
+          data: {
+            customerId: visit.customerId,
+            assignedUserId: visit.hostedBy,
+            nextMeetingDate: new Date(nextActionDate),
+            dueDate: new Date(nextActionDate),
+            remarks: nextActionNotes || `Follow-up after visit to ${visit.customer?.name}`,
+            notes: nextActionNotes || null,
+            status: "Pending",
+            visitId: visit.id,
+            visitType: visit.visitType === "field_visit" ? "FIELD" : "OFFICE",
+            sourceType: "VISIT",
+            sourceId: visit.id,
+            entityType: "visit",
+            entityId: visit.id,
+            priority: "Medium",
+            companyId: visit.companyId,
+          },
+        });
+      }
 
       // Create follow-up visit if requested
       if (create_followup && followup_datetime) {

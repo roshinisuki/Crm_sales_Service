@@ -4,7 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 
 // POST /api/visits/[id]/checkout
-// Body: { gps_lat, gps_lng }
+// Body: { gps_lat, gps_lng, outcomeNotes, materialsShared }
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -16,7 +16,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await request.json();
-    const { gps_lat, gps_lng } = body;
+    const { gps_lat, gps_lng, outcomeNotes, materialsShared, nextActionDate, nextActionNotes, documentsExchanged } = body;
 
     const visit = await prisma.customerVisit.findFirst({
       where: { id, deletedAt: null, companyId: user.companyId },
@@ -42,7 +42,8 @@ export async function POST(
     let checkOutGpsAnomaly = false;
     let warning: string | null = null;
 
-    if (gps_lat != null && gps_lng != null) {
+    // GPS validation only for field visits
+    if (visit.visitType === "field_visit" && gps_lat != null && gps_lng != null) {
       const lat = parseFloat(gps_lat);
       const lng = parseFloat(gps_lng);
       checkOutGpsLocation = `${lat},${lng}`;
@@ -65,16 +66,59 @@ export async function POST(
         checkOutGpsLocation,
         checkOutGpsAnomaly,
         durationMinutes,
+        visitSummary: outcomeNotes || null,
+        outcomeNotes: outcomeNotes || null,
+        outcomeType: materialsShared || null,
+        nextActionDate: nextActionDate ? new Date(nextActionDate) : null,
+        nextActionNotes: nextActionNotes || null,
+        ...(visit.visitType === "office_visit" ? { signOutTime: checkOutTime, documentsExchanged: documentsExchanged || null } : {}),
       },
       include: {
         customer: { select: { id: true, name: true } },
         host: { select: { id: true, name: true } },
+        plantLocation: { select: { id: true, locationName: true } },
       },
     });
 
-    await logAudit(user.id, "CustomerVisit", "CheckOut", `Checked out from visit to ${visit.customer?.name}`, {
+    // Log status transition
+    await prisma.customerVisitStatusLog.create({
+      data: {
+        visitId: id,
+        fromStatus: "CHECKED_IN",
+        toStatus: "CHECKED_OUT",
+        changedBy: user.id,
+        changedAt: new Date(),
+        companyId: user.companyId,
+        reason: "Manual checkout with outcome notes",
+      },
+    });
+
+    // Create follow-up if nextActionDate is provided (unified follow-ups integration)
+    if (nextActionDate) {
+      await prisma.followUp.create({
+        data: {
+          customerId: visit.customerId,
+          assignedUserId: visit.hostedBy,
+          nextMeetingDate: new Date(nextActionDate),
+          dueDate: new Date(nextActionDate),
+          remarks: nextActionNotes || `Follow-up after visit to ${visit.customer?.name}`,
+          notes: nextActionNotes || null,
+          status: "Pending",
+          visitId: visit.id,
+          visitType: visit.visitType === "field_visit" ? "FIELD" : "OFFICE",
+          sourceType: "VISIT",
+          sourceId: visit.id,
+          entityType: "visit",
+          entityId: visit.id,
+          priority: "Medium",
+          companyId: user.companyId,
+        },
+      });
+    }
+
+    await logAudit(user.id, "CustomerVisit", "CheckOut", `Checked out from ${visit.visitType} visit to ${visit.customer?.name}`, {
       resourceId: id,
-      newState: { status: "CHECKED_OUT", checkOutGpsLocation, durationMinutes, checkOutGpsAnomaly },
+      newState: { status: "CHECKED_OUT", visitType: visit.visitType, checkOutGpsLocation, durationMinutes, checkOutGpsAnomaly, outcomeNotes },
       context: extractAuditContext(request),
       severity: "INFO",
     });

@@ -121,20 +121,26 @@ async function main() {
 
   // ─── Pipeline Stages ───────────────────────────────────────────────────────
   const stages = [
-    { name: "SalesOpportunity", order: 1 },
-    { name: "RequirementGathering", order: 2 },
-    { name: "MeetingScheduled", order: 3 },
-    { name: "ProposalSent", order: 4 },
-    { name: "Negotiation", order: 5 },
-    { name: "Won", order: 6 },
-    { name: "Lost", order: 7 },
+    { name: "Qualified", order: 1, probability: 20 },
+    { name: "RequirementGathering", order: 2, probability: 40 },
+    { name: "MeetingScheduled", order: 3, probability: 55 },
+    { name: "DemoConducted", order: 4, probability: 70 },
+    { name: "Rejected", order: 5, probability: 0 },
+    { name: "Lost", order: 6, probability: 0 },
   ];
 
   for (const stage of stages) {
     await prisma.pipelineStageMaster.upsert({
       where: { stageName: stage.name },
-      update: {},
-      create: { stageName: stage.name, displayName: stage.name, displayOrder: stage.order, probabilityPercent: 20, isActive: true },
+      update: { displayOrder: stage.order, probabilityPercent: stage.probability, isActive: true },
+      create: { stageName: stage.name, displayName: stage.name, displayOrder: stage.order, probabilityPercent: stage.probability, isActive: true },
+    });
+  }
+  // Deactivate legacy stages that are no longer part of V4 pipeline
+  for (const legacy of ["SalesOpportunity", "ProposalSent", "Negotiation", "Won", "Active", "OnHold"]) {
+    await prisma.pipelineStageMaster.updateMany({
+      where: { stageName: legacy },
+      data: { isActive: false },
     });
   }
   console.log(`✅ Pipeline Stages: ${stages.length} stages seeded`);
@@ -215,8 +221,8 @@ async function main() {
           customerId: firstCustomer.id,
           dealValue: Math.floor(Math.random() * 1000000) + 100000,
           expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          status: ["SalesOpportunity", "RequirementGathering", "ProposalSent", "Won"][i % 4],
-          probabilityPercent: [20, 40, 60, 100][i % 4],
+          status: ["Qualified", "RequirementGathering", "MeetingScheduled", "DemoConducted"][i % 4],
+          probabilityPercent: [20, 40, 55, 70][i % 4],
           companyId: company.id,
           assignedUserId: createdUsers.find(u => u.companyId === company.id && u.role === "SalesExecutive")?.id,
         },

@@ -18,7 +18,11 @@ export async function GET(request: Request) {
     }
 
     const locations = await prisma.plantLocation.findMany({
-      where: { customerId },
+      where: { 
+        customerId,
+        isActive: true,
+        deletedAt: null,
+      },
       orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
     });
 

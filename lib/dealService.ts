@@ -117,10 +117,10 @@ export async function transitionDealStatus(
     }
   }
 
-  // Update deal status
+  // Update deal status and record stage entry timestamp
   await db.deal.update({
     where: { id: dealId },
-    data: { status: toStatus },
+    data: { status: toStatus, stageEnteredAt: new Date() },
   });
 
   // Record stage history with enhanced audit trail
@@ -137,40 +137,55 @@ export async function transitionDealStatus(
   });
 
   // RFQ auto-creation on Demo Accepted outcome
-  if (toStatus === "DemoConducted" && ctx.reason?.toLowerCase().includes("accepted")) {
+  // Uses structured demoOutcome field instead of fragile string matching on ctx.reason
+  if (toStatus === "DemoConducted") {
     const dealWithDetails = await db.deal.findUnique({
       where: { id: dealId },
       include: { customer: true, opportunityDetail: true }
     });
     
     if (dealWithDetails) {
-      // Generate RFQ code: RFQ-YYYY-NNNNN
-      const year = new Date().getFullYear();
-      const rfqPrefix = `RFQ-${year}-`;
-      const rfqCount = await db.rFQ.count({
-        where: { rfqCode: { startsWith: rfqPrefix } },
-      });
-      const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
+      // Check structured demoOutcome field (set by stage-change API)
+      // Falls back to checking ctx.reason for backward compatibility
+      const demoAccepted = dealWithDetails.demoOutcome === "Accepted" ||
+        (ctx.reason?.toLowerCase().includes("accepted") ?? false);
       
-      await db.rFQ.create({
-        data: {
-          rfqCode,
-          customerId: dealWithDetails.customerId,
-          opportunityId: dealId,
-          status: "New",
-          receivedDate: new Date(),
-          priority: "Normal",
-          companyId: ctx.companyId,
+      if (demoAccepted) {
+        // Check if RFQ already exists for this opportunity
+        const existingRfq = await db.rFQ.findFirst({
+          where: { opportunityId: dealId },
+        });
+        
+        if (!existingRfq) {
+          // Generate RFQ code: RFQ-YYYY-NNNNN
+          const year = new Date().getFullYear();
+          const rfqPrefix = `RFQ-${year}-`;
+          const rfqCount = await db.rFQ.count({
+            where: { rfqCode: { startsWith: rfqPrefix } },
+          });
+          const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
+          
+          await db.rFQ.create({
+            data: {
+              rfqCode,
+              customerId: dealWithDetails.customerId,
+              opportunityId: dealId,
+              status: "New",
+              receivedDate: new Date(),
+              priority: "Normal",
+              companyId: ctx.companyId,
+            }
+          });
+          
+          // Log RFQ creation
+          await logAudit(
+            ctx.actorId,
+            "RFQ",
+            "AutoCreate",
+            `Auto-created RFQ ${rfqCode} for deal "${dealWithDetails.dealName}" on Demo Accepted outcome`
+          );
         }
-      });
-      
-      // Log RFQ creation
-      await logAudit(
-        ctx.actorId,
-        "RFQ",
-        "AutoCreate",
-        `Auto-created RFQ ${rfqCode} for deal "${dealWithDetails.dealName}" on Demo Accepted outcome`
-      );
+      }
     }
   }
 

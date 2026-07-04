@@ -114,6 +114,7 @@ export const DEALS_STATUS: StatusOption[] = [
   { label: "On Hold", value: "OnHold" },
   { label: "Won", value: "Won" },
   { label: "Lost", value: "Lost" },
+  { label: "At Risk", value: "risk" },
 ];
 
 // ─── 3. Quotes (Quotations) ───────────────────────────────────────────────────
@@ -159,7 +160,8 @@ export const ACTIVITY_STATUS: StatusOption[] = [
   { label: "Checked Out", value: "CHECKED_OUT" },
   { label: "Completed", value: "COMPLETED" },
   { label: "Missed", value: "MISSED" },
-  { label: "Cancelled", value: "CANCELLED" },
+  { label: "Unavailable", value: "CUSTOMER_UNAVAILABLE" },
+  { label: "Auto Checked Out", value: "AUTO_CHECKED_OUT" },
 ];
 
 // ─── 7. Catalog (Samples) ─────────────────────────────────────────────────────

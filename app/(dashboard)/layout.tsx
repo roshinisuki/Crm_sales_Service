@@ -12,7 +12,6 @@ import Logo from "@/components/Logo";
 import { useLogoTheme } from "@/lib/use-logo-theme";
 import { cn } from "@/lib/ui-utils";
 import { getSettingsForVariant } from "@/lib/config/variantSettingsMap";
-import { searchModules } from "@/lib/config/variantModuleMap";
 import {
   LayoutDashboard, Users, CalendarClock, Briefcase, BookUser,
   CheckSquare, Settings, LogOut, Menu, X, TrendingUp, Building,
@@ -212,36 +211,300 @@ function SidebarModuleSearch({
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showMore, setShowMore] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  
+  // Recent pages (empty query state)
+  const [recentPages, setRecentPages] = useState<any[]>([]);
+  
+  // Load recent pages from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('recentPages');
+      if (stored) {
+        setRecentPages(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.error('Failed to load recent pages:', err);
+    }
+  }, []);
 
-  const results = useMemo(() => searchModules(query, activeVariant), [query, activeVariant]);
+  // Track mobile viewport for responsive search
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // Save recent pages to localStorage
+  const addToRecentPages = (item: any) => {
+    setRecentPages(prev => {
+      const filtered = prev.filter(p => p.key !== item.key);
+      const updated = [item, ...filtered].slice(0, 5);
+      try {
+        localStorage.setItem('recentPages', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to save recent pages:', err);
+      }
+      return updated;
+    });
+  };
 
+  // Keyboard shortcut (Cmd/Ctrl+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+      if (e.key === 'Escape') {
+        setOpen(false);
+        setSelectedIndex(0);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Fetch search results from server
+  useEffect(() => {
+    setShowMore(false);
+    const fetchResults = async () => {
+      if (query.trim().length < 2) {
+        setResults([]);
+        return;
+      }
+
+      setLoading(true);
+      setError(false);
+
+      try {
+        const response = await fetch(`/api/navigation-search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setResults(data.data.items || []);
+          setSelectedIndex(0);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        console.error('Search error:', err);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchResults, 200);
+    return () => clearTimeout(debounceTimer);
+  }, [query]);
+
+  // Handle click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
+        setSelectedIndex(0);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Open on query or focus with recent pages
   useEffect(() => {
-    setOpen(query.trim().length > 0);
-  }, [query]);
+    setOpen(query.trim().length >= 2 || (query.trim().length === 0 && recentPages.length > 0));
+  }, [query, recentPages]);
+
+  // Scroll selected item into view
+  useEffect(() => {
+    if (!open || !resultsRef.current) return;
+    const selected = resultsRef.current.querySelector('[aria-selected="true"]') as HTMLElement;
+    if (selected) {
+      selected.scrollIntoView({ block: 'nearest' });
+    }
+  }, [selectedIndex, open]);
+
+  // Keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!open || results.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev + 1) % results.length);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev - 1 + results.length) % results.length);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        const selected = results[selectedIndex];
+        if (selected) {
+          addToRecentPages(selected);
+          window.location.href = selected.href;
+          setQuery("");
+          setOpen(false);
+          onNavigate?.();
+        }
+        break;
+    }
+  };
+
+  // Group results by parent module (preserving flat index for keyboard nav)
+  const groupedResults = useMemo(() => {
+    const groups: Record<string, { items: any[]; startIndex: number }> = {};
+    let flatIndex = 0;
+    
+    results.forEach(item => {
+      const parent = item.parentLabel || (item.type === 'setting' ? 'Settings' : 'Modules');
+      if (!groups[parent]) {
+        groups[parent] = { items: [], startIndex: flatIndex };
+      }
+      groups[parent].items.push({ ...item, flatIndex });
+      flatIndex++;
+    });
+
+    return groups;
+  }, [results]);
+
+  // Highlight matched substring (with regex escaping for safety)
+  const highlightMatch = (text: string, query: string) => {
+    if (!query) return text;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    return text.replace(regex, '<mark style="background: rgba(255,255,255,0.2); color: inherit; padding: 0 2px; border-radius: 2px;">$1</mark>');
+  };
 
   if (collapsed) return null;
+
+  // Responsive: Full-screen search on mobile
+  if (isMobile && open) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: "var(--sidebar-bg)" }}>
+        <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.10)" }}>
+          <Search size={20} style={{ color: "var(--sidebar-heading)" }} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Search modules..."
+            aria-label="Search modules"
+            aria-expanded={open}
+            aria-controls="search-results"
+            role="combobox"
+            autoFocus
+            className="flex-1 bg-transparent text-lg focus:outline-none"
+            style={{ color: "var(--sidebar-text-act)" }}
+          />
+          <button
+            onClick={() => {
+              setQuery("");
+              setOpen(false);
+            }}
+            className="p-2 rounded-full hover:bg-white/10"
+            style={{ color: "var(--sidebar-text-act)" }}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div
+          ref={resultsRef}
+          id="search-results"
+          role="listbox"
+          aria-label="Search results"
+          className="flex-1 overflow-y-auto px-4 py-2"
+        >
+          {error ? (
+            <div className="px-3 py-2 text-sm" style={{ color: "var(--sidebar-heading)" }}>
+              Search failed. Please try again.
+            </div>
+          ) : loading ? (
+            <div className="px-3 py-2 text-sm" style={{ color: "var(--sidebar-heading)" }}>
+              Searching...
+            </div>
+          ) : results.length === 0 ? (
+            <div className="px-3 py-2 text-sm" style={{ color: "var(--sidebar-heading)" }}>
+              No matching modules or pages found. Try a different keyword.
+            </div>
+          ) : (
+            <>
+              {Object.entries(groupedResults).map(([parent, group]) => (
+                <div key={parent} className="mb-4">
+                  <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider mb-2" style={{ color: "var(--sidebar-heading)" }}>
+                    {parent}
+                  </div>
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      onClick={() => {
+                        setQuery("");
+                        setOpen(false);
+                        addToRecentPages(item);
+                        onNavigate?.();
+                      }}
+                      role="option"
+                      aria-selected={item.flatIndex === selectedIndex}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                        item.flatIndex === selectedIndex ? 'bg-white/10' : 'hover:bg-white/5'
+                      }`}
+                      onMouseEnter={() => setSelectedIndex(item.flatIndex)}
+                    >
+                      <span className="text-xl shrink-0">{item.iconEmoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div 
+                          className="text-base truncate font-medium" 
+                          style={{ color: "var(--sidebar-text-act)" }}
+                          dangerouslySetInnerHTML={{ __html: highlightMatch(item.label, query) }}
+                        />
+                        {item.parentLabel && item.parentLabel !== parent && (
+                          <div className="text-sm truncate" style={{ color: "var(--sidebar-heading)" }}>{item.parentLabel}</div>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ))}
+              {results.length >= 20 && (
+                <div className="px-3 py-2 text-xs text-center" style={{ color: "var(--sidebar-heading)" }}>
+                  Showing 20 of {results.length} results
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="relative px-2.5 pt-2 pb-1">
       <div className="relative">
         <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--sidebar-heading)" }} />
         <input
+          ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search modules..."
+          onKeyDown={handleKeyDown}
+          placeholder="Search modules... (⌘K)"
           aria-label="Search modules"
+          aria-expanded={open}
+          aria-controls="search-results"
+          role="combobox"
           className="w-full pl-7 pr-2.5 py-1.5 rounded-md text-[12.5px] border focus:outline-none transition-all"
           style={{
             background: "rgba(255,255,255,0.05)",
@@ -252,38 +515,115 @@ function SidebarModuleSearch({
       </div>
       {open && (
         <div
-          className="absolute left-2.5 right-2.5 top-full mt-0.5 rounded-lg border shadow-2xl z-50 max-h-60 overflow-y-auto"
+          ref={resultsRef}
+          id="search-results"
+          role="listbox"
+          aria-label="Search results"
+          className="absolute left-2.5 right-2.5 top-full mt-0.5 rounded-lg border shadow-2xl z-50 max-h-80 overflow-y-auto"
           style={{ background: "var(--sidebar-bg)", borderColor: "rgba(255,255,255,0.10)" }}
         >
-          {results.length === 0 ? (
+          {error ? (
             <div className="px-3 py-2 text-[11px]" style={{ color: "var(--sidebar-heading)" }}>
-              No matching modules found.
+              Search failed. Please try again.
             </div>
-          ) : (
-            results.map((item) => (
-              <Link
-                key={item.key}
-                href={item.href}
-                onClick={() => {
-                  setQuery("");
-                  setOpen(false);
-                  onNavigate?.();
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 transition-colors"
-                onMouseEnter={e => { e.currentTarget.style.background = "var(--sidebar-hover)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
-              >
-                <span className="text-sm shrink-0">{item.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12px] truncate font-medium" style={{ color: "var(--sidebar-text-act)" }}>{item.label}</div>
-                  {item.parentLabel ? (
-                    <div className="text-[10px] truncate" style={{ color: "var(--sidebar-heading)" }}>{item.parentLabel}</div>
-                  ) : item.type === "setting" ? (
-                    <div className="text-[10px] truncate" style={{ color: "var(--sidebar-heading)" }}>Settings</div>
-                  ) : null}
+          ) : loading ? (
+            <div className="px-3 py-2 text-[11px]" style={{ color: "var(--sidebar-heading)" }}>
+              Searching...
+            </div>
+          ) : results.length === 0 ? (
+            query.trim().length >= 2 ? (
+              <div className="px-3 py-2 text-[11px]" style={{ color: "var(--sidebar-heading)" }}>
+                No matching modules or pages found. Try a different keyword.
+              </div>
+            ) : recentPages.length > 0 ? (
+              <>
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--sidebar-heading)" }}>
+                  Recent
                 </div>
-              </Link>
-            ))
+                {recentPages.map((item, idx) => (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    onClick={() => {
+                      setQuery("");
+                      setOpen(false);
+                      addToRecentPages(item);
+                      onNavigate?.();
+                    }}
+                    className="flex items-center gap-2 px-2.5 py-1.5 transition-colors"
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--sidebar-hover)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <span className="text-sm shrink-0">{item.iconEmoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] truncate font-medium" style={{ color: "var(--sidebar-text-act)" }}>{item.label}</div>
+                      {item.parentLabel ? (
+                        <div className="text-[10px] truncate" style={{ color: "var(--sidebar-heading)" }}>{item.parentLabel}</div>
+                      ) : null}
+                    </div>
+                  </Link>
+                ))}
+              </>
+            ) : (
+              <div className="px-3 py-2 text-[11px]" style={{ color: "var(--sidebar-heading)" }}>
+                Start typing to search modules...
+              </div>
+            )
+          ) : (
+            <>
+              {Object.entries(groupedResults).map(([parent, group]) => (
+                <div key={parent} className="mb-2">
+                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--sidebar-heading)" }}>
+                    {parent}
+                  </div>
+                  {group.items.slice(0, showMore ? undefined : 5).map((item) => (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      onClick={() => {
+                        setQuery("");
+                        setOpen(false);
+                        addToRecentPages(item);
+                        onNavigate?.();
+                      }}
+                      role="option"
+                      aria-selected={item.flatIndex === selectedIndex}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 transition-colors ${
+                        item.flatIndex === selectedIndex ? 'bg-white/10' : ''
+                      }`}
+                      onMouseEnter={() => setSelectedIndex(item.flatIndex)}
+                      onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <span className="text-sm shrink-0">{item.iconEmoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <div 
+                          className="text-[12px] truncate font-medium" 
+                          style={{ color: "var(--sidebar-text-act)" }}
+                          dangerouslySetInnerHTML={{ __html: highlightMatch(item.label, query) }}
+                        />
+                        {item.parentLabel && item.parentLabel !== parent && (
+                          <div className="text-[10px] truncate" style={{ color: "var(--sidebar-heading)" }}>{item.parentLabel}</div>
+                        )}
+                      </div>
+                    </Link>
+                  ))}
+                  {group.items.length > 5 && !showMore && (
+                    <button
+                      onClick={() => setShowMore(true)}
+                      className="w-full px-3 py-1.5 text-[11px] text-left hover:underline"
+                      style={{ color: "var(--sidebar-text-act)" }}
+                    >
+                      Show {group.items.length - 5} more...
+                    </button>
+                  )}
+                </div>
+              ))}
+              {results.length >= 20 && (
+                <div className="px-3 py-1.5 text-[10px] text-center" style={{ color: "var(--sidebar-heading)" }}>
+                  Showing 20 of {results.length} results
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -585,21 +925,21 @@ function SidebarContent({
       <div
         className={cn(
           "shrink-0 flex items-center justify-center border-b border-white/[0.07]",
-          collapsed ? "px-2 pt-6 pb-5" : "px-4 pt-6 pb-5"
+          collapsed ? "px-2 pt-4 pb-3" : "px-4 pt-4 pb-3"
         )}
       >
         {collapsed ? (
           <Logo
             theme={logoTheme}
             variant="mark-only"
-            size={32}
+            size={48}
             className="transition-all duration-300 hover:scale-105"
           />
         ) : (
           <Logo
             theme={logoTheme}
             variant="full"
-            size={40}
+            size={56}
             className="transition-all duration-300 hover:scale-105"
           />
         )}

@@ -79,10 +79,18 @@ function DealsPageContent() {
   // ── Filter ────────────────────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     return deals.filter(d => {
       const q = search.toLowerCase();
       const matchSearch = !q || d.dealName.toLowerCase().includes(q) || d.customer?.name?.toLowerCase().includes(q);
-      const matchStatus = !statusFilter || d.status === statusFilter;
+      let matchStatus = !statusFilter || d.status === statusFilter;
+      if (statusFilter === "risk") {
+        const isOpen = !["Won", "Lost", "OnHold"].includes(d.status);
+        const isOverdue = d.expectedCloseDate && new Date(d.expectedCloseDate) < new Date();
+        const isStale = new Date(d.updatedAt) < sevenDaysAgo;
+        matchStatus = isOpen && (isOverdue || isStale);
+      }
       return matchSearch && matchStatus;
     });
   }, [deals, search, statusFilter]);

@@ -16,14 +16,16 @@ import {
 } from "lucide-react";
 
 const STATUS_TABS = [
+  { key: "", label: "All Visits" },
   { key: "PLANNED", label: "Planned" },
   { key: "CHECKED_IN", label: "Checked In" },
   { key: "CHECKED_OUT", label: "Checked Out" },
   { key: "COMPLETED", label: "Completed" },
   { key: "MISSED", label: "Missed" },
+  { key: "NEEDS_REVIEW", label: "Needs Review" },
+  { key: "NO_SHOW", label: "No Show" },
   { key: "CUSTOMER_UNAVAILABLE", label: "Unavailable" },
   { key: "AUTO_CHECKED_OUT", label: "Auto Checked Out" },
-  { key: "", label: "All Visits" },
 ];
 
 const STATUS_PILLS: Record<string, string> = {
@@ -32,6 +34,8 @@ const STATUS_PILLS: Record<string, string> = {
   CHECKED_OUT: "bg-teal-50 text-teal-700 border-teal-200",
   COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
   MISSED: "bg-rose-50 text-rose-700 border-rose-200",
+  NEEDS_REVIEW: "bg-orange-50 text-orange-700 border-orange-200",
+  NO_SHOW: "bg-red-50 text-red-700 border-red-200",
   CUSTOMER_UNAVAILABLE: "bg-slate-100 text-slate-700 border-slate-300",
 };
 
@@ -41,7 +45,10 @@ const STATUS_LABELS: Record<string, string> = {
   CHECKED_OUT: "Checked Out",
   COMPLETED: "Completed",
   MISSED: "Missed",
+  NEEDS_REVIEW: "Needs Review",
+  NO_SHOW: "No Show",
   CUSTOMER_UNAVAILABLE: "Unavailable",
+  AUTO_CHECKED_OUT: "Auto Checked Out",
 };
 
 const PURPOSE_OPTIONS = [
@@ -55,18 +62,24 @@ function VisitsListContent() {
   const toast = useToast();
 
   const activeTab = useStatusFromUrl("status");
+  const visitTypeFilter = searchParams.get("visitType") || "";
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCompliance, setShowCompliance] = useState(false);
   const [complianceData, setComplianceData] = useState<any[]>([]);
   const [complianceLoading, setComplianceLoading] = useState(false);
   const [tooLateVisitIds, setTooLateVisitIds] = useState<Set<string>>(new Set());
+  const [gpsDeniedVisitId, setGpsDeniedVisitId] = useState<string | null>(null);
+  const [manualLocationNote, setManualLocationNote] = useState("");
 
   const fetchVisits = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
     if (activeTab) {
       params.set("status", activeTab);
+    }
+    if (visitTypeFilter) {
+      params.set("visitType", visitTypeFilter);
     }
     const res = await fetch(`/api/visits?${params.toString()}`);
     if (res.ok) {
@@ -76,15 +89,25 @@ function VisitsListContent() {
       toast.error("Failed to load visits");
     }
     setLoading(false);
-  }, [activeTab]);
+  }, [activeTab, visitTypeFilter]);
 
   useEffect(() => {
     fetchVisits();
   }, [fetchVisits]);
 
-  const handleCheckIn = async (id: string) => {
+  const [checkInModal, setCheckInModal] = useState<{ visitId: string; visitType: string } | null>(null);
+  const [checkInForm, setCheckInForm] = useState({ checkedInBy: "" });
+
+  const handleCheckIn = async (id: string, visitType: string = "field_visit") => {
+    if (visitType === "office_visit") {
+      setCheckInModal({ visitId: id, visitType });
+      return;
+    }
+
     if (!navigator.geolocation) {
-      toast.error("Geolocation is not supported by this browser");
+      // GPS not supported — allow manual location note
+      setGpsDeniedVisitId(id);
+      setManualLocationNote("");
       return;
     }
     toast.info("Capturing your location...");
@@ -111,10 +134,55 @@ function VisitsListContent() {
         }
       },
       (err) => {
-        toast.error(`Failed to get location: ${err.message}`);
+        // GPS denied — allow manual location note instead of blocking
+        setGpsDeniedVisitId(id);
+        setManualLocationNote("");
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  const handleManualCheckIn = async () => {
+    if (!gpsDeniedVisitId || !manualLocationNote.trim()) {
+      toast.error("Please enter a location note to check in without GPS");
+      return;
+    }
+    const res = await fetch(`/api/visits/${gpsDeniedVisitId}/checkin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locationVerified: false, manualLocationNote }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      toast.success("Checked in (location unverified)");
+      if (json.warning) toast.warning(json.warning);
+      setGpsDeniedVisitId(null);
+      setManualLocationNote("");
+      fetchVisits();
+    } else {
+      toast.error(json.message || "Check-in failed");
+    }
+  };
+
+  const handleOfficeCheckIn = async () => {
+    if (!checkInModal || !checkInForm.checkedInBy) {
+      toast.error("Please enter the receptionist/host name");
+      return;
+    }
+    const res = await fetch(`/api/visits/${checkInModal.visitId}/checkin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ checkedInBy: checkInForm.checkedInBy }),
+    });
+    const json = await res.json();
+    if (json.success) {
+      toast.success("Checked in successfully");
+      setCheckInModal(null);
+      setCheckInForm({ checkedInBy: "" });
+      fetchVisits();
+    } else {
+      toast.error(json.message || "Check-in failed");
+    }
   };
 
   const fetchCompliance = useCallback(async () => {
@@ -138,7 +206,8 @@ function VisitsListContent() {
   const kpiCompleted = visits.filter((v) => v.status === "COMPLETED").length;
   const kpiMissed = visits.filter((v) => v.status === "MISSED").length;
   const kpiCheckedIn = visits.filter((v) => v.status === "CHECKED_IN").length;
-  const kpiUnavailable = visits.filter((v) => v.status === "CUSTOMER_UNAVAILABLE").length;
+  const kpiNeedsReview = visits.filter((v) => v.status === "NEEDS_REVIEW").length;
+  const kpiNoShow = visits.filter((v) => v.status === "NO_SHOW").length;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -151,7 +220,13 @@ function VisitsListContent() {
     return "bg-emerald-50";
   };
 
-  const activeTabLabel = activeTab ? STATUS_TABS.find((t) => t.key === activeTab)?.label : undefined;
+  const activeTabLabel = activeTab
+    ? STATUS_TABS.find((t) => t.key === activeTab)?.label
+    : visitTypeFilter === "field_visit"
+    ? "Field Visits"
+    : visitTypeFilter === "office_visit"
+    ? "Office Visits"
+    : undefined;
   const breadcrumb = activeTabLabel
     ? [{ label: "Customer Visits", href: "/visits" }, { label: activeTabLabel }]
     : [{ label: "Customer Visits" }];
@@ -180,12 +255,13 @@ function VisitsListContent() {
     >
       <div className="space-y-4">
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <SummaryCard label="Planned" value={kpiPlanned.toString()} icon={<CalendarClock size={20} />} variant="indigo" />
           <SummaryCard label="Checked In" value={kpiCheckedIn.toString()} icon={<MapPin size={20} />} variant="light" />
           <SummaryCard label="Completed" value={kpiCompleted.toString()} icon={<CheckCircle size={20} />} variant="dark" />
           <SummaryCard label="Missed" value={kpiMissed.toString()} icon={<AlertTriangle size={20} />} variant="orange" />
-          <SummaryCard label="Unavailable" value={kpiUnavailable.toString()} icon={<Clock size={20} />} variant="light" />
+          <SummaryCard label="Needs Review" value={kpiNeedsReview.toString()} icon={<Clock size={20} />} variant="orange" />
+          <SummaryCard label="No Show" value={kpiNoShow.toString()} icon={<X size={20} />} variant="light" />
         </div>
 
         {/* Status Filter Bar */}
@@ -265,6 +341,12 @@ function VisitsListContent() {
                         </td>
                         <td className="crm-td">
                           <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={cn(
+                              "px-2 py-0.5 text-[10px] font-bold rounded-md border",
+                              v.visitType === "field_visit" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-purple-50 text-purple-700 border-purple-200"
+                            )}>
+                              {v.visitType === "field_visit" ? "Field" : "Office"}
+                            </span>
                             <span className={cn("px-2.5 py-1 text-xs font-bold rounded-lg border", STATUS_PILLS[v.status] || "bg-slate-50 text-slate-600 border-slate-200")}>
                               {STATUS_LABELS[v.status] || v.status}
                             </span>
@@ -285,6 +367,10 @@ function VisitsListContent() {
                         <td className="crm-td">
                           {v.gpsLat != null ? (
                             <MapPin size={15} className={v.gpsAnomaly ? "text-amber-500" : "text-emerald-500"} />
+                          ) : v.locationVerified === false ? (
+                            <span title="Location unverified — checked in without GPS" className="text-amber-500">
+                              <AlertTriangle size={14} className="inline" />
+                            </span>
                           ) : (
                             <span className="text-slate-300">—</span>
                           )}
@@ -294,7 +380,7 @@ function VisitsListContent() {
                             {isPlannedToday && (
                               <div className="relative group">
                                 <button
-                                  onClick={() => !isCheckInTooLate && handleCheckIn(v.id)}
+                                  onClick={() => !isCheckInTooLate && handleCheckIn(v.id, v.visitType)}
                                   disabled={isCheckInTooLate}
                                   className={cn(
                                     "px-2.5 py-1 text-white font-bold text-xs rounded-lg flex items-center gap-1",
@@ -326,6 +412,14 @@ function VisitsListContent() {
                                 className="px-2.5 py-1 bg-[var(--primary)] text-white font-bold text-xs rounded-lg hover:bg-[var(--primary-hover)]"
                               >
                                 Complete
+                              </button>
+                            )}
+                            {v.status === "NEEDS_REVIEW" && (
+                              <button
+                                onClick={() => router.push(`/visits/${v.id}`)}
+                                className="px-2.5 py-1 bg-orange-600 text-white font-bold text-xs rounded-lg hover:bg-orange-700"
+                              >
+                                Review
                               </button>
                             )}
                             {(v.status === "PLANNED" || v.status === "MISSED") && (
@@ -408,6 +502,62 @@ function VisitsListContent() {
           )}
         </div>
       </Modal>
+
+      {/* Check In Modal for Office Visits */}
+      {checkInModal && (
+        <Modal
+          open={!!checkInModal}
+          onClose={() => setCheckInModal(null)}
+          title="Office Visit Check-In"
+          subtitle="Enter receptionist/host confirmation"
+          footer={
+            <>
+              <button onClick={() => setCheckInModal(null)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+              <button onClick={handleOfficeCheckIn} className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-bold rounded-lg hover:bg-[var(--primary-hover)]">Check In</button>
+            </>
+          }
+        >
+          <div className="p-6 space-y-4">
+            <FormField label="Receptionist/Host Name" required>
+              <Input
+                value={checkInForm.checkedInBy}
+                onChange={(e) => setCheckInForm({ ...checkInForm, checkedInBy: e.target.value })}
+                placeholder="Enter the name of the person who checked in the visitor"
+              />
+            </FormField>
+          </div>
+        </Modal>
+      )}
+      {/* GPS Denied — Manual Location Note Modal */}
+      {gpsDeniedVisitId && (
+        <Modal
+          open={!!gpsDeniedVisitId}
+          onClose={() => { setGpsDeniedVisitId(null); setManualLocationNote(""); }}
+          title="Check In Without GPS"
+          subtitle="GPS location could not be captured. Enter a manual location note to proceed."
+          footer={
+            <>
+              <button onClick={() => { setGpsDeniedVisitId(null); setManualLocationNote(""); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+              <button onClick={handleManualCheckIn} className="px-4 py-2 bg-amber-600 text-white text-sm font-bold rounded-lg hover:bg-amber-700">Check In (Unverified)</button>
+            </>
+          }
+        >
+          <div className="p-6 space-y-4">
+            <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+              <AlertTriangle size={14} className="inline mr-1.5" />
+              Location will be marked as unverified. This will be flagged in the visit record.
+            </div>
+            <FormField label="Manual Location Note" required>
+              <Textarea
+                value={manualLocationNote}
+                onChange={(e) => setManualLocationNote(e.target.value)}
+                placeholder="Describe your current location (e.g., 'At customer factory gate, GPS not available')"
+                rows={3}
+              />
+            </FormField>
+          </div>
+        </Modal>
+      )}
     </PageShell>
   );
 }
