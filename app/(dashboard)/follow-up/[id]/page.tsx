@@ -387,16 +387,16 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
       {/* Complete Dialog Modal */}
       {isCompleteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-[#FAF6F3] shrink-0">
+          <div className="bg-card rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-page-bg shrink-0">
               <div>
-                <h2 className="text-base font-bold text-slate-800">Complete Follow-Up</h2>
-                <p className="text-[10px] text-slate-500 font-bold mt-0.5 uppercase tracking-wider">Log customer sentiment & outcome</p>
+                <h2 className="text-base font-bold text-text-primary">Complete Follow-Up</h2>
+                <p className="text-[10px] text-text-muted font-bold mt-0.5 uppercase tracking-wider">Log customer sentiment & outcome</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsCompleteOpen(false)}
-                className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-all cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-card border border-border flex items-center justify-center text-text-muted hover:text-text-primary transition-all cursor-pointer"
               >
                 {icons.x}
               </button>
@@ -406,13 +406,13 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
               <div className="p-6 space-y-5">
                 {/* Updated Customer Status */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                    Updated Customer Status <span className="text-red-500">*</span>
+                  <label className="block text-xs font-bold text-text-secondary uppercase mb-1.5">
+                    Updated Customer Status <span className="text-danger-text">*</span>
                   </label>
                   <select
                     value={newCustomerStatus}
                     onChange={(e) => setNewCustomerStatus(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all text-slate-700 font-semibold cursor-pointer"
+                    className="w-full px-4 py-2.5 rounded-xl bg-page-bg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/15 focus:border-[var(--primary)] transition-all text-text-primary font-semibold cursor-pointer"
                   >
                     <option value="Active">Active (Converted / Closed Won)</option>
                     <option value="Prospect">Prospect (Interested / Lead)</option>
@@ -425,56 +425,56 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
 
                 {/* Outcome Remarks */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                    Outcome Completion Notes <span className="text-red-500">*</span>
+                  <label className="block text-xs font-bold text-text-secondary uppercase mb-1.5">
+                    Outcome Completion Notes <span className="text-danger-text">*</span>
                   </label>
                   <textarea
                     rows={3}
                     value={outcomeRemarks}
                     onChange={(e) => setOutcomeRemarks(e.target.value)}
                     placeholder="Enter discussion outcome and next steps details..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all resize-none text-slate-755 font-medium"
+                    className="w-full px-4 py-2.5 rounded-xl bg-page-bg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/15 focus:border-[var(--primary)] transition-all resize-none text-text-primary font-medium"
                     required
                   ></textarea>
                 </div>
 
                 {/* Schedule Next Follow-up Checkbox */}
-                <div className="pt-2 border-t border-slate-100">
+                <div className="pt-2 border-t border-border-subtle">
                   <label className="flex items-center gap-3 cursor-pointer select-none group">
                     <input
                       type="checkbox"
                       checked={scheduleNext}
                       onChange={() => setScheduleNext(!scheduleNext)}
-                      className="rounded border-slate-350 text-[#B3592D] focus:ring-[#B3592D]/20 w-4 h-4 cursor-pointer"
+                      className="rounded border-border text-[var(--primary)] focus:ring-[var(--primary)]/20 w-4 h-4 cursor-pointer"
                     />
                     <div>
-                      <p className="text-xs font-bold text-slate-700">Schedule another follow-up?</p>
-                      <p className="text-[10px] text-slate-400">Creates a new pending touchpoint automatically</p>
+                      <p className="text-xs font-bold text-text-primary">Schedule another follow-up?</p>
+                      <p className="text-[10px] text-text-muted">Creates a new pending touchpoint automatically</p>
                     </div>
                   </label>
                 </div>
 
                 {scheduleNext && (
-                  <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-4">
+                  <div className="p-4 bg-page-bg border border-border-subtle rounded-2xl space-y-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        Next Meeting Date & Time <span className="text-red-500">*</span>
+                      <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1.5">
+                        Next Meeting Date & Time <span className="text-danger-text">*</span>
                       </label>
                       <input
                         type="datetime-local"
                         value={nextFollowUpTimeComplete}
                         onChange={(e) => setNextFollowUpTimeComplete(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all text-slate-700 font-semibold"
+                        className="w-full px-4 py-2.5 rounded-xl bg-card border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/15 focus:border-[var(--primary)] transition-all text-text-primary font-semibold"
                         required={scheduleNext}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Priority</label>
+                      <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1.5">Priority</label>
                       <select
                         value={nextFollowUpPriorityComplete}
                         onChange={(e) => setNextFollowUpPriorityComplete(e.target.value as any)}
-                        className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer"
+                        className="w-full px-4 py-2 rounded-xl bg-card border border-border text-xs font-bold text-text-primary cursor-pointer"
                       >
                         <option value="Low">Low</option>
                         <option value="Medium">Medium</option>
@@ -483,24 +483,24 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Next Agenda / Notes</label>
+                      <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1.5">Next Agenda / Notes</label>
                       <textarea
                         rows={2}
                         value={nextFollowUpNotesComplete}
                         onChange={(e) => setNextFollowUpNotesComplete(e.target.value)}
                         placeholder="What needs to be discussed next..."
-                        className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#B3592D]/15 focus:border-[#B3592D] transition-all resize-none text-slate-700 font-medium"
+                        className="w-full px-4 py-2.5 rounded-xl bg-card border border-border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/15 focus:border-[var(--primary)] transition-all resize-none text-text-primary font-medium"
                       ></textarea>
                     </div>
                   </div>
                 )}
               </div>
 
-              <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+              <div className="px-6 py-4 border-t border-border bg-page-bg flex justify-end gap-3 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsCompleteOpen(false)}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-200 transition-colors cursor-pointer"
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-text-primary hover:bg-border-subtle transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>

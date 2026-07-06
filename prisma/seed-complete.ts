@@ -30,28 +30,28 @@ async function main() {
   // Create all 5 companies (upsert so it's idempotent)
   const suki = await prisma.company.upsert({
     where: { name: "Suki Software Solutions Pvt. Ltd." },
-    update: {},
-    create: { name: "Suki Software Solutions Pvt. Ltd.", variant: 0, baseCurrency: "INR" },
+    update: { domain: "sukisoftware.com" },
+    create: { name: "Suki Software Solutions Pvt. Ltd.", variant: 0, baseCurrency: "INR", domain: "sukisoftware.com" },
   });
   const apex = await prisma.company.upsert({
     where: { name: "Apex Industries Pvt Ltd" },
-    update: {},
-    create: { name: "Apex Industries Pvt Ltd", variant: 1, baseCurrency: "INR" },
+    update: { domain: "apex.sukisoftware.com" },
+    create: { name: "Apex Industries Pvt Ltd", variant: 1, baseCurrency: "INR", domain: "apex.sukisoftware.com" },
   });
   const bharat = await prisma.company.upsert({
     where: { name: "Bharat Metal Works" },
-    update: {},
-    create: { name: "Bharat Metal Works", variant: 2, baseCurrency: "INR" },
+    update: { domain: "bharat.sukisoftware.com" },
+    create: { name: "Bharat Metal Works", variant: 2, baseCurrency: "INR", domain: "bharat.sukisoftware.com" },
   });
   const kaveri = await prisma.company.upsert({
     where: { name: "Kaveri Solutions Ltd" },
-    update: {},
-    create: { name: "Kaveri Solutions Ltd", variant: 3, baseCurrency: "INR" },
+    update: { domain: "kaveri.sukisoftware.com" },
+    create: { name: "Kaveri Solutions Ltd", variant: 3, baseCurrency: "INR", domain: "kaveri.sukisoftware.com" },
   });
   const sriLakshmi = await prisma.company.upsert({
     where: { name: "Sri Lakshmi Enterprises" },
-    update: {},
-    create: { name: "Sri Lakshmi Enterprises", variant: 4, baseCurrency: "INR" },
+    update: { domain: "srilakshmi.sukisoftware.com" },
+    create: { name: "Sri Lakshmi Enterprises", variant: 4, baseCurrency: "INR", domain: "srilakshmi.sukisoftware.com" },
   });
 
   const companiesToSeed = [suki, apex, bharat, kaveri, sriLakshmi];

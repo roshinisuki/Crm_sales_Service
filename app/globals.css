@@ -18,6 +18,7 @@
   --color-brand-hover:    var(--brand-primary-hover, #FF6901);
   --color-brand-light:    var(--brand-primary-light, #E8F7FC);
   --color-brand-border:   var(--brand-primary-border, #6CD3FE);
+  --color-brand-text:     var(--brand-primary-text, #061953);
 
   /* Sidebar — premium dark gradient */
   --color-sidebar-bg:     linear-gradient(170deg, #13182E 0%, #0C1020 50%, #080C18 100%);

@@ -196,7 +196,7 @@ export default function NewVisitPage() {
           </div>
           <FormField label="Search Account" required>
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <Input
                 type="text"
                 placeholder="Search by name or code..."
@@ -207,38 +207,38 @@ export default function NewVisitPage() {
             </div>
           </FormField>
           {form.customerId ? (
-            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl">
+            <div className="flex items-center justify-between p-4 bg-brand-light border border-brand-border rounded-xl">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-brand flex items-center justify-center">
                   <Check className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-800">{selectedCustomer?.name}</p>
-                  <p className="text-xs text-slate-500">{selectedCustomer?.customerCode} — {selectedCustomer?.city}</p>
+                  <p className="text-sm font-bold text-brand-text">{selectedCustomer?.name}</p>
+                  <p className="text-xs text-brand-text opacity-70">{selectedCustomer?.customerCode} — {selectedCustomer?.city}</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => { setForm({ ...form, customerId: "" }); setContacts([]); }}
-                className="text-slate-400 hover:text-rose-500 transition-colors"
+                className="text-text-muted hover:text-danger-text transition-colors"
               >
                 <X size={16} />
               </button>
             </div>
           ) : (
-            <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100">
+            <div className="max-h-48 overflow-y-auto border border-border rounded-xl divide-y divide-border-subtle">
               {filteredCustomers.length === 0 ? (
-                <p className="text-sm text-slate-400 text-center py-4">No accounts found</p>
+                <p className="text-sm text-text-muted text-center py-4">No accounts found</p>
               ) : (
                 filteredCustomers.slice(0, 20).map((c) => (
                   <button
                     key={c.id}
                     type="button"
                     onClick={() => handleCustomerSelect(c.id)}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
+                    className="w-full text-left px-4 py-3 hover:bg-border-subtle transition-colors"
                   >
-                    <p className="text-sm font-bold text-slate-700">{c.name}</p>
-                    <p className="text-xs text-slate-400">{c.customerCode} — {c.city}</p>
+                    <p className="text-sm font-bold text-text-primary">{c.name}</p>
+                    <p className="text-xs text-text-muted">{c.customerCode} — {c.city}</p>
                   </button>
                 ))
               )}
@@ -266,19 +266,19 @@ export default function NewVisitPage() {
                     onClick={() => setForm({ ...form, visitType: "field_visit" })}
                     className={`p-5 rounded-xl border-2 transition-all ${
                       form.visitType === "field_visit"
-                        ? "border-[var(--primary)] bg-gradient-to-br from-[var(--primary)]/10 to-[var(--primary)]/5"
-                        : "border-slate-200 hover:border-slate-300 bg-white hover:shadow-md"
+                        ? "border-[var(--primary)] bg-[var(--primary-light)]"
+                        : "border-border hover:border-border-subtle bg-transparent hover:bg-card-hover"
                     }`}
                   >
                     <div className="flex flex-col items-center gap-3">
                       <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
-                        form.visitType === "field_visit" ? "bg-[var(--primary)]" : "bg-slate-100"
+                        form.visitType === "field_visit" ? "bg-[var(--primary)]" : "bg-border-subtle"
                       }`}>
-                        <MapPin className={`w-7 h-7 ${form.visitType === "field_visit" ? "text-white" : "text-slate-500"}`} />
+                        <MapPin className={`w-7 h-7 ${form.visitType === "field_visit" ? "text-white" : "text-text-muted"}`} />
                       </div>
                       <div className="text-center">
-                        <p className={`text-base font-semibold ${form.visitType === "field_visit" ? "text-[var(--primary)]" : "text-slate-700"}`}>Field Visit</p>
-                        <p className="text-xs text-slate-500">We travel to customer</p>
+                        <p className={`text-base font-semibold ${form.visitType === "field_visit" ? "text-[var(--primary)]" : "text-text-primary"}`}>Field Visit</p>
+                        <p className="text-xs text-text-muted">We travel to customer</p>
                       </div>
                     </div>
                   </button>
@@ -287,19 +287,19 @@ export default function NewVisitPage() {
                     onClick={() => setForm({ ...form, visitType: "office_visit" })}
                     className={`p-5 rounded-xl border-2 transition-all ${
                       form.visitType === "office_visit"
-                        ? "border-[var(--primary)] bg-gradient-to-br from-[var(--primary)]/10 to-[var(--primary)]/5"
-                        : "border-slate-200 hover:border-slate-300 bg-white hover:shadow-md"
+                        ? "border-[var(--primary)] bg-[var(--primary-light)]"
+                        : "border-border hover:border-border-subtle bg-transparent hover:bg-card-hover"
                     }`}
                   >
                     <div className="flex flex-col items-center gap-3">
                       <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
-                        form.visitType === "office_visit" ? "bg-[var(--primary)]" : "bg-slate-100"
+                        form.visitType === "office_visit" ? "bg-[var(--primary)]" : "bg-border-subtle"
                       }`}>
-                        <Building2 className={`w-7 h-7 ${form.visitType === "office_visit" ? "text-white" : "text-slate-500"}`} />
+                        <Building2 className={`w-7 h-7 ${form.visitType === "office_visit" ? "text-white" : "text-text-muted"}`} />
                       </div>
                       <div className="text-center">
-                        <p className={`text-base font-semibold ${form.visitType === "office_visit" ? "text-[var(--primary)]" : "text-slate-700"}`}>Office Visit</p>
-                        <p className="text-xs text-slate-500">Customer travels to us</p>
+                        <p className={`text-base font-semibold ${form.visitType === "office_visit" ? "text-[var(--primary)]" : "text-text-primary"}`}>Office Visit</p>
+                        <p className="text-xs text-text-muted">Customer travels to us</p>
                       </div>
                     </div>
                   </button>
@@ -403,8 +403,8 @@ export default function NewVisitPage() {
                             className={cn(
                               "px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all",
                               isSelected
-                                ? "border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]"
-                                : "border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300"
+                                ? "border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]"
+                                : "border-border bg-transparent text-text-secondary hover:border-border-subtle hover:bg-border-subtle"
                             )}
                           >
                             {u.name}
@@ -527,8 +527,8 @@ export default function NewVisitPage() {
                 </div>
               </div>
               {contacts.length === 0 ? (
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                  <p className="text-sm text-slate-400">No contacts found for this account</p>
+                <div className="p-4 bg-border-subtle border border-border rounded-xl text-center">
+                  <p className="text-sm text-text-muted">No contacts found for this account</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -542,19 +542,19 @@ export default function NewVisitPage() {
                         className={cn(
                           "flex items-center justify-between p-4 rounded-xl border-2 transition-all text-left",
                           isSelected
-                            ? "border-[var(--primary)] bg-gradient-to-r from-[var(--primary)]/10 to-[var(--primary)]/5"
-                            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:shadow-sm"
+                            ? "border-[var(--primary)] bg-[var(--primary-light)]"
+                            : "border-border bg-transparent hover:border-border-subtle hover:bg-card-hover hover:shadow-sm"
                         )}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            isSelected ? "bg-[var(--primary)]" : "bg-slate-200"
+                            isSelected ? "bg-[var(--primary)]" : "bg-border-subtle"
                           }`}>
-                            {isSelected ? <Check size={16} className="text-white" /> : <span className="text-xs font-bold text-slate-500">{c.name.charAt(0)}</span>}
+                            {isSelected ? <Check size={16} className="text-white" /> : <span className="text-xs font-bold text-text-muted">{c.name.charAt(0)}</span>}
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-slate-800">{c.name}</p>
-                            <p className="text-xs text-slate-500">{c.designation || c.contactType}</p>
+                            <p className="text-sm font-bold text-text-primary">{c.name}</p>
+                            <p className="text-xs text-text-muted">{c.designation || c.contactType}</p>
                           </div>
                         </div>
                       </button>
@@ -563,9 +563,9 @@ export default function NewVisitPage() {
                 </div>
               )}
               {form.attendeeContactIds.length > 0 && (
-                <div className="mt-3 flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-xl">
-                  <Check size={16} className="text-green-600" />
-                  <p className="text-sm font-semibold text-green-800">
+                <div className="mt-3 flex items-center gap-2 p-3 bg-success-bg border border-success-border rounded-xl">
+                  <Check size={16} className="text-success-text" />
+                  <p className="text-sm font-semibold text-success-text">
                     {form.attendeeContactIds.length} attendee{form.attendeeContactIds.length !== 1 ? "s" : ""} selected
                   </p>
                 </div>
@@ -584,7 +584,7 @@ export default function NewVisitPage() {
               <button
                 type="button"
                 onClick={() => router.push("/visits")}
-                className="px-6 py-2.5 text-slate-700 font-semibold text-sm rounded-xl bg-slate-100 hover:bg-slate-200 transition-all"
+                className="px-6 py-2.5 text-text-primary font-semibold text-sm rounded-xl bg-border-subtle hover:bg-border transition-all"
               >
                 Cancel
               </button>

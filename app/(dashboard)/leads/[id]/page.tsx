@@ -677,9 +677,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       {/* ---- "On behalf of" indicator banner ---- */}
       {(user?.role === "Admin" || user?.role === "SalesManager") &&
        lead.assignedUserId && lead.assignedUserId !== user?.id && !isConverted && !isLost && (
-        <div className="crm-card p-3 flex items-center gap-3 border-amber-200 bg-amber-50/80">
-          <User size={16} className="text-amber-600 shrink-0" />
-          <p className="text-xs font-semibold text-amber-700">
+        <div className="rounded-xl shadow-sm p-3 flex items-center gap-3 border border-warning-border bg-warning-bg">
+          <User size={16} className="text-warning-text shrink-0" />
+          <p className="text-xs font-semibold text-warning-text">
             You are acting on behalf of <span className="font-bold">{lead.assignedUser?.name || "the assigned executive"}</span>.
             All actions will be logged with your identity for accountability.
           </p>
@@ -692,22 +692,26 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
        followups.filter((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue").length === 0 && (() => {
         const minsLeft = Math.floor((new Date(lead.slaResponseDeadline).getTime() - Date.now()) / 60000);
         if (minsLeft <= 0) return (
-          <div className="crm-card p-4 flex items-center gap-3 border-red-200 bg-red-50">
-            <Clock className="text-red-600 shrink-0" size={20} />
+          <div className="rounded-xl shadow-sm p-4 flex items-center gap-3 border border-danger-border bg-danger-bg">
+            <Clock className="text-danger-text shrink-0" size={20} />
             <div>
-              <p className="text-sm font-bold text-red-700">SLA Breached - Response overdue</p>
-              <p className="text-xs text-red-500">This lead has exceeded the 15-minute response SLA. Log a call immediately.</p>
+              <p className="text-sm font-bold text-danger-text">SLA Breached - Response overdue</p>
+              <p className="text-xs text-danger-text opacity-80">This lead has exceeded the 15-minute response SLA. Log a call immediately.</p>
             </div>
           </div>
         );
         return (
-          <div className={`crm-card p-4 flex items-center gap-3 ${minsLeft <= 5 ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
-            <Clock className={`shrink-0 ${minsLeft <= 5 ? "text-red-600" : "text-amber-600"}`} size={20} />
+          <div className={`rounded-xl shadow-sm p-4 flex items-center gap-3 border ${
+            minsLeft <= 5 
+              ? "border-danger-border bg-danger-bg" 
+              : "border-warning-border bg-warning-bg"
+          }`}>
+            <Clock className={`shrink-0 ${minsLeft <= 5 ? "text-danger-text" : "text-warning-text"}`} size={20} />
             <div>
-              <p className={`text-sm font-bold ${minsLeft <= 5 ? "text-red-700" : "text-amber-700"}`}>
+              <p className={`text-sm font-bold ${minsLeft <= 5 ? "text-danger-text" : "text-warning-text"}`}>
                 SLA Countdown: {minsLeft} min remaining
               </p>
-              <p className={`text-xs ${minsLeft <= 5 ? "text-red-500" : "text-amber-600"}`}>
+              <p className={`text-xs ${minsLeft <= 5 ? "text-danger-text opacity-80" : "text-warning-text opacity-80"}`}>
                 Respond within {minsLeft} minutes to meet the response SLA.
               </p>
             </div>
@@ -729,14 +733,16 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         return (
           <div className={cn(
             "crm-card p-4 flex items-center gap-3 border-l-4 transition-all",
-            isOverdue ? "border-red-500 bg-red-50/60 border-y border-r border-red-200" : "border-blue-500 bg-blue-50/50 border-y border-r border-blue-100"
+            isOverdue 
+              ? "border-red-500 bg-red-50/60 border-y border-r border-red-200 dark:bg-red-950/20 dark:border-red-900/50" 
+              : "border-blue-500 bg-blue-50/50 border-y border-r border-blue-100 dark:bg-blue-950/20 dark:border-blue-900/50"
           )}>
-            <CalendarClock className={cn("shrink-0", isOverdue ? "text-red-600" : "text-blue-600")} size={20} />
+            <CalendarClock className={cn("shrink-0", isOverdue ? "text-red-600 dark:text-red-400" : "text-blue-600 dark:text-blue-400")} size={20} />
             <div className="flex-1">
-              <p className={cn("text-sm font-bold", isOverdue ? "text-red-700" : "text-blue-755")}>
+              <p className={cn("text-sm font-bold", isOverdue ? "text-red-800 dark:text-red-400" : "text-blue-700 dark:text-blue-300")}>
                 {isOverdue ? "Overdue Follow-up" : "Next Scheduled Follow-up"} &middot; {nextFu.type || "Call"}
               </p>
-              <p className={cn("text-xs mt-0.5", isOverdue ? "text-red-600" : "text-blue-600")}>
+              <p className={cn("text-xs mt-0.5", isOverdue ? "text-red-600 dark:text-red-400/80" : "text-blue-600 dark:text-blue-400/80")}>
                 Scheduled for {nextDate.toLocaleString()}
                 {nextFu.remarks && <span className="block italic mt-0.5 font-medium">&ldquo;{nextFu.remarks}&rdquo;</span>}
               </p>
@@ -756,50 +762,65 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         );
       })()}
 
-      {/* ---- Guided Workflow Banner ---- */}
+      {/* ---- Next Best Action Assistant ---- */}
       {!isConverted && !isLost && (
-        <div className="crm-card p-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-              wfActions.stage === "New" ? "bg-blue-100 text-blue-600" :
-              wfActions.stage === "Contacted" || wfActions.stage === "FollowUpPending" || wfActions.stage === "FollowUpDone" || wfActions.stage === "FollowUpDue" ? "bg-amber-100 text-amber-600" :
-              wfActions.stage === "SQL" || wfActions.stage === "Qualification" ? "bg-purple-100 text-purple-600" :
-              wfActions.stage === "Qualified" ? "bg-emerald-100 text-emerald-600" :
-              "bg-slate-100 text-slate-500"
-            )}>
-              <Zap size={16} />
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 sm:p-6 mb-2 relative overflow-hidden shadow-sm">
+          {/* Subtle background decoration */}
+          <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-500/5 dark:bg-indigo-400/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+          
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
+            <div className="flex items-start gap-4">
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm",
+                wfActions.stage === "New" ? "bg-blue-600 text-white" :
+                wfActions.stage === "Contacted" || wfActions.stage === "FollowUpPending" || wfActions.stage === "FollowUpDone" || wfActions.stage === "FollowUpDue" ? "bg-amber-500 text-white" :
+                wfActions.stage === "SQL" || wfActions.stage === "Qualification" ? "bg-purple-600 text-white" :
+                wfActions.stage === "Qualified" ? "bg-emerald-600 text-white" :
+                "bg-slate-500 text-white"
+              )}>
+                {wfActions.primary?.icon === "PhoneCall" ? <PhoneCall size={20} /> :
+                 wfActions.primary?.icon === "CalendarClock" ? <CalendarClock size={20} /> :
+                 wfActions.primary?.icon === "CheckCircle2" ? <CheckCircle2 size={20} /> :
+                 wfActions.primary?.icon === "Briefcase" ? <Briefcase size={20} /> :
+                 <Zap size={20} />}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Next Best Action</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-300 dark:bg-indigo-700" />
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{wfActions.stage}</span>
+                </div>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 max-w-2xl leading-relaxed">{wfActions.stageDescription}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wide">{wfActions.stage}</p>
-              <p className="text-sm text-slate-600">{wfActions.stageDescription}</p>
+
+            <div className="flex flex-wrap items-center gap-3 shrink-0 sm:ml-4">
+              {/* Secondary actions */}
+              {wfActions.secondary.map((action) => (
+                <button
+                  key={action.id}
+                  onClick={() => handleWorkflowAction(action.id)}
+                  disabled={action.disabled}
+                  title={action.disabledReason}
+                  className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-all px-4 py-2.5 rounded-xl disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                >
+                  {action.label}
+                </button>
+              ))}
+              
+              {/* Primary action */}
+              {wfActions.primary && (
+                <button
+                  onClick={() => handleWorkflowAction(wfActions.primary!.id)}
+                  disabled={wfActions.primary.disabled || contacting || qualifying}
+                  title={wfActions.primary.disabledReason}
+                  className="text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-all px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {contacting ? "Contacting..." : qualifying ? "Qualifying..." : wfActions.primary.label}
+                  <ArrowLeft size={16} className="rotate-180" />
+                </button>
+              )}
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Primary action from workflow config */}
-            {wfActions.primary && (
-              <button
-                onClick={() => handleWorkflowAction(wfActions.primary!.id)}
-                disabled={wfActions.primary.disabled || contacting || qualifying}
-                title={wfActions.primary.disabledReason}
-                className="btn-primary text-xs flex items-center gap-1.5 disabled:opacity-50"
-              >
-                {wfIcon(wfActions.primary.icon)}
-                {contacting ? "Contacting..." : qualifying ? "Qualifying..." : wfActions.primary.label}
-              </button>
-            )}
-            {/* Secondary actions from workflow config */}
-            {wfActions.secondary.map((action) => (
-              <button
-                key={action.id}
-                onClick={() => handleWorkflowAction(action.id)}
-                disabled={action.disabled}
-                title={action.disabledReason}
-                className="text-xs font-semibold text-slate-600 hover:text-[var(--primary)] bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors px-3 py-1.5 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {action.label}
-              </button>
-            ))}
           </div>
         </div>
       )}
@@ -1331,9 +1352,13 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             </label>
             <p className="text-xs text-slate-400 ml-7">Optional: Check if you've verified the prospect's requirement is real.</p>
           </div>
-          <div className={`p-3 rounded-xl text-xs ${budgetAsked.trim() && timelineAsked.trim() ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-amber-50 text-amber-600 border border-amber-100"}`}>
+          <div className={`p-3 rounded-xl text-xs ${
+            budgetAsked.trim() && timelineAsked.trim() 
+              ? "bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-900/50 dark:text-emerald-400" 
+              : "bg-amber-50 text-amber-600 border border-amber-100 dark:bg-amber-950/40 dark:border-amber-900/50 dark:text-amber-400"
+          }`}>
             {budgetAsked.trim() && timelineAsked.trim()
-              ? "\u2713 Budget and timeline provided. Ready to mark as SQL!"
+              ? "✓ Budget and timeline provided. Ready to mark as SQL!"
               : "! Fill Budget and Timeline to enable SQL promotion."}
           </div>
         </div>
@@ -1435,14 +1460,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
           <button
             onClick={handlePostCompleteFollowUp}
-            className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors text-left"
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors text-left dark:bg-amber-950/40 dark:border-amber-900/50 dark:hover:bg-amber-900/40"
           >
-            <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 dark:bg-amber-900/50 dark:text-amber-400">
               <CalendarClock size={20} />
             </div>
             <div>
-              <p className="text-sm font-bold text-amber-800">Schedule Another Follow-up</p>
-              <p className="text-xs text-amber-600">Need another call or meeting? Schedule it now</p>
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">Schedule Another Follow-up</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400/80">Need another call or meeting? Schedule it now</p>
             </div>
           </button>
 
@@ -1604,11 +1629,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       >
         <div className="p-6 space-y-4">
           {(lead?.status === "SQL" || lead?.status === "Qualified") && (
-            <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
-              <XCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-900/50">
+              <XCircle size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-bold text-amber-800">This lead is already {lead?.status}</p>
-                <p className="text-xs text-amber-600 mt-0.5">Marking it as lost will discard the qualification progress. This action cannot be undone.</p>
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">This lead is already {lead?.status}</p>
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">Marking it as lost will discard the qualification progress. This action cannot be undone.</p>
               </div>
             </div>
           )}
@@ -1816,8 +1841,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                   />
                 </FormField>
               </div>
-              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
-                <p className="text-xs text-blue-700">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900/50">
+                <p className="text-xs text-blue-700 dark:text-blue-400">
                   This will atomically create an Account, Contact, and Opportunity.
                   The lead will be marked as Converted and all follow-ups will be linked to the new account.
                 </p>

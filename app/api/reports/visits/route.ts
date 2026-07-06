@@ -100,6 +100,13 @@ export async function GET(request: NextRequest) {
   const fieldVisitsWithGps = visits.filter((v) => v.visitType === "field_visit" && v.gpsAnomaly !== null);
   const gpsCompliant = fieldVisitsWithGps.filter((v) => !v.gpsAnomaly).length;
   const gpsComplianceRate = fieldVisitsWithGps.length > 0 ? Math.round((gpsCompliant / fieldVisitsWithGps.length) * 1000) / 10 : 0;
+  
+  // GPS Issues: total count of field visits with a GPS anomaly
+  const gpsIssues = visits.filter((v) => v.visitType === "field_visit" && v.gpsAnomaly === true).length;
+
+  // Location Verification Rate: % of field visits where ANY GPS coordinate was captured (verified they were on site somewhere)
+  const locationVerifiedCount = visits.filter(v => v.visitType === "field_visit" && v.gpsLat !== null && v.gpsLng !== null).length;
+  const locationVerifiedRate = fieldVisits > 0 ? Math.round((locationVerifiedCount / fieldVisits) * 1000) / 10 : 0;
 
   // Missed-visit rate per executive
   const visitsByExecutive = visits.reduce((acc, v) => {
@@ -175,6 +182,8 @@ export async function GET(request: NextRequest) {
       fieldAvgDuration,
       officeAvgDuration,
       gpsComplianceRate,
+      gpsIssues,
+      locationVerifiedRate,
       missedVisitRateByExecutive,
       officeVisitsByHost: officeVisitsByHostList,
       keyAccountComplianceRate 

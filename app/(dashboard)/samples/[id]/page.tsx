@@ -53,7 +53,7 @@ export default function SampleDetailPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [rfqs, setRfqs] = useState<any[]>([]);
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackTarget, setFeedbackTarget] = useState<"Approved" | "Rejected" | null>(null);
   const [feedbackText, setFeedbackText] = useState("");
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionText, setRevisionText] = useState("");
@@ -190,7 +190,7 @@ export default function SampleDetailPage() {
   const handleStatusClick = (newStatus: string) => {
     if (newStatus === "Approved" || newStatus === "Rejected") {
       // Open feedback modal to capture customer feedback
-      setShowFeedbackModal(true);
+      setFeedbackTarget(newStatus as "Approved" | "Rejected");
       return;
     }
     if (newStatus === "Revision") {
@@ -202,7 +202,7 @@ export default function SampleDetailPage() {
 
   const submitFeedback = (status: string) => {
     handleStatusChange(status, { customerFeedback: feedbackText });
-    setShowFeedbackModal(false);
+    setFeedbackTarget(null);
   };
 
   const submitRevision = () => {
@@ -329,52 +329,102 @@ export default function SampleDetailPage() {
           })}
         </div>
 
-        {/* Current status badge + dropdown */}
-        <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-100">
-          <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold border", cfg.bg, cfg.color, cfg.border)}>
-            <StatusIcon size={14} /> {cfg.label}
-          </span>
-          <select
-            value={sample.status}
-            onChange={(e) => handleStatusClick(e.target.value)}
-            disabled={updatingStatus}
-            className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer disabled:opacity-50"
-          >
-            <option value={sample.status}>{cfg.label} (current)</option>
-            {statusOptions.filter(s => s !== sample.status).map((s) => (
-              <option key={s} value={s}>{statusConfig[s].label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Status flow quick actions */}
-        {allowedNext.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-3">
-            {allowedNext.map((s) => {
-              const nextCfg = statusConfig[s];
-              const NextIcon = nextCfg.icon;
-              return (
-                <button
-                  key={s}
-                  onClick={() => handleStatusClick(s)}
-                  className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer hover:opacity-80 border", nextCfg.bg, nextCfg.color, nextCfg.border)}
-                >
-                  <NextIcon size={13} /> Move to {nextCfg.label}
-                </button>
-              );
-            })}
+        {/* Workflow Action Panel */}
+        <div className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden flex flex-col">
+          {/* Row 1: Status & Helper */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-[var(--page-bg)] border-b border-[var(--border-subtle)] gap-4">
+            <div className="flex items-center gap-3">
+              <span className={cn("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border shadow-sm", cfg.bg, cfg.color, cfg.border)}>
+                <StatusIcon size={16} /> {cfg.label}
+              </span>
+              <span className="text-xs font-medium text-[var(--text-muted)]">
+                Current stage. You can manually move this sample to the next valid state.
+              </span>
+            </div>
+            {/* Manual override dropdown */}
+            <div className="shrink-0">
+               <select
+                value={sample.status}
+                onChange={(e) => handleStatusClick(e.target.value)}
+                disabled={updatingStatus}
+                className="px-3 py-1.5 rounded-lg bg-[var(--card)] border border-[var(--border)] text-xs font-medium text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer disabled:opacity-50"
+              >
+                <option value={sample.status}>Override Status...</option>
+                {statusOptions.filter(s => s !== sample.status).map((s) => (
+                  <option key={s} value={s}>{statusConfig[s].label}</option>
+                ))}
+              </select>
+            </div>
           </div>
-        )}
 
-        {/* Timeline */}
-        <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-          <Calendar size={12} className="text-slate-400" />
-          <span className="font-semibold text-slate-600">Timeline:</span>
-          <span>Requested: {new Date(sample.requestDate).toLocaleDateString()}</span>
-          {sample.sentDate && <span>• Sent: {new Date(sample.sentDate).toLocaleDateString()}</span>}
-          {sample.approvedDate && <span className="text-emerald-600">• Approved: {new Date(sample.approvedDate).toLocaleDateString()}</span>}
-          {sample.rejectedDate && <span className="text-red-600">• Rejected: {new Date(sample.rejectedDate).toLocaleDateString()}</span>}
-          {sample.revisionDate && <span className="text-orange-600">• Revision: {new Date(sample.revisionDate).toLocaleDateString()}</span>}
+          {/* Row 2: Action Buttons */}
+          <div className="p-4 sm:p-5 bg-[var(--card)]">
+            <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Available Actions</h4>
+            {allowedNext.length > 0 ? (
+              <div className="flex flex-wrap gap-3">
+                {allowedNext.map((s) => {
+                  const nextCfg = statusConfig[s];
+                  const NextIcon = nextCfg.icon;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => handleStatusClick(s)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer border shadow-sm hover:shadow-md", 
+                        nextCfg.bg, nextCfg.color, nextCfg.border,
+                        "hover:-translate-y-0.5"
+                      )}
+                    >
+                      <NextIcon size={16} /> Move to {nextCfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--text-muted)] italic">No further actions available from this stage.</p>
+            )}
+          </div>
+
+          {/* Row 3: Timeline / Meta */}
+          <div className="px-4 py-3 bg-[var(--page-bg)] border-t border-[var(--border-subtle)] flex items-center gap-x-5 gap-y-2 text-xs text-[var(--text-secondary)] flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <Calendar size={14} className="text-[var(--text-muted)]" />
+              <span className="font-semibold uppercase tracking-wide text-[10px] text-[var(--text-muted)]">Requested:</span>
+              <span className="font-medium text-[var(--text-primary)]">{new Date(sample.requestDate).toLocaleDateString()}</span>
+            </div>
+            
+            {sample.sentDate && (
+              <div className="flex items-center gap-1.5">
+                <Send size={14} className="text-[var(--primary)]" />
+                <span className="font-semibold uppercase tracking-wide text-[10px] text-[var(--text-muted)]">Sent:</span>
+                <span className="font-medium text-[var(--text-primary)]">{new Date(sample.sentDate).toLocaleDateString()}</span>
+              </div>
+            )}
+            
+            {sample.approvedDate && (
+              <div className="flex items-center gap-1.5">
+                <CheckCircle2 size={14} className="text-emerald-500" />
+                <span className="font-semibold uppercase tracking-wide text-[10px] text-[var(--text-muted)]">Approved:</span>
+                <span className="font-medium text-[var(--text-primary)]">{new Date(sample.approvedDate).toLocaleDateString()}</span>
+              </div>
+            )}
+            
+            {sample.rejectedDate && (
+              <div className="flex items-center gap-1.5">
+                <XCircle size={14} className="text-red-500" />
+                <span className="font-semibold uppercase tracking-wide text-[10px] text-[var(--text-muted)]">Rejected:</span>
+                <span className="font-medium text-[var(--text-primary)]">{new Date(sample.rejectedDate).toLocaleDateString()}</span>
+              </div>
+            )}
+            
+            {sample.revisionDate && (
+              <div className="flex items-center gap-1.5">
+                <RotateCw size={14} className="text-orange-500" />
+                <span className="font-semibold uppercase tracking-wide text-[10px] text-[var(--text-muted)]">Revision:</span>
+                <span className="font-medium text-[var(--text-primary)]">{new Date(sample.revisionDate).toLocaleDateString()}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Approved state — deal auto-advances to Requirement Gathering */}
@@ -591,7 +641,7 @@ export default function SampleDetailPage() {
       />
 
       {/* Feedback modal for Approved/Rejected */}
-      {showFeedbackModal && (
+      {feedbackTarget && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center gap-2">
@@ -607,13 +657,17 @@ export default function SampleDetailPage() {
               className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowFeedbackModal(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
-              <button onClick={() => submitFeedback("Rejected")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer">
-                <XCircle size={15} /> Mark Rejected
-              </button>
-              <button onClick={() => submitFeedback("Approved")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
-                <CheckCircle2 size={15} /> Mark Approved
-              </button>
+              <button onClick={() => setFeedbackTarget(null)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
+              {feedbackTarget === "Rejected" && (
+                <button onClick={() => submitFeedback("Rejected")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer">
+                  <XCircle size={15} /> Mark Rejected
+                </button>
+              )}
+              {feedbackTarget === "Approved" && (
+                <button onClick={() => submitFeedback("Approved")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
+                  <CheckCircle2 size={15} /> Mark Approved
+                </button>
+              )}
             </div>
           </div>
         </div>

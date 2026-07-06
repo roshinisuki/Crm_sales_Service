@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
-import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
 import { ArrowLeft, Save, Plus, UploadCloud, X, Image as ImageIcon } from "lucide-react";
@@ -97,18 +96,26 @@ export default function NewProductPage() {
   };
 
   return (
-    <PageShell
-      title="Add New Product"
-      subtitle="Create a new product for your catalogue"
-      breadcrumb={[
-        { label: "Product Catalogue", href: "/catalogue" },
-        { label: "Products", href: "/catalogue/products" },
-        { label: "Add New Product" },
-      ]}
-    >
+    <div className="flex flex-col h-full bg-card">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-page-bg shrink-0">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push("/catalogue/products")} className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-border-subtle transition-colors" title="Cancel">
+            <X size={18} />
+          </button>
+          <h2 className="text-base font-semibold text-text-primary">Add New Product</h2>
+        </div>
+        <button
+          onClick={handleSubmit}
+          disabled={formLoading}
+          className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50"
+        >
+          <Save size={16} />
+          {formLoading ? "Saving..." : "Save Product"}
+        </button>
+      </div>
 
-      <div className="max-w-2xl">
-        <form onSubmit={handleSubmit} className="crm-card p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField label="Product Name" required>
               <Input
@@ -275,6 +282,6 @@ export default function NewProductPage() {
           </div>
         </form>
       </div>
-    </PageShell>
+    </div>
   );
 }

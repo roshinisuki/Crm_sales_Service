@@ -1074,6 +1074,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
     return (
       <div className="p-6 border-t border-slate-100">
+        <div className="max-w-4xl mx-auto">
         {isReviewingCompleted && (
           <div className="bg-[#EFF6FF] border border-[#93C5FD] rounded-lg px-3.5 py-2.5 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
@@ -2541,6 +2542,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             })()}
           </div>
         )}
+        </div>
       </div>
     );
   };
@@ -2561,6 +2563,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
     return (
       <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+        <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-2 h-2 rounded-full bg-emerald-500" />
           <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Completed Requirement Gathering</h3>
@@ -2655,6 +2658,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               <ReadOnlyField label="Management Notes" value={rgForm.managementNotes} />
             </div>
           </div>
+        </div>
         </div>
       </div>
     );
@@ -2848,9 +2852,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     onClick={() => isClickable && handleStepClick(stage.key, stepState)}
                     className={cn(
                       "flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors",
-                      isClickable ? "cursor-pointer hover:bg-white/80" : "cursor-default",
-                      stepState === "active" && "bg-white/50",
-                      isViewing && "bg-[#EFF6FF]/80 ring-1 ring-[#93C5FD]"
+                      isClickable ? "cursor-pointer hover:bg-white/80 dark:hover:bg-slate-800/50" : "cursor-default",
+                      stepState === "active" && "bg-white/50 dark:bg-slate-800/30",
+                      isViewing && "bg-[#EFF6FF]/80 dark:bg-blue-950/40 ring-1 ring-[#93C5FD] dark:ring-blue-800/60"
                     )}
                     title={tooltip}
                   >
@@ -2859,8 +2863,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                         "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all",
                         stepState === "completed" && "bg-[#16A34A] text-white border-[#16A34A]",
                         stepState === "active" && "bg-[var(--primary)] text-white border-[var(--primary)] ring-4 ring-[var(--primary)]/20",
-                        stepState === "future" && "bg-white text-slate-300 border-slate-200",
-                        isTerminal && (deal.status === "Rejected" ? "bg-orange-100 text-orange-400 border-orange-200" : "bg-rose-100 text-rose-400 border-rose-200")
+                        stepState === "future" && "bg-white dark:bg-slate-800 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700",
+                        isTerminal && (deal.status === "Rejected" ? "bg-orange-100 dark:bg-orange-950/20 text-orange-400 border-orange-200 dark:border-orange-900/50" : "bg-rose-100 dark:bg-rose-950/20 text-rose-400 border-rose-200 dark:border-rose-900/50")
                       )}
                     >
                       {stepState === "completed" ? <CheckCircle size={14} /> : idx + 1}
@@ -2868,14 +2872,14 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     <span
                       className={cn(
                         "text-xs font-semibold whitespace-nowrap",
-                        stepState === "active" ? "text-[var(--primary)]" : stepState === "completed" ? "text-[#16A34A]" : isTerminal ? (deal.status === "Rejected" ? "text-orange-400" : "text-rose-400") : "text-slate-400"
+                        stepState === "active" ? "text-[var(--primary)]" : stepState === "completed" ? "text-[#16A34A] dark:text-green-400" : isTerminal ? (deal.status === "Rejected" ? "text-orange-400" : "text-rose-400") : "text-slate-400 dark:text-slate-500"
                       )}
                     >
                       {stage.label}
                     </span>
                   </div>
                   {idx < PIPELINE_STAGES.length - 1 && (
-                    <div className={cn("w-8 h-0.5 mx-1", stepState === "completed" ? "bg-[#16A34A]" : "bg-slate-200")} />
+                    <div className={cn("w-8 h-0.5 mx-1", stepState === "completed" ? "bg-[#16A34A]" : "bg-slate-200 dark:bg-slate-700")} />
                   )}
                 </div>
               );

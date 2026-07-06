@@ -6,7 +6,6 @@ import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
-import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
 import { ArrowLeft, Save, Edit, X, FileText, Plus, Trash2, Package, UploadCloud, Image as ImageIcon, SlidersHorizontal } from "lucide-react";
@@ -222,52 +221,68 @@ export default function ProductDetailPage() {
 
   if (loading) {
     return (
-      <PageShell title="Loading...">
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-300 border-t-transparent" />
-        </div>
-      </PageShell>
+      <div className="flex-1 flex flex-col items-center justify-center h-full bg-card">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-[var(--primary)] border-t-transparent" />
+      </div>
     );
   }
 
   if (!product) {
     return (
-      <PageShell title="Product Not Found">
-        <div className="text-center py-12">
-          <p className="text-slate-500">Product not found</p>
-        </div>
-      </PageShell>
+      <div className="flex-1 flex flex-col items-center justify-center h-full bg-card">
+        <p className="text-text-muted">Product not found</p>
+      </div>
     );
   }
 
   return (
-    <PageShell
-      title={product.productCode}
-      subtitle={product.name}
-      breadcrumb={[
-        { label: "Product Catalogue", href: "/catalogue" },
-        { label: "Products", href: "/catalogue/products" },
-        { label: product.productCode },
-      ]}
-      action={
-        <div className="flex gap-2">
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="btn-ghost"
-          >
-            <Edit size={16} />
-            {isEditing ? "Cancel" : "Edit"}
+    <div className="flex flex-col h-full bg-card">
+      {/* Right Panel Header */}
+      <div className="flex items-center justify-between p-4 border-b border-border bg-page-bg shrink-0">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push("/catalogue/products")} className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-border-subtle transition-colors lg:hidden">
+            <ArrowLeft size={18} />
           </button>
-          <button
-            onClick={handleDelete}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
-          >
-            <Trash2 size={16} />
-            Delete
-          </button>
+          <div>
+            <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
+              {product.productCode}
+              <span className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                product.isActive ? "bg-success-bg text-success-text" : "bg-border text-text-muted"
+              )}>
+                {product.isActive ? "Active" : "Inactive"}
+              </span>
+            </h2>
+            <p className="text-xs text-text-muted">{product.name}</p>
+          </div>
         </div>
-      }
-    >
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <>
+              <button onClick={() => { setIsEditing(false); loadProduct(); }} className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-border-subtle rounded-lg transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleUpdate} disabled={formLoading} className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50">
+                <Save size={14} />
+                {formLoading ? "Saving..." : "Save"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 px-3 py-1.5 border border-border text-text-primary text-sm font-medium rounded-lg hover:bg-border-subtle transition-colors">
+                <Edit size={14} />
+                Edit
+              </button>
+              <button onClick={handleDelete} className="flex items-center justify-center p-1.5 text-danger-text hover:bg-danger-bg rounded-lg transition-colors" title="Delete">
+                <Trash2 size={16} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
 
       {isEditing ? (
         <form onSubmit={handleUpdate} className="crm-card p-6 space-y-6">
@@ -515,6 +530,7 @@ export default function ProductDetailPage() {
           )}
         </div>
       )}
+      </div>
 
       {/* Specifications Section */}
       <div className="crm-card p-6">
@@ -592,6 +608,7 @@ export default function ProductDetailPage() {
           </div>
         )}
       </div>
+      </div>
 
       {/* Confirm Modal */}
       <ConfirmModal
@@ -602,6 +619,6 @@ export default function ProductDetailPage() {
         onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })}
         isDestructive={true}
       />
-    </PageShell>
+    </div>
   );
 }

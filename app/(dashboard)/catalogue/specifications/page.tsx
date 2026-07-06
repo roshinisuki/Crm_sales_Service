@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ToastProvider";
-import { PageShell } from "@/components/ui/PageShell";
 import { Input } from "@/components/ui/FormField";
 import { cn } from "@/lib/ui-utils";
 import {
@@ -116,85 +115,83 @@ export default function SpecificationsPage() {
   );
 
   return (
-    <PageShell
-      title="Specifications"
-      subtitle="Define and manage technical specifications for products"
-      breadcrumb={[{ label: "Product Catalogue", href: "/catalogue" }, { label: "Specifications" }]}
-    >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mt-6">
-        {/* Product Selection Panel */}
-        <div className="lg:col-span-1">
-          <div className="crm-card p-4 sticky top-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Package size={18} className="text-slate-400" />
-              <h2 className="text-sm font-bold text-slate-800">Select Product</h2>
-            </div>
-            <div className="relative mb-3">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search products..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                className="input-field pl-9 text-sm"
-              />
-            </div>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-5 w-5 border-2 border-slate-300 border-t-transparent" />
-              </div>
-            ) : filteredProducts.length === 0 ? (
-              <p className="text-center text-sm text-slate-400 py-8">No products found</p>
-            ) : (
-              <div className="space-y-1 max-h-[500px] overflow-y-auto pr-1">
-                {filteredProducts.map((product) => (
-                  <button
-                    key={product.id}
-                    onClick={() => setSelectedProductId(product.id)}
-                    className={cn(
-                      "w-full text-left px-3 py-2.5 rounded-lg transition-all",
-                      selectedProductId === product.id
-                        ? "bg-[var(--accent-soft)] border border-[var(--accent)]/30"
-                        : "hover:bg-slate-50 border border-transparent"
-                    )}
-                  >
-                    <div className={cn(
-                      "text-sm font-semibold truncate",
-                      selectedProductId === product.id ? "text-[var(--accent)]" : "text-slate-800"
-                    )}>
-                      {product.name}
-                    </div>
-                    <div className="text-xs text-slate-400 font-mono mt-0.5">{product.productCode}</div>
-                  </button>
-                ))}
-              </div>
-            )}
+    <div className="flex h-full w-full">
+      {/* Center Panel: Product Selection */}
+      <div className="w-[320px] lg:w-[400px] xl:w-[450px] shrink-0 border-r border-border flex flex-col bg-page-bg relative">
+        <div className="p-4 border-b border-border flex flex-col gap-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <h1 className="text-base font-semibold text-text-primary flex items-center gap-2">
+              <SlidersHorizontal size={18} className="text-text-muted" />
+              Specifications
+            </h1>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            <input
+              type="text"
+              placeholder="Search products..."
+              value={productSearch}
+              onChange={(e) => setProductSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-sm bg-card border border-border rounded-lg text-text-primary focus:outline-none focus:border-[var(--primary)] transition-colors"
+            />
           </div>
         </div>
 
-        {/* Specifications Panel */}
-        <div className="lg:col-span-2">
-          {selectedProduct ? (
-            <div className="crm-card p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center">
-                    <SlidersHorizontal size={20} />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">{selectedProduct.name}</h2>
-                    <p className="text-xs text-slate-400 font-mono">{selectedProduct.productCode}</p>
-                  </div>
-                </div>
-                <span className={cn(
-                  "inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold",
-                  selectedProduct.isActive ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"
-                )}>
-                  {selectedProduct.isActive ? "Active" : "Inactive"}
-                </span>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          {loading ? (
+            <div className="p-6 text-center text-text-muted text-sm">Loading products...</div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="p-6 text-center flex flex-col items-center">
+              <div className="w-12 h-12 rounded-xl bg-border-subtle flex items-center justify-center mb-2">
+                <Package size={24} className="text-text-muted" />
               </div>
+              <p className="text-sm font-semibold text-text-primary">No products found</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border-subtle">
+              {filteredProducts.map((product) => (
+                <button
+                  key={product.id}
+                  onClick={() => setSelectedProductId(product.id)}
+                  className={cn(
+                    "w-full text-left p-3 md:p-4 hover:bg-card-hover transition-colors group flex items-start gap-3",
+                    selectedProductId === product.id ? "bg-card-hover border-l-[3px] border-l-[var(--primary)]" : "border-l-[3px] border-l-transparent"
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-semibold text-sm text-text-primary truncate">{product.name}</span>
+                    </div>
+                    <div className="text-xs text-text-muted font-mono">{product.productCode}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
-              {/* Add Spec Form */}
+      {/* Right Panel: Specifications Panel */}
+      <div className="flex-1 flex flex-col min-w-0 bg-card overflow-hidden">
+        {selectedProduct ? (
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-page-bg shrink-0">
+              <div className="flex items-center gap-3">
+                <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
+                  {selectedProduct.productCode}
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                    selectedProduct.isActive ? "bg-success-bg text-success-text" : "bg-border text-text-muted"
+                  )}>
+                    {selectedProduct.isActive ? "Active" : "Inactive"}
+                  </span>
+                </h2>
+                <p className="text-xs text-text-muted">{selectedProduct.name}</p>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="max-w-4xl mx-auto space-y-6">
               <form onSubmit={handleAddSpec} className="flex flex-col sm:flex-row gap-2.5 mb-5">
                 <Input
                   value={specForm.specKey}
@@ -279,18 +276,21 @@ export default function SpecificationsPage() {
                   </table>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="crm-card p-12 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center mx-auto mb-3">
-                <SlidersHorizontal size={28} />
               </div>
-              <p className="text-sm text-foreground font-semibold">Select a product to manage specifications</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Choose a product from the list on the left</p>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+            <div className="w-16 h-16 rounded-2xl bg-page-bg border border-border flex items-center justify-center mb-4">
+              <SlidersHorizontal className="w-8 h-8 text-text-muted" />
+            </div>
+            <h2 className="text-lg font-semibold text-text-primary">Select a Product</h2>
+            <p className="text-sm text-text-muted max-w-sm mt-2">
+              Choose a product from the list to view and manage its technical specifications.
+            </p>
+          </div>
+        )}
       </div>
-    </PageShell>
+    </div>
   );
 }

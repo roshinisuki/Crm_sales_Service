@@ -19,6 +19,8 @@ import LeadCreatedWorkflowModal from "@/components/leads/LeadCreatedWorkflowModa
 import { CRMSpinner } from "@/components/CRMSpinner";
 import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import { INDUSTRY_TYPES } from "@/lib/industryOptions";
+import { StatusPill } from "@/components/shared/StatusPill";
+import { computeWorkflowState, getLeadWorkflowActions } from "@/lib/workflow-actions";
 import {
   Plus, Search, Download, Pencil, Trash2,
   Users, Phone, CheckCircle, XCircle, PhoneCall, CalendarClock,
@@ -113,7 +115,6 @@ export default function LeadsPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [isDeleting, setIsDeleting] = useState(false);
-  const [guidanceLeadId, setGuidanceLeadId] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({
     isOpen: false, title: "", message: "", action: () => {},
   });
@@ -199,13 +200,7 @@ export default function LeadsPage() {
   useEffect(() => { loadLeads(); }, [search, statusFilter]);
   useEffect(() => { loadExecutives(); loadLeadSources(); }, [user]);
 
-  // Close guidance popover on outside click
-  useEffect(() => {
-    if (!guidanceLeadId) return;
-    const handler = () => setGuidanceLeadId(null);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [guidanceLeadId]);
+
 
   // ── Filtered data ─────────────────────────────────────────────────────────
 
@@ -801,75 +796,26 @@ export default function LeadsPage() {
                     <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <div className="relative">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setGuidanceLeadId(guidanceLeadId === l.id ? null : l.id); }}
-                            className="row-action-btn text-blue-600"
-                            title="Workflow"
-                          >
-                            <Zap size={14} />
-                          </button>
-                          {guidanceLeadId === l.id && (
-                            <div
-                              className="absolute right-0 top-full mt-1 z-50 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg p-3"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 mb-2 flex items-center gap-1.5">
-                                <Zap size={13} /> Lead Workflow
-                              </p>
-                              {(() => {
-                                const fups = (l as any).followUps || [];
-                                const hasPendingFU = fups.some((f: any) => f.status === "Pending" || f.status === "Overdue");
-                                const hasCompletedFU = fups.some((f: any) => f.status === "Completed");
-                                const steps = [
-                                  { label: "New", desc: "Log first call", done: l.status !== "New" && l.status !== "Lost", active: l.status === "New" },
-                                  { label: "Contacted", desc: "Add follow-up", done: ["SQL", "Qualified", "Converted"].includes(l.status) || hasCompletedFU, active: l.status === "Contacted" && !hasPendingFU && !hasCompletedFU },
-                                  { label: "Follow-Up", desc: "Schedule & log", done: ["SQL", "Qualified", "Converted"].includes(l.status) || (hasCompletedFU && !hasPendingFU), active: hasPendingFU || l.status === "FollowUpDue" },
-                                  { label: "Qualify (SQL)", desc: "BANT checklist", done: ["Qualified", "Converted"].includes(l.status), active: l.status === "SQL" },
-                                  { label: "Convert", desc: "Create opportunity", done: l.status === "Converted", active: l.status === "Qualified" },
-                                ];
-                                const currentStepIdx = steps.findIndex(s => s.active);
-                                return (
-                                  <div className="space-y-0">
-                                    {steps.map((s, i) => (
-                                      <div key={s.label} className="flex items-start gap-2">
-                                        <div className="flex flex-col items-center">
-                                          <div className={cn(
-                                            "w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0",
-                                            s.done
-                                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                                              : s.active
-                                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 ring-2 ring-blue-300 dark:ring-blue-700"
-                                              : "bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500"
-                                          )}>
-                                            {s.done ? "✓" : i + 1}
-                                          </div>
-                                          {i < steps.length - 1 && (
-                                            <div className={cn("w-0.5 h-5", s.done ? "bg-emerald-200 dark:bg-emerald-800" : "bg-slate-200 dark:bg-slate-700")} />
-                                          )}
-                                        </div>
-                                        <div className="pb-1">
-                                          <p className={cn(
-                                            "text-xs font-semibold",
-                                            s.active ? "text-blue-700 dark:text-blue-400" : s.done ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"
-                                          )}>
-                                            {s.label}
-                                            {s.active && <span className="ml-1 text-[9px] text-blue-500">← you are here</span>}
-                                          </p>
-                                          <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.desc}</p>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                );
-                              })()}
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setGuidanceLeadId(null); router.push(`/leads/${l.id}?status=${l.status}`); }}
-                                className="mt-2 w-full text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center justify-center gap-1 pt-2 border-t border-slate-100 dark:border-slate-700"
-                              >
-                                Open Lead Detail <ChevronRight size={12} />
-                              </button>
-                            </div>
-                          )}
+                          {(() => {
+                            const wfState = computeWorkflowState(l, (l as any).followUps || []);
+                            const wfActions = getLeadWorkflowActions(wfState);
+                            if (wfActions.primary) {
+                              return (
+                                <button
+                                  onClick={(e) => { 
+                                    e.stopPropagation();
+                                    // Navigate to detail page where the full workflow assistant is available
+                                    router.push(`/leads/${l.id}`); 
+                                  }}
+                                  className="text-[10px] font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 px-2.5 py-1.5 rounded-lg border border-indigo-100 dark:border-indigo-800 transition-colors whitespace-nowrap"
+                                  title={wfActions.stageDescription}
+                                >
+                                  {wfActions.primary.label}
+                                </button>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                         <button
                           onClick={() => openEdit(l)}

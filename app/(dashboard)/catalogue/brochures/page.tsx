@@ -3,13 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ToastProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
-import { PageShell } from "@/components/ui/PageShell";
-import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
-import { formatDate } from "@/lib/ui-utils";
+import { cn, formatDate } from "@/lib/ui-utils";
 import {
-  Plus, Search, Trash2, BookOpen, ExternalLink, Pencil,
-  FileCheck, UploadCloud, X,
+  Search, Pencil, Trash2, BookOpen, UploadCloud,
+  X, Plus, FileCheck, ExternalLink, Save, Check
 } from "lucide-react";
 
 export default function BrochuresPage() {
@@ -171,221 +169,216 @@ export default function BrochuresPage() {
   };
 
   return (
-    <PageShell
-      title="Brochures"
-      subtitle="Create and manage marketing brochures for products"
-      breadcrumb={[{ label: "Product Catalogue", href: "/catalogue" }, { label: "Brochures" }]}
-      action={
-        <button onClick={openAddModal} className="btn-primary">
-          <Plus size={16} />
-          Add Brochure
-        </button>
-      }
-    >
-      {/* Filters */}
-      <div className="crm-card p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+    <div className="flex h-full w-full">
+      {/* Center Panel: List */}
+      <div className="w-[320px] lg:w-[400px] xl:w-[450px] shrink-0 border-r border-border flex flex-col bg-page-bg relative">
+        <div className="p-4 border-b border-border flex flex-col gap-3 shrink-0">
+          <div className="flex items-center justify-between">
+            <h1 className="text-base font-semibold text-text-primary flex items-center gap-2">
+              <BookOpen size={18} className="text-text-muted" />
+              Brochures
+            </h1>
+            <button onClick={openAddModal} className="p-1.5 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)] transition-colors" title="Add Brochure">
+              <Plus size={16} />
+            </button>
+          </div>
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
             <input
               type="text"
               placeholder="Search brochures..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="input-field pl-9"
+              className="w-full pl-9 pr-3 py-1.5 text-sm bg-card border border-border rounded-lg text-text-primary focus:outline-none focus:border-[var(--primary)] transition-colors"
             />
           </div>
-          <select
-            value={productFilter}
-            onChange={(e) => setProductFilter(e.target.value)}
-            className="select-field max-w-[220px]"
-          >
-            <option value="">All Products</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="crm-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="crm-table">
-            <thead>
-              <tr>
-                <th className="crm-th">Document</th>
-                <th className="crm-th">Product</th>
-                <th className="crm-th">Version</th>
-                <th className="crm-th">Uploaded By</th>
-                <th className="crm-th">Date</th>
-                <th className="crm-th text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="crm-td text-center py-12">
-                    <div className="inline-flex items-center gap-3 text-muted-foreground">
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-muted-foreground border-t-transparent" />
-                      <span className="text-sm font-medium">Loading brochures...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : docs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="crm-td text-center py-16">
-                    <div className="inline-flex flex-col items-center gap-2">
-                      <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
-                        <BookOpen size={28} />
-                      </div>
-                      <p className="text-sm text-foreground font-semibold mt-1">No brochures found</p>
-                      <p className="text-xs text-muted-foreground">Add your first product brochure to get started</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                docs.map((doc) => (
-                  <tr key={doc.id} className="crm-tr">
-                    <td className="crm-td">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                          <BookOpen size={16} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-medium text-foreground text-sm truncate max-w-[200px]">{doc.name}</div>
-                          <div className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">{doc.documentCode}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="crm-td">
-                      {doc.product ? (
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-foreground truncate max-w-[160px]">{doc.product.name}</div>
-                          <div className="text-xs text-muted-foreground font-mono">{doc.product.productCode}</div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="crm-td">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-                        <FileCheck size={13} className="text-muted-foreground" />
-                        v{doc.version}
-                      </span>
-                    </td>
-                    <td className="crm-td text-foreground truncate max-w-[120px]">{doc.uploadedBy?.name || "—"}</td>
-                    <td className="crm-td text-muted-foreground">{formatDate(doc.createdAt)}</td>
-                    <td className="crm-td text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="action-icon-btn text-rose-600 hover:bg-rose-50" title="View">
-                          <ExternalLink size={15} />
-                        </a>
-                        <button onClick={() => openEditModal(doc)} className="action-icon-btn" title="Edit">
-                          <Pencil size={15} />
-                        </button>
-                        <button onClick={() => handleDelete(doc.id)} className="action-icon-btn text-rose-500 hover:bg-rose-50" title="Delete">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Add/Edit Modal */}
-      <Modal
-        open={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={formData.id ? "Edit Brochure" : "Add Brochure"}
-        subtitle={formData.id ? "Update brochure details" : "Link a new brochure to a product"}
-        size="md"
-        footer={
-          <>
-            <button onClick={() => setIsModalOpen(false)} className="btn-ghost">Cancel</button>
-            <button onClick={handleSave} disabled={formLoading} className="btn-primary">
-              {formLoading ? "Saving..." : formData.id ? "Update" : "Create"}
-            </button>
-          </>
-        }
-      >
-        <div className="p-6 space-y-4">
-          <FormField label="Product" required>
-            <Select value={formData.productId} onChange={(e) => setFormData({ ...formData, productId: e.target.value })}>
-              <option value="">Select a product</option>
+          <div className="flex items-center gap-2">
+            <select
+              value={productFilter}
+              onChange={(e) => setProductFilter(e.target.value)}
+              className="flex-1 py-1 px-2 text-xs bg-card border border-border rounded text-text-secondary focus:outline-none focus:border-[var(--primary)]"
+            >
+              <option value="">All Products</option>
               {products.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.productCode})</option>
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
-            </Select>
-          </FormField>
-          <FormField label="Brochure Name" required>
-            <Input
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g. Product Marketing Brochure 2024"
-            />
-          </FormField>
-          <FormField label="File Upload" required hint="Upload PDF or external document link">
-            <div className="border-2 border-dashed border-slate-300 rounded-lg p-6 text-center hover:border-[var(--primary)]/40 transition-colors">
-              <input
-                type="file"
-                id="file-upload"
-                className="hidden"
-                onChange={handleFileChange}
-                accept=".pdf,.doc,.docx,.xls,.xlsx"
-              />
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
-                    <UploadCloud size={20} />
-                  </div>
-                  {file ? (
-                    <div className="flex items-center gap-3">
-                      <div className="text-left">
-                        <p className="text-sm font-medium text-slate-900">{file.name}</p>
-                        <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.preventDefault(); handleRemoveFile(); }}
-                        className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                      <p className="text-xs text-slate-500">PDF, DOC, XLS up to 10MB</p>
-                    </div>
-                  )}
-                </div>
-              </label>
-            </div>
-          </FormField>
-          <FormField label="Or paste external URL" hint="Alternative to file upload">
-            <Input
-              type="url"
-              value={formData.fileUrl && !file ? formData.fileUrl : ""}
-              onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
-              placeholder="https://example.com/brochure.pdf"
-              disabled={!!file}
-            />
-          </FormField>
-          <FormField label="Description">
-            <Textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Brief description of this brochure"
-              rows={2}
-            />
-          </FormField>
+            </select>
+          </div>
         </div>
-      </Modal>
+
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          {loading ? (
+            <div className="p-6 text-center text-text-muted text-sm">Loading brochures...</div>
+          ) : docs.length === 0 ? (
+            <div className="p-6 text-center flex flex-col items-center">
+              <div className="w-12 h-12 rounded-xl bg-border-subtle flex items-center justify-center mb-2">
+                <BookOpen size={24} className="text-text-muted" />
+              </div>
+              <p className="text-sm font-semibold text-text-primary">No brochures found</p>
+              <p className="text-xs text-text-muted mt-1 text-center">Add your first product brochure.</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border-subtle">
+              {docs.map((doc) => {
+                const isActive = isModalOpen && formData.id === doc.id;
+                return (
+                  <button
+                    key={doc.id}
+                    onClick={() => openEditModal(doc)}
+                    className={cn(
+                      "w-full text-left p-3 md:p-4 hover:bg-card-hover transition-colors group flex items-start gap-3",
+                      isActive ? "bg-card-hover border-l-[3px] border-l-[var(--primary)]" : "border-l-[3px] border-l-transparent"
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="font-semibold text-sm text-text-primary truncate">{doc.name}</span>
+                        <span className="text-[10px] font-medium text-text-secondary bg-border-subtle px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1">
+                          <FileCheck size={12} />
+                          v{doc.version}
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-muted mb-1.5 font-mono truncate">{doc.documentCode}</div>
+                      <div className="text-xs text-text-secondary truncate mb-2">
+                        {doc.product ? `Product: ${doc.product.name}` : "Unlinked"}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-text-muted">
+                          {doc.uploadedBy?.name || "—"} • {formatDate(doc.createdAt)}
+                        </span>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="p-1 rounded text-text-muted hover:bg-blue-50 hover:text-blue-600" title="View">
+                            <ExternalLink size={14} />
+                          </a>
+                          <div onClick={(e) => { e.stopPropagation(); handleDelete(doc.id); }} className="p-1 rounded text-text-muted hover:bg-danger-bg hover:text-danger-text" title="Delete">
+                            <Trash2 size={14} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right Panel: Context / Details Form */}
+      <div className="flex-1 flex flex-col min-w-0 bg-card overflow-hidden">
+        {isModalOpen ? (
+          <div className="flex flex-col h-full">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-page-bg shrink-0">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setIsModalOpen(false)} className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-border-subtle transition-colors lg:hidden">
+                  <X size={18} />
+                </button>
+                <h2 className="text-base font-semibold text-text-primary">
+                  {formData.id ? "Edit Brochure" : "Add New Brochure"}
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setIsModalOpen(false)} className="px-3 py-1.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-border-subtle rounded-lg transition-colors">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={formLoading}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-[var(--primary)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50"
+                >
+                  <Save size={14} />
+                  {formLoading ? "Saving..." : (formData.id ? "Update" : "Create")}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+              <div className="max-w-2xl mx-auto space-y-6">
+                <FormField label="Product" required>
+                  <Select value={formData.productId} onChange={(e) => setFormData({ ...formData, productId: e.target.value })}>
+                    <option value="">Select a product</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} ({p.productCode})</option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Brochure Name" required>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g. Product Marketing Brochure 2024"
+                  />
+                </FormField>
+                <FormField label="File Upload" hint="Upload PDF or external document link">
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-[var(--primary)]/40 transition-colors">
+                    <input
+                      type="file"
+                      id="file-upload"
+                      className="hidden"
+                      onChange={handleFileChange}
+                      accept=".pdf,.doc,.docx,.xls,.xlsx"
+                    />
+                    <label htmlFor="file-upload" className="cursor-pointer">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-10 h-10 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center">
+                          <UploadCloud size={20} />
+                        </div>
+                        {file ? (
+                          <div className="flex items-center gap-3">
+                            <div className="text-left">
+                              <p className="text-sm font-medium text-text-primary">{file.name}</p>
+                              <p className="text-xs text-text-muted">{(file.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.preventDefault(); handleRemoveFile(); }}
+                              className="p-1.5 rounded-full hover:bg-border-subtle text-text-muted hover:text-text-primary transition-colors"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-sm font-medium text-text-secondary">Click to upload or drag and drop</p>
+                            <p className="text-xs text-text-muted mt-1">PDF, DOC, XLS up to 10MB</p>
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </FormField>
+                <FormField label="Or paste external URL" hint="Alternative to file upload">
+                  <Input
+                    type="url"
+                    value={formData.fileUrl && !file ? formData.fileUrl : ""}
+                    onChange={(e) => setFormData({ ...formData, fileUrl: e.target.value })}
+                    placeholder="https://example.com/brochure.pdf"
+                    disabled={!!file}
+                  />
+                </FormField>
+                <FormField label="Description">
+                  <Textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Brief description of this brochure"
+                    rows={3}
+                  />
+                </FormField>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+            <div className="w-16 h-16 rounded-2xl bg-page-bg border border-border flex items-center justify-center mb-4">
+              <BookOpen className="w-8 h-8 text-text-muted" />
+            </div>
+            <h2 className="text-lg font-semibold text-text-primary">Select a Brochure</h2>
+            <p className="text-sm text-text-muted max-w-sm mt-2">
+              Choose a brochure from the list to view or edit its details, or upload a new one.
+            </p>
+          </div>
+        )}
+      </div>
 
       <ConfirmModal
         isOpen={confirmState.isOpen}
@@ -395,6 +388,6 @@ export default function BrochuresPage() {
         onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })}
         isDestructive={true}
       />
-    </PageShell>
+    </div>
   );
 }

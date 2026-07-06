@@ -21,11 +21,15 @@ async function main() {
   const v4Company = await prisma.company.findFirst({
     where: { name: { contains: "Sri Lakshmi" } }
   });
+  const sukiCorpCompany = await prisma.company.findFirst({
+    where: { name: { contains: "Suki Software Corp" } }
+  });
 
   const tenants = [
     { name: "V2 (Bharat Metal Works)", company: v2Company, variant: "V2" },
     { name: "V3 (Kaveri Solutions)", company: v3Company, variant: "V3" },
     { name: "V4 (Sri Lakshmi)", company: v4Company, variant: "V4" },
+    { name: "V4 (Suki Software Corp)", company: sukiCorpCompany, variant: "V4" },
   ];
 
   const CATEGORIES = [
