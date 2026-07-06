@@ -26,6 +26,10 @@ export interface AuditOptions {
   context?: AuditContext | null;
   /** Severity classification. Defaults to "INFO". */
   severity?: AuditSeverity;
+  /** ID of the user on whose behalf the action was performed (when Admin/SalesManager acts for another user) */
+  onBehalfOf?: string;
+  /** Flag indicating this action was performed by an Admin/SalesManager, not the assigned user */
+  adminAction?: boolean;
 }
 
 /**
@@ -57,6 +61,11 @@ export async function logAudit(
   options?: AuditOptions
 ) {
   try {
+    // Enrich newState with on-behalf-of metadata if present
+    const enrichedNewState = options?.onBehalfOf || options?.adminAction
+      ? { ...(options?.newState || {}), _onBehalfOf: options?.onBehalfOf, _adminAction: options?.adminAction }
+      : options?.newState;
+
     await prisma.auditLog.create({
       data: {
         userId,
@@ -65,7 +74,7 @@ export async function logAudit(
         details,
         resourceId:    options?.resourceId    ?? null,
         previousState: options?.previousState ? JSON.stringify(options.previousState) : undefined,
-        newState:      options?.newState ? JSON.stringify(options.newState) : undefined,
+        newState:      enrichedNewState ? JSON.stringify(enrichedNewState) : undefined,
         ipAddress:     options?.context?.ipAddress  ?? null,
         userAgent:     options?.context?.userAgent  ?? null,
         severity:      options?.severity ?? "INFO",

@@ -949,6 +949,16 @@ body {
 .animate-slide-right { animation: slideInRight 0.25s ease forwards; }
 .animate-scale-in   { animation: scaleIn 0.18s ease forwards; }
 
+/* ─── Collapsible Section Animations ────────────────────────────────────────── */
+@keyframes collapseFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.collapsible-body-enter {
+  animation: collapseFadeIn 0.25s ease forwards;
+}
+
 /* ─── Steppers ───────────────────────────────────────────────────────────────── */
 @utility stepper-line {
   flex: 1;

@@ -97,6 +97,7 @@ model User {
   createdReportSchedules      ReportSchedule[]            @relation("CreatedReportSchedules")
   rfqs                        RFQ[]                       @relation("AssignedRFQs")
   costingRFQs                 RFQ[]                       @relation("CostingOwnerRFQs")
+  revisedRFQs                 RFQ[]                       @relation("RevisedRFQs")
   submittedCostingSheets      RFQCostingSheet[]           @relation("SubmittedCostingSheets")
   changedRFQStatuses          RFQStatusHistory[]          @relation("ChangedRFQStatus")
   salesTargets                SalesTarget[]               @relation("AssignedSalesTargets")
@@ -643,6 +644,7 @@ model OpportunityDetail {
   demoRejectionReason    String?
   demoRejectionRemarks   String?   @db.NVarChar(Max)
   demoCompetitorName     String?
+  demoFollowUpDate       DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
   apiThirdPartyReqs      String?   @db.NVarChar(Max)
@@ -1242,6 +1244,8 @@ model RFQ {
   customerDueDate      DateTime?
   priority             String             @default("Normal")
   opportunityId        String?
+  revisedAt            DateTime?
+  revisedById          String?
   quotations           Quotation[]
   assignedUser         User?              @relation("AssignedRFQs", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   company              Company?           @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1250,6 +1254,7 @@ model RFQ {
   customer             Customer           @relation(fields: [customerId], references: [id], onUpdate: NoAction)
   opportunity          Deal?              @relation("OpportunityRFQs", fields: [opportunityId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   product              Product?           @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revisedBy            User?              @relation("RevisedRFQs", fields: [revisedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   costingSheets        RFQCostingSheet[]
   lineItems            RFQLineItem[]
   rfqStatusHistories   RFQStatusHistory[]
@@ -1264,6 +1269,7 @@ model RFQ {
   @@index([customerDueDate])
   @@index([costingOwnerId])
   @@index([opportunityId])
+  @@index([revisedAt])
   @@index([status, customerDueDate, assignedUserId])
 }
 
@@ -1569,34 +1575,42 @@ model PurchaseOrderItem {
 }
 
 model CRMDocument {
-  id           String    @id @default(uuid())
-  name         String
-  documentType String
-  entityType   String
-  entityId     String
-  fileUrl      String    @db.NVarChar(Max)
-  fileSize     Int?
-  mimeType     String?
-  version      Int       @default(1)
-  description  String?   @db.NVarChar(Max)
-  tags         String?   @db.NVarChar(Max)
-  uploadedById String
-  companyId    String?
-  deletedAt    DateTime?
-  deletedById  String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  customerId   String?
-  documentCode String    @unique
-  company      Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  Customer     Customer? @relation(fields: [customerId], references: [id])
-  deletedBy    User?     @relation("DocumentDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  uploadedBy   User      @relation("UploadedDocuments", fields: [uploadedById], references: [id], onUpdate: NoAction)
+  id                String    @id @default(uuid())
+  name              String
+  documentType      String
+  entityType        String
+  entityId          String
+  fileUrl           String    @db.NVarChar(Max)
+  fileSize          Int?
+  mimeType          String?
+  version           Int       @default(1)
+  description       String?   @db.NVarChar(Max)
+  tags              String?   @db.NVarChar(Max)
+  uploadedById      String
+  companyId         String?
+  deletedAt         DateTime?
+  deletedById       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  customerId        String?
+  documentCode      String    @unique
+  parentDocumentId  String?
+  revisionNumber    Int       @default(1)
+  isCurrent         Boolean   @default(true)
+  company           Company?  @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Customer          Customer? @relation(fields: [customerId], references: [id])
+  deletedBy         User?     @relation("DocumentDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  uploadedBy        User      @relation("UploadedDocuments", fields: [uploadedById], references: [id], onUpdate: NoAction)
+  parentDocument    CRMDocument? @relation("DocumentRevisions", fields: [parentDocumentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revisions         CRMDocument[] @relation("DocumentRevisions")
 
   @@index([entityType, entityId])
   @@index([documentType])
   @@index([uploadedById])
   @@index([companyId])
+  @@index([customerId])
+  @@index([parentDocumentId])
+  @@index([isCurrent])
 }
 
 model ApprovalRequest {
@@ -1912,6 +1926,7 @@ model RFQLineItem {
   updatedAt             DateTime  @updatedAt
   product               Product?  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   rfq                   RFQ       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  costingSheets         RFQCostingSheet[]
 
   @@index([rfqId])
   @@index([productId])
@@ -1920,18 +1935,25 @@ model RFQLineItem {
 model RFQCostingSheet {
   id                String   @id @default(uuid())
   rfqId             String
+  rfqLineItemId     String?
   materialCost      Float    @default(0)
   labourCost        Float    @default(0)
   overheadPercent   Float    @default(0)
   marginPercent     Float    @default(0)
+  freightCost       Float    @default(0)
+  packagingCost     Float    @default(0)
+  toolingCost       Float    @default(0)
+  otherCost         Float    @default(0)
   computedUnitPrice Float    @default(0)
   submittedById     String?
   notes             String?  @db.NVarChar(Max)
   createdAt         DateTime @default(now())
   rfq               RFQ      @relation(fields: [rfqId], references: [id], onUpdate: NoAction)
+  rfqLineItem       RFQLineItem? @relation(fields: [rfqLineItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   submittedBy       User?    @relation("SubmittedCostingSheets", fields: [submittedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([rfqId])
+  @@index([rfqLineItemId])
   @@index([createdAt])
   @@index([submittedById])
 }

@@ -9,7 +9,7 @@ import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/ui-utils";
 import {
-  Plus, Search, Pencil, Trash2, X, Tag, ChevronRight,
+  Plus, Search, Pencil, Trash2, X, Tag, FolderTree,
 } from "lucide-react";
 
 export default function CategoriesPage() {
@@ -160,43 +160,27 @@ export default function CategoriesPage() {
   const filtered = categories;
 
   return (
-    <div className="p-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-        <a href="/catalogue" className="hover:text-foreground transition-colors">
-          Product Catalogue
-        </a>
-        <ChevronRight size={14} />
-        <span className="text-foreground">Categories</span>
-      </div>
-
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Categories</h1>
-          <p className="text-sm text-muted-foreground mt-1">Organize products into hierarchical categories</p>
-        </div>
-        <button
-          onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-        >
+    <PageShell
+      title="Categories"
+      subtitle="Organize products into hierarchical categories"
+      breadcrumb={[{ label: "Product Catalogue", href: "/catalogue" }, { label: "Categories" }]}
+      action={
+        <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="btn-primary">
           <Plus size={16} />
           Add Category
         </button>
-      </div>
-
+      }
+    >
       {/* Search bar */}
-      <div className="mb-4">
-        <div className="relative max-w-sm">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search categories..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-input rounded-md bg-background text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-          />
-        </div>
+      <div className="relative max-w-sm">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Search categories..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="input-field pl-9"
+        />
       </div>
 
       {/* Table */}
@@ -224,27 +208,34 @@ export default function CategoriesPage() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="crm-td text-center py-12 text-muted-foreground">
-                    <Tag size={40} className="mx-auto mb-2" />
-                    <p className="text-sm mt-2">No categories yet</p>
-                    <button
-                      onClick={() => { resetForm(); setIsModalOpen(true); }}
-                      className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                    >
-                      <Plus size={16} />
-                      Add Category
-                    </button>
+                  <td colSpan={5} className="crm-td text-center py-16">
+                    <div className="inline-flex flex-col items-center gap-2">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <FolderTree size={28} className="text-slate-400" />
+                      </div>
+                      <p className="text-sm text-foreground font-semibold mt-1">No categories yet</p>
+                      <p className="text-xs text-muted-foreground">Create your first product category to get started</p>
+                      <button
+                        onClick={() => { resetForm(); setIsModalOpen(true); }}
+                        className="btn-primary mt-3"
+                      >
+                        <Plus size={16} />
+                        Add Category
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 filtered.map((category) => (
-                  <tr key={category.id} className="crm-tr">
+                  <tr key={category.id} className="crm-tr group">
                     <td className="crm-td">
-                      <div className="flex items-center gap-2">
-                        <Tag size={16} className="text-muted-foreground" />
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                          <Tag size={15} />
+                        </div>
                         <button
                           onClick={() => openEditModal(category)}
-                          className="font-medium text-sm text-foreground hover:underline"
+                          className="font-medium text-sm text-foreground hover:text-[var(--accent)] transition-colors text-left"
                         >
                           {category.name}
                         </button>
@@ -256,27 +247,31 @@ export default function CategoriesPage() {
                       </span>
                     </td>
                     <td className="crm-td text-center">
-                      <Badge variant="secondary">{category.productCount || 0}</Badge>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
+                        {category.productCount || 0}
+                      </span>
                     </td>
                     <td className="crm-td text-center">
                       {category.isActive ? (
-                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                           Active
-                        </Badge>
+                        </span>
                       ) : (
-                        <Badge variant="secondary">Inactive</Badge>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-muted text-muted-foreground">
+                          Inactive
+                        </span>
                       )}
                     </td>
                     <td className="crm-td text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEditModal(category)} className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Edit">
-                          <Pencil size={16} />
+                        <button onClick={() => openEditModal(category)} className="action-icon-btn" title="Edit">
+                          <Pencil size={15} />
                         </button>
-                        <button onClick={() => handleToggleActive(category.id, category.isActive)} className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-yellow-500 hover:bg-muted transition-colors" title={category.isActive ? "Deactivate" : "Activate"}>
-                          <X size={16} />
+                        <button onClick={() => handleToggleActive(category.id, category.isActive)} className={cn("action-icon-btn", category.isActive ? "text-amber-600 hover:bg-amber-50" : "text-emerald-600 hover:bg-emerald-50")} title={category.isActive ? "Deactivate" : "Activate"}>
+                          {category.isActive ? <X size={15} /> : <Plus size={15} />}
                         </button>
-                        <button onClick={() => handleDelete(category.id)} className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-red-500 hover:bg-muted transition-colors" title="Delete">
-                          <Trash2 size={16} />
+                        <button onClick={() => handleDelete(category.id)} className="action-icon-btn text-rose-500 hover:bg-rose-50" title="Delete">
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </td>
@@ -366,6 +361,6 @@ export default function CategoriesPage() {
         onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })}
         isDestructive={true}
       />
-    </div>
+    </PageShell>
   );
 }

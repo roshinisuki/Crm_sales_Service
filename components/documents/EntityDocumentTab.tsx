@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
@@ -59,6 +59,8 @@ export default function EntityDocumentTab({
   });
   const { user } = useAuth();
   const toast = useToast();
+  const replaceFileRef = useRef<HTMLInputElement>(null);
+  const [replacingDocId, setReplacingDocId] = useState<string | null>(null);
 
   const fetchDocs = useCallback(async () => {
     setLoading(true);
@@ -99,6 +101,27 @@ export default function EntityDocumentTab({
 
   const canDelete = (doc: any) => user?.role === "Admin" || user?.role === "SalesManager" || doc.uploadedById === user?.id;
 
+  const handleReplaceFile = async (file: File) => {
+    if (!replacingDocId) return;
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/documents/${replacingDocId}/revision`, { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("New version uploaded");
+        fetchDocs();
+      } else {
+        toast.error(data.message || "Failed to upload new version");
+      }
+    } catch {
+      toast.error("Failed to upload new version");
+    } finally {
+      setReplacingDocId(null);
+      if (replaceFileRef.current) replaceFileRef.current.value = "";
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -122,15 +145,9 @@ export default function EntityDocumentTab({
         <div className="text-center py-10">
           <div className="text-3xl mb-2">📂</div>
           <div className="font-medium text-sm text-slate-600 mb-1">No documents attached</div>
-          <div className="text-xs text-slate-400 mb-3">
-            Upload files related to this {entityType === "SampleRequest" ? "sample" : entityType.toLowerCase()}
+          <div className="text-xs text-slate-400">
+            Click <span className="font-medium text-[var(--primary)]">+ Upload</span> above to add files related to this {entityType === "SampleRequest" ? "sample" : entityType.toLowerCase()}
           </div>
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--primary)] text-white rounded-lg text-xs font-medium hover:bg-[var(--primary-hover)]"
-          >
-            + Upload First Document
-          </button>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -167,6 +184,17 @@ export default function EntityDocumentTab({
                     </svg>
                   </button>
                 )}
+                {user?.role !== "Customer" && (
+                  <button
+                    onClick={() => { setReplacingDocId(doc.id); replaceFileRef.current?.click(); }}
+                    className="p-1.5 rounded-md hover:bg-blue-50 text-blue-500"
+                    title="Replace with new version"
+                  >
+                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 4v6h6M20 20v-6h-6M4 10a16 16 0 0114-6M20 14a16 16 0 01-14 6" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -197,6 +225,13 @@ export default function EntityDocumentTab({
         onConfirm={confirmState.action}
         onCancel={() => setConfirmState({ ...confirmState, isOpen: false })}
         isDestructive
+      />
+
+      <input
+        ref={replaceFileRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReplaceFile(f); }}
       />
     </div>
   );

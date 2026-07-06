@@ -473,10 +473,10 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
     const currentStatus = currentDeal.status;
 
     // MeetingScheduled: only validate required fields for stage transition
-    // Required: meetingDate, meetingType, meetingStatus, nextFollowUpDate
+    // Required: meetingDate, meetingType, meetingStatus
     if (status === "MeetingScheduled" && currentStatus === "MeetingScheduled") {
-      if (!details || !details.meetingDate || !details.meetingType || !details.meetingStatus || !details.nextFollowUpDate) {
-        throw new Error("Validation Failed: Must complete required Meeting & Demo fields (Date, Type, Status, Next Follow-up Date).");
+      if (!details || !details.meetingDate || !details.meetingType || !details.meetingStatus) {
+        throw new Error("Validation Failed: Must complete required Meeting fields (Date, Type, Status).");
       }
     }
     if (status === "ProposalSent") {

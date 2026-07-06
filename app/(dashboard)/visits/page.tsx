@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
-import { SummaryCard } from "@/components/ui/SummaryCard";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
@@ -12,7 +11,7 @@ import { ACTIVITY_STATUS } from "@/lib/module-status-config";
 import { formatDate, formatDateTime, cn, getCheckInWindow } from "@/lib/ui-utils";
 import {
   Plus, Eye, MapPin, CheckCircle, Clock, CalendarClock,
-  AlertTriangle, Briefcase, TrendingUp, X, ChevronRight,
+  AlertTriangle, Briefcase, TrendingUp, X, ChevronRight, Users,
 } from "lucide-react";
 
 const STATUS_TABS = [
@@ -240,13 +239,13 @@ function VisitsListContent() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleOpenCompliance}
-            className="px-3 py-2 text-sm font-bold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-1.5"
+            className="px-3.5 py-2 text-sm font-semibold text-slate-600 border border-slate-200/80 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-1.5"
           >
-            <AlertTriangle size={15} /> Key Account Compliance
+            <AlertTriangle size={15} /> Compliance
           </button>
           <button
             onClick={() => router.push("/visits/new")}
-            className="px-4 py-2 bg-[var(--primary)] text-white font-bold text-sm rounded-lg hover:bg-[var(--primary-hover)] flex items-center gap-1.5"
+            className="px-4 py-2 bg-[var(--primary)] text-white font-semibold text-sm rounded-xl hover:bg-[var(--primary-hover)] transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md"
           >
             <Plus size={15} /> Plan Visit
           </button>
@@ -255,13 +254,28 @@ function VisitsListContent() {
     >
       <div className="space-y-4">
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <SummaryCard label="Planned" value={kpiPlanned.toString()} icon={<CalendarClock size={20} />} variant="indigo" />
-          <SummaryCard label="Checked In" value={kpiCheckedIn.toString()} icon={<MapPin size={20} />} variant="light" />
-          <SummaryCard label="Completed" value={kpiCompleted.toString()} icon={<CheckCircle size={20} />} variant="dark" />
-          <SummaryCard label="Missed" value={kpiMissed.toString()} icon={<AlertTriangle size={20} />} variant="orange" />
-          <SummaryCard label="Needs Review" value={kpiNeedsReview.toString()} icon={<Clock size={20} />} variant="orange" />
-          <SummaryCard label="No Show" value={kpiNoShow.toString()} icon={<X size={20} />} variant="light" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[
+            { label: "Planned", value: kpiPlanned, icon: CalendarClock, tint: "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400" },
+            { label: "Checked In", value: kpiCheckedIn, icon: MapPin, tint: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400" },
+            { label: "Completed", value: kpiCompleted, icon: CheckCircle, tint: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" },
+            { label: "Missed", value: kpiMissed, icon: AlertTriangle, tint: "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400" },
+            { label: "Needs Review", value: kpiNeedsReview, icon: Clock, tint: "bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400" },
+            { label: "No Show", value: kpiNoShow, icon: X, tint: "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400" },
+          ].map((kpi) => {
+            const Icon = kpi.icon;
+            return (
+              <div key={kpi.label} className="crm-card p-4 flex items-center gap-3">
+                <div className={cn("flex items-center justify-center w-10 h-10 rounded-xl shrink-0", kpi.tint)}>
+                  <Icon size={18} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">{kpi.label}</p>
+                  <p className="text-xl font-bold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">{kpi.value}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Status Filter Bar */}
@@ -273,6 +287,17 @@ function VisitsListContent() {
 
         {/* Visits Table */}
         <div className="crm-card overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--surface-2)] text-[var(--text-secondary)]">
+                <Users size={15} />
+              </span>
+              <div>
+                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">All Visits</h3>
+                <p className="text-[11.5px] text-[var(--text-tertiary)]">{visits.length} visit{visits.length !== 1 ? "s" : ""} in current view</p>
+              </div>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="crm-table">
               <thead>
@@ -322,7 +347,7 @@ function VisitsListContent() {
                           <p className="text-[11px] text-slate-400">{v.plantLocation?.city}</p>
                         </td>
                         <td className="crm-td">
-                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-md border border-indigo-100">
+                          <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full border border-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800/50">
                             {v.purpose}
                           </span>
                         </td>
@@ -383,10 +408,10 @@ function VisitsListContent() {
                                   onClick={() => !isCheckInTooLate && handleCheckIn(v.id, v.visitType)}
                                   disabled={isCheckInTooLate}
                                   className={cn(
-                                    "px-2.5 py-1 text-white font-bold text-xs rounded-lg flex items-center gap-1",
+                                    "px-2.5 py-1 text-white font-semibold text-xs rounded-lg flex items-center gap-1 transition-all",
                                     isCheckInTooLate
                                       ? "bg-amber-300 cursor-not-allowed"
-                                      : "bg-amber-600 hover:bg-amber-700"
+                                      : "bg-amber-600 hover:bg-amber-700 shadow-sm hover:shadow"
                                   )}
                                 >
                                   <MapPin size={12} /> Check In
@@ -400,38 +425,38 @@ function VisitsListContent() {
                             )}
                             {v.status === "CHECKED_IN" && (
                               <button
-                                onClick={() => router.push(`/visits/${v.id}`)}
-                                className="px-2.5 py-1 bg-teal-600 text-white font-bold text-xs rounded-lg hover:bg-teal-700"
+                                onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
+                                className="px-2.5 py-1 bg-teal-600 text-white font-semibold text-xs rounded-lg hover:bg-teal-700 transition-all shadow-sm hover:shadow"
                               >
                                 Check Out
                               </button>
                             )}
                             {v.status === "CHECKED_OUT" && (
                               <button
-                                onClick={() => router.push(`/visits/${v.id}`)}
-                                className="px-2.5 py-1 bg-[var(--primary)] text-white font-bold text-xs rounded-lg hover:bg-[var(--primary-hover)]"
+                                onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
+                                className="px-2.5 py-1 bg-[var(--primary)] text-white font-semibold text-xs rounded-lg hover:bg-[var(--primary-hover)] transition-all shadow-sm hover:shadow"
                               >
                                 Complete
                               </button>
                             )}
                             {v.status === "NEEDS_REVIEW" && (
                               <button
-                                onClick={() => router.push(`/visits/${v.id}`)}
-                                className="px-2.5 py-1 bg-orange-600 text-white font-bold text-xs rounded-lg hover:bg-orange-700"
+                                onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
+                                className="px-2.5 py-1 bg-orange-600 text-white font-semibold text-xs rounded-lg hover:bg-orange-700 transition-all shadow-sm hover:shadow"
                               >
                                 Review
                               </button>
                             )}
                             {(v.status === "PLANNED" || v.status === "MISSED") && (
                               <button
-                                onClick={() => router.push(`/visits/${v.id}`)}
-                                className="px-2.5 py-1 bg-slate-50 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-100 border border-slate-200"
+                                onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
+                                className="px-2.5 py-1 bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg hover:bg-slate-100 border border-slate-200 transition-all"
                               >
                                 Reschedule
                               </button>
                             )}
                             <button
-                              onClick={() => router.push(`/visits/${v.id}`)}
+                              onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
                               className="p-1.5 text-slate-400 hover:text-[var(--primary)] hover:bg-slate-50 rounded-lg transition-all"
                               title="View"
                             >

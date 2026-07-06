@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import Link from "next/link";
 import {
   getFollowUpByIdAction,
@@ -56,6 +57,7 @@ export default function FollowUpDetailsPage({ params }: { params: Promise<{ id: 
   const toast = useToast();
   const { user } = useAuth();
   const [followUp, setFollowUp] = useState<any>(null);
+  useSyncUrlParam(followUp?.status, "status");
   const [loading, setLoading] = useState(true);
 
   // Mark Complete Modal State

@@ -53,7 +53,11 @@ export default function NewQuotationPage() {
     assignedUserId: "",
   });
 
-  const [items, setItems] = useState<any[]>([{ productId: "", description: "", quantity: "1", unitPrice: "0" }]);
+  const [items, setItems] = useState<any[]>([{ productId: "", description: "", quantity: "1", unitPrice: "0", hsn: "", unit: "Nos", discountPercent: "0", taxPercent: "18" }]);
+  const [paymentTerms, setPaymentTerms] = useState("");
+  const [deliveryTerms, setDeliveryTerms] = useState("");
+  const [freightTerms, setFreightTerms] = useState("");
+  const [leadTimeDays, setLeadTimeDays] = useState("");
 
   useEffect(() => {
     getCustomersAction().then(res => {
@@ -142,15 +146,24 @@ export default function NewQuotationPage() {
     }
   }, [form.customerId]);
 
-  const totalAmount = items.reduce((sum, item) => {
+  const subtotal = items.reduce((sum, item) => {
     const qty = parseFloat(item.quantity) || 0;
     const price = parseFloat(item.unitPrice) || 0;
-    return sum + qty * price;
+    const lineDisc = parseFloat(item.discountPercent) || 0;
+    return sum + qty * price * (1 - lineDisc / 100);
+  }, 0);
+  const taxAmount = items.reduce((sum, item) => {
+    const qty = parseFloat(item.quantity) || 0;
+    const price = parseFloat(item.unitPrice) || 0;
+    const lineDisc = parseFloat(item.discountPercent) || 0;
+    const taxPct = parseFloat(item.taxPercent) || 18;
+    return sum + qty * price * (1 - lineDisc / 100) * (taxPct / 100);
   }, 0);
   const discountPercent = parseFloat(form.discountPercent) || 0;
-  const finalAmount = totalAmount * (1 - discountPercent / 100);
+  const discountAmount = subtotal * (discountPercent / 100);
+  const finalAmount = subtotal - discountAmount + taxAmount;
 
-  const addItem = () => setItems([...items, { productId: "", description: "", quantity: "1", unitPrice: "0" }]);
+  const addItem = () => setItems([...items, { productId: "", description: "", quantity: "1", unitPrice: "0", hsn: "", unit: "Nos", discountPercent: "0", taxPercent: "18" }]);
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
   const updateItem = (idx: number, field: string, value: string) => {
     setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
@@ -169,7 +182,7 @@ export default function NewQuotationPage() {
       const res = await fetch("/api/quotations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...submitForm, items }),
+        body: JSON.stringify({ ...submitForm, items, paymentTerms, deliveryTerms, freightTerms, leadTimeDays }),
       });
       const data = await res.json();
       const opportunityId = searchParams.get("opportunityId");
@@ -296,30 +309,85 @@ export default function NewQuotationPage() {
           </div>
           <div className="space-y-2">
             {items.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 items-start">
-                <div className="col-span-3">
-                  <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer">
-                    <option value="">-- Product --</option>
-                    {products.map((p: any) => <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>)}
-                  </select>
+              <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="grid grid-cols-12 gap-2 items-start">
+                  <div className="col-span-3">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Product</label>
+                    <select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 cursor-pointer">
+                      <option value="">-- Product --</option>
+                      {products.map((p: any) => <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-3">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Description</label>
+                    <input type="text" placeholder="Description" value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">HSN</label>
+                    <input type="text" placeholder="HSN" value={item.hsn} onChange={(e) => updateItem(idx, "hsn", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Qty</label>
+                    <input type="number" step="0.01" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">UOM</label>
+                    <input type="text" placeholder="UOM" value={item.unit} onChange={(e) => updateItem(idx, "unit", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Price</label>
+                    <input type="number" step="0.01" placeholder="Price" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Disc%</label>
+                    <input type="number" step="0.01" min="0" max="100" placeholder="0" value={item.discountPercent} onChange={(e) => updateItem(idx, "discountPercent", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="block text-[10px] font-semibold text-slate-500 mb-0.5">Tax%</label>
+                    <input type="number" step="0.01" placeholder="18" value={item.taxPercent} onChange={(e) => updateItem(idx, "taxPercent", e.target.value)} className="w-full px-2 py-1.5 rounded-lg bg-white border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+                  </div>
+                  <div className="col-span-0 flex flex-col items-end justify-end pb-1">
+                    <span className="text-xs font-medium text-slate-700">{((parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0) * (1 - (parseFloat(item.discountPercent) || 0) / 100)).toFixed(2)}</span>
+                    {items.length > 1 && <button type="button" onClick={() => removeItem(idx)} className="p-1 rounded-lg hover:bg-red-50 text-red-500 cursor-pointer mt-1"><Ico d={icons.x} size={12} /></button>}
+                  </div>
                 </div>
-                <div className="col-span-3"><input type="text" placeholder="Description" value={item.description} onChange={(e) => updateItem(idx, "description", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
-                <div className="col-span-2"><input type="number" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
-                <div className="col-span-2"><input type="number" step="0.01" placeholder="Unit Price" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="w-full px-2 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" /></div>
-                <div className="col-span-1 text-right text-xs font-medium text-slate-700 py-2">{((parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0)).toFixed(2)}</div>
-                <div className="col-span-1 flex justify-end">{items.length > 1 && <button type="button" onClick={() => removeItem(idx)} className="p-2 rounded-lg hover:bg-red-50 text-red-500 cursor-pointer"><Ico d={icons.x} size={14} /></button>}</div>
               </div>
             ))}
           </div>
         </div>
 
+        {/* Commercial Terms */}
+        <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+          <h3 className="text-sm font-bold text-slate-700">Commercial Terms</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Payment Terms</label>
+              <input type="text" placeholder="e.g. 50% advance, 50% on delivery" value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Delivery Terms</label>
+              <input type="text" placeholder="e.g. Ex-Works" value={deliveryTerms} onChange={(e) => setDeliveryTerms(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Freight Terms</label>
+              <input type="text" placeholder="e.g. Extra at actuals" value={freightTerms} onChange={(e) => setFreightTerms(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Lead Time (days)</label>
+              <input type="number" placeholder="e.g. 15" value={leadTimeDays} onChange={(e) => setLeadTimeDays(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
+            </div>
+          </div>
+        </div>
+
         {/* Totals */}
         <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-          <div className="flex justify-between text-sm"><span className="text-slate-600">Grand Total</span><span className="font-medium text-slate-800">{formatCurrency(totalAmount)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-slate-600">Subtotal</span><span className="font-medium text-slate-800">{formatCurrency(subtotal)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-slate-600">Tax (GST)</span><span className="font-medium text-slate-800">+{formatCurrency(taxAmount)}</span></div>
           <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-600">Discount %</span>
+            <span className="text-slate-600">Header Discount %</span>
             <input type="number" step="0.01" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} className="w-24 px-2 py-1 rounded-lg bg-white border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20" />
           </div>
+          <div className="flex justify-between text-sm text-red-600"><span>Discount Amount</span><span>-{formatCurrency(discountAmount)}</span></div>
           <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-2"><span className="text-slate-800">Final Amount</span><span className="text-[var(--primary)]">{formatCurrency(finalAmount)}</span></div>
         </div>
 

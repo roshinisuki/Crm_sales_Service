@@ -415,14 +415,16 @@ export async function createLeadAction(data: {
       },
     }).catch(() => {}); // Non-blocking
 
-    // V2: Notify assigned user
+    // V2: Notify assigned user (with ?action=contact so the lead detail page
+    // auto-opens the Call Log modal for their first interaction)
     if (newLead.assignedUserId) {
+      const isSelfAssigned = newLead.assignedUserId === userPayload.id;
       await dispatchNotification({
         userId: newLead.assignedUserId,
-        title: "New Lead Assigned",
-        message: `New lead assigned: ${data.companyName || name} (${leadCode})`,
+        title: isSelfAssigned ? "New Lead Created" : "New Lead Assigned",
+        message: `${isSelfAssigned ? "Lead created" : "New lead assigned"}: ${data.companyName || name} (${leadCode})`,
         type: "lead",
-        link: `/leads/${newLead.id}`,
+        link: `/leads/${newLead.id}?action=contact`,
       }).catch(() => {});
     }
 
@@ -782,8 +784,25 @@ export async function contactLeadAction(
       return { success: false, message: "Call notes/outcome are required to mark a lead as Contacted." };
     }
 
+    // Fetch assigned user name and acting user name for "on behalf of" tagging
+    let assignedUserName: string | undefined;
+    let actingUserName: string | undefined;
+    if (lead.assignedUserId) {
+      const [assignedUser, actingUser] = await Promise.all([
+        prisma.user.findUnique({ where: { id: lead.assignedUserId }, select: { name: true } }),
+        prisma.user.findUnique({ where: { id: userPayload.id }, select: { name: true } }),
+      ]);
+      assignedUserName = assignedUser?.name;
+      actingUserName = actingUser?.name;
+    }
+
     const now = new Date();
     const isFirstResponse = !lead.firstRespondedAt;
+
+    // Detect if Admin/SalesManager is acting on behalf of the assigned executive
+    const isActingOnBehalf = lead.assignedUserId && lead.assignedUserId !== userPayload.id &&
+      (userPayload.role === "Admin" || userPayload.role === "SalesManager");
+    const onBehalfTag = isActingOnBehalf ? ` [Logged by ${actingUserName || userPayload.role} on behalf of ${assignedUserName || "assigned executive"}]` : "";
 
     // 1. Create the Call Activity FIRST (with user-provided details)
     //    Status is NOT updated until the call log is persisted.
@@ -796,7 +815,7 @@ export async function contactLeadAction(
         dealId: null,
         direction: callData.direction?.trim() || "Outbound",
         duration: callData.duration ?? null,
-        content: callData.content.trim(),
+        content: callData.content.trim() + onBehalfTag,
         status: callData.status?.trim() || "Completed",
         sentByUserId: userPayload.id,
         sentAt: now,
@@ -839,12 +858,14 @@ export async function contactLeadAction(
       userPayload.id,
       "LEADS",
       "CONTACT_LEAD",
-      `Lead contacted: ${updated.name} (${updated.leadCode}) — status changed from New to Contacted${isFirstResponse ? " — SLA Met (first response recorded)" : ""}`,
+      `Lead contacted: ${updated.name} (${updated.leadCode}) — status changed from New to Contacted${isFirstResponse ? " — SLA Met (first response recorded)" : ""}${onBehalfTag}`,
       {
         resourceId:    leadId,
         previousState: Object.keys(before).length ? before : null,
         newState:      Object.keys(after).length  ? after  : null,
         severity:      inferSeverity("update"),
+        onBehalfOf:    isActingOnBehalf ? (lead.assignedUserId ?? undefined) : undefined,
+        adminAction:   isActingOnBehalf || undefined,
       }
     );
 

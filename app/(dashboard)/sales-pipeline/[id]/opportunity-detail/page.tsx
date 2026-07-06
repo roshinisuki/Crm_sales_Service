@@ -1,21 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback, use } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { useAuth } from "@/components/AuthProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { useToast } from "@/components/ToastProvider";
 import { Modal } from "@/components/ui/Modal";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { formatDate, cn } from "@/lib/ui-utils";
 import {
   ArrowLeft, CheckCircle, XCircle,
-  ChevronRight, Save, AlertTriangle, Calendar,
-  Edit3, FileText, MessageSquare,
+  ChevronRight, Save, AlertTriangle, Calendar, CalendarClock, Clock,
+  Edit3, FileText, MessageSquare, Zap, Swords, FolderOpen, History,
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
+import { getUsersAction } from "@/app/actions/users";
 
 const STAGE_DISPLAY_LABELS: Record<string, string> = {
   Qualified: "Qualified",
@@ -77,7 +80,6 @@ const STAGE_REQUIRED_FIELDS: Record<string, { field: string; label: string }[]> 
     { field: "meetingDate", label: "Meeting/Demo Date" },
     { field: "meetingType", label: "Meeting/Demo Type" },
     { field: "meetingStatus", label: "Outcome / Status" },
-    { field: "nextFollowUpDate", label: "Next Follow-up Date" },
   ],
   DemoConducted: [
     { field: "demoDate", label: "Demo Date" },
@@ -211,8 +213,15 @@ function ProposalQuotationGuide({
     try {
       const res = await fetch(`/api/quotations/${quoteId}/negotiate`, { method: "POST" });
       const data = await res.json();
-      if (data.success) { toast.success("Moved to negotiation"); onRefresh(); }
-      else toast.error(data.message || "Failed to move to negotiation");
+      if (data.success) {
+        toast.success("Moved to negotiation");
+        onRefresh();
+        if (data.data?.negotiationId) {
+          router.push(`/negotiations/${data.data.negotiationId}`);
+        }
+      } else {
+        toast.error(data.message || "Failed to move to negotiation");
+      }
     } catch { toast.error("Failed to move to negotiation"); }
     finally { setNegotiating(false); }
   };
@@ -482,6 +491,13 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [linkedSample, setLinkedSample] = useState<any>(null);
   const [sampleForm, setSampleForm] = useState({ productId: "", quantity: "1", specifications: "" });
   const [sampleSaving, setSampleSaving] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  // Demo outcome form state (MeetingScheduled → DemoConducted transition)
+  const [demoOutcomeChoice, setDemoOutcomeChoice] = useState<"Accepted" | "Follow-up needed" | "Rejected" | "">("");
+  const [demoNotes, setDemoNotes] = useState("");
+  const [demoFollowUpDate, setDemoFollowUpDate] = useState("");
+  const [demoRejectionReason, setDemoRejectionReason] = useState("");
+  const [demoRejectionRemarks, setDemoRejectionRemarks] = useState("");
 
   const fetchLinkedQuotations = useCallback(async () => {
     setLinkedQuotationsLoading(true);
@@ -653,6 +669,17 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     }
   }, []);
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await getUsersAction();
+      if (res.success && res.data) {
+        setUsers(res.data.filter((u: any) => u.isActive));
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
   const fetchContacts = useCallback(async () => {
     const res = await fetch(`/api/opportunities/${id}/contacts`);
     if (res.ok) {
@@ -694,7 +721,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     fetchLinkedQuotations();
     fetchLinkedSample();
     fetchProducts();
-  }, [fetchDeal, fetchContacts, fetchLossReasons, fetchCompetitors, fetchLinkedQuotations, fetchLinkedSample, fetchProducts]);
+    fetchUsers();
+  }, [fetchDeal, fetchContacts, fetchLossReasons, fetchCompetitors, fetchLinkedQuotations, fetchLinkedSample, fetchProducts, fetchUsers]);
+
+  // Sync the URL `stage` param with deal.status so the sidebar highlights correctly
+  const searchParams = useSearchParams();
+  useSyncUrlParam(deal?.status, "stage");
 
   useEffect(() => {
     if (showStakeholderModal) fetchAllContacts();
@@ -724,7 +756,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     return PIPELINE_STAGES[idx + 1].key;
   };
 
-  const handleSaveAndMove = async (toStage: string, options?: { demoOutcome?: "Accepted" | "Rejected" | "Follow-up needed" }) => {
+  const handleSaveAndMove = async (toStage: string, options?: { demoOutcome?: "Accepted" | "Rejected" | "Follow-up needed"; demoFollowUpDate?: string; rejectedReason?: string; extraFields?: Record<string, any> }) => {
     if (!toStage) return;
     setStageMoving(true);
     try {
@@ -749,11 +781,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         return;
       }
 
-      // 1. Save current stage details first
+      // 1. Save current stage details first (merge extraFields to avoid overwrite)
       const saveRes = await fetch(`/api/opportunities/${id}/details`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rgForm),
+        body: JSON.stringify({ ...rgForm, ...(options?.extraFields || {}) }),
       });
       if (!saveRes.ok) {
         const json = await saveRes.json().catch(() => ({}));
@@ -769,12 +801,21 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         body: JSON.stringify({
           to_stage: toStage,
           ...(options?.demoOutcome ? { demoOutcome: options.demoOutcome } : {}),
-          ...(options?.demoOutcome === "Follow-up needed" && rgForm.demoFollowUpDate ? { demoFollowUpDate: rgForm.demoFollowUpDate } : {}),
+          ...(options?.demoFollowUpDate ? { demoFollowUpDate: options.demoFollowUpDate } : {}),
+          ...(options?.rejectedReason ? { rejectedReason: options.rejectedReason } : {}),
         }),
       });
       const json = await res.json().catch(() => ({}));
       if (res.ok) {
         toast.success(`Moved to ${STAGE_LABELS[toStage] || toStage} ✓`);
+        setViewingStage(null);
+        setRgAttempted(false);
+        // Reset demo outcome state so stale values don't persist
+        setDemoOutcomeChoice("");
+        setDemoNotes("");
+        setDemoFollowUpDate("");
+        setDemoRejectionReason("");
+        setDemoRejectionRemarks("");
         fetchDeal();
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
@@ -926,11 +967,40 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     });
     setRgSaving(false);
     if (res.ok) {
-      toast.success("Requirement Gathering details saved");
+      const stageLabel = STAGE_LABELS[viewingStage || deal.status] || "Stage";
+      toast.success(`${stageLabel} details saved`);
       fetchDeal();
     } else {
       const json = await res.json().catch(() => ({}));
       toast.error(json.message || "Failed to save details");
+    }
+  };
+
+  // Meeting: "Mark as Conducted" — saves meetingStatus=Held without changing pipeline stage
+  const handleMarkConducted = async () => {
+    if (!rgForm.meetingType || !rgForm.meetingDate) {
+      toast.error("Please fill Meeting Type and Meeting Date before marking as conducted");
+      setRgAttempted(true);
+      return;
+    }
+    setRgSaving(true);
+    try {
+      const res = await fetch(`/api/opportunities/${id}/details`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...rgForm, meetingStatus: "Held" }),
+      });
+      if (res.ok) {
+        toast.success("Meeting marked as conducted — record outcome below");
+        await fetchDeal();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.message || "Failed to update meeting status");
+      }
+    } catch {
+      toast.error("Failed to update meeting status");
+    } finally {
+      setRgSaving(false);
     }
   };
 
@@ -1197,11 +1267,15 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                       headers: { "Content-Type": "application/json" },
                                       body: JSON.stringify({ sampleStatus: "approved" }),
                                     });
-                                    await fetch(`/api/opportunities/${id}/stage-change`, {
+                                    const stageRes = await fetch(`/api/opportunities/${id}/stage-change`, {
                                       method: "POST",
                                       headers: { "Content-Type": "application/json" },
-                                      body: JSON.stringify({ to_stage: "RequirementGathering" }),
+                                      body: JSON.stringify({ to_stage: "RequirementGathering", force: true }),
                                     });
+                                    const stageData = await stageRes.json();
+                                    if (!stageData.success && !stageData.message?.includes("Already at this stage")) {
+                                      toast.error(`Stage change failed: ${stageData.message || "Unknown error"}`);
+                                    }
                                     fetchDeal();
                                     fetchLinkedSample();
                                   }
@@ -1538,160 +1612,622 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           </div>
         )}
 
-        {(effectiveStage === "MeetingScheduled" || effectiveStage === "DemoConducted") && (
-          <div className="space-y-6">
-            {/* Required fields for stage transition */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 bg-[var(--primary)]/10 text-sm font-bold text-[var(--primary)]">Required for Stage Transition</div>
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Meeting/Demo Type">
-                  <Select value={rgForm.meetingType || ""} onChange={(e) => setRgForm({ ...rgForm, meetingType: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="Discovery Call">Discovery Call</option>
-                    <option value="Product Demo">Product Demo</option>
-                    <option value="Technical Discussion">Technical Discussion</option>
-                    <option value="Site Visit">Site Visit</option>
-                    <option value="Solution Review">Solution Review</option>
-                  </Select>
-                </FormField>
-                <FormField label="Meeting/Demo Date" required>
-                  <Input type="date" value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} />
-                  {rgForm.meetingDate && (
-                    <span className="text-xs text-slate-500 mt-1 block">
-                      {(() => {
-                        const d = new Date(rgForm.meetingDate);
-                        const today = new Date(); today.setHours(0,0,0,0);
-                        const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                        if (diff === 0) return "📅 Today";
-                        if (diff === 1) return "📅 Tomorrow";
-                        if (diff > 1) return `📅 In ${diff} days`;
-                        if (diff === -1) return "📅 Yesterday";
-                        return `📅 ${Math.abs(diff)} days ago`;
-                      })()}
+        {effectiveStage === "MeetingScheduled" && (() => {
+          const meetingStatus = rgForm.meetingStatus || "";
+          const isScheduled = meetingStatus === "" || meetingStatus === "Scheduled";
+          const isConducted = meetingStatus === "Held" || meetingStatus === "Completed";
+          const hasOutcome = !!deal.demoOutcome;
+          const meetingDateFormatted = rgForm.meetingDate
+            ? new Date(rgForm.meetingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+            : "—";
+
+          // Sales-role users for Assigned Executive dropdown
+          const salesUsers = users.filter((u: any) =>
+            SALES_ROLES.includes(u.role as Role)
+          );
+          const assignedExecMissing = !deal.assignedUserId && !editForm.assignedUserId;
+
+          const handleAssignExec = async (userId: string) => {
+            setEditForm({ ...editForm, assignedUserId: userId });
+            const res = await fetch(`/api/opportunities/${id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ assignedUserId: userId }),
+            });
+            if (res.ok) {
+              toast.success("Assigned executive updated");
+              fetchDeal();
+            } else {
+              const json = await res.json().catch(() => ({}));
+              toast.error(json.message || "Failed to assign executive");
+            }
+          };
+
+          const handleDemoSubmit = () => {
+            if (!demoOutcomeChoice) {
+              toast.error("Please select a Demo Outcome");
+              return;
+            }
+            if (demoOutcomeChoice === "Follow-up needed" && !demoFollowUpDate) {
+              toast.error("Next Follow-up Date is required for Follow-up Needed");
+              return;
+            }
+            if (demoOutcomeChoice === "Rejected" && !demoRejectionReason.trim()) {
+              toast.error("Rejection Reason is required");
+              return;
+            }
+            // Pass demo fields via extraFields so they are saved atomically with rgForm
+            handleSaveAndMove("DemoConducted", {
+              demoOutcome: demoOutcomeChoice,
+              ...(demoOutcomeChoice === "Follow-up needed" && demoFollowUpDate ? { demoFollowUpDate } : {}),
+              ...(demoOutcomeChoice === "Rejected" ? { rejectedReason: demoRejectionReason } : {}),
+              extraFields: {
+                meetingOutcome: demoNotes,
+                demoRejectionReason: demoOutcomeChoice === "Rejected" ? demoRejectionReason : null,
+                demoRejectionRemarks: demoOutcomeChoice === "Rejected" ? demoRejectionRemarks : null,
+              },
+            });
+          };
+
+          return (
+            <div className="space-y-6">
+              {/* ─── Section A: Scheduling Summary Banner ─── */}
+              {!isScheduled && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CalendarClock size={16} className="text-[var(--primary)]" />
+                    <span className="text-sm font-bold text-slate-700">Scheduling Summary</span>
+                    <span className={cn(
+                      "ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold",
+                      isConducted ? "bg-amber-100 text-amber-700" :
+                      hasOutcome ? "bg-green-100 text-green-700" :
+                      "bg-slate-200 text-slate-600"
+                    )}>
+                      {hasOutcome ? `Demo ${deal.demoOutcome}` : meetingStatus}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <span className="text-xs text-slate-400 block">Assigned To</span>
+                      <span className="font-medium text-slate-700">{deal.assignedUser?.name || "Unassigned"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-400 block">Meeting Type</span>
+                      <span className="font-medium text-slate-700">{rgForm.meetingType || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-400 block">Mode</span>
+                      <span className="font-medium text-slate-700">{rgForm.meetingMode || "—"}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-slate-400 block">Date</span>
+                      <span className="font-medium text-slate-700">{meetingDateFormatted}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Section B: Stage Action Panel ─── */}
+              {/* State: Scheduled — editable scheduling fields */}
+              {isScheduled && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                  <div className="px-4 py-3 bg-[var(--primary)]/10 text-sm font-bold text-[var(--primary)] flex items-center gap-2">
+                    <CalendarClock size={15} /> Schedule Meeting
+                  </div>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField label="Meeting Type" required error={rgAttempted && !rgForm.meetingType ? "Required" : ""}>
+                      <Select value={rgForm.meetingType || ""} onChange={(e) => setRgForm({ ...rgForm, meetingType: e.target.value })} className={cn(rgAttempted && !rgForm.meetingType && "border-rose-500")}>
+                        <option value="">Select...</option>
+                        <option value="Discovery Call">Discovery Call</option>
+                        <option value="Technical Discussion">Technical Discussion</option>
+                        <option value="Site Visit">Site Visit</option>
+                        <option value="Solution Review">Solution Review</option>
+                      </Select>
+                    </FormField>
+                    <FormField label="Meeting Date" required error={rgAttempted && !rgForm.meetingDate ? "Required" : ""}>
+                      <Input type="date" value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} className={cn(rgAttempted && !rgForm.meetingDate && "border-rose-500")} />
+                      {rgForm.meetingDate && (
+                        <span className="text-xs text-slate-500 mt-1 block">
+                          {(() => {
+                            const d = new Date(rgForm.meetingDate);
+                            const today = new Date(); today.setHours(0,0,0,0);
+                            const diff = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                            if (diff === 0) return "📅 Today";
+                            if (diff === 1) return "📅 Tomorrow";
+                            if (diff > 1) return `📅 In ${diff} days`;
+                            if (diff === -1) return "📅 Yesterday";
+                            return `📅 ${Math.abs(diff)} days ago`;
+                          })()}
+                        </span>
+                      )}
+                    </FormField>
+                    <FormField label="Meeting Mode">
+                      <Select value={rgForm.meetingMode || ""} onChange={(e) => setRgForm({ ...rgForm, meetingMode: e.target.value })}>
+                        <option value="">Select...</option>
+                        <option value="Zoom">Zoom</option>
+                        <option value="Customer site visit">Customer site visit</option>
+                        <option value="Direct visit">Direct visit</option>
+                        <option value="Call">Call</option>
+                      </Select>
+                    </FormField>
+                    <FormField label="Assigned Executive" required error={rgAttempted && assignedExecMissing ? "Assign an executive to proceed" : ""}>
+                      <Select
+                        value={deal.assignedUserId || editForm.assignedUserId || ""}
+                        onChange={(e) => handleAssignExec(e.target.value)}
+                        className={cn(rgAttempted && assignedExecMissing && "border-rose-500")}
+                      >
+                        <option value="">Select executive...</option>
+                        {salesUsers.map((u: any) => (
+                          <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                        ))}
+                      </Select>
+                      {assignedExecMissing && (
+                        <span className="text-xs text-rose-500 mt-1 block">Assign an executive to proceed</span>
+                      )}
+                    </FormField>
+                  </div>
+                </div>
+              )}
+
+              {/* State: Scheduled — optional meeting details */}
+              {isScheduled && (
+                <details className="border border-slate-200 rounded-xl overflow-hidden group">
+                  <summary className="px-4 py-3 bg-slate-50 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors flex items-center justify-between">
+                    <span>Additional Meeting Details (Optional)</span>
+                    <ChevronRight size={16} className="transform group-open:rotate-90 transition-transform" />
+                  </summary>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200">
+                    <FormField label="Duration (minutes)"><Input type="number" value={rgForm.meetingDuration || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDuration: e.target.value })} /></FormField>
+                    <FormField label="Location"><Input value={rgForm.meetingLocation || ""} onChange={(e) => setRgForm({ ...rgForm, meetingLocation: e.target.value })} /></FormField>
+                    <FormField label="Participants"><Input value={rgForm.meetingParticipants || ""} onChange={(e) => setRgForm({ ...rgForm, meetingParticipants: e.target.value })} /></FormField>
+                    <FormField label="Agenda"><Textarea rows={2} value={rgForm.meetingAgenda || ""} onChange={(e) => setRgForm({ ...rgForm, meetingAgenda: e.target.value })} /></FormField>
+                  </div>
+                </details>
+              )}
+
+              {/* ─── Container 2: Demo Outcome Panel (appears after meeting is conducted) ─── */}
+              {isConducted && !hasOutcome && (
+                <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
+                  <div className="px-4 py-3 bg-amber-100/60 text-sm font-bold text-amber-800 flex items-center gap-2">
+                    <CheckCircle size={15} /> Meeting Conducted — Enter Demo Details
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {/* Required: Demo Outcome selector */}
+                    <FormField label="Demo Outcome" required>
+                      <Select
+                        value={demoOutcomeChoice}
+                        onChange={(e) => setDemoOutcomeChoice(e.target.value as any)}
+                      >
+                        <option value="">Select outcome...</option>
+                        <option value="Accepted">Accepted</option>
+                        <option value="Follow-up needed">Follow-up Needed</option>
+                        <option value="Rejected">Rejected</option>
+                      </Select>
+                    </FormField>
+
+                    {/* Conditional fields: Accepted */}
+                    {demoOutcomeChoice === "Accepted" && (
+                      <div className="space-y-4 pl-4 border-l-2 border-green-200">
+                        <FormField label="Outcome Notes (optional)">
+                          <Textarea rows={3} value={demoNotes} onChange={(e) => setDemoNotes(e.target.value)} placeholder="What happened in the demo? Customer reactions, key takeaways..." />
+                        </FormField>
+                      </div>
+                    )}
+
+                    {/* Conditional fields: Follow-up Needed */}
+                    {demoOutcomeChoice === "Follow-up needed" && (
+                      <div className="space-y-4 pl-4 border-l-2 border-amber-200">
+                        <FormField label="Next Follow-up Date" required error={!demoFollowUpDate ? "Required" : ""}>
+                          <Input type="date" value={demoFollowUpDate} onChange={(e) => setDemoFollowUpDate(e.target.value)} className={cn(!demoFollowUpDate && "border-rose-500")} />
+                        </FormField>
+                        <FormField label="Outcome Notes (optional)">
+                          <Textarea rows={3} value={demoNotes} onChange={(e) => setDemoNotes(e.target.value)} placeholder="What happened in the demo? Why is a follow-up needed?" />
+                        </FormField>
+                      </div>
+                    )}
+
+                    {/* Conditional fields: Rejected */}
+                    {demoOutcomeChoice === "Rejected" && (
+                      <div className="space-y-4 pl-4 border-l-2 border-orange-200">
+                        <FormField label="Rejection Reason" required error={!demoRejectionReason.trim() ? "Required" : ""}>
+                          <Select
+                            value={demoRejectionReason}
+                            onChange={(e) => setDemoRejectionReason(e.target.value)}
+                            className={cn(!demoRejectionReason.trim() && "border-rose-500")}
+                          >
+                            <option value="">Select reason...</option>
+                            <option value="Price too high">Price too high</option>
+                            <option value="Went with competitor">Went with competitor</option>
+                            <option value="No budget">No budget</option>
+                            <option value="Not interested">Not interested</option>
+                            <option value="Product doesn't meet needs">Product doesn't meet needs</option>
+                            <option value="Timing not right">Timing not right</option>
+                            <option value="Other">Other</option>
+                          </Select>
+                        </FormField>
+                        <FormField label="Rejection Remarks (optional)">
+                          <Textarea rows={2} value={demoRejectionRemarks} onChange={(e) => setDemoRejectionRemarks(e.target.value)} placeholder="Additional context on why the demo was rejected..." />
+                        </FormField>
+                      </div>
+                    )}
+
+                    {/* Save & Move button */}
+                    <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-amber-200">
+                      <button
+                        onClick={handleDemoSubmit}
+                        disabled={stageMoving || !demoOutcomeChoice}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {stageMoving ? "Saving..." : "Save Details & Move to Demo Conducted"} <ChevronRight size={16} />
+                      </button>
+                      {!demoOutcomeChoice && (
+                        <span className="text-xs text-slate-500">Select a demo outcome to proceed</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* State: Outcome already set — read-only summary */}
+              {hasOutcome && (
+                <div className={cn(
+                  "rounded-xl p-4 flex items-center gap-3",
+                  deal.demoOutcome === "Accepted" ? "bg-green-50 border border-green-200" :
+                  deal.demoOutcome === "Follow-up needed" ? "bg-amber-50 border border-amber-200" :
+                  "bg-orange-50 border border-orange-200"
+                )}>
+                  {deal.demoOutcome === "Accepted" ? (
+                    <CheckCircle size={20} className="text-green-600 shrink-0" />
+                  ) : deal.demoOutcome === "Follow-up needed" ? (
+                    <AlertTriangle size={20} className="text-amber-600 shrink-0" />
+                  ) : (
+                    <XCircle size={20} className="text-orange-600 shrink-0" />
+                  )}
+                  <div>
+                    <p className={cn(
+                      "text-sm font-bold",
+                      deal.demoOutcome === "Accepted" ? "text-green-800" :
+                      deal.demoOutcome === "Follow-up needed" ? "text-amber-800" :
+                      "text-orange-800"
+                    )}>
+                      Demo {deal.demoOutcome}
+                    </p>
+                    <p className={cn(
+                      "text-xs mt-0.5",
+                      deal.demoOutcome === "Accepted" ? "text-green-600" :
+                      deal.demoOutcome === "Follow-up needed" ? "text-amber-600" :
+                      "text-orange-600"
+                    )}>
+                      {deal.demoOutcome === "Accepted"
+                        ? "RFQ will be auto-created. Opportunity proceeds to Demo Conducted stage."
+                        : deal.demoOutcome === "Follow-up needed"
+                        ? `Follow-up pending${deal.demoFollowUpDate ? ` on ${new Date(deal.demoFollowUpDate).toLocaleDateString("en-IN")}` : ""}.`
+                        : "The customer rejected the demo. Opportunity will be moved to Rejected."}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {effectiveStage === "DemoConducted" && (() => {
+          const outcome = deal.demoOutcome;
+          const demoDateFormatted = rgForm.meetingDate
+            ? new Date(rgForm.meetingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+            : "—";
+          const followUpDateFormatted = deal.demoFollowUpDate
+            ? new Date(deal.demoFollowUpDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+            : null;
+
+          return (
+            <div className="space-y-6">
+              {/* ─── Demo Summary Banner (read-only) ─── */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle size={16} className="text-[var(--primary)]" />
+                  <span className="text-sm font-bold text-slate-700">Demo Summary</span>
+                  {outcome && (
+                    <span className={cn(
+                      "ml-auto px-2.5 py-0.5 rounded-full text-xs font-semibold",
+                      outcome === "Accepted" ? "bg-green-100 text-green-700" :
+                      outcome === "Follow-up needed" ? "bg-amber-100 text-amber-700" :
+                      "bg-orange-100 text-orange-700"
+                    )}>
+                      Demo {outcome}
                     </span>
                   )}
-                </FormField>
-                <FormField label="Meeting Mode">
-                  <Select value={rgForm.meetingMode || ""} onChange={(e) => setRgForm({ ...rgForm, meetingMode: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="Zoom">Zoom</option>
-                    <option value="Customer site visit">Customer site visit</option>
-                    <option value="Direct visit">Direct visit</option>
-                    <option value="Call">Call</option>
-                  </Select>
-                </FormField>
-                <FormField label="Assigned Rep">
-                  <Input value={deal.assignedUserName || rgForm.assignedRep || ""} onChange={(e) => setRgForm({ ...rgForm, assignedRep: e.target.value })} placeholder="Auto-assigned" />
-                </FormField>
-                <FormField label="Outcome / Status">
-                  <Select value={rgForm.meetingStatus || ""} onChange={(e) => setRgForm({ ...rgForm, meetingStatus: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="Held">Held — mark meeting as conducted</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
-                    <option value="Rescheduled">Rescheduled</option>
-                  </Select>
-                </FormField>
-                <FormField label="Next Follow-up Date"><Input type="date" value={rgForm.nextFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, nextFollowUpDate: e.target.value })} /></FormField>
-                <FormField label="Demo Follow-up Date (if follow-up needed)">
-                  <Input type="date" value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
-                </FormField>
-              </div>
-            </div>
-
-            {/* Optional additional details - expandable */}
-            <details className="border border-slate-200 rounded-xl overflow-hidden group">
-              <summary className="px-4 py-3 bg-slate-50 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors flex items-center justify-between">
-                <span>Additional Demo Details (Optional)</span>
-                <ChevronRight size={16} className="transform group-open:rotate-90 transition-transform" />
-              </summary>
-              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200">
-                <FormField label="Meeting Mode">
-                  <Select value={rgForm.meetingMode || ""} onChange={(e) => setRgForm({ ...rgForm, meetingMode: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="In-person">In-person</option>
-                    <option value="Video Call">Video Call</option>
-                    <option value="Phone Call">Phone Call</option>
-                  </Select>
-                </FormField>
-                <FormField label="Duration (minutes)"><Input type="number" value={rgForm.meetingDuration || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDuration: e.target.value })} /></FormField>
-                <FormField label="Location"><Input value={rgForm.meetingLocation || ""} onChange={(e) => setRgForm({ ...rgForm, meetingLocation: e.target.value })} /></FormField>
-                <FormField label="Participants"><Input value={rgForm.meetingParticipants || ""} onChange={(e) => setRgForm({ ...rgForm, meetingParticipants: e.target.value })} /></FormField>
-                <FormField label="Agenda"><Textarea rows={2} value={rgForm.meetingAgenda || ""} onChange={(e) => setRgForm({ ...rgForm, meetingAgenda: e.target.value })} /></FormField>
-                <FormField label="Outcome Notes" className="md:col-span-2"><Textarea rows={3} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} /></FormField>
-                
-                <div className="md:col-span-2 border-t border-slate-200 pt-4 mt-2">
-                  <div className="text-xs font-semibold text-slate-500 mb-3">Demo-Specific Details</div>
                 </div>
-                <FormField label="Demo Type"><Input value={rgForm.demoType || ""} onChange={(e) => setRgForm({ ...rgForm, demoType: e.target.value })} /></FormField>
-                <FormField label="Demo Date"><Input type="date" value={rgForm.demoDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoDate: e.target.value })} /></FormField>
-                <FormField label="Presenter"><Input value={rgForm.demoPresenter || ""} onChange={(e) => setRgForm({ ...rgForm, demoPresenter: e.target.value })} /></FormField>
-                <FormField label="Duration (minutes)"><Input type="number" value={rgForm.demoDuration || ""} onChange={(e) => setRgForm({ ...rgForm, demoDuration: e.target.value })} /></FormField>
-                <FormField label="Attendees"><Input value={rgForm.demoAttendees || ""} onChange={(e) => setRgForm({ ...rgForm, demoAttendees: e.target.value })} /></FormField>
-                <FormField label="Customer Rating">
-                  <Select value={rgForm.demoCustomerRating || ""} onChange={(e) => setRgForm({ ...rgForm, demoCustomerRating: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="1">1 - Poor</option>
-                    <option value="2">2 - Fair</option>
-                    <option value="3">3 - Good</option>
-                    <option value="4">4 - Very Good</option>
-                    <option value="5">5 - Excellent</option>
-                  </Select>
-                </FormField>
-                <FormField label="Interest Level">
-                  <Select value={rgForm.demoInterestLevel || ""} onChange={(e) => setRgForm({ ...rgForm, demoInterestLevel: e.target.value })}>
-                    <option value="">Select...</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </Select>
-                </FormField>
-                <FormField label="Questions Raised"><Textarea rows={2} value={rgForm.demoQuestionsRaised || ""} onChange={(e) => setRgForm({ ...rgForm, demoQuestionsRaised: e.target.value })} /></FormField>
-              </div>
-            </details>
-
-            {/* Demo Outcome Banner — shown when DemoConducted stage is active or being reviewed */}
-            {effectiveStage === "DemoConducted" && deal.demoOutcome && (
-              <div className={cn(
-                "rounded-xl p-4 flex items-center gap-3",
-                deal.demoOutcome === "Accepted" ? "bg-green-50 border border-green-200" :
-                deal.demoOutcome === "Follow-up needed" ? "bg-amber-50 border border-amber-200" :
-                "bg-orange-50 border border-orange-200"
-              )}>
-                {deal.demoOutcome === "Accepted" ? (
-                  <CheckCircle size={20} className="text-green-600 shrink-0" />
-                ) : deal.demoOutcome === "Follow-up needed" ? (
-                  <AlertTriangle size={20} className="text-amber-600 shrink-0" />
-                ) : (
-                  <XCircle size={20} className="text-orange-600 shrink-0" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <span className="text-xs text-slate-400 block">Demo Type</span>
+                    <span className="font-medium text-slate-700">{rgForm.meetingType || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 block">Date</span>
+                    <span className="font-medium text-slate-700">{demoDateFormatted}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 block">Mode</span>
+                    <span className="font-medium text-slate-700">{rgForm.meetingMode || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400 block">Conducted By</span>
+                    <span className="font-medium text-slate-700">{deal.assignedUser?.name || "—"}</span>
+                  </div>
+                </div>
+                {rgForm.meetingOutcome && (
+                  <div className="mt-3 pt-3 border-t border-slate-200">
+                    <span className="text-xs text-slate-400 block mb-1">Outcome Notes</span>
+                    <p className="text-sm text-slate-600">{rgForm.meetingOutcome}</p>
+                  </div>
                 )}
-                <div>
-                  <p className={cn(
-                    "text-sm font-bold",
-                    deal.demoOutcome === "Accepted" ? "text-green-800" :
-                    deal.demoOutcome === "Follow-up needed" ? "text-amber-800" :
-                    "text-orange-800"
-                  )}>
-                    Demo {deal.demoOutcome}
-                  </p>
-                  <p className={cn(
-                    "text-xs mt-0.5",
-                    deal.demoOutcome === "Accepted" ? "text-green-600" :
-                    deal.demoOutcome === "Follow-up needed" ? "text-amber-600" :
-                    "text-orange-600"
-                  )}>
-                    {deal.demoOutcome === "Accepted"
-                      ? "RFQ has been auto-created. The opportunity will proceed to RFQ → Quotation → Negotiation → Deal Won in the Deals module."
-                      : deal.demoOutcome === "Follow-up needed"
-                      ? `Follow-up pending${deal.demoFollowUpDate ? ` on ${new Date(deal.demoFollowUpDate).toLocaleDateString("en-IN")}` : ""}. Card stays here until the follow-up date.`
-                      : "The customer rejected the demo. Opportunity has been moved to Rejected terminal stage."}
-                  </p>
-                </div>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* ─── Next Steps Panel (outcome-driven) ─── */}
+
+              {/* Outcome: Accepted — show RFQ/Quotation links */}
+              {outcome === "Accepted" && (
+                <div className="rounded-xl border border-green-200 bg-green-50/50 p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle size={20} className="text-green-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-green-800">Demo Accepted — Proceed to Quotation</p>
+                      <p className="text-xs text-green-600 mt-0.5">An RFQ has been auto-created. Continue the sales flow: RFQ → Quotation → Negotiation → Deal Won.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-green-200">
+                    <button
+                      onClick={() => router.push(`/rfq/new?opportunityId=${deal.id}`)}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2"
+                    >
+                      <MessageSquare size={15} /> View / Create RFQ
+                    </button>
+                    <button
+                      onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                    >
+                      <FileText size={15} /> Create Quotation
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Outcome: Follow-up Needed — show follow-up date + reschedule options */}
+              {outcome === "Follow-up needed" && (() => {
+                // Parse follow-up date as local date to avoid timezone comparison issues
+                const followUpDateRaw = deal.demoFollowUpDate ? new Date(deal.demoFollowUpDate) : null;
+                const followUpDateObj = followUpDateRaw ? new Date(followUpDateRaw.getFullYear(), followUpDateRaw.getMonth(), followUpDateRaw.getDate()) : null;
+                const todayFU = new Date(); todayFU.setHours(0, 0, 0, 0);
+                const followUpDateReached = !followUpDateObj || followUpDateObj <= todayFU;
+
+                return (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle size={20} className="text-amber-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-amber-800">Follow-up Needed</p>
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        {followUpDateFormatted
+                          ? `Follow-up scheduled for ${followUpDateFormatted}. ${followUpDateReached ? "Record the outcome below." : "Come back on that day to record the outcome."}`
+                          : "No follow-up date set. Contact the customer and schedule a follow-up."}
+                      </p>
+                    </div>
+                  </div>
+                  {followUpDateFormatted && (
+                    <div className="pt-3 border-t border-amber-200">
+                      <span className="text-xs text-slate-400 block mb-1">Next Follow-up Date</span>
+                      <p className="text-sm font-medium text-slate-700">{followUpDateFormatted}</p>
+                    </div>
+                  )}
+                  {rgForm.meetingOutcome && (
+                    <div className="pt-2">
+                      <span className="text-xs text-slate-400 block mb-1">Outcome Notes</span>
+                      <p className="text-sm text-slate-600">{rgForm.meetingOutcome}</p>
+                    </div>
+                  )}
+
+                  {/* Before follow-up date: show waiting message */}
+                  {!followUpDateReached && (
+                    <div className="pt-3 border-t border-amber-200">
+                      <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-100/60 rounded-lg px-4 py-3">
+                        <Clock size={16} className="text-amber-600 shrink-0" />
+                        <span>Follow-up is on <strong>{followUpDateFormatted}</strong>. Accept/Reject options will be available on that day.</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* On/after follow-up date: show rejection inputs + outcome buttons */}
+                  {followUpDateReached && (
+                    <>
+                      <div className="pt-2 border-t border-amber-200 space-y-3">
+                        <FormField label="Rejection Reason (if rejecting)">
+                          <Select value={demoRejectionReason} onChange={(e) => setDemoRejectionReason(e.target.value)}>
+                            <option value="">Select reason (only if rejecting)...</option>
+                            <option value="Price too high">Price too high</option>
+                            <option value="Went with competitor">Went with competitor</option>
+                            <option value="No budget">No budget</option>
+                            <option value="Not interested">Not interested</option>
+                            <option value="Product doesn't meet needs">Product doesn't meet needs</option>
+                            <option value="Timing not right">Timing not right</option>
+                            <option value="Other">Other</option>
+                          </Select>
+                        </FormField>
+                        <FormField label="Rejection Remarks (optional)">
+                          <Textarea rows={2} value={demoRejectionRemarks} onChange={(e) => setDemoRejectionRemarks(e.target.value)} placeholder="Additional context on why the demo was rejected..." />
+                        </FormField>
+                      </div>
+                      <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-amber-200">
+                        <button
+                          onClick={() => {
+                            if (!canChangeStage(user, deal)) return;
+                            handleSaveAndMove("DemoConducted", {
+                              demoOutcome: "Accepted",
+                              extraFields: { meetingOutcome: rgForm.meetingOutcome },
+                            });
+                          }}
+                          disabled={!canChangeStage(user, deal) || stageMoving}
+                          className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <CheckCircle size={15} /> Mark as Accepted
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!canChangeStage(user, deal)) return;
+                            if (!demoRejectionReason.trim()) {
+                              toast.error("Please select a Rejection Reason first");
+                              return;
+                            }
+                            handleSaveAndMove("DemoConducted", {
+                              demoOutcome: "Rejected",
+                              rejectedReason: demoRejectionReason,
+                              extraFields: {
+                                meetingOutcome: rgForm.meetingOutcome,
+                                demoRejectionReason,
+                                demoRejectionRemarks: demoRejectionRemarks || null,
+                              },
+                            });
+                          }}
+                          disabled={!canChangeStage(user, deal) || stageMoving}
+                          className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                          <XCircle size={15} /> Mark as Rejected
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                );
+              })}
+
+              {/* Outcome: Rejected — terminal state */}
+              {outcome === "Rejected" && (
+                <div className="rounded-xl border border-orange-200 bg-orange-50/50 p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <XCircle size={20} className="text-orange-600 shrink-0" />
+                    <div>
+                      <p className="text-sm font-bold text-orange-800">Demo Rejected</p>
+                      <p className="text-xs text-orange-600 mt-0.5">The customer rejected the demo. This opportunity has been moved to the Rejected terminal stage.</p>
+                    </div>
+                  </div>
+                  {deal.rejectedReason && (
+                    <div className="pt-3 border-t border-orange-200">
+                      <span className="text-xs text-slate-400 block mb-1">Rejection Reason</span>
+                      <p className="text-sm font-medium text-slate-700">{deal.rejectedReason}</p>
+                    </div>
+                  )}
+                  {rgForm.demoRejectionRemarks && (
+                    <div className="pt-2">
+                      <span className="text-xs text-slate-400 block mb-1">Rejection Remarks</span>
+                      <p className="text-sm text-slate-600">{rgForm.demoRejectionRemarks}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Edge case: DemoConducted stage but no outcome set — show outcome selection */}
+              {!outcome && (
+                <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
+                  <div className="px-4 py-3 bg-amber-100/60 text-sm font-bold text-amber-800 flex items-center gap-2">
+                    <AlertTriangle size={15} /> Record Demo Outcome
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <p className="text-sm text-slate-600">This demo has been conducted but no outcome has been recorded. Select an outcome below to proceed.</p>
+                    <FormField label="Demo Follow-up Date (if follow-up needed)">
+                      <Input type="date" value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
+                    </FormField>
+                    <FormField label="Outcome Notes">
+                      <Textarea rows={3} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} placeholder="What happened in the demo? Customer reactions, key takeaways..." />
+                    </FormField>
+                    <FormField label="Rejection Reason (if rejecting)">
+                      <Select value={demoRejectionReason} onChange={(e) => setDemoRejectionReason(e.target.value)}>
+                        <option value="">Select reason (only if rejecting)...</option>
+                        <option value="Price too high">Price too high</option>
+                        <option value="Went with competitor">Went with competitor</option>
+                        <option value="No budget">No budget</option>
+                        <option value="Not interested">Not interested</option>
+                        <option value="Product doesn't meet needs">Product doesn't meet needs</option>
+                        <option value="Timing not right">Timing not right</option>
+                        <option value="Other">Other</option>
+                      </Select>
+                    </FormField>
+                    <FormField label="Rejection Remarks (optional)">
+                      <Textarea rows={2} value={demoRejectionRemarks} onChange={(e) => setDemoRejectionRemarks(e.target.value)} placeholder="Additional context on why the demo was rejected..." />
+                    </FormField>
+                    <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-amber-200">
+                      <button
+                        onClick={() => handleSaveAndMove("DemoConducted", {
+                          demoOutcome: "Accepted",
+                          extraFields: { meetingOutcome: rgForm.meetingOutcome },
+                        })}
+                        disabled={stageMoving}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <CheckCircle size={16} /> Demo Accepted →
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!rgForm.demoFollowUpDate) {
+                            toast.error("Please set a Demo Follow-up Date first");
+                            return;
+                          }
+                          handleSaveAndMove("DemoConducted", {
+                            demoOutcome: "Follow-up needed",
+                            demoFollowUpDate: rgForm.demoFollowUpDate,
+                            extraFields: { meetingOutcome: rgForm.meetingOutcome },
+                          });
+                        }}
+                        disabled={stageMoving}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <AlertTriangle size={16} /> Follow-up Needed →
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!demoRejectionReason.trim()) {
+                            toast.error("Please select a Rejection Reason first");
+                            return;
+                          }
+                          handleSaveAndMove("DemoConducted", {
+                            demoOutcome: "Rejected",
+                            rejectedReason: demoRejectionReason,
+                            extraFields: {
+                              meetingOutcome: rgForm.meetingOutcome,
+                              demoRejectionReason,
+                              demoRejectionRemarks: demoRejectionRemarks || null,
+                            },
+                          });
+                        }}
+                        disabled={stageMoving}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                      >
+                        <XCircle size={16} /> Demo Rejected →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Demo-specific details (read-only expandable) */}
+              {(rgForm.demoCustomerRating || rgForm.demoInterestLevel || rgForm.demoPresenter || rgForm.demoAttendees || rgForm.demoQuestionsRaised) && (
+                <details className="border border-slate-200 rounded-xl overflow-hidden group">
+                  <summary className="px-4 py-3 bg-slate-50 text-sm font-bold text-slate-700 cursor-pointer hover:bg-slate-100 transition-colors flex items-center justify-between">
+                    <span>Demo Details (Read-only)</span>
+                    <ChevronRight size={16} className="transform group-open:rotate-90 transition-transform" />
+                  </summary>
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200">
+                    <div><span className="text-xs text-slate-400 block">Presenter</span><span className="text-sm text-slate-700">{rgForm.demoPresenter || "—"}</span></div>
+                    <div><span className="text-xs text-slate-400 block">Duration</span><span className="text-sm text-slate-700">{rgForm.demoDuration ? `${rgForm.demoDuration} min` : "—"}</span></div>
+                    <div><span className="text-xs text-slate-400 block">Attendees</span><span className="text-sm text-slate-700">{rgForm.demoAttendees || "—"}</span></div>
+                    <div><span className="text-xs text-slate-400 block">Customer Rating</span><span className="text-sm text-slate-700">{rgForm.demoCustomerRating ? `${rgForm.demoCustomerRating}/5` : "—"}</span></div>
+                    <div><span className="text-xs text-slate-400 block">Interest Level</span><span className="text-sm text-slate-700">{rgForm.demoInterestLevel || "—"}</span></div>
+                    <div className="md:col-span-2"><span className="text-xs text-slate-400 block">Questions Raised</span><span className="text-sm text-slate-700">{rgForm.demoQuestionsRaised || "—"}</span></div>
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })()}
 
         {effectiveStage === "ProposalSent" && (
           <div className="space-y-4">
@@ -1817,6 +2353,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               // V2: RG exit gate requires tech discussion confirmed
               const techGatePassed = !isRg || rgForm.techDiscussionConfirmed === true;
               const canAdvance = allMandatoryFilled && techGatePassed;
+              // MeetingScheduled: status-driven footer
+              const meetingStatus = rgForm.meetingStatus || "";
+              const isMeetingScheduled = effectiveStage === "MeetingScheduled";
+              const meetingIsScheduled = meetingStatus === "" || meetingStatus === "Scheduled";
+              const meetingHasOutcome = !!deal.demoOutcome;
+              // Date-gate: only allow "Mark as Conducted" on or after the meeting date
+              // Parse meetingDate as local date (not UTC) to avoid timezone comparison issues
+              const meetingDateObj = rgForm.meetingDate ? new Date(rgForm.meetingDate + "T00:00:00") : null;
+              const today = new Date(); today.setHours(0, 0, 0, 0);
+              const meetingDateReached = !meetingDateObj || meetingDateObj <= today;
+              const meetingDateFormattedShort = meetingDateObj
+                ? meetingDateObj.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                : "";
 
               return (
                 <div className="flex flex-col items-end gap-3">
@@ -1842,7 +2391,59 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     >
                       {rgSaving ? "Saving..." : "Save Details"}
                     </button>
-                    {nextStage && nextStage === "DemoConducted" && (
+
+                    {/* MeetingScheduled: "Mark as Conducted" when in Scheduled state — only on/after meeting date */}
+                    {isMeetingScheduled && meetingIsScheduled && !meetingHasOutcome && (
+                      <div className="flex flex-col items-end gap-1.5">
+                        {(!rgForm.meetingType || !rgForm.meetingDate || (!deal.assignedUserId && !editForm.assignedUserId)) && (
+                          <p className="text-xs text-rose-500 font-medium">
+                            {!rgForm.meetingType && "Meeting Type, "}
+                            {!rgForm.meetingDate && "Meeting Date, "}
+                            {(!deal.assignedUserId && !editForm.assignedUserId) && "Assigned Executive, "}
+                            required to mark as conducted
+                          </p>
+                        )}
+                        {!meetingDateReached && rgForm.meetingDate && (
+                          <p className="text-xs text-amber-500 font-medium">
+                            📅 Meeting scheduled for {meetingDateFormattedShort}. Come back on that day to mark as conducted.
+                          </p>
+                        )}
+                        {meetingDateReached && (
+                          <button
+                            onClick={() => {
+                              if (!rgForm.meetingType || !rgForm.meetingDate) {
+                                setRgAttempted(true);
+                                toast.error("Please fill Meeting Type and Meeting Date first");
+                                return;
+                              }
+                              if (!deal.assignedUserId && !editForm.assignedUserId) {
+                                setRgAttempted(true);
+                                toast.error("Please assign an executive first");
+                                return;
+                              }
+                              handleMarkConducted();
+                            }}
+                            disabled={rgSaving || stageMoving}
+                            style={{
+                              background: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "var(--brand-primary, var(--primary))" : "var(--color-background-secondary, #e2e8f0)",
+                              color: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "#fff" : "var(--text-tertiary, #64748b)",
+                              padding: "10px 24px",
+                              borderRadius: "8px",
+                              fontWeight: 500,
+                              cursor: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "pointer" : "not-allowed",
+                              border: "none",
+                              transition: "background 0.15s",
+                            }}
+                            className="text-sm font-medium flex items-center gap-2"
+                          >
+                            {rgSaving ? "Saving..." : <><CheckCircle size={16} /> Mark as Conducted →</>}
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Non-MeetingScheduled stages: original demo outcome buttons (hidden when outcome already set) */}
+                    {nextStage && nextStage === "DemoConducted" && !isMeetingScheduled && !meetingHasOutcome && (
                       <>
                         <button
                           onClick={() => {
@@ -1912,7 +2513,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                         </button>
                       </>
                     )}
-                    {nextStage && nextStage !== "DemoConducted" && (
+                    {nextStage && nextStage !== "DemoConducted" && !isMeetingScheduled && (
                       <button
                         onClick={() => {
                           if (isRg) setRgAttempted(true);
@@ -2121,7 +2722,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       )}
 
       {/* ─── Hero Summary Card ─── */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[var(--primary)]/10 via-white to-slate-50 p-6 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/50 bg-gradient-to-br from-[var(--primary)]/[0.08] via-transparent to-transparent p-6 shadow-sm">
         <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap mb-2">
@@ -2213,28 +2814,26 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       </div>
 
       {/* ─── Detailed Pipeline Stage Card ─── */}
-      <div className="crm-card overflow-hidden">
-        {/* Header + Stage-specific actions */}
-        <div className="px-6 py-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Pipeline Actions</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Stage-specific actions for {STAGE_LABELS[deal.status] || deal.status}</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Terminal exit button — Mark Rejected only (Lost belongs to Negotiations module) */}
-            {deal.status !== "Won" && deal.status !== "Lost" && deal.status !== "Rejected" && canChangeStage(user, deal) && (
-              <button
-                onClick={() => setShowRejectModal(true)}
-                className="px-4 py-2 bg-orange-600 text-white font-bold text-sm rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-1.5"
-              >
-                <XCircle size={15} /> Mark Rejected
-              </button>
-            )}
-          </div>
-        </div>
-
+      <CollapsibleSection
+        title="Pipeline Actions"
+        subtitle={`Stage-specific actions for ${STAGE_LABELS[deal.status] || deal.status}`}
+        icon={<Zap size={15} />}
+        defaultOpen={true}
+        bodyClassName="px-0 pb-0 pt-0"
+        actions={
+          deal.status !== "Won" && deal.status !== "Lost" && deal.status !== "Rejected" && canChangeStage(user, deal) ? (
+            <button
+              onClick={() => setShowRejectModal(true)}
+              className="px-3 py-1.5 bg-orange-600 text-white font-bold text-xs rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-1.5"
+            >
+              <XCircle size={13} /> Mark Rejected
+            </button>
+          ) : undefined
+        }
+      >
         {/* Interactive Stage Stepper */}
-        <div className="px-6 py-4 bg-slate-50/50">
+        <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/20">
+          {/* Interactive pipeline stepper — completed and active stages are clickable for review/edit */}
           {/* Interactive pipeline stepper — completed and active stages are clickable for review/edit */}
           <div className="flex items-center gap-1 overflow-x-auto">
             {PIPELINE_STAGES.map((stage, idx) => {
@@ -2285,22 +2884,39 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         </div>
 
         {renderStageForm()}
-      </div>
+      </CollapsibleSection>
 
       {/* ─── Competitor Intelligence ─── */}
-      <div className="crm-card p-5">
+      <CollapsibleSection
+        title="Competitor Intelligence"
+        subtitle="Track competitors and win/loss insights"
+        icon={<Swords size={15} />}
+        defaultOpen={false}
+        bodyClassName="pt-4"
+      >
         <CompetitorIntelligenceTab entity={{ dealId: deal.id, customerId: deal.customerId, currentStage: deal.status }} />
-      </div>
+      </CollapsibleSection>
 
       {/* ─── Documents ─── */}
-      <div className="crm-card p-5">
+      <CollapsibleSection
+        title="Documents"
+        subtitle="Upload and manage deal-related files"
+        icon={<FolderOpen size={15} />}
+        defaultOpen={false}
+        bodyClassName="pt-4"
+      >
         <EntityDocumentTab entityType="Deal" entityId={deal.id} />
-      </div>
+      </CollapsibleSection>
 
       {/* ─── Stage History Timeline ─── */}
       {deal.stageHistories && deal.stageHistories.length > 0 && (
-        <div className="crm-card p-5">
-          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Stage History</h2>
+        <CollapsibleSection
+          title="Stage History"
+          subtitle={`${deal.stageHistories.length} stage transition${deal.stageHistories.length !== 1 ? "s" : ""}`}
+          icon={<History size={15} />}
+          defaultOpen={false}
+          bodyClassName="pt-4"
+        >
           <div className="relative pl-4 space-y-6">
             <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-slate-200" />
             {deal.stageHistories.map((history: any, idx: number) => (
@@ -2333,7 +2949,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               </div>
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
 

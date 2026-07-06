@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { dispatchNotification } from "@/lib/notifications";
 
 export async function POST(
   request: NextRequest,
@@ -18,13 +19,14 @@ export async function POST(
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
       lineItems: { include: { product: { select: { id: true, productCode: true } } }, orderBy: { displayOrder: "asc" } },
-      costingSheets: { orderBy: { createdAt: "desc" }, take: 1 },
+      costingSheets: { orderBy: { createdAt: "desc" } },
+      customer: { select: { id: true, name: true } },
     },
   });
 
   if (!rfq) return NextResponse.json({ success: false, message: "RFQ not found" }, { status: 404 });
 
-  // Validate: costing sheet exists
+  // Validate: at least one costing sheet exists
   if (rfq.costingSheets.length === 0) {
     return NextResponse.json(
       { success: false, message: "Cannot generate quotation — no costing sheet submitted for this RFQ" },
@@ -32,8 +34,14 @@ export async function POST(
     );
   }
 
-  const latestCosting = rfq.costingSheets[0];
-  const computedUnitPrice = latestCosting.computedUnitPrice;
+  // Build a map: lineItemId -> latest costing sheet for that line item
+  const lineItemCostingMap = new Map<string, any>();
+  const rfqLevelCosting = rfq.costingSheets.find((cs) => !cs.rfqLineItemId);
+  for (const cs of rfq.costingSheets) {
+    if (cs.rfqLineItemId && !lineItemCostingMap.has(cs.rfqLineItemId)) {
+      lineItemCostingMap.set(cs.rfqLineItemId, cs);
+    }
+  }
 
   try {
     // Atomic transaction: create quotation + line items + update RFQ status
@@ -71,11 +79,19 @@ export async function POST(
         },
       });
 
-      // 3. Create quotation line items from RFQ line items
+      // 3. Create quotation line items from RFQ line items — use per-line-item costing
       let subtotal = 0;
       let taxAmount = 0;
 
       for (const item of rfq.lineItems) {
+        // Lookup per-line-item costing, fallback to RFQ-level costing
+        const lineCosting = lineItemCostingMap.get(item.id);
+        const costing = lineCosting || rfqLevelCosting;
+        if (!costing) {
+          throw new Error(`No costing found for line item: ${item.itemDescription}`);
+        }
+        const unitPrice = costing.computedUnitPrice;
+
         // Lookup tax_percent from tax_master by product HSN code (default 18%)
         let taxPercent = 18;
         if (item.product?.productCode) {
@@ -85,7 +101,7 @@ export async function POST(
           if (taxEntry) taxPercent = taxEntry.taxPercent;
         }
 
-        const lineTotal = item.quantity * computedUnitPrice; // no discount on initial generation
+        const lineTotal = item.quantity * unitPrice;
         const lineTax = lineTotal * (taxPercent / 100);
 
         subtotal += lineTotal;
@@ -97,7 +113,7 @@ export async function POST(
             productId: item.productId || null,
             description: item.itemDescription,
             quantity: item.quantity,
-            unitPrice: computedUnitPrice,
+            unitPrice,
             totalPrice: lineTotal,
             discountPercent: 0,
             taxPercent,
@@ -136,19 +152,40 @@ export async function POST(
         },
       });
 
-      return { quotationId: quotation.id, quotationCode };
+      return { quotationId: quotation.id, quotationCode, grandTotal };
     });
+
+    // Notify assigned sales executive
+    if (rfq.assignedUserId) {
+      await dispatchNotification({
+        userId: rfq.assignedUserId,
+        title: "Quotation Generated",
+        message: `Quotation ${result.quotationCode} generated from RFQ ${rfq.rfqCode} (₹${result.grandTotal.toFixed(2)})`,
+        type: "rfq",
+        link: `/quotations/${result.quotationId}`,
+      });
+    }
+
+    // Notify customer contact if linked
+    if (rfq.contactId) {
+      await dispatchNotification({
+        userId: rfq.contactId,
+        title: "Quotation Ready",
+        message: `Your quotation ${result.quotationCode} has been generated. Total: ₹${result.grandTotal.toFixed(2)}`,
+        type: "quotation",
+        link: `/quotations/${result.quotationId}`,
+      }).catch(() => undefined);
+    }
 
     await logAudit(user.id, "RFQ", "GenerateQuotation", `Generated quotation ${result.quotationCode} from RFQ ${rfq.rfqCode}`, {
       resourceId: id,
-      newState: { rfqStatus: "QuotationCreated", quotationId: result.quotationId },
+      newState: { rfqStatus: "QuotationCreated", quotationId: result.quotationId, grandTotal: result.grandTotal },
       context: extractAuditContext(request),
       severity: "INFO",
     });
 
     return NextResponse.json({ success: true, data: { quotation_id: result.quotationId, quotation_code: result.quotationCode } }, { status: 201 });
   } catch (error: any) {
-    // Transaction rolled back automatically on error
     return NextResponse.json(
       { success: false, message: `Failed to generate quotation: ${error.message}` },
       { status: 500 }

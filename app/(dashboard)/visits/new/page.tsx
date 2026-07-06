@@ -184,14 +184,14 @@ export default function NewVisitPage() {
     >
       <form onSubmit={handleSubmit} className="space-y-6 max-w-4xl mx-auto">
         {/* Account Search */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+        <div className="crm-card p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-white" />
+            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400">
+              <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800">Select Account</h3>
-              <p className="text-sm text-slate-500">Choose the customer you want to visit</p>
+              <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Select Account</h3>
+              <p className="text-xs text-[var(--text-tertiary)]">Choose the customer you want to visit</p>
             </div>
           </div>
           <FormField label="Search Account" required>
@@ -249,14 +249,14 @@ export default function NewVisitPage() {
         {/* Visit Details */}
         {form.customerId && (
           <>
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <div className="crm-card p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
-                  <CalendarClock className="w-5 h-5 text-white" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400">
+                  <CalendarClock className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Visit Details</h3>
-                  <p className="text-sm text-slate-500">Configure visit type and location</p>
+                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Visit Details</h3>
+                  <p className="text-xs text-[var(--text-tertiary)]">Configure visit type and location</p>
                 </div>
               </div>
               <FormField label="Visit Type" required>
@@ -516,14 +516,14 @@ export default function NewVisitPage() {
             </div>
 
             {/* Attendees Multi-Select */}
-            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <div className="crm-card p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-white" />
+                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-green-50 text-green-600 dark:bg-green-950/30 dark:text-green-400">
+                  <Users className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Attendees</h3>
-                  <p className="text-sm text-slate-500">Select contacts from this account to attend the visit</p>
+                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Attendees</h3>
+                  <p className="text-xs text-[var(--text-tertiary)]">Select contacts from this account to attend the visit</p>
                 </div>
               </div>
               {contacts.length === 0 ? (
@@ -573,18 +573,18 @@ export default function NewVisitPage() {
             </div>
 
             {/* Submit */}
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-2">
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-[var(--primary)] to-[var(--primary-hover)] text-white font-bold text-sm rounded-xl hover:shadow-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                className="flex-1 px-6 py-3 bg-[var(--primary)] text-white font-semibold text-sm rounded-xl hover:bg-[var(--primary-hover)] transition-all shadow-sm hover:shadow-md disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {saving ? "Planning..." : "Plan Visit"}
               </button>
               <button
                 type="button"
                 onClick={() => router.push("/visits")}
-                className="px-6 py-2.5 text-slate-700 font-bold text-sm rounded-xl bg-slate-100 hover:bg-slate-200"
+                className="px-6 py-2.5 text-slate-700 font-semibold text-sm rounded-xl bg-slate-100 hover:bg-slate-200 transition-all"
               >
                 Cancel
               </button>

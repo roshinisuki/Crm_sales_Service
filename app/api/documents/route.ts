@@ -5,6 +5,43 @@ import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 
+async function resolveCustomerId(entityType: string, entityId: string): Promise<string | null> {
+  try {
+    switch (entityType) {
+      case "Customer":
+        return entityId;
+      case "Deal": {
+        const deal = await prisma.deal.findUnique({ where: { id: entityId }, select: { customerId: true } });
+        return deal?.customerId ?? null;
+      }
+      case "RFQ": {
+        const rfq = await prisma.rFQ.findUnique({ where: { id: entityId }, select: { customerId: true } });
+        return rfq?.customerId ?? null;
+      }
+      case "Quotation": {
+        const quot = await prisma.quotation.findUnique({ where: { id: entityId }, select: { customerId: true } });
+        return quot?.customerId ?? null;
+      }
+      case "PurchaseOrder": {
+        const po = await prisma.purchaseOrder.findUnique({ where: { id: entityId }, select: { customerId: true } });
+        return po?.customerId ?? null;
+      }
+      case "Negotiation": {
+        const neg = await prisma.negotiation.findUnique({ where: { id: entityId }, select: { customerId: true } });
+        return neg?.customerId ?? null;
+      }
+      case "SampleRequest": {
+        const sample = await prisma.sampleRequest.findUnique({ where: { id: entityId }, select: { customerId: true } });
+        return sample?.customerId ?? null;
+      }
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 async function resolveEntityName(entityType: string, entityId: string): Promise<string | null> {
   try {
     switch (entityType) {
@@ -56,11 +93,13 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
   const pageSize = Math.min(limit, 200);
+  const includeRevisions = searchParams.get("includeRevisions") === "true";
 
   const where: any = {
     deletedAt: null,
     companyId: user.companyId,
   };
+  if (!includeRevisions) where.isCurrent = true;
   if (documentType && documentType !== "ALL") where.documentType = documentType;
   if (entityType) where.entityType = entityType;
   if (entityId) where.entityId = entityId;
@@ -116,12 +155,15 @@ export async function POST(request: NextRequest) {
     const entityId = (formData.get("entityId") as string) || "";
     const description = (formData.get("description") as string) || null;
     const tags = (formData.get("tags") as string) || null;
-    const customerId = (formData.get("customerId") as string) || null;
+    const explicitCustomerId = (formData.get("customerId") as string) || null;
 
     if (!file) return NextResponse.json({ success: false, message: "No file provided" }, { status: 400 });
     if (!name) return NextResponse.json({ success: false, message: "Name is required" }, { status: 400 });
     if (!entityType) return NextResponse.json({ success: false, message: "Entity type is required" }, { status: 400 });
     if (!entityId) return NextResponse.json({ success: false, message: "Entity ID is required" }, { status: 400 });
+
+    // Auto-derive customerId from the parent record unless explicitly provided
+    const customerId = explicitCustomerId || (await resolveCustomerId(entityType, entityId));
 
     if (file.size > 20 * 1024 * 1024) {
       return NextResponse.json({ success: false, message: "File size exceeds 20MB limit" }, { status: 400 });
@@ -187,6 +229,9 @@ export async function POST(request: NextRequest) {
   if (!body.entityType) return NextResponse.json({ success: false, message: "Entity type is required" }, { status: 400 });
   if (!body.entityId) return NextResponse.json({ success: false, message: "Entity ID is required" }, { status: 400 });
 
+  // Auto-derive customerId from the parent record unless explicitly provided
+  const customerId = body.customerId || (await resolveCustomerId(body.entityType, body.entityId)) || null;
+
   // Generate document code: DOC-YYYY-NNNNN
   const year = new Date().getFullYear();
   const lastDoc = await prisma.cRMDocument.findFirst({
@@ -212,7 +257,7 @@ export async function POST(request: NextRequest) {
       description: body.description || null,
       tags: body.tags || null,
       uploadedById: user.id,
-      customerId: body.customerId || null,
+      customerId,
       companyId: user.companyId,
     },
     include: {

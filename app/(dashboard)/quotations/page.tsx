@@ -24,19 +24,22 @@ const icons = {
   copy: "M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z",
 };
 
-const statusColors: Record<string, string> = {
-  Draft: "bg-slate-100 text-slate-600",
-  Sent: "bg-blue-100 text-blue-700",
-  UnderReview: "bg-amber-100 text-amber-700",
-  Accepted: "bg-green-100 text-green-700",
-  Rejected: "bg-red-100 text-red-700",
-  Expired: "bg-gray-100 text-gray-500",
+const statusStyles: Record<string, { badge: string; dot: string }> = {
+  Draft: { badge: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-400" },
+  Sent: { badge: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+  UnderReview: { badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
+  Accepted: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
+  Rejected: { badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+  Expired: { badge: "bg-gray-50 text-gray-500 border-gray-200", dot: "bg-gray-400" },
 };
 
 function QuotationListContent() {
   const [quotations, setQuotations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const router = useRouter();
   const toast = useToast();
   const { formatCurrency } = useCurrency();
@@ -50,12 +53,14 @@ function QuotationListContent() {
     setLoading(true);
     setError("");
     try {
-      const params: any = {};
+      const params: any = { page: String(page) };
       if (statusFilter) params.status = statusFilter;
       const res = await fetch(`/api/quotations?${new URLSearchParams(params)}`);
       const data = await res.json();
       if (data.success) {
         setQuotations(data.data ?? []);
+        setTotalPages(data.totalPages || 1);
+        setTotal(data.total || 0);
       } else {
         setError(data.message || "Failed to load quotations");
       }
@@ -68,8 +73,13 @@ function QuotationListContent() {
   };
 
   useEffect(() => {
+    setPage(1);
     loadQuotations();
   }, [statusFilter]);
+
+  useEffect(() => {
+    loadQuotations();
+  }, [page]);
 
   const filtered = quotations.filter((q: any) => {
     if (!search) return true;
@@ -96,10 +106,12 @@ function QuotationListContent() {
 
   const handleDuplicate = async (id: string) => {
     try {
-      const res = await fetch(`/api/quotations/${id}/duplicate`, { method: "POST" });
+      const res = await fetch(`/api/quotations/${id}/clone`, { method: "POST" });
       const data = await res.json();
-      if (data.success) { toast.success("Quotation duplicated"); loadQuotations(); }
-      else toast.error(data.message || "Failed");
+      if (data.success) {
+        toast.success(`Cloned as ${data.data.quotationCode} (R${data.data.revisionNumber})`);
+        loadQuotations();
+      } else toast.error(data.message || "Failed");
     } catch { toast.error("Failed"); }
   };
 
@@ -110,9 +122,15 @@ function QuotationListContent() {
           <h1 className="text-2xl font-bold text-slate-800">Quotes</h1>
           <p className="text-sm text-slate-500 mt-0.5">Manage customer quotations</p>
         </div>
-        <button onClick={() => router.push("/quotations/new")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">
-          <Ico d={icons.plus} size={16} /> New Quotation
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => window.open(`/api/quotations/export${statusFilter ? `?status=${statusFilter}` : ""}`, "_blank")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
+            Export CSV
+          </button>
+          <button onClick={() => router.push("/quotations/new")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">
+            <Ico d={icons.plus} size={16} /> New Quotation
+          </button>
+        </div>
       </div>
 
       <StatusFilterBar
@@ -173,7 +191,7 @@ function QuotationListContent() {
                   <tr
                     key={q.id}
                     className="crm-tr table-row-clickable"
-                    onClick={() => router.push(`/quotations/${q.id}`)}
+                    onClick={() => router.push(`/quotations/${q.id}?status=${q.status}`)}
                   >
                     <td className="crm-td font-medium text-foreground">{q.quotationCode}</td>
                     <td className="crm-td">
@@ -182,7 +200,7 @@ function QuotationListContent() {
                     <td className="crm-td text-right text-foreground">{formatCurrency(q.totalAmount)}</td>
                     <td className="crm-td text-right text-foreground">{q.discountPercent}%</td>
                     <td className="crm-td text-right font-medium text-foreground">{formatCurrency(q.finalAmount)}</td>
-                    <td className="crm-td"><span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[q.status] || "bg-gray-100 text-gray-600"}`}>{q.status}</span></td>
+                    <td className="crm-td"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${(statusStyles[q.status] || statusStyles.Draft).badge}`}><span className={`w-1.5 h-1.5 rounded-full ${(statusStyles[q.status] || statusStyles.Draft).dot}`} />{q.status}</span></td>
                     <td className="crm-td text-foreground">{new Date(q.validUntil).toLocaleDateString()}</td>
                     <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
@@ -197,6 +215,32 @@ function QuotationListContent() {
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <p className="text-xs text-slate-500">
+            Showing <strong>{quotations.length}</strong> of <strong>{total}</strong> quotations
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <span className="text-sm font-medium text-slate-600 px-2">Page {page} of {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       <ConfirmModal isOpen={confirmState.isOpen} title={confirmState.title} message={confirmState.message} onConfirm={confirmState.action} onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })} isDestructive={true} />
     </PageContainer>

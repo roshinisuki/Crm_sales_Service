@@ -3,6 +3,7 @@ import { CRMSpinner } from "@/components/CRMSpinner";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { getTaskByIdAction, updateTaskAction } from "@/app/actions/tasks";
 import { getContactsAction } from "@/app/actions/contacts";
 import { useToast } from "@/components/ToastProvider";
@@ -21,6 +22,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const toast = useToast();
 
   const [task, setTask] = useState<any>(null);
+  useSyncUrlParam(task?.status, "status");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);

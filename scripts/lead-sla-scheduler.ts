@@ -35,9 +35,13 @@ async function dispatchInAppNotification(userId: string, title: string, message:
   });
 }
 
-async function getManagerIds(): Promise<string[]> {
+async function getManagerIds(companyId: string): Promise<string[]> {
   const managers = await prisma.user.findMany({
-    where: { role: { in: ["Admin", "SalesManager"] }, isActive: true },
+    where: { 
+      role: { in: ["Admin", "SalesManager"] }, 
+      isActive: true,
+      companyId
+    },
     select: { id: true },
   });
   return managers.map((m) => m.id);
@@ -103,9 +107,8 @@ async function run24HourNotContactedCheck() {
     return;
   }
 
-  const managerIds = await getManagerIds();
-
   for (const lead of notContactedLeads) {
+    const managerIds = await getManagerIds(lead.companyId || "");
     // Notify assigned executive
     if (lead.assignedUser) {
       await dispatchInAppNotification(
@@ -153,9 +156,9 @@ async function runSlaBreachDetection() {
   }
 
   console.log(`   ⚠️  ${breachedLeads.length} lead(s) have breached the 15-min SLA.`);
-  const managerIds = await getManagerIds();
 
   for (const lead of breachedLeads) {
+    const managerIds = await getManagerIds(lead.companyId || "");
     // Update slaStatus to Breached
     await prisma.lead.update({
       where: { id: lead.id },
@@ -239,9 +242,9 @@ async function run48HourEscalation() {
   }
 
   console.log(`   ⚠️  ${staleleads.length} lead(s) escalating to Level 1 (Manager Alert).`);
-  const managerIds = await getManagerIds();
 
   for (const lead of staleleads) {
+    const managerIds = await getManagerIds(lead.companyId || "");
     await prisma.lead.update({
       where: { id: lead.id },
       data: { escalationLevel: 1 },
@@ -284,9 +287,9 @@ async function run72HourAutoReassignment() {
   }
 
   console.log(`   🔴 ${criticalLeads.length} lead(s) triggering Level 2 auto-reassignment.`);
-  const managerIds = await getManagerIds();
 
   for (const lead of criticalLeads) {
+    const managerIds = await getManagerIds(lead.companyId || "");
     const newExecutive = await pickLeastBusyExecutive(lead.assignedUserId);
 
     if (!newExecutive) {

@@ -192,7 +192,7 @@ function ContactsPageContent() {
                     <tr
                       key={contact.id}
                       className="crm-tr table-row-clickable"
-                      onClick={() => router.push(`/contacts/${contact.id}`)}
+                      onClick={() => router.push(`/contacts/${contact.id}?type=${contact.type || ""}`)}
                     >
                       <td className="crm-td font-mono text-xs font-medium text-[var(--primary)]">{contact.contactCode}</td>
                       <td className="crm-td">
@@ -225,7 +225,7 @@ function ContactsPageContent() {
                       <td className="crm-td"><StatusBadge status={contact.status} size="sm" /></td>
                       <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => router.push(`/contacts/${contact.id}`)} className="row-action-btn" title="Edit"><Pencil size={15} /></button>
+                          <button onClick={() => router.push(`/contacts/${contact.id}?type=${contact.type || ""}`)} className="row-action-btn" title="Edit"><Pencil size={15} /></button>
                           <button onClick={() => confirmDelete(contact)} className="row-action-btn row-action-btn-danger" title="Delete"><Trash2 size={15} /></button>
                         </div>
                       </td>

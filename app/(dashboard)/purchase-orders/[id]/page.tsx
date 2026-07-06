@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
@@ -52,6 +53,7 @@ export default function PurchaseOrderDetailPage() {
   const { formatCurrency } = useCurrency();
 
   const [po, setPo] = useState<any>(null);
+  useSyncUrlParam(po?.status, "status");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Details");
   const [saving, setSaving] = useState(false);

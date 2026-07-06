@@ -108,7 +108,7 @@ export default function NewProductPage() {
     >
 
       <div className="max-w-2xl">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="crm-card p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField label="Product Name" required>
               <Input
@@ -245,31 +245,31 @@ export default function NewProductPage() {
             </FormField>
           </div>
 
-          <div className="flex items-center gap-2">
+          <label className="flex items-center gap-2.5 cursor-pointer">
             <input
               type="checkbox"
               id="isActive"
               checked={formData.isActive}
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="w-4 h-4 rounded border border-slate-300 bg-white text-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]"
+              className="w-4 h-4 rounded border-input text-primary focus:ring-primary"
             />
-            <label htmlFor="isActive" className="text-sm text-slate-700">Active</label>
-          </div>
+            <span className="text-sm font-medium text-foreground">Active</span>
+          </label>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
             <button
               type="button"
               onClick={() => router.back()}
-              className="px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-white transition-colors"
+              className="btn-ghost"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={formLoading || !formData.name}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="btn-primary"
             >
-              <Save size={18} />
+              <Save size={16} />
               {formLoading ? "Creating..." : "Create Product"}
             </button>
           </div>

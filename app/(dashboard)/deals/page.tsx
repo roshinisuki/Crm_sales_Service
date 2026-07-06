@@ -263,7 +263,7 @@ function DealsPageContent() {
                 <tr
                   key={d.id}
                   className="crm-tr cursor-pointer"
-                  onClick={() => router.push(`/deals/${d.id}`)}
+                  onClick={() => router.push(`/deals/${d.id}?status=${d.status}`)}
                 >
                   <td className="crm-td">
                     <div className="flex items-center gap-2.5">

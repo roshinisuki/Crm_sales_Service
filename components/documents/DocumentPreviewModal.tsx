@@ -79,78 +79,81 @@ export default function DocumentPreviewModal({ document: doc, isOpen, onClose, o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-800 truncate">{doc.name}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-base flex-shrink-0">{getFileIcon(doc.name)}</div>
+            <h2 className="text-base font-bold text-slate-800 truncate">{doc.name}</h2>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors text-xl leading-none flex-shrink-0">&times;</button>
         </div>
 
         <div className="flex flex-1 overflow-hidden">
           {/* Left panel — metadata */}
-          <div className="w-1/3 border-r border-slate-100 p-5 overflow-y-auto space-y-4">
+          <div className="w-1/3 border-r border-slate-100 p-5 overflow-y-auto space-y-4 bg-slate-50/30">
             <div className="text-center">
-              <div className="text-5xl mb-2">{getFileIcon(doc.name)}</div>
-              <div className="font-semibold text-sm text-slate-800">{doc.documentCode}</div>
+              <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200/80 flex items-center justify-center text-3xl mx-auto mb-2 shadow-sm">{getFileIcon(doc.name)}</div>
+              <div className="font-mono text-xs text-slate-500">{doc.documentCode}</div>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               <div>
-                <span className="text-xs font-medium text-slate-500">Type</span>
-                <div className="mt-0.5">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_COLORS[doc.documentType] ?? "bg-gray-100 text-gray-600"}`}>
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Type</span>
+                <div className="mt-1">
+                  <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_COLORS[doc.documentType] ?? "bg-gray-100 text-gray-600"}`}>
                     {doc.documentType}
                   </span>
                 </div>
               </div>
-              <div>
-                <span className="text-xs font-medium text-slate-500">Version</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Version</span>
                 <p className="text-sm text-slate-700">v{doc.version ?? 1}</p>
               </div>
-              <div>
-                <span className="text-xs font-medium text-slate-500">File Size</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">File Size</span>
                 <p className="text-sm text-slate-700">{formatSize(doc.fileSize)}</p>
               </div>
-              <div>
-                <span className="text-xs font-medium text-slate-500">Uploaded By</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Uploaded By</span>
                 <p className="text-sm text-slate-700">{doc.uploadedBy?.name ?? "—"}</p>
               </div>
-              <div>
-                <span className="text-xs font-medium text-slate-500">Uploaded Date</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Date</span>
                 <p className="text-sm text-slate-700">
                   {new Date(doc.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                 </p>
               </div>
               {doc.relatedEntityName && (
                 <div>
-                  <span className="text-xs font-medium text-slate-500">Related To</span>
-                  <p className="text-sm text-slate-700">{doc.relatedEntityName}</p>
+                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Related To</span>
+                  <p className="text-sm text-slate-700 mt-1">{doc.relatedEntityName}</p>
                 </div>
               )}
               {doc.description && (
                 <div>
-                  <span className="text-xs font-medium text-slate-500">Description</span>
-                  <p className="text-sm text-slate-600 mt-0.5">{doc.description}</p>
+                  <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">Description</span>
+                  <p className="text-sm text-slate-600 mt-1 leading-relaxed">{doc.description}</p>
                 </div>
               )}
             </div>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="flex flex-col gap-2 pt-3 border-t border-slate-200/60">
               <a
                 href={doc.fileUrl}
                 target="_blank"
                 download={doc.name}
-                className="px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium text-center hover:bg-[var(--primary-hover)]"
+                className="px-4 py-2.5 bg-[var(--primary)] text-white rounded-xl text-sm font-medium text-center hover:bg-[var(--primary-hover)] transition-all shadow-sm hover:shadow-md"
               >
                 ⬇ Download
               </a>
               {canDelete && onDelete && (
                 <button
                   onClick={() => { onDelete(doc.id); onClose(); }}
-                  className="px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50"
+                  className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 transition-colors"
                 >
                   🗑 Delete
                 </button>
@@ -159,7 +162,7 @@ export default function DocumentPreviewModal({ document: doc, isOpen, onClose, o
           </div>
 
           {/* Right panel — preview */}
-          <div className="flex-1 p-5 overflow-auto">
+          <div className="flex-1 p-5 overflow-auto bg-slate-50/30">
             {renderPreview()}
           </div>
         </div>

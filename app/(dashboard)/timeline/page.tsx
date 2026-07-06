@@ -162,9 +162,9 @@ export default function TimelinePage() {
                       {item.entity && (
                         <button
                           onClick={() => {
-                            if (item.entity.type === "Lead") router.push(`/leads/${item.entity.id}`);
-                            else if (item.entity.type === "Customer") router.push(`/customer-master/${item.entity.id}`);
-                            else if (item.entity.type === "Deal") router.push(`/deals/${item.entity.id}`);
+                            if (item.entity.type === "Lead") router.push(`/leads/${item.entity.id}?status=${item.entity.status || ""}`);
+                            else if (item.entity.type === "Customer") router.push(`/customer-master/${item.entity.id}?status=${item.entity.status || ""}`);
+                            else if (item.entity.type === "Deal") router.push(`/deals/${item.entity.id}?status=${item.entity.status || ""}`);
                           }}
                           className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-medium text-slate-700 cursor-pointer transition-colors"
                         >

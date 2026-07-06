@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
@@ -46,6 +47,7 @@ export default function NegotiationDetailPage() {
   const { formatCurrency } = useCurrency();
 
   const [negotiation, setNegotiation] = useState<any>(null);
+  useSyncUrlParam(negotiation?.status, "status");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Overview");
   const [showRevisionModal, setShowRevisionModal] = useState(false);

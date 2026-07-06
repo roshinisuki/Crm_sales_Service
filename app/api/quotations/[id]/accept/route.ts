@@ -27,7 +27,8 @@ export async function POST(
   }
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(
+      async (tx) => {
       // 1. Update quotation status
       await tx.quotation.update({
         where: { id },
@@ -171,7 +172,9 @@ export async function POST(
       }
 
       return { quotationId: id };
-    });
+      },
+      { timeout: 30000, maxWait: 35000 }
+    );
 
     await logAudit(user.id, "Quotation", "Accept", `Accepted quotation ${existing.quotationCode} — cascading updates completed`, {
       resourceId: id,

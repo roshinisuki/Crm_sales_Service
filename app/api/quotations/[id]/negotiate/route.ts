@@ -46,10 +46,11 @@ export async function POST(
       });
 
       // If linked to an opportunity, move it to Negotiation stage so the negotiation form is surfaced
+      let deal: { id: string; status: string; assignedUserId: string | null } | null = null;
       if (existing.dealId && existing.status !== "UnderReview") {
-        const deal = await tx.deal.findUnique({
+        deal = await tx.deal.findUnique({
           where: { id: existing.dealId },
-          select: { id: true, status: true },
+          select: { id: true, status: true, assignedUserId: true },
         });
         if (deal && deal.status !== "Negotiation" && deal.status !== "Won" && deal.status !== "Lost") {
           await tx.deal.update({
@@ -66,9 +67,40 @@ export async function POST(
             },
           });
         }
+      } else if (existing.dealId) {
+        // Even if quotation was already UnderReview, fetch the deal for assignedUserId
+        deal = await tx.deal.findUnique({
+          where: { id: existing.dealId },
+          select: { id: true, status: true, assignedUserId: true },
+        });
       }
 
-      return q;
+      // Auto-create a Negotiation record so it appears in the Negotiations module
+      // Check if a negotiation already exists for this quotation to avoid duplicates
+      const existingNeg = await tx.negotiation.findFirst({
+        where: { quotationId: id, deletedAt: null },
+        select: { id: true },
+      });
+
+      let negotiationRecord = existingNeg;
+      if (!existingNeg) {
+        const negCount = await tx.negotiation.count({ where: { companyId: user.companyId } });
+        const negotiationCode = `NEG-${String(negCount + 1).padStart(4, "0")}`;
+        negotiationRecord = await tx.negotiation.create({
+          data: {
+            negotiationCode,
+            customerId: existing.customerId,
+            quotationId: id,
+            dealId: existing.dealId || null,
+            initialAmount: existing.finalAmount || existing.totalAmount || 0,
+            status: "Active",
+            assignedUserId: deal?.assignedUserId || null,
+            companyId: user.companyId,
+          },
+        });
+      }
+
+      return { quotation: q, negotiationId: negotiationRecord?.id };
     });
 
     await logAudit(user.id, "Quotation", "Negotiate", `Moved quotation ${existing.quotationCode} to UnderReview`, {

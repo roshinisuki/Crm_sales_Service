@@ -225,99 +225,105 @@ export default function ProductsPage() {
         </div>
       ) : undefined}
     >
-      {/* Filters */}
-      <div className="mt-6 mb-4 space-y-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <Input
-              type="text"
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
+      {/* Filter bar */}
+      <div className="crm-card p-4">
+        <div className="flex flex-col gap-3">
+          {/* Row 1: Search + Category + Sort */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1 max-w-md">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                type="text"
+                placeholder="Search by name or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="sm:max-w-[200px]"
+            >
+              <option value="">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </Select>
+            <div className="flex items-center gap-2">
+              <Select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="max-w-[130px]"
+              >
+                <option value="name">Name</option>
+                <option value="productCode">Code</option>
+                <option value="basePrice">Price</option>
+                <option value="createdAt">Date</option>
+              </Select>
+              <button
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                className="p-2 rounded-lg border border-[var(--border)] hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] transition-colors"
+                title={`Sort ${sortOrder === "asc" ? "descending" : "ascending"}`}
+              >
+                <ArrowUpDown size={16} className={sortOrder === "asc" ? "" : "rotate-180"} />
+              </button>
+            </div>
           </div>
-          <Select
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="max-w-[200px]"
-          >
-            <option value="">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </Select>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <Select
-            value={productType}
-            onChange={(e) => setProductType(e.target.value)}
-            className="max-w-[150px]"
-          >
-            <option value="">All Types</option>
-            <option value="FinishedGood">Finished Good</option>
-            <option value="RawMaterial">Raw Material</option>
-            <option value="Component">Component</option>
-            <option value="SubAssembly">Sub-Assembly</option>
-            <option value="Consumable">Consumable</option>
-          </Select>
-          <Select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="max-w-[120px]"
-          >
-            <option value="">All Status</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </Select>
-          <Input
-            type="number"
-            placeholder="Min Price"
-            value={minPrice}
-            onChange={(e) => setMinPrice(e.target.value)}
-            className="max-w-[120px]"
-          />
-          <Input
-            type="number"
-            placeholder="Max Price"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(e.target.value)}
-            className="max-w-[120px]"
-          />
-          <button
-            onClick={() => {
-              setSearch("");
-              setCategoryId("");
-              setProductType("");
-              setStatusFilter("");
-              setMinPrice("");
-              setMaxPrice("");
-            }}
-            className="text-sm text-slate-500 hover:text-slate-700"
-          >
-            Clear
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">Sort by:</span>
-          <Select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="max-w-[150px]"
-          >
-            <option value="name">Name</option>
-            <option value="productCode">Code</option>
-            <option value="basePrice">Price</option>
-            <option value="createdAt">Date</option>
-          </Select>
-          <button
-            onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-            className="p-1.5 rounded hover:bg-slate-100 text-slate-600"
-            title={`Sort ${sortOrder === "asc" ? "descending" : "ascending"}`}
-          >
-            <ArrowUpDown size={16} className={sortOrder === "asc" ? "" : "rotate-180"} />
-          </button>
+          {/* Row 2: Type + Status + Price range + Clear */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Select
+              value={productType}
+              onChange={(e) => setProductType(e.target.value)}
+              className="max-w-[150px]"
+            >
+              <option value="">All Types</option>
+              <option value="FinishedGood">Finished Good</option>
+              <option value="RawMaterial">Raw Material</option>
+              <option value="Component">Component</option>
+              <option value="SubAssembly">Sub-Assembly</option>
+              <option value="Consumable">Consumable</option>
+            </Select>
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="max-w-[120px]"
+            >
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </Select>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                placeholder="Min ₹"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                className="max-w-[100px]"
+              />
+              <span className="text-slate-400 text-xs">—</span>
+              <Input
+                type="number"
+                placeholder="Max ₹"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                className="max-w-[100px]"
+              />
+            </div>
+            <button
+              onClick={() => {
+                setSearch("");
+                setCategoryId("");
+                setProductType("");
+                setStatusFilter("");
+                setMinPrice("");
+                setMaxPrice("");
+              }}
+              className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors"
+            >
+              Clear filters
+            </button>
+          </div>
         </div>
       </div>
 
@@ -340,40 +346,44 @@ export default function ProductsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={view ? 7 : 8} className="crm-td text-center py-12">
-                    <div className="inline-flex items-center gap-3 text-muted-foreground">
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-muted-foreground border-t-transparent" />
+                  <td colSpan={view ? 7 : 8} className="crm-td text-center py-16">
+                    <div className="inline-flex flex-col items-center gap-3 text-muted-foreground">
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-muted-foreground border-t-transparent" />
                       <span className="text-sm font-medium">Loading products...</span>
                     </div>
                   </td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={view ? 7 : 8} className="crm-td text-center py-12">
-                    <Package size={32} className="mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-foreground font-medium">No products found</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">Add your first product to get started</p>
+                  <td colSpan={view ? 7 : 8} className="crm-td text-center py-16">
+                    <div className="inline-flex flex-col items-center gap-2">
+                      <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+                        <Package size={28} className="text-slate-400" />
+                      </div>
+                      <p className="text-sm text-foreground font-semibold mt-1">No products found</p>
+                      <p className="text-xs text-muted-foreground">Try adjusting your filters or add a new product</p>
+                    </div>
                   </td>
                 </tr>
               ) : (
                 products.map((product) => (
-                  <tr key={product.id} className="crm-tr">
+                  <tr key={product.id} className="crm-tr group">
                     <td className="crm-td font-mono text-xs text-muted-foreground">{product.productCode}</td>
                     <td className="crm-td">
                       <button
                         onClick={() => router.push(`/catalogue/products/${product.id}`)}
-                        className="font-medium text-foreground hover:text-[var(--accent)] truncate max-w-[220px] text-left"
+                        className="font-medium text-foreground hover:text-[var(--accent)] truncate max-w-[220px] text-left transition-colors"
                       >
                         {product.name}
                       </button>
                     </td>
                     <td className="crm-td text-muted-foreground truncate max-w-[150px]">{product.category?.name || "—"}</td>
                     <td className="crm-td text-muted-foreground">{product.unit || "—"}</td>
-                    <td className="crm-td text-right font-medium text-foreground">{product.basePrice ? formatCurrency(product.basePrice) : "—"}</td>
+                    <td className="crm-td text-right font-semibold text-foreground tabular-nums">{product.basePrice ? formatCurrency(product.basePrice) : "—"}</td>
                     <td className="crm-td text-center">
                       <span className={cn(
-                        "inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold",
-                        product.isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                        "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold",
+                        product.isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-muted text-muted-foreground"
                       )}>
                         {product.isActive ? "Active" : "Inactive"}
                       </span>
@@ -382,18 +392,20 @@ export default function ProductsPage() {
                       <td className="crm-td text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           {product.datasheets && product.datasheets.length > 0 ? (
-                            <span className="action-icon-btn text-blue-600 hover:bg-blue-50" title={`${product.datasheets.length} Datasheet${product.datasheets.length > 1 ? 's' : ''}`}>
-                              <FileText size={14} />
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full" title={`${product.datasheets.length} Datasheet${product.datasheets.length > 1 ? 's' : ''}`}>
+                              <FileText size={12} />
+                              {product.datasheets.length}
                             </span>
                           ) : (
-                            <span className="w-[30px]" />
+                            <span className="w-[36px]" />
                           )}
                           {product.brochures && product.brochures.length > 0 ? (
-                            <span className="action-icon-btn text-rose-600 hover:bg-rose-50" title={`${product.brochures.length} Brochure${product.brochures.length > 1 ? 's' : ''}`}>
-                              <BookOpen size={14} />
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full" title={`${product.brochures.length} Brochure${product.brochures.length > 1 ? 's' : ''}`}>
+                              <BookOpen size={12} />
+                              {product.brochures.length}
                             </span>
                           ) : (
-                            <span className="w-[30px]" />
+                            <span className="w-[36px]" />
                           )}
                         </div>
                       </td>

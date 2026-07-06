@@ -217,7 +217,7 @@ function PurchaseOrderListContent() {
                             <Ico d={icons.sync} size={15} className={syncingId === p.id ? "animate-spin" : ""} />
                           </button>
                         )}
-                        <button onClick={() => router.push(`/purchase-orders/${p.id}`)} className="p-1.5 rounded-lg hover:bg-muted text-slate-600 cursor-pointer" title="View">
+                        <button onClick={() => router.push(`/purchase-orders/${p.id}?status=${p.status}`)} className="p-1.5 rounded-lg hover:bg-muted text-slate-600 cursor-pointer" title="View">
                           <Ico d={icons.eye} size={15} />
                         </button>
                         <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 cursor-pointer" title="Delete">

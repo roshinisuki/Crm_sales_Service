@@ -22,7 +22,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await request.json();
-  const { to_stage, notes, demoOutcome, rejectedReason, demoFollowUpDate } = body;
+  const { to_stage, notes, demoOutcome, rejectedReason, demoFollowUpDate, force } = body;
 
   if (!to_stage) {
     return NextResponse.json({ success: false, message: "to_stage is required" }, { status: 400 });
@@ -58,8 +58,56 @@ export async function POST(
   // Use normalized stage value for all downstream logic
   const targetStage = normalizedStage;
 
-  // No-op if same stage (use normalized value for comparison)
+  // No-op if same stage — UNLESS setting demoOutcome on DemoConducted (edge case: deal moved to DemoConducted without outcome)
   if (currentStage === targetStage) {
+    if (demoOutcome && targetStage === "DemoConducted") {
+      const updated = await prisma.deal.update({
+        where: { id },
+        data: {
+          ...(demoOutcome ? { demoOutcome } : {}),
+          ...(demoOutcome === "Follow-up needed" && demoFollowUpDate ? { demoFollowUpDate: new Date(demoFollowUpDate) } : {}),
+          ...(demoOutcome === "Rejected" && rejectedReason ? { rejectedReason } : {}),
+        },
+      });
+      await prisma.dealStageHistory.create({
+        data: {
+          dealId: id,
+          fromStatus: currentStage,
+          toStatus: targetStage,
+          changedById: user.id,
+          outcomeNotes: `Demo outcome set: ${demoOutcome}${demoFollowUpDate ? ` — follow-up on ${demoFollowUpDate}` : ""}${rejectedReason ? ` — reason: ${rejectedReason}` : ""}`,
+        },
+      });
+      // Auto-create RFQ when demoOutcome is Accepted
+      if (demoOutcome === "Accepted") {
+        const existingRfq = await prisma.rFQ.findFirst({ where: { opportunityId: deal.id } });
+        if (!existingRfq) {
+          const year = new Date().getFullYear();
+          const rfqPrefix = `RFQ-${year}-`;
+          const rfqCount = await prisma.rFQ.count({ where: { rfqCode: { startsWith: rfqPrefix } } });
+          const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
+          await prisma.rFQ.create({
+            data: {
+              rfqCode,
+              customerId: deal.customerId,
+              opportunityId: deal.id,
+              status: "New",
+              receivedDate: new Date(),
+              priority: "Normal",
+              companyId: user.companyId,
+            },
+          });
+        }
+      }
+      await logAudit(user.id, "Opportunity", "StageChange", `Demo outcome set: ${demoOutcome} for "${deal.dealName}"`, {
+        resourceId: id,
+        previousState: { demoOutcome: deal.demoOutcome },
+        newState: { demoOutcome },
+        context: extractAuditContext(request),
+        severity: "WARN",
+      });
+      return NextResponse.json({ success: true, data: updated });
+    }
     return NextResponse.json({ success: true, message: "Already at this stage", data: deal });
   }
 
@@ -81,7 +129,8 @@ export async function POST(
 
   // Forward stage change: only allow moving to the next stage in sequence (no skipping)
   // Terminal exits (Rejected, Lost) can happen from any stage
-  if (targetOrder > currentOrder && targetOrder !== currentOrder + 1 && !isTerminalExit) {
+  // force=true bypasses this check (used by sample approval to jump to RequirementGathering)
+  if (targetOrder > currentOrder && targetOrder !== currentOrder + 1 && !isTerminalExit && !force) {
     return NextResponse.json(
       { success: false, message: "You can only move to the next stage in sequence" },
       { status: 400 }

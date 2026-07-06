@@ -116,7 +116,19 @@ export function isRouteActive(
 
     // Target path must match and be a prefix/exact match of the current path
     if (matchingSegments < targetSegments.length) {
-      return -1;
+      // Special case: sales-pipeline detail pages (/sales-pipeline/[id]/opportunity-detail)
+      // should match sidebar items targeting /sales-pipeline/pipeline-list?stage=X
+      // as long as the first segment matches and the stage query param matches.
+      if (
+        targetSegments[0] === "sales-pipeline" &&
+        currentSegments[0] === "sales-pipeline" &&
+        targetSegments.length >= 2 &&
+        currentSegments.length >= 2
+      ) {
+        matchingSegments = 1; // first segment matches, treat as partial match
+      } else {
+        return -1;
+      }
     }
 
     // Check if base path matches
@@ -164,6 +176,7 @@ function ExpandableNavSection({
   collapsed,
   isOpen,
   onToggle,
+  onOpen,
 }: {
   label: string;
   icon: React.ReactNode;
@@ -173,6 +186,7 @@ function ExpandableNavSection({
   collapsed?: boolean;
   isOpen: boolean;
   onToggle: () => void;
+  onOpen: () => void;
 }) {
   const searchParams = useSearchParams();
   const searchString = searchParams ? searchParams.toString() : "";
@@ -189,12 +203,9 @@ function ExpandableNavSection({
   });
 
   useEffect(() => {
-    if (isSectionActive) onToggle();
+    if (isSectionActive) onOpen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSectionActive]);
-
-  // When active, ensure this section is the open one
-  // onToggle from makeToggle will set openSection to this label
 
   if (collapsed) {
     return (
@@ -841,21 +852,23 @@ function SidebarContent({
 
   const salesPipelineSubItems = [
     { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
-    { href: "/sales-pipeline/pipeline-list?tab=Qualified", label: "Qualified" },
-    { href: "/sales-pipeline/pipeline-list?tab=RequirementGathering", label: "Requirement Gathering" },
-    { href: "/sales-pipeline/pipeline-list?tab=MeetingScheduled", label: "Meeting Scheduled" },
-    { href: "/sales-pipeline/pipeline-list?tab=DemoConducted", label: "Demo Conducted" },
+    { href: "/sales-pipeline/pipeline-list?stage=Qualified", label: "Qualified" },
+    { href: "/sales-pipeline/pipeline-list?stage=RequirementGathering", label: "Requirement Gathering" },
+    { href: "/sales-pipeline/pipeline-list?stage=MeetingScheduled", label: "Meeting Scheduled" },
+    { href: "/sales-pipeline/pipeline-list?stage=DemoConducted", label: "Demo Conducted" },
     { divider: true },
-    { href: "/sales-pipeline/pipeline-list?tab=overdue", label: "Overdue" },
-    { href: "/sales-pipeline/pipeline-list?tab=Rejected", label: "Rejected" },
+    { href: "/sales-pipeline/pipeline-list?stage=overdue", label: "Overdue" },
+    { href: "/sales-pipeline/pipeline-list?stage=Rejected", label: "Rejected" },
   ];
 
   const dealSubItems = isVariant2 ? [
+    { href: "/deals", label: "All Deals" },
     { href: "/deals?status=Active", label: "Active Deals" },
     { href: "/deals?status=Won", label: "Won Deals" },
     { href: "/deals?status=Lost", label: "Lost Deals" },
     { href: "/deals?status=OnHold", label: "On Hold Deals" },
   ] : [
+    { href: "/deals", label: "All Deals" },
     { href: "/deals?status=Active", label: "Active Deals" },
     { href: "/deals?status=Won", label: "Won Deals" },
     { href: "/deals?status=Lost", label: "Lost Deals" },
@@ -899,6 +912,7 @@ function SidebarContent({
 
   // Variant 2 navigation items
   const customerVisitsSubItems = [
+    { href: "/visits", label: "All Visits" },
     { href: "/visits?status=PLANNED", label: "Planned Visits" },
     { href: "/visits?status=COMPLETED", label: "Completed Visits" },
     { href: "/visits?status=MISSED", label: "Missed Visits" },
@@ -915,6 +929,7 @@ function SidebarContent({
   ];
 
   const rfqSubItems = [
+    { href: "/rfq", label: "All RFQs" },
     { href: "/rfq?status=New", label: "New RFQ" },
     { href: "/rfq?status=UnderReview", label: "Under Review" },
     { href: "/rfq?status=CostingPending", label: "Costing Pending" },
@@ -923,6 +938,7 @@ function SidebarContent({
   ];
 
   const quotationSubItems = isVariant3 ? [
+    { href: "/quotations", label: "All Quotations" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=UnderReview", label: "Under Review" },
@@ -930,6 +946,7 @@ function SidebarContent({
     { href: "/quotations?status=Rejected", label: "Rejected" },
     { href: "/quotations?status=Expired", label: "Expired" },
   ] : [
+    { href: "/quotations", label: "All Quotations" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=Accepted", label: "Accepted" },
@@ -1078,72 +1095,73 @@ function SidebarContent({
           collapsed={collapsed}
           isOpen={openSection === "Dashboards"}
           onToggle={makeToggle("Dashboards")}
+          onOpen={openSectionLabel("Dashboards")}
         />
 
         {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
           <>
             {/* ── Lifecycle modules in sales-flow order ── */}
-            <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Leads"} onToggle={makeToggle("Leads")} />
-            <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Accounts"} onToggle={makeToggle("Accounts")} />
-            <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} />
-            <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Activities"} onToggle={makeToggle("Activities")} />
+            <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Leads"} onToggle={makeToggle("Leads")} onOpen={openSectionLabel("Leads")} />
+            <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Accounts"} onToggle={makeToggle("Accounts")} onOpen={openSectionLabel("Accounts")} />
+            <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} onOpen={openSectionLabel("Contacts")} />
+            <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Activities"} onToggle={makeToggle("Activities")} onOpen={openSectionLabel("Activities")} />
 
             {isVariant2 && (
-              <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Visits"} onToggle={makeToggle("Customer Visits")} />
+              <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Visits"} onToggle={makeToggle("Customer Visits")} onOpen={openSectionLabel("Customer Visits")} />
             )}
 
             {isVariant2 && (
-              <ExpandableNavSection label="Product Catalogue" icon={<Package size={17} />} subItems={productCatalogueSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Product Catalogue"} onToggle={makeToggle("Product Catalogue")} />
+              <ExpandableNavSection label="Product Catalogue" icon={<Package size={17} />} subItems={productCatalogueSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Product Catalogue"} onToggle={makeToggle("Product Catalogue")} onOpen={openSectionLabel("Product Catalogue")} />
             )}
 
             {isVariant3 && (
-              <ExpandableNavSection label="Samples" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Samples"} onToggle={makeToggle("Samples")} />
+              <ExpandableNavSection label="Samples" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Samples"} onToggle={makeToggle("Samples")} onOpen={openSectionLabel("Samples")} />
             )}
 
-            <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} />
+            <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} onOpen={openSectionLabel("Sales Pipeline")} />
 
             {isVariant2 && (
-              <ExpandableNavSection label="RFQ" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ"} onToggle={makeToggle("RFQ")} />
+              <ExpandableNavSection label="RFQ" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ"} onToggle={makeToggle("RFQ")} onOpen={openSectionLabel("RFQ")} />
             )}
 
             {isVariant4 && (
-              <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} />
+              <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} onOpen={openSectionLabel("Competitors")} />
             )}
-            <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} />
+            <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />
             {isVariant3 && (
-              <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} />
+              <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} onOpen={openSectionLabel("Negotiations")} />
             )}
             {isVariant3 && (
-              <ExpandableNavSection label="Purchase Orders" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Orders"} onToggle={makeToggle("Purchase Orders")} />
+              <ExpandableNavSection label="Purchase Orders" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Orders"} onToggle={makeToggle("Purchase Orders")} onOpen={openSectionLabel("Purchase Orders")} />
             )}
 
             {isVariant2 && (
-              <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Deals"} onToggle={makeToggle("Deals")} />
+              <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Deals"} onToggle={makeToggle("Deals")} onOpen={openSectionLabel("Deals")} />
             )}
-            <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} />
-            <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} />
+            <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} onOpen={openSectionLabel("Tasks")} />
+            <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} onOpen={openSectionLabel("Follow Ups")} />
 
             {isVariant3 && (
-              <ExpandableNavSection label="Documents" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Documents"} onToggle={makeToggle("Documents")} />
+              <ExpandableNavSection label="Documents" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Documents"} onToggle={makeToggle("Documents")} onOpen={openSectionLabel("Documents")} />
             )}
             {isVariant4 && (
-              <ExpandableNavSection label="Key Accounts" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Accounts"} onToggle={makeToggle("Key Accounts")} />
+              <ExpandableNavSection label="Key Accounts" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Accounts"} onToggle={makeToggle("Key Accounts")} onOpen={openSectionLabel("Key Accounts")} />
             )}
             {isVariant4 && (
-              <ExpandableNavSection label="Territories" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territories"} onToggle={makeToggle("Territories")} />
+              <ExpandableNavSection label="Territories" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territories"} onToggle={makeToggle("Territories")} onOpen={openSectionLabel("Territories")} />
             )}
             {isVariant4 && (
-              <ExpandableNavSection label="Targets" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Targets"} onToggle={makeToggle("Targets")} />
+              <ExpandableNavSection label="Targets" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Targets"} onToggle={makeToggle("Targets")} onOpen={openSectionLabel("Targets")} />
             )}
 
             {isVariant2 && (
-              <ExpandableNavSection label="Forecast" icon={<Target size={17} />} subItems={forecastSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Forecast"} onToggle={makeToggle("Forecast")} />
+              <ExpandableNavSection label="Forecast" icon={<Target size={17} />} subItems={forecastSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Forecast"} onToggle={makeToggle("Forecast")} onOpen={openSectionLabel("Forecast")} />
             )}
 
-            <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Reports"} onToggle={makeToggle("Reports")} />
+            <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Reports"} onToggle={makeToggle("Reports")} onOpen={openSectionLabel("Reports")} />
 
             {isVariant3 && (
-              <ExpandableNavSection label="Approval Center" icon={<ShieldCheck size={17} />} subItems={approvalCenterSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Approval Center"} onToggle={makeToggle("Approval Center")} />
+              <ExpandableNavSection label="Approval Center" icon={<ShieldCheck size={17} />} subItems={approvalCenterSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Approval Center"} onToggle={makeToggle("Approval Center")} onOpen={openSectionLabel("Approval Center")} />
             )}
           </>
         )}
@@ -1181,15 +1199,15 @@ function SidebarContent({
             )}
             {isVariant2 ? (
               <>
-                <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "User Management"} onToggle={makeToggle("User Management")} />
+                <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "User Management"} onToggle={makeToggle("User Management")} onOpen={openSectionLabel("User Management")} />
                 <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={collapsed} />
-                <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} />
+                <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
               </>
             ) : (
               <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={[
                 ...userManagementSubItems,
                 ...settingsSubItems,
-              ]} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} />
+              ]} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
             )}
           </>
         )}

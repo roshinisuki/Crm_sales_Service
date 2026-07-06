@@ -430,7 +430,7 @@ export default function CustomerMasterPage() {
                   <tr
                     key={c.id}
                     className={`crm-tr table-row-clickable ${selectedIds.includes(c.id) ? 'bg-red-50/30' : ''}`}
-                    onClick={() => router.push(`/customer-master/${c.id}`)}
+                    onClick={() => router.push(`/customer-master/${c.id}?status=${c.status}`)}
                   >
                     <td className="crm-td" onClick={e => e.stopPropagation()}>
                       <input

@@ -178,7 +178,7 @@ export default function NegotiationListPage() {
                     <td className="crm-td text-foreground">{n.assignedUser?.name || "—"}</td>
                     <td className="crm-td text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => router.push(`/negotiations/${n.id}`)} className="p-1.5 rounded-lg hover:bg-muted text-slate-600 cursor-pointer" title="View">
+                        <button onClick={() => router.push(`/negotiations/${n.id}?status=${n.status}`)} className="p-1.5 rounded-lg hover:bg-muted text-slate-600 cursor-pointer" title="View">
                           <Ico d={icons.eye} size={15} />
                         </button>
                         <button onClick={() => handleDelete(n.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 cursor-pointer" title="Delete">

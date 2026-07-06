@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { useAuth } from "@/components/AuthProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { CURRENCY_SYMBOLS } from "@/lib/currency";
@@ -30,6 +31,7 @@ const icons = {
   clock: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
   history: "M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8",
   plus: "M12 4v16m8-8H4",
+  po: "M9 12h6m-6 4h6m-6-8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z",
 };
 
 const statusColors: Record<string, string> = {
@@ -53,6 +55,7 @@ export default function QuotationDetailPage() {
   const currencySymbol = CURRENCY_SYMBOLS[preferredCurrency as keyof typeof CURRENCY_SYMBOLS] || "Rs.";
 
   const [quotation, setQuotation] = useState<any>(null);
+  useSyncUrlParam(quotation?.status, "status");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"items" | "history" | "revisions" | "approvals" | "documents">("items");
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void; input?: boolean; inputLabel?: string }>({ isOpen: false, title: "", message: "", action: () => {} });
@@ -71,6 +74,7 @@ export default function QuotationDetailPage() {
   const [productSearch, setProductSearch] = useState<{ idx: number; query: string } | null>(null);
   const [productResults, setProductResults] = useState<any[]>([]);
   const [approvalNotes, setApprovalNotes] = useState("");
+  const [revisionModal, setRevisionModal] = useState<{ open: boolean; revisionNumber: number; data: any }>({ open: false, revisionNumber: 0, data: null });
   const searchParams = useSearchParams();
   const { startLoading, stopLoading } = useGlobalLoading();
 
@@ -219,8 +223,16 @@ export default function QuotationDetailPage() {
     try {
       const res = await fetch(`/api/quotations/${id}/negotiate`, { method: "POST" });
       const data = await res.json();
-      if (data.success) { toast.success("Quotation moved to negotiation"); loadQuotation(); }
-      else toast.error(data.message || "Failed");
+      if (data.success) {
+        toast.success("Moved to negotiation");
+        if (data.data?.negotiationId) {
+          router.push(`/negotiations/${data.data.negotiationId}`);
+        } else {
+          router.push("/negotiations");
+        }
+      } else {
+        toast.error(data.message || "Failed");
+      }
     } catch { toast.error("Failed"); }
   };
 
@@ -294,6 +306,46 @@ export default function QuotationDetailPage() {
 
   const handleDownloadPdf = () => {
     window.open(`/api/quotations/${id}/pdf`, "_blank");
+  };
+
+  const [creatingPo, setCreatingPo] = useState(false);
+  const handleCreatePo = async () => {
+    setCreatingPo(true);
+    try {
+      const res = await fetch(`/api/quotations/${id}/create-po`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Purchase order ${data.data.poCode} created`);
+        router.push(`/purchase-orders/${data.data.id}`);
+      } else {
+        toast.error(data.message || "Failed to create purchase order");
+      }
+    } catch { toast.error("Failed to create purchase order"); }
+    finally { setCreatingPo(false); }
+  };
+
+  const [creatingDeal, setCreatingDeal] = useState(false);
+  const handleCreateDeal = async () => {
+    setCreatingDeal(true);
+    try {
+      const res = await fetch(`/api/quotations/${id}/create-deal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Deal created: ${data.data.dealName}`);
+        loadQuotation();
+      } else {
+        toast.error(data.message || "Failed to create deal");
+      }
+    } catch { toast.error("Failed to create deal"); }
+    finally { setCreatingDeal(false); }
   };
 
   const handleDelete = () => {
@@ -381,6 +433,12 @@ export default function QuotationDetailPage() {
           {/* Accepted/Expired actions */}
           {["Accepted", "Expired"].includes(quotation.status) && (
             <>
+              {quotation.status === "Accepted" && !quotation.dealId && (
+                <button onClick={handleCreateDeal} disabled={creatingDeal} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-50"><Ico d={icons.deal} size={15} /> {creatingDeal ? "Creating..." : "Create Deal"}</button>
+              )}
+              {quotation.status === "Accepted" && (
+                <button onClick={handleCreatePo} disabled={creatingPo} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50"><Ico d={icons.po} size={15} /> {creatingPo ? "Creating..." : "Create Purchase Order"}</button>
+              )}
               <button onClick={handleClone} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Clone & Revise</button>
               <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> PDF</button>
             </>
@@ -647,7 +705,7 @@ export default function QuotationDetailPage() {
                     <span className="text-sm text-slate-700 ml-3">{new Date(rev.createdAt).toLocaleString()}</span>
                     <span className="text-xs text-slate-500 ml-2">by {rev.createdBy?.name || "—"}</span>
                   </div>
-                  <button onClick={() => { try { const snap = JSON.parse(rev.snapshotJson); alert(JSON.stringify(snap, null, 2)); } catch { toast.error("Failed to load snapshot"); } }} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 cursor-pointer">View Snapshot</button>
+                  <button onClick={() => { try { const snap = JSON.parse(rev.snapshotJson); setRevisionModal({ open: true, revisionNumber: rev.revisionNumber, data: snap }); } catch { toast.error("Failed to load snapshot"); } }} className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 cursor-pointer">View Snapshot</button>
                 </div>
               ))
             ) : (
@@ -713,6 +771,69 @@ export default function QuotationDetailPage() {
         onCancel={() => { setConfirmState({ isOpen: false, title: "", message: "", action: () => {} }); setRejectReason(""); setRejectReasonId(""); }}
         isDestructive={confirmState.title.includes("Delete")}
       />
+
+      {/* Revision Snapshot Modal */}
+      {revisionModal.open && revisionModal.data && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setRevisionModal({ open: false, revisionNumber: 0, data: null })}>
+          <div className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-slate-800">Revision R{revisionModal.revisionNumber} Snapshot</h3>
+              <button onClick={() => setRevisionModal({ open: false, revisionNumber: 0, data: null })} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"><Ico d={icons.x} size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="font-semibold text-slate-600">Code:</span> <span className="text-slate-800">{revisionModal.data.quotationCode}</span></div>
+                <div><span className="font-semibold text-slate-600">Status:</span> <span className="text-slate-800">{revisionModal.data.status}</span></div>
+                <div><span className="font-semibold text-slate-600">Subtotal:</span> <span className="text-slate-800">₹{revisionModal.data.subtotal?.toFixed(2)}</span></div>
+                <div><span className="font-semibold text-slate-600">Tax:</span> <span className="text-slate-800">₹{revisionModal.data.taxAmount?.toFixed(2)}</span></div>
+                <div><span className="font-semibold text-slate-600">Discount:</span> <span className="text-slate-800">{revisionModal.data.discountPercent}%</span></div>
+                <div><span className="font-semibold text-slate-600">Final:</span> <span className="text-slate-800">₹{revisionModal.data.finalAmount?.toFixed(2)}</span></div>
+                <div><span className="font-semibold text-slate-600">Valid Until:</span> <span className="text-slate-800">{revisionModal.data.validUntil ? new Date(revisionModal.data.validUntil).toLocaleDateString() : "—"}</span></div>
+                <div><span className="font-semibold text-slate-600">Lead Time:</span> <span className="text-slate-800">{revisionModal.data.leadTimeDays ? `${revisionModal.data.leadTimeDays} days` : "—"}</span></div>
+              </div>
+              {(revisionModal.data.paymentTerms || revisionModal.data.deliveryTerms || revisionModal.data.freightTerms) && (
+                <div className="text-sm space-y-1">
+                  <p className="font-semibold text-slate-600">Commercial Terms:</p>
+                  {revisionModal.data.paymentTerms && <p className="text-slate-700"><span className="font-medium">Payment:</span> {revisionModal.data.paymentTerms}</p>}
+                  {revisionModal.data.deliveryTerms && <p className="text-slate-700"><span className="font-medium">Delivery:</span> {revisionModal.data.deliveryTerms}</p>}
+                  {revisionModal.data.freightTerms && <p className="text-slate-700"><span className="font-medium">Freight:</span> {revisionModal.data.freightTerms}</p>}
+                </div>
+              )}
+              {revisionModal.data.items?.length > 0 && (
+                <div>
+                  <p className="font-semibold text-slate-600 text-sm mb-2">Line Items:</p>
+                  <table className="w-full text-xs">
+                    <thead><tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-3 py-1.5 font-semibold text-slate-600">Description</th>
+                      <th className="text-right px-3 py-1.5 font-semibold text-slate-600">Qty</th>
+                      <th className="text-right px-3 py-1.5 font-semibold text-slate-600">Price</th>
+                      <th className="text-center px-3 py-1.5 font-semibold text-slate-600">Disc%</th>
+                      <th className="text-right px-3 py-1.5 font-semibold text-slate-600">Total</th>
+                    </tr></thead>
+                    <tbody>
+                      {revisionModal.data.items.map((it: any, i: number) => (
+                        <tr key={i} className="border-b border-slate-100">
+                          <td className="px-3 py-1.5 text-slate-700">{it.description}</td>
+                          <td className="px-3 py-1.5 text-right text-slate-600">{it.quantity}</td>
+                          <td className="px-3 py-1.5 text-right text-slate-600">₹{it.unitPrice?.toFixed(2)}</td>
+                          <td className="px-3 py-1.5 text-center text-slate-600">{it.discountPercent || 0}%</td>
+                          <td className="px-3 py-1.5 text-right font-medium text-slate-800">₹{it.lineTotal?.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {revisionModal.data.termsAndConditions && (
+                <div className="text-sm">
+                  <p className="font-semibold text-slate-600 mb-1">Terms & Conditions:</p>
+                  <p className="text-slate-600 whitespace-pre-wrap text-xs bg-slate-50 rounded-lg p-3">{revisionModal.data.termsAndConditions}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {confirmState.input && confirmState.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 space-y-4">

@@ -3,6 +3,7 @@ import { CRMSpinner } from "@/components/CRMSpinner";
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { getDealByIdAction, requestDiscountAction, resolveDiscountAction } from "@/app/actions/deals";
 import { useAuth } from "@/components/AuthProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
@@ -27,6 +28,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const { formatCurrency } = useCurrency();
 
   const [deal, setDeal] = useState<any>(null);
+  useSyncUrlParam(deal?.status, "status");
   const [loading, setLoading] = useState(true);
   
   // Discount Modal State

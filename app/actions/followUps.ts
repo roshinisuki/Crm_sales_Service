@@ -310,6 +310,19 @@ export async function createFollowUpAction(data: any) {
       if (!ld || !checkRecordScope(userPayload, ld, "Lead")) {
         return { success: false, message: "Lead not found or access denied." };
       }
+
+      // Auto-transition: If lead is still "New", mark as "Contacted" when a follow-up is scheduled
+      if (ld.status === "New") {
+        const now = new Date();
+        await prisma.lead.update({
+          where: { id: validated.leadId },
+          data: {
+            status: "Contacted",
+            lastInteractionAt: now,
+            ...(ld.firstRespondedAt ? {} : { slaStatus: "Met", firstRespondedAt: now }),
+          },
+        }).catch((e) => console.error("Auto-transition lead status failed:", e));
+      }
     }
 
     const followUp = await prisma.followUp.create({
@@ -624,6 +637,19 @@ export async function completeFollowUpWithActivityAction(data: {
 
     const now = new Date();
 
+    // Detect if Admin/SalesManager is acting on behalf of the assigned executive
+    const isActingOnBehalf = followUp.assignedUserId && followUp.assignedUserId !== userPayload.id &&
+      (userPayload.role === "Admin" || userPayload.role === "SalesManager");
+
+    let onBehalfTag = "";
+    if (isActingOnBehalf) {
+      const [assignedUser, actingUser] = await Promise.all([
+        prisma.user.findUnique({ where: { id: followUp.assignedUserId! }, select: { name: true } }),
+        prisma.user.findUnique({ where: { id: userPayload.id }, select: { name: true } }),
+      ]);
+      onBehalfTag = ` [Logged by ${actingUser?.name || userPayload.role} on behalf of ${assignedUser?.name || "assigned executive"}]`;
+    }
+
     // 1. Create the CommunicationLog activity linked to the follow-up
     const activityLog = await prisma.communicationLog.create({
       data: {
@@ -634,7 +660,7 @@ export async function completeFollowUpWithActivityAction(data: {
         dealId: null,
         direction: data.direction || "Outbound",
         duration: data.duration ?? null,
-        content: content.trim(),
+        content: content.trim() + onBehalfTag,
         status: data.status || "Completed",
         sentByUserId: userPayload.id,
         sentAt: now,
@@ -662,11 +688,27 @@ export async function completeFollowUpWithActivityAction(data: {
       },
     });
 
+    // 2a. Auto-transition lead from New to Contacted when activity is logged
+    if (followUp.leadId && data.status !== "Missed" && data.status !== "Cancelled") {
+      const lead = await prisma.lead.findUnique({ where: { id: followUp.leadId } });
+      if (lead && lead.status === "New") {
+        await prisma.lead.update({
+          where: { id: followUp.leadId },
+          data: {
+            status: "Contacted",
+            lastInteractionAt: now,
+            ...(lead.firstRespondedAt ? {} : { slaStatus: "Met", firstRespondedAt: now }),
+          },
+        }).catch((e) => console.error("Auto-transition lead status failed:", e));
+      }
+    }
+
     await logAudit(
       userPayload.id,
       "follow-up",
       "complete",
-      `Follow-up ${followUpId} completed with ${activityType} activity ${activityLog.id}.`
+      `Follow-up ${followUpId} completed with ${activityType} activity ${activityLog.id}.${onBehalfTag}`,
+      isActingOnBehalf ? { onBehalfOf: followUp.assignedUserId ?? undefined, adminAction: true } : undefined
     );
 
     revalidatePath("/dashboard");

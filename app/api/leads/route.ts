@@ -172,26 +172,27 @@ export async function POST(request: Request) {
     }
 
     // 9. Auto follow-up task for tomorrow at 9 AM
-    if (assignedUser) {
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(9, 0, 0, 0);
+    // DISABLED: Only SLA countdown should show, not auto-scheduled follow-up
+    // if (assignedUser) {
+    //   const tomorrow = new Date();
+    //   tomorrow.setDate(tomorrow.getDate() + 1);
+    //   tomorrow.setHours(9, 0, 0, 0);
 
-      await prisma.followUp.create({
-        data: {
-          leadId: lead.id,
-          assignedUserId: assignedUser.id,
-          nextMeetingDate: tomorrow,
-          dueDate: tomorrow,
-          remarks: `Auto-generated follow-up: New website enquiry from ${name}. Message: ${message || "No message provided."}`,
-          status: "Pending",
-          sourceType: "LEAD_INGESTION",
-          autoCreated: true,
-        },
-      });
+    //   await prisma.followUp.create({
+    //     data: {
+    //       leadId: lead.id,
+    //       assignedUserId: assignedUser.id,
+    //       nextMeetingDate: tomorrow,
+    //       dueDate: tomorrow,
+    //       remarks: `Auto-generated follow-up: New website enquiry from ${name}. Message: ${message || "No message provided."}`,
+    //       status: "Pending",
+    //       sourceType: "LEAD_INGESTION",
+    //       autoCreated: true,
+    //     },
+    //   });
 
-      await logAudit(null, "follow_up", "create", `Auto-generated follow-up for lead: ${lead.leadCode}`);
-    }
+    //   await logAudit(null, "follow_up", "create", `Auto-generated follow-up for lead: ${lead.leadCode}`);
+    // }
 
     // Initial enquiry call log
     if (message && assignedUser) {
@@ -217,7 +218,11 @@ export async function POST(request: Request) {
     }
 
     const managers = await prisma.user.findMany({
-      where: { role: { in: ["Admin", "SalesManager"] }, isActive: true },
+      where: { 
+        role: { in: ["Admin", "SalesManager"] }, 
+        isActive: true,
+        companyId: lead.companyId
+      },
       select: { id: true },
     });
 

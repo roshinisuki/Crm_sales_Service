@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
+import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
 import { PIPELINE_STATUS } from "@/lib/module-status-config";
 import { formatDate, cn } from "@/lib/ui-utils";
 import {
   Search, AlertTriangle,
-  Download, Zap,
+  Download, Zap, TrendingUp, DollarSign, Clock,
 } from "lucide-react";
 
 const STAGE_LABELS: Record<string, string> = {
@@ -132,41 +133,83 @@ function SalesPipelineListContent() {
           basePath="/sales-pipeline/pipeline-list"
         />
 
-        {/* ─── Hero Summary Card ─── */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-[var(--primary)]/10 via-white to-slate-50 p-6 shadow-sm">
-          <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <span className={cn(
-                "inline-flex px-2.5 py-1 text-xs font-bold rounded-full border mb-2",
-                !activeTab ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50" :
-                activeTab === "overdue" || activeTab === "Lost" ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50" :
-                (STAGE_PILL_COLORS[activeTab] || "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50")
+        {/* ─── Collapsible Summary Card with KPI Stats ─── */}
+        <CollapsibleSection
+          variant="accent"
+          title={STATUS_LABELS[activeTab] || activeTab}
+          subtitle="Pipeline overview and key metrics"
+          icon={<TrendingUp size={15} />}
+          badge={
+            <span className={cn(
+              "inline-flex px-2 py-0.5 text-[10px] font-bold rounded-full border",
+              !activeTab ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50" :
+              activeTab === "overdue" || activeTab === "Lost" ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50" :
+              (STAGE_PILL_COLORS[activeTab] || "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50")
+            )}>
+              {STATUS_LABELS[activeTab] || activeTab}
+            </span>
+          }
+          defaultOpen={true}
+          bodyClassName="pt-4"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Active Opportunities KPI */}
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white/80 dark:bg-slate-900/40 dark:border-slate-700/50 px-4 py-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[var(--primary)]/10 text-[var(--primary)] shrink-0">
+                <TrendingUp size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Active</p>
+                <p className="text-xl font-bold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">{kpiTotal}</p>
+              </div>
+            </div>
+
+            {/* Total Value KPI */}
+            <div className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-white/80 dark:bg-slate-900/40 dark:border-slate-700/50 px-4 py-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 shrink-0">
+                <DollarSign size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Value</p>
+                <p className="text-xl font-bold text-[var(--primary)] tabular-nums leading-tight truncate">{formatCurrency(kpiValue)}</p>
+              </div>
+            </div>
+
+            {/* Overdue KPI */}
+            <div className={cn(
+              "flex items-center gap-3 rounded-xl border px-4 py-3",
+              kpiOverdue > 0
+                ? "border-rose-200 bg-rose-50/60 dark:bg-rose-950/20 dark:border-rose-800/50"
+                : "border-slate-200/80 bg-white/80 dark:bg-slate-900/40 dark:border-slate-700/50"
+            )}>
+              <div className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-xl shrink-0",
+                kpiOverdue > 0 ? "bg-rose-100 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400" : "bg-slate-100 text-slate-400 dark:bg-slate-800/40"
               )}>
-                {STATUS_LABELS[activeTab] || activeTab}
-              </span>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                {STATUS_LABELS[activeTab] || activeTab}
-              </h2>
-              <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
-                <span className="font-medium">{kpiTotal} active</span>
-                <span className="text-slate-300">•</span>
-                <span className="font-bold text-[var(--primary)]">{formatCurrency(kpiValue)}</span>
-                {!activeTab && kpiOverdue > 0 && (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <span className="font-bold text-rose-600 flex items-center gap-1">
-                      <AlertTriangle size={12} /> {kpiOverdue} overdue
-                    </span>
-                  </>
-                )}
+                <Clock size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Overdue</p>
+                <p className={cn(
+                  "text-xl font-bold tabular-nums leading-tight",
+                  kpiOverdue > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-700 dark:text-slate-300"
+                )}>
+                  {kpiOverdue}
+                  {kpiOverdue > 0 && <AlertTriangle size={12} className="inline ml-1.5 text-rose-500" />}
+                </p>
               </div>
             </div>
           </div>
-        </div>
+        </CollapsibleSection>
 
-        {/* ─── Detailed Pipeline Content ─── */}
-        <div className="crm-card overflow-hidden">
-          {/* Opportunities Table */}
+        {/* ─── Collapsible Opportunities Table ─── */}
+        <CollapsibleSection
+          title="Opportunities"
+          subtitle={`${deals.length} deal${deals.length !== 1 ? "s" : ""} in current view`}
+          icon={<Zap size={15} />}
+          defaultOpen={true}
+          bodyClassName="pt-0 px-0 pb-0"
+        >
           <div className="overflow-x-auto">
             <table className="crm-table">
               <thead>
@@ -207,7 +250,7 @@ function SalesPipelineListContent() {
                       <tr
                       key={deal.id}
                       className="crm-tr table-row-clickable"
-                      onClick={() => router.push(`/sales-pipeline/${deal.id}/opportunity-detail`)}
+                      onClick={() => router.push(`/sales-pipeline/${deal.id}/opportunity-detail?stage=${deal.status}`)}
                     >
                         <td className="crm-td">
                           <span className="text-xs font-bold text-slate-500 font-mono">{deal.opportunityCode || "—"}</span>
@@ -258,7 +301,7 @@ function SalesPipelineListContent() {
                         <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
                             <button
-                              onClick={() => router.push(`/sales-pipeline/${deal.id}/opportunity-detail`)}
+                              onClick={() => router.push(`/sales-pipeline/${deal.id}/opportunity-detail?stage=${deal.status}`)}
                               className="row-action-btn text-[var(--primary)]"
                               title="Workflow"
                             >
@@ -273,7 +316,7 @@ function SalesPipelineListContent() {
               </tbody>
             </table>
           </div>
-        </div>
+        </CollapsibleSection>
       </div>
 
     </PageShell>

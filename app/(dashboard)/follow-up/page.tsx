@@ -643,9 +643,9 @@ export default function FollowUpsPage() {
                       className="crm-tr table-row-clickable"
                       onClick={() => {
                         if (f.leadId) {
-                          router.push(`/leads/${f.leadId}`);
+                          router.push(`/leads/${f.leadId}?status=${f.leadStatus || ""}`);
                         } else if (f.customerId) {
-                          router.push(`/customer-master/${f.customerId}`);
+                          router.push(`/customer-master/${f.customerId}?status=${f.customerStatus || ""}`);
                         }
                       }}
                     >

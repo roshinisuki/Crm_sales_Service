@@ -183,27 +183,29 @@ export default function DatasheetsPage() {
       }
     >
       {/* Filters */}
-      <div className="mt-6 mb-4 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search datasheets..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input-field pl-9"
-          />
+      <div className="crm-card p-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search datasheets..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="input-field pl-9"
+            />
+          </div>
+          <select
+            value={productFilter}
+            onChange={(e) => setProductFilter(e.target.value)}
+            className="select-field max-w-[220px]"
+          >
+            <option value="">All Products</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
-        <select
-          value={productFilter}
-          onChange={(e) => setProductFilter(e.target.value)}
-          className="select-field max-w-[220px]"
-        >
-          <option value="">All Products</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
       </div>
 
       {/* Table */}
@@ -232,10 +234,14 @@ export default function DatasheetsPage() {
                 </tr>
               ) : docs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="crm-td text-center py-12">
-                    <FileText size={32} className="mx-auto text-slate-300 mb-2" />
-                    <p className="text-sm text-slate-500 font-medium">No datasheets found</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Upload your first product datasheet to get started</p>
+                  <td colSpan={6} className="crm-td text-center py-16">
+                    <div className="inline-flex flex-col items-center gap-2">
+                      <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <FileText size={28} />
+                      </div>
+                      <p className="text-sm text-foreground font-semibold mt-1">No datasheets found</p>
+                      <p className="text-xs text-muted-foreground">Upload your first product datasheet to get started</p>
+                    </div>
                   </td>
                 </tr>
               ) : (

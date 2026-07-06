@@ -157,7 +157,40 @@ export async function createCallAction(input: CallInput) {
       },
     });
 
+    // Auto-transition lead from New to Contacted when a call is logged
+    if (input.leadId && input.status !== "Missed" && input.status !== "Cancelled") {
+      const lead = await prisma.lead.findUnique({ where: { id: input.leadId } });
+      if (lead && lead.status === "New") {
+        const now = new Date();
+        await prisma.lead.update({
+          where: { id: input.leadId },
+          data: {
+            status: "Contacted",
+            lastInteractionAt: now,
+            ...(lead.firstRespondedAt ? {} : { slaStatus: "Met", firstRespondedAt: now }),
+          },
+        }).catch((e) => console.error("Auto-transition lead status failed:", e));
+      }
+
+      // Mark the pending auto-created follow-up (1st Call) as Completed
+      // so the Follow-up section stays in sync with the Activity timeline.
+      await prisma.followUp.updateMany({
+        where: {
+          leadId: input.leadId,
+          status: "Pending",
+          type: "Call",
+          sourceType: "AUTO",
+        },
+        data: {
+          status: "Completed",
+          completedAt: log.sentAt,
+          completionNotes: input.content,
+        },
+      }).catch(() => {}); // Non-blocking — should not fail the call action
+    }
+
     revalidatePath("/activities");
+    if (input.leadId) revalidatePath(`/leads/${input.leadId}`);
     return { success: true, data: log };
   } catch (error) {
     console.error("createCallAction error:", error);

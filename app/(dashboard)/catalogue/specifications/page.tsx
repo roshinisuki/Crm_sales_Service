@@ -282,8 +282,11 @@ export default function SpecificationsPage() {
             </div>
           ) : (
             <div className="crm-card p-12 text-center">
-              <SlidersHorizontal size={40} className="mx-auto text-slate-300 mb-3" />
-              <p className="text-slate-500 font-medium">Select a product to manage specifications</p>
+              <div className="w-14 h-14 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center mx-auto mb-3">
+                <SlidersHorizontal size={28} />
+              </div>
+              <p className="text-sm text-foreground font-semibold">Select a product to manage specifications</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Choose a product from the list on the left</p>
             </div>
           )}
         </div>

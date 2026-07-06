@@ -433,7 +433,7 @@ export default function SalesOpportunitiesPage() {
 
                           <button
 
-                            onClick={() => router.push(`/sales-pipeline/${fu.dealId}/opportunity-detail`)}
+                            onClick={() => router.push(`/sales-pipeline/${fu.dealId}/opportunity-detail?stage=${fu.dealStatus || ""}`)}
 
                             className="px-3 py-1.5 bg-amber-600 text-white font-bold text-xs rounded-lg hover:bg-amber-700 transition-colors shadow-sm"
 
@@ -514,7 +514,7 @@ export default function SalesOpportunitiesPage() {
                     <tr
                       key={deal.id}
                       className="crm-tr table-row-clickable"
-                      onClick={() => router.push(`/sales-pipeline/${deal.id}/opportunity-detail`)}
+                      onClick={() => router.push(`/sales-pipeline/${deal.id}/opportunity-detail?stage=${deal.status}`)}
                     >
 
                       <td className="crm-td">

@@ -2,10 +2,11 @@
 import { CRMSpinner } from "@/components/CRMSpinner";
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import Link from "next/link";
-import { getLeadByIdAction, convertLeadToDealAction, convertLeadV2Action, updateLeadAction, contactLeadAction, qualifyLeadAction, markLeadLostAction, getLeadStatusHistoryAction } from "@/app/actions/leads";
+import { getLeadByIdAction, convertLeadToDealAction, convertLeadV2Action, updateLeadAction, qualifyLeadAction, markLeadLostAction, getLeadStatusHistoryAction } from "@/app/actions/leads";
 import { createFollowUpAction, completeFollowUpAction } from "@/app/actions/followUps";
-import { getNotesAction, createNoteAction } from "@/app/actions/notes";
+import { getNotesAction } from "@/app/actions/notes";
 import { getActivitiesAction } from "@/app/actions/activities";
 import { getUsersAction } from "@/app/actions/users";
 import { useAuth } from "@/components/AuthProvider";
@@ -39,6 +40,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const { user }  = useAuth();
 
   const [lead,       setLead]       = useState<any>(null);
+  useSyncUrlParam(lead?.status, "status");
   const [followups,  setFollowups]  = useState<any[]>([]);
   const [notes,      setNotes]      = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
@@ -55,11 +57,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [fuPriority,   setFuPriority]   = useState<"High" | "Medium" | "Low">("Medium");
   const [fuSaving,     setFuSaving]     = useState(false);
 
-  // Note / activity add modal
-  const [noteModal, setNoteModal] = useState(false);
-  const [noteType,  setNoteType]  = useState<"Note" | "Call" | "Meeting">("Note");
-  const [noteText,  setNoteText]  = useState("");
-  const [noteSaving,setNoteSaving]= useState(false);
   const [loading,   setLoading]   = useState(true);
   const [tab,       setTab]       = useState<Tab>("overview");
 
@@ -110,17 +107,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     open: false, message: "", primary: { label: "", href: "" },
   });
 
-  // Call Log modal state
-  const [callLogModal, setCallLogModal] = useState(false);
-  const [callForm, setCallForm] = useState({ direction: "Outbound", duration: "15", status: "Completed", content: "" });
-  const [callSaving, setCallSaving] = useState(false);
-
   // Follow-up prompt after call log
-  const [fuPromptModal, setFuPromptModal] = useState(false);
   const [fuFromCallLog, setFuFromCallLog] = useState(false);
-
-  // Next action suggestions after "still in discussion"
-  const [nextActionModal, setNextActionModal] = useState(false);
 
   // Complete follow-up modal state
   const [completeFuModal, setCompleteFuModal] = useState(false);
@@ -131,6 +119,12 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
   // Post-complete suggestion modal
   const [postCompleteModal, setPostCompleteModal] = useState(false);
+
+  // Reassignment modal state
+  const [reassignModal, setReassignModal] = useState(false);
+  const [reassignTo, setReassignTo] = useState("");
+  const [reassignReason, setReassignReason] = useState("");
+  const [reassignSaving, setReassignSaving] = useState(false);
 
   // Load executives for assignment
   useEffect(() => {
@@ -173,53 +167,32 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   };
 
   // Unified handler for both "Mark Contacted" (lead details) and "Log First Call"
-  // (post lead creation). Both UI entry points open the Call Log modal first.
-  // The lead status is NOT updated here - it only changes after the user fills
-  // the call details and saves (see handleSaveCallLog -> contactLeadAction).
+  // (post lead creation). Both UI entry points redirect to /activities/new.
+  // The lead status auto-transitions from New to Contacted when the call is saved.
   const [contacting, setContacting] = useState(false);
   const handleLeadContact = (leadId: string) => {
     if (!leadId || contacting) return;
-    // Open the Call Log modal pre-filled with lead context
-    setCallForm({ direction: "Outbound", duration: "15", status: "Completed", content: "" });
-    setCallLogModal(true);
+    // Redirect to the unified activity form page
+    router.push(`/activities/new?type=call&leadId=${leadId}`);
   };
 
-  // Save call log via the unified contactLeadAction - creates the Call activity
-  // AND updates lead status to Contacted in a single atomic operation.
-  // Status only changes AFTER the call log is saved with user-provided details.
-  const handleSaveCallLog = async (e: React.FormEvent) => {
+  // Reassign lead to another executive
+  const handleReassign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!callForm.content.trim()) { toast.error("Please enter call notes/outcome."); return; }
-    setCallSaving(true);
-    const res = await contactLeadAction(lead.id, {
-      content: callForm.content,
-      direction: callForm.direction,
-      duration: callForm.duration ? parseInt(callForm.duration) : null,
-      status: callForm.status,
-    });
+    if (!reassignTo) { toast.error("Please select an executive to reassign to."); return; }
+    if (reassignTo === lead.assignedUserId) { toast.error("Lead is already assigned to this executive."); return; }
+    setReassignSaving(true);
+    const res = await updateLeadAction(lead.id, { assignedUserId: reassignTo });
     if (res.success) {
-      toast.success("Call logged & lead marked as Contacted!");
-      setCallLogModal(false);
+      toast.success(`Lead reassigned successfully. Reason: ${reassignReason || "Not specified"}`);
+      setReassignModal(false);
+      setReassignTo("");
+      setReassignReason("");
       load();
-      setFuPromptModal(true);
     } else {
-      toast.error(res.message || "Failed to log call.");
+      toast.error(res.message || "Failed to reassign lead.");
     }
-    setCallSaving(false);
-  };
-
-  // After follow-up prompt: "No, still in discussion" -> show next actions
-  // (Lead is already Contacted from contactLeadAction - no status update needed)
-  const handleNoFollowUp = () => {
-    setFuPromptModal(false);
-    setNextActionModal(true);
-  };
-
-  // After follow-up prompt: "Yes, schedule follow-up" -> open follow-up form
-  const handleYesFollowUp = () => {
-    setFuPromptModal(false);
-    setFuFromCallLog(true);
-    setFuModal(true);
+    setReassignSaving(false);
   };
 
   // Open complete follow-up modal
@@ -281,8 +254,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   };
   const handlePostCompleteNote = () => {
     setPostCompleteModal(false);
-    setNoteType("Note");
-    setNoteModal(true);
+    router.push(`/activities/new?type=note&leadId=${lead.id}`);
   };
   const handlePostCompleteLost = () => {
     setPostCompleteModal(false);
@@ -290,27 +262,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   };
   const handlePostCompleteDone = () => {
     setPostCompleteModal(false);
-  };
-
-  // Next action handlers
-  const handleNextActionSQL = async () => {
-    setNextActionModal(false);
-    const res = await updateLeadAction(lead.id, { status: "SQL" });
-    if (res.success) { toast.success("Lead marked as SQL."); load(); }
-    else { toast.error(res.message || "Failed"); }
-  };
-  const handleNextActionNote = () => {
-    setNextActionModal(false);
-    setNoteType("Note");
-    setNoteModal(true);
-  };
-  const handleNextActionFollowUp = () => {
-    setNextActionModal(false);
-    setFuFromCallLog(false);
-    setFuModal(true);
-  };
-  const handleNextActionDone = () => {
-    setNextActionModal(false);
   };
 
   // After follow-up form saved from the guided flow, update lead status to Contacted
@@ -541,22 +492,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
-  const handleAddNote = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!noteText.trim()) { toast.error("Note cannot be empty"); return; }
-    setNoteSaving(true);
-    const prefix = noteType !== "Note" ? `[${noteType}] ` : "";
-    const res = await createNoteAction("LEAD", lead.id, `${prefix}${noteText}`);
-    if (res.success) {
-      toast.success("Activity added!");
-      setNoteModal(false); setNoteText(""); setNoteType("Note");
-      setNotes(prev => [res.data, ...prev]);
-    } else {
-      toast.error(res.message || "Failed to add note.");
-      setNoteSaving(false);
-    }
-  };
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -599,10 +534,10 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-open Call Log modal when arriving via "Log First Call" (?action=contact)
+  // Auto-redirect to activity form when arriving via "Log First Call" (?action=contact)
   useEffect(() => {
-    if (searchParams?.get("action") === "contact" && lead && lead.status === "New" && !callLogModal) {
-      handleLeadContact(lead.id);
+    if (searchParams?.get("action") === "contact" && lead && lead.status === "New") {
+      router.push(`/activities/new?type=call&leadId=${lead.id}`);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, lead]);
@@ -651,7 +586,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       case "reschedule-followup": {
         const pendingFu = followups.find((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue");
         if (pendingFu) {
-          router.push(`/follow-up/${pendingFu.id}`);
+          router.push(`/follow-up/${pendingFu.id}?status=${pendingFu.status}`);
         } else {
           toast.error("No pending follow-up to reschedule.");
         }
@@ -663,7 +598,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         break;
       case "add-activity":
       case "add-sql-activity":
-        setNoteText(""); setNoteType("Note"); setNoteSaving(false); setNoteModal(true);
+        router.push(`/activities/new?type=note&leadId=${lead.id}`);
         break;
       case "convert-lead":
         openConvertV2();
@@ -700,17 +635,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     }
   };
 
-  const TABS: { key: Tab; label: string }[] = [
+  const TABS: { key: Tab; label: string; title?: string }[] = [
     { key: "overview",   label: "Overview" },
-    { key: "followups",  label: `Follow Ups (${followups.length})` },
-    { key: "activities", label: `Activities (${activities.length})` },
+    { key: "followups",  label: `Follow Ups (${followups.length})`, title: "Scheduled and planned future actions" },
+    { key: "activities", label: `Activities (${activities.length})`, title: "Completed actions: calls made, meetings held, notes logged" },
     { key: "bant",       label: "BANT Checklist" },
     { key: "competitor",  label: "Competitor Intelligence" },
     { key: "documents",   label: "Documents" },
   ];
 
   return (
-    <div className="page-shell">
+    <div className="page-shell flex flex-col gap-6">
 
       {/* ---- Header ---- */}
       <div className="crm-card p-4 flex items-center justify-between gap-3">
@@ -739,8 +674,22 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      {/* ---- SLA Countdown Banner (prominent, near top) ---- */}
-      {lead.slaStatus === "Pending" && lead.slaResponseDeadline && !isConverted && !isLost && (() => {
+      {/* ---- "On behalf of" indicator banner ---- */}
+      {(user?.role === "Admin" || user?.role === "SalesManager") &&
+       lead.assignedUserId && lead.assignedUserId !== user?.id && !isConverted && !isLost && (
+        <div className="crm-card p-3 flex items-center gap-3 border-amber-200 bg-amber-50/80">
+          <User size={16} className="text-amber-600 shrink-0" />
+          <p className="text-xs font-semibold text-amber-700">
+            You are acting on behalf of <span className="font-bold">{lead.assignedUser?.name || "the assigned executive"}</span>.
+            All actions will be logged with your identity for accountability.
+          </p>
+        </div>
+      )}
+
+      {/* ---- SLA Countdown Banner ---- */}
+      {/* Only show SLA banner if lead is still New with no response and no follow-ups scheduled */}
+      {lead.slaStatus === "Pending" && lead.slaResponseDeadline && lead.status === "New" && !isConverted && !isLost &&
+       followups.filter((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue").length === 0 && (() => {
         const minsLeft = Math.floor((new Date(lead.slaResponseDeadline).getTime() - Date.now()) / 60000);
         if (minsLeft <= 0) return (
           <div className="crm-card p-4 flex items-center gap-3 border-red-200 bg-red-50">
@@ -767,7 +716,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       })()}
 
       {/* ---- Next Follow-Up Banner ---- */}
-      {(() => {
+      {/* Only show follow-up banner if lead is no longer New (has been contacted) or has follow-ups */}
+      {(lead.status !== "New" || lead.firstRespondedAt) && (() => {
         const upcomingPending = followups.filter((f: any) => f.status === "Pending" || f.status === "Scheduled" || f.status === "Overdue");
         if (upcomingPending.length === 0) return null;
         
@@ -787,7 +737,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 {isOverdue ? "Overdue Follow-up" : "Next Scheduled Follow-up"} &middot; {nextFu.type || "Call"}
               </p>
               <p className={cn("text-xs mt-0.5", isOverdue ? "text-red-600" : "text-blue-600")}>
-                Scheduled for {nextDate.toLocaleString()} &mdash; Assigned to {nextFu.assignedUser?.name || "System"}
+                Scheduled for {nextDate.toLocaleString()}
                 {nextFu.remarks && <span className="block italic mt-0.5 font-medium">&ldquo;{nextFu.remarks}&rdquo;</span>}
               </p>
             </div>
@@ -934,6 +884,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 <User size={13} className="text-slate-400 shrink-0" />
                 Assigned to{" "}
                 <span className="font-semibold">{lead.assignedUser?.name || "Unassigned"}</span>
+                {(user?.role === "Admin" || user?.role === "SalesManager") && !isConverted && !isLost && (
+                  <button
+                    onClick={() => { setReassignTo(""); setReassignReason(""); setReassignModal(true); }}
+                    className="text-xs text-[var(--primary)] hover:underline font-semibold ml-1"
+                  >
+                    Reassign
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2 text-sm text-slate-600">
                 <CalendarClock size={13} className="text-slate-400 shrink-0" />
@@ -942,24 +900,25 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-6 mt-4 border-t border-slate-100 pt-3">
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={cn(
-                "text-sm font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap",
-                tab === key
-                  ? "border-[var(--primary)] text-[var(--primary)]"
-                  : "border-transparent text-slate-400 hover:text-slate-700"
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      {/* ---- Tabs Navigation ---- */}
+      <div className="crm-card p-4 flex items-center gap-6">
+        {TABS.map(({ key, label, title }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            title={title}
+            className={cn(
+              "text-sm font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap",
+              tab === key
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-slate-400 hover:text-slate-700"
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* ---- Overview Tab ---- */}
@@ -1092,12 +1051,12 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               >
                 <PhoneCall size={13} /> Log Call
               </Link>
-              <button
-                onClick={() => { setNoteText(""); setNoteType("Note"); setNoteSaving(false); setNoteModal(true); }}
+              <Link
+                href={`/activities/new?leadId=${leadId}&type=note`}
                 className="btn-primary text-xs flex items-center gap-1.5"
               >
                 <Plus size={13} /> Add Note
-              </button>
+              </Link>
             </div>
           </div>
 
@@ -1183,12 +1142,12 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
                 >
                   <PhoneCall size={13} /> Log Call
                 </Link>
-                <button
-                  onClick={() => { setNoteText(""); setNoteType("Note"); setNoteSaving(false); setNoteModal(true); }}
+                <Link
+                  href={`/activities/new?leadId=${leadId}&type=note`}
                   className="btn-primary text-xs flex items-center gap-1.5"
                 >
                   <Plus size={13} /> Add Note
-                </button>
+                </Link>
               </div>
             </div>
           )}
@@ -1515,145 +1474,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </Modal>
 
-      {/* ---- Call Log Modal (mandatory flow from "Mark Contacted" / "Log First Call") ---- */}
-      <Modal
-        open={callLogModal}
-        onClose={() => setCallLogModal(false)}
-        title="Log Call Activity"
-        subtitle={`Required to mark as Contacted: ${lead?.name || ""} (${lead?.leadCode || ""})`}
-        footer={
-          <>
-            <button type="button" onClick={() => setCallLogModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button type="submit" form="call-log-form" disabled={callSaving} className="btn-primary text-sm">
-              {callSaving ? <><span className="spinner-brand" /> Saving...</> : "Save Call Log"}
-            </button>
-          </>
-        }
-      >
-        <form id="call-log-form" onSubmit={handleSaveCallLog} className="p-6 space-y-4">
-          {/* Auto-filled lead name - no manual search needed */}
-          <FormField label="Linked Lead">
-            <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-semibold text-slate-700">
-              {lead?.name} <span className="text-xs font-mono text-slate-400 ml-1">{lead?.leadCode}</span>
-            </div>
-          </FormField>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <FormField label="Direction">
-              <Select value={callForm.direction} onChange={e => setCallForm(f => ({ ...f, direction: e.target.value }))}>
-                <option value="Outbound">Outbound</option>
-                <option value="Inbound">Inbound</option>
-              </Select>
-            </FormField>
-            <FormField label="Duration (minutes)">
-              <Input type="number" value={callForm.duration} onChange={e => setCallForm(f => ({ ...f, duration: e.target.value }))} placeholder="15" />
-            </FormField>
-            <FormField label="Status">
-              <Select value={callForm.status} onChange={e => setCallForm(f => ({ ...f, status: e.target.value }))}>
-                <option value="Completed">Completed</option>
-                <option value="NoAnswer">No Answer</option>
-                <option value="Scheduled">Scheduled</option>
-              </Select>
-            </FormField>
-          </div>
-          <FormField label="Notes / Outcome" required>
-            <textarea
-              value={callForm.content}
-              onChange={e => setCallForm(f => ({ ...f, content: e.target.value }))}
-              placeholder="What was discussed? What was the outcome?"
-              rows={4}
-              required
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
-            />
-          </FormField>
-        </form>
-      </Modal>
-
-      {/* ---- Follow-up Prompt Modal (after call log saved) ---- */}
-      <Modal
-        open={fuPromptModal}
-        onClose={() => setFuPromptModal(false)}
-        title="Call Logged - Next Step?"
-        subtitle="Does this lead need a follow-up?"
-        footer={
-          <>
-            <button type="button" onClick={handleNoFollowUp} className="btn-secondary text-sm">
-              No, still in discussion
-            </button>
-            <button type="button" onClick={handleYesFollowUp} className="btn-primary text-sm flex items-center gap-1.5">
-              <CalendarClock size={14} /> Yes, Schedule Follow-up
-            </button>
-          </>
-        }
-      >
-        <div className="p-6 space-y-4">
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-            <CheckCircle2 size={20} className="text-emerald-600 shrink-0" />
-            <div>
-              <p className="text-sm font-bold text-emerald-800">Call logged successfully!</p>
-              <p className="text-xs text-emerald-600 mt-0.5">The call activity has been recorded in the timeline.</p>
-            </div>
-          </div>
-          <p className="text-sm text-slate-600">
-            Would you like to schedule a follow-up for this lead? If the prospect is interested,
-            you can schedule a call or meeting right now.
-          </p>
-        </div>
-      </Modal>
-
-      {/* ---- Next Action Modal (after "still in discussion") ---- */}
-      <Modal
-        open={nextActionModal}
-        onClose={() => setNextActionModal(false)}
-        title="What's Next?"
-        subtitle="Lead is now Contacted. Choose your next action."
-        footer={
-          <button type="button" onClick={handleNextActionDone} className="btn-secondary text-sm">
-            Done - I'll handle it later
-          </button>
-        }
-      >
-        <div className="p-6 space-y-3">
-          <button
-            onClick={handleNextActionSQL}
-            className="w-full flex items-center gap-3 p-4 rounded-xl border border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors text-left"
-          >
-            <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
-              <CheckCircle2 size={20} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-purple-800">Mark as SQL</p>
-              <p className="text-xs text-purple-600">Promote this lead to Sales Qualified Lead for deeper sales engagement</p>
-            </div>
-          </button>
-
-          <button
-            onClick={handleNextActionNote}
-            className="w-full flex items-center gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors text-left"
-          >
-            <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-              <FileText size={20} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-blue-800">Add Note</p>
-              <p className="text-xs text-blue-600">Record additional details about this discussion</p>
-            </div>
-          </button>
-
-          <button
-            onClick={handleNextActionFollowUp}
-            className="w-full flex items-center gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors text-left"
-          >
-            <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-              <CalendarClock size={20} />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-amber-800">Schedule Follow-up</p>
-              <p className="text-xs text-amber-600">Changed your mind? Schedule a follow-up call or meeting now</p>
-            </div>
-          </button>
-        </div>
-      </Modal>
-
       {/* ---- Add Follow-up Modal ---- */}
       <Modal
         open={fuModal}
@@ -1726,46 +1546,6 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               placeholder="What should be discussed or planned..."
               rows={3}
               className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
-            />
-          </FormField>
-        </form>
-      </Modal>
-
-      {/* ---- Add Activity / Note Modal ---- */}
-      <Modal
-        open={noteModal}
-        onClose={() => setNoteModal(false)}
-        title="Log Activity"
-        subtitle="Add a call log, meeting note, or general note for this lead."
-        footer={
-          <>
-            <button type="button" onClick={() => setNoteModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button type="submit" form="add-note-form" disabled={noteSaving} className="btn-primary text-sm">
-              {noteSaving ? <><span className="spinner-brand" /> Saving...</> : "Save Activity"}
-            </button>
-          </>
-        }
-      >
-        <form id="add-note-form" onSubmit={handleAddNote} className="p-6 space-y-4">
-          <FormField label="Type" required>
-            <select
-              value={noteType}
-              onChange={e => setNoteType(e.target.value as any)}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-            >
-              <option value="Note">Note</option>
-              <option value="Call">Call Log</option>
-              <option value="Meeting">Meeting</option>
-            </select>
-          </FormField>
-          <FormField label="Details" required>
-            <textarea
-              value={noteText}
-              onChange={e => setNoteText(e.target.value)}
-              placeholder={noteType === "Call" ? "e.g. Called to discuss delivery timeline. Follow-up needed." : noteType === "Meeting" ? "e.g. Plant visit at Pune facility - discussed requirements." : "Add your note here..."}
-              rows={4}
-              className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] resize-none"
-              required
             />
           </FormField>
         </form>
@@ -2074,6 +1854,47 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
       )}
+
+      {/* ---- Reassignment Modal ---- */}
+      <Modal
+        open={reassignModal}
+        onClose={() => setReassignModal(false)}
+        title="Reassign Lead"
+        subtitle={`Currently assigned to: ${lead.assignedUser?.name || "Unassigned"}`}
+        footer={
+          <>
+            <button type="button" onClick={() => setReassignModal(false)} className="btn-secondary text-xs">
+              Cancel
+            </button>
+            <button type="submit" form="reassign-form" disabled={reassignSaving} className="btn-primary text-xs disabled:opacity-50">
+              {reassignSaving ? "Reassigning..." : "Reassign Lead"}
+            </button>
+          </>
+        }
+      >
+        <form id="reassign-form" onSubmit={handleReassign} className="space-y-4">
+          <FormField label="Reassign To" required>
+            <Select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)} required>
+              <option value="">Select an executive...</option>
+              {executives.map((ex: any) => (
+                <option key={ex.id} value={ex.id} disabled={ex.id === lead.assignedUserId}>
+                  {ex.name} ({ex.role === "SalesExecutive" ? "Executive" : "Manager"})
+                </option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField label="Reason (optional)">
+            <Input
+              value={reassignReason}
+              onChange={(e) => setReassignReason(e.target.value)}
+              placeholder="e.g., Executive on leave, workload redistribution..."
+            />
+          </FormField>
+          <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3">
+            The new executive will get a fresh 15-minute SLA countdown. The reassignment will be logged in the audit trail.
+          </p>
+        </form>
+      </Modal>
     </div>
   );
 }

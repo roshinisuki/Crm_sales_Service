@@ -172,7 +172,7 @@ function TasksPageContent() {
                     <tr
                       key={task.id}
                       className={cn("crm-tr table-row-clickable", task.status === "Done" && "opacity-60")}
-                      onClick={() => router.push(`/tasks/${task.id}`)}
+                      onClick={() => router.push(`/tasks/${task.id}?status=${task.status}`)}
                     >
                       <td className="crm-td" onClick={e => e.stopPropagation()}>
                         <button onClick={() => toggleDone(task)} title={task.status === "Done" ? "Mark as open" : "Mark as done"} className={cn("w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors", task.status === "Done" ? "border-green-400 bg-green-400" : "border-slate-300 hover:border-green-400")}>
@@ -197,7 +197,7 @@ function TasksPageContent() {
                       <td className="crm-td"><StatusBadge status={task.status} size="sm" /></td>
                       <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => router.push(`/tasks/${task.id}`)} className="row-action-btn" title="Edit"><Pencil size={14} /></button>
+                          <button onClick={() => router.push(`/tasks/${task.id}?status=${task.status}`)} className="row-action-btn" title="Edit"><Pencil size={14} /></button>
                           <button onClick={() => confirmDelete(task)} className="row-action-btn row-action-btn-danger" title="Delete"><Trash2 size={14} /></button>
                         </div>
                       </td>

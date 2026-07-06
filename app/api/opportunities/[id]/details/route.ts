@@ -65,6 +65,7 @@ export async function PUT(
     "demoType", "demoDate", "demoPresenter", "demoDuration", "demoAttendees",
     "demoCustomerRating", "demoInterestLevel", "demoQuestionsRaised",
     "demoRejectionReason", "demoRejectionRemarks", "demoCompetitorName",
+    "demoFollowUpDate",
     // Proposal Sent
     "proposedSolution", "scopeClassification", "estimatedDuration", "developmentEffort",
     "implementationEffort", "supportRequirements",
@@ -81,7 +82,7 @@ export async function PUT(
         data[key] = body[key] !== null && body[key] !== "" ? parseInt(body[key]) || null : null;
       } else if (["expectedBudget", "finalDiscussedBudget", "discountRequested", "proposalValue"].includes(key)) {
         data[key] = body[key] !== null && body[key] !== "" ? parseFloat(body[key]) || null : null;
-      } else if (["expectedGoLive", "meetingDate", "demoDate", "nextFollowUpDate", "requirementCompletedAt", "techDiscussionDate"].includes(key)) {
+      } else if (["expectedGoLive", "meetingDate", "demoDate", "nextFollowUpDate", "requirementCompletedAt", "techDiscussionDate", "demoFollowUpDate"].includes(key)) {
         data[key] = body[key] ? new Date(body[key]) : null;
       } else if (["techDiscussionConfirmed"].includes(key)) {
         data[key] = Boolean(body[key]);

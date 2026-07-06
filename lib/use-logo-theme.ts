@@ -52,7 +52,6 @@ export function useLogoTheme(opts?: {
   initialIsDark?: boolean;
 }): LogoTheme {
   const [logoTheme, setLogoTheme] = useState<LogoTheme>(() => {
-    if (typeof window !== "undefined") return readFromDOM();
     if (opts?.initialColor) return getLogoTheme(opts.initialColor, opts?.initialIsDark ?? false);
     return "blue";
   });

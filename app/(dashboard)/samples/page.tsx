@@ -8,30 +8,16 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
 import { CATALOG_STATUS } from "@/lib/module-status-config";
+import { Plus, Search, X, Eye, Package, Clock, CheckCircle2, XCircle, AlertCircle, Send, RotateCw } from "lucide-react";
 
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  plus: "M12 4v16m8-8H4",
-  search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-  x: "M6 18L18 6M6 6l12 12",
-  eye: "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z",
+const statusConfig: Record<string, { color: string; icon: any; dot: string }> = {
+  New:           { color: "bg-blue-50 text-blue-700 border-blue-200",     icon: Package,      dot: "bg-blue-500" },
+  UnderReview:   { color: "bg-amber-50 text-amber-700 border-amber-200",   icon: Clock,        dot: "bg-amber-500" },
+  SentToCustomer:{ color: "bg-purple-50 text-purple-700 border-purple-200", icon: Send,         dot: "bg-purple-500" },
+  Approved:      { color: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2, dot: "bg-emerald-500" },
+  Rejected:      { color: "bg-red-50 text-red-700 border-red-200",         icon: XCircle,      dot: "bg-red-500" },
+  Revision:      { color: "bg-orange-50 text-orange-700 border-orange-200", icon: RotateCw,     dot: "bg-orange-500" },
 };
-
-const statusColors: Record<string, string> = {
-  New: "bg-blue-100 text-blue-700",
-  UnderReview: "bg-amber-100 text-amber-700",
-  SentToCustomer: "bg-purple-100 text-purple-700",
-  Approved: "bg-green-100 text-green-700",
-  Rejected: "bg-red-100 text-red-700",
-  Revision: "bg-orange-100 text-orange-700",
-};
-
-const statusOptions = ["New", "UnderReview", "SentToCustomer", "Approved", "Rejected", "Revision"];
 
 function SampleListContent() {
   const [samples, setSamples] = useState<any[]>([]);
@@ -104,36 +90,45 @@ function SampleListContent() {
 
   return (
     <PageContainer className="space-y-4 p-0">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Catalog</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage product sample requests from customers</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
+            <Package size={20} className="text-[var(--primary)]" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-800">Sample Management</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Track product sample requests from customers</p>
+          </div>
         </div>
         <button
           onClick={() => router.push("/samples/new")}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer shadow-sm"
         >
-          <Ico d={icons.plus} size={16} /> New Sample Request
+          <Plus size={16} /> New Sample Request
         </button>
       </div>
 
+      {/* Status Filter */}
       <StatusFilterBar
         statuses={CATALOG_STATUS}
         paramKey="status"
         basePath="/samples"
       />
 
-      <div className="relative">
-        <Ico d={icons.search} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           type="text"
-          placeholder="Search by sample code, customer or product..."
+          placeholder="Search by code, customer or product..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-sm pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+          className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
         />
       </div>
 
+      {/* Table */}
       <div className="crm-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="crm-table">
@@ -159,34 +154,42 @@ function SampleListContent() {
                 </td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan={8} className="crm-td text-center py-16">
-                  <p className="text-sm font-semibold text-slate-500">No sample requests found</p>
+                  <Package size={36} className="text-slate-200 mx-auto mb-3" />
+                  <p className="text-sm font-semibold text-slate-400">No sample requests found</p>
+                  <p className="text-xs text-slate-300 mt-1">Create a new sample request to get started</p>
                 </td></tr>
               ) : (
-                filtered.map((sample: any) => (
-                  <tr key={sample.id} className="crm-tr">
-                    <td className="crm-td font-medium text-foreground">{sample.sampleCode}</td>
-                    <td className="crm-td text-foreground">{sample.customer?.name || "—"}</td>
-                    <td className="crm-td text-foreground">{sample.product ? `${sample.product.productCode} - ${sample.product.name}` : "—"}</td>
-                    <td className="crm-td text-foreground">{sample.quantity}</td>
-                    <td className="crm-td">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[sample.status] || "bg-gray-100 text-gray-600"}`}>
-                        {sample.status}
-                      </span>
-                    </td>
-                    <td className="crm-td text-foreground">{sample.assignedUser?.name || "—"}</td>
-                    <td className="crm-td text-foreground">{new Date(sample.requestDate).toLocaleDateString()}</td>
-                    <td className="crm-td text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => router.push(`/samples/${sample.id}`)} className="p-1.5 rounded-lg hover:bg-muted text-slate-600 cursor-pointer" title="View">
-                          <Ico d={icons.eye} size={15} />
-                        </button>
-                        <button onClick={() => handleDelete(sample.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 cursor-pointer" title="Delete">
-                          <Ico d={icons.x} size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                filtered.map((sample: any) => {
+                  const cfg = statusConfig[sample.status] || statusConfig.New;
+                  const StatusIcon = cfg.icon;
+                  return (
+                    <tr key={sample.id} className="crm-tr hover:bg-slate-50/50 transition-colors">
+                      <td className="crm-td">
+                        <span className="font-mono text-xs font-bold text-slate-700">{sample.sampleCode}</span>
+                      </td>
+                      <td className="crm-td text-foreground font-medium">{sample.customer?.name || "—"}</td>
+                      <td className="crm-td text-foreground">{sample.product ? `${sample.product.productCode} - ${sample.product.name}` : "—"}</td>
+                      <td className="crm-td text-foreground">{sample.quantity}</td>
+                      <td className="crm-td">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${cfg.color}`}>
+                          <StatusIcon size={12} /> {sample.status}
+                        </span>
+                      </td>
+                      <td className="crm-td text-foreground">{sample.assignedUser?.name || "—"}</td>
+                      <td className="crm-td text-foreground text-xs">{new Date(sample.requestDate).toLocaleDateString()}</td>
+                      <td className="crm-td text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => router.push(`/samples/${sample.id}?status=${sample.status}`)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer transition-colors" title="View Details">
+                            <Eye size={15} />
+                          </button>
+                          <button onClick={() => handleDelete(sample.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 cursor-pointer transition-colors" title="Delete">
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

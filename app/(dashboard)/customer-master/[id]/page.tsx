@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { getCustomerByIdAction, updateCustomerAction } from "@/app/actions/customers";
 import { createFollowUpAction } from "@/app/actions/followUps";
 import { createCallAction } from "@/app/actions/activities";
@@ -62,6 +63,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
   const toast = useToast();
   const { user: currentUser } = useAuth();
   const [customer, setCustomer] = useState<any>(null);
+  useSyncUrlParam(customer?.status, "status");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [executives, setExecutives] = useState<any[]>([]);

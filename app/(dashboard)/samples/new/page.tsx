@@ -5,16 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  back: "M10 19l-7-7m0 0l7-7m-7 7h18",
-};
+import { ArrowLeft, Package, Plus, Search, FileText, User, X } from "lucide-react";
 
 export default function NewSamplePage() {
   const router = useRouter();
@@ -123,27 +114,38 @@ export default function NewSamplePage() {
 
   return (
     <PageContainer className="space-y-4 p-0">
+      {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => router.push("/samples")} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer">
-          <Ico d={icons.back} size={18} />
+        <button onClick={() => router.push("/samples")} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer transition-colors">
+          <ArrowLeft size={18} />
         </button>
+        <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
+          <Package size={20} className="text-[var(--primary)]" />
+        </div>
         <div>
           <h1 className="text-2xl font-bold text-slate-800">New Sample Request</h1>
           <p className="text-sm text-slate-500 mt-0.5">Create a new product sample request</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-5">
+      <form onSubmit={handleSubmit} className="crm-card p-6 space-y-5">
+        <div className="flex items-center gap-2 pb-4 border-b border-slate-100">
+          <FileText size={18} className="text-slate-400" />
+          <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">Sample Details</h2>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer *</label>
-            <input
-              type="text"
-              placeholder="Search customer..."
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all mb-2"
-            />
+            <div className="relative mb-2">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search customer..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+              />
+            </div>
             <select
               value={form.customerId}
               onChange={(e) => setForm({ ...form, customerId: e.target.value, contactId: "", rfqId: "" })}
@@ -174,13 +176,16 @@ export default function NewSamplePage() {
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1.5">Product *</label>
-            <input
-              type="text"
-              placeholder="Search product..."
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all mb-2"
-            />
+            <div className="relative mb-2">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search product..."
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+              />
+            </div>
             <select
               value={form.productId}
               onChange={(e) => setForm({ ...form, productId: e.target.value })}
@@ -246,20 +251,20 @@ export default function NewSamplePage() {
           />
         </div>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <button
             type="button"
             onClick={() => router.push("/samples")}
-            className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
           >
-            Cancel
+            <X size={15} /> Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60"
+            className="flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Create Sample Request"}
+            <Plus size={15} /> {saving ? "Saving..." : "Create Sample Request"}
           </button>
         </div>
       </form>

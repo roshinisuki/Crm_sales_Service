@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const customerId = searchParams.get("customerId");
   const negotiationId = searchParams.get("negotiationId");
+  const quotationId = searchParams.get("quotationId");
   const assignedUserId = searchParams.get("assignedUserId");
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = 20;
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
   if (status) where.status = status;
   if (customerId) where.customerId = customerId;
   if (negotiationId) where.negotiationId = negotiationId;
+  if (quotationId) where.quotationId = quotationId;
   if (assignedUserId) where.assignedUserId = assignedUserId;
 
   const [purchaseOrders, total] = await Promise.all([

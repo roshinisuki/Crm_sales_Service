@@ -9,7 +9,8 @@ import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
-import { ArrowLeft, Save, Edit, X, FileText, Plus, Trash2, Package, UploadCloud, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Save, Edit, X, FileText, Plus, Trash2, Package, UploadCloud, Image as ImageIcon, SlidersHorizontal } from "lucide-react";
+import { cn } from "@/lib/ui-utils";
 
 export default function ProductDetailPage() {
   const [product, setProduct] = useState<any>(null);
@@ -252,16 +253,16 @@ export default function ProductDetailPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-white transition-colors"
+            className="btn-ghost"
           >
-            <Edit size={18} />
+            <Edit size={16} />
             {isEditing ? "Cancel" : "Edit"}
           </button>
           <button
             onClick={handleDelete}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors"
           >
-            <Trash2 size={18} />
+            <Trash2 size={16} />
             Delete
           </button>
         </div>
@@ -269,7 +270,7 @@ export default function ProductDetailPage() {
     >
 
       {isEditing ? (
-        <form onSubmit={handleUpdate} className="space-y-6 mb-8">
+        <form onSubmit={handleUpdate} className="crm-card p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField label="Product Name" required>
               <Input
@@ -398,108 +399,133 @@ export default function ProductDetailPage() {
             <label htmlFor="isActive" className="text-sm text-slate-700">Active</label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-subtle)]">
             <button
               type="button"
               onClick={() => setIsEditing(false)}
-              className="px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-white transition-colors"
+              className="btn-ghost"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={formLoading || !formData.name}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="btn-primary"
             >
-              <Save size={18} />
+              <Save size={16} />
               {formLoading ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>
       ) : (
-        <div className="space-y-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Category</p>
-              <p className="text-slate-900">{product.category?.name || "-"}</p>
+        <div className="space-y-5">
+          {/* Info card */}
+          <div className="crm-card p-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">Category</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{product.category?.name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">Unit</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{product.unit || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">Base Price</p>
+                <p className="text-sm font-bold text-[var(--text-primary)] tabular-nums">{product.basePrice ? formatCurrency(product.basePrice) : "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">Status</p>
+                <span className={cn(
+                  "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold",
+                  product.isActive ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-muted text-muted-foreground"
+                )}>
+                  {product.isActive ? "Active" : "Inactive"}
+                </span>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">Product Type</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{product.productType ? product.productType.replace(/([A-Z])/g, ' $1').trim() : "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1">Min Order Qty</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{product.minOrderQuantity || "—"}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Unit</p>
-              <p className="text-slate-900">{product.unit || "-"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Base Price</p>
-              <p className="text-slate-900">{product.basePrice ? formatCurrency(product.basePrice) : "-"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Status</p>
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${product.isActive ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-800"}`}>
-                {product.isActive ? "Active" : "Inactive"}
-              </span>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Product Type</p>
-              <p className="text-slate-900">{product.productType ? product.productType.replace(/([A-Z])/g, ' $1').trim() : "-"}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Min Order Quantity</p>
-              <p className="text-slate-900">{product.minOrderQuantity || "-"}</p>
-            </div>
+            {product.description && (
+              <div className="mt-5 pt-5 border-t border-[var(--border-subtle)]">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1.5">Description</p>
+                <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{product.description}</p>
+              </div>
+            )}
           </div>
-          {product.description && (
-            <div>
-              <p className="text-sm text-slate-500 mb-1">Description</p>
-              <p className="text-slate-900">{product.description}</p>
+
+          {/* Documents row */}
+          {(product.datasheets?.length > 0 || product.brochures?.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {product.datasheets && product.datasheets.length > 0 && (
+                <div className="crm-card p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                      <FileText size={16} />
+                    </div>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">Datasheets</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {product.datasheets.map((ds: any) => (
+                      <a
+                        key={ds.id}
+                        href={ds.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors"
+                      >
+                        <FileText size={14} />
+                        {ds.title || ds.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {product.brochures && product.brochures.length > 0 && (
+                <div className="crm-card p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                      <FileText size={16} />
+                    </div>
+                    <h3 className="text-sm font-bold text-[var(--text-primary)]">Brochures</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {product.brochures.map((br: any) => (
+                      <a
+                        key={br.id}
+                        href={br.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2 rounded-lg transition-colors"
+                      >
+                        <FileText size={14} />
+                        {br.title || br.name}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {product.datasheets && product.datasheets.length > 0 && (
-              <div>
-                <p className="text-sm text-slate-500 mb-1">Datasheets</p>
-                <div className="space-y-2">
-                  {product.datasheets.map((ds: any) => (
-                    <a
-                      key={ds.id}
-                      href={ds.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-700 flex items-center gap-2 text-sm"
-                    >
-                      <FileText size={14} />
-                      {ds.title}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-            {product.brochures && product.brochures.length > 0 && (
-              <div>
-                <p className="text-sm text-slate-500 mb-1">Brochures</p>
-                <div className="space-y-2">
-                  {product.brochures.map((br: any) => (
-                    <a
-                      key={br.id}
-                      href={br.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-purple-600 hover:text-purple-700 flex items-center gap-2 text-sm"
-                    >
-                      <FileText size={14} />
-                      {br.title}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       )}
 
       {/* Specifications Section */}
-      <div className="border-t border-slate-200 pt-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Specifications</h2>
-        
-        <form onSubmit={handleAddSpec} className="flex gap-3 mb-6">
+      <div className="crm-card p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <div className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center">
+            <SlidersHorizontal size={16} />
+          </div>
+          <h2 className="text-base font-bold text-[var(--text-primary)]">Specifications</h2>
+        </div>
+
+        <form onSubmit={handleAddSpec} className="flex flex-col sm:flex-row gap-2.5 mb-5">
           <Input
             type="text"
             value={specForm.specKey}
@@ -519,43 +545,44 @@ export default function ProductDetailPage() {
             value={specForm.unit}
             onChange={(e) => setSpecForm({ ...specForm, unit: e.target.value })}
             placeholder="Unit (e.g., kg)"
-            className="w-32"
+            className="w-full sm:w-32"
           />
-          <button
-            type="submit"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--primary)] text-white font-medium hover:opacity-90 transition-opacity"
-          >
-            <Plus size={18} />
-            Add
+          <button type="submit" disabled={formLoading} className="btn-primary shrink-0">
+            <Plus size={16} />
+            {formLoading ? "Adding..." : "Add"}
           </button>
         </form>
 
         {specs.length === 0 ? (
-          <p className="text-slate-500 text-center py-8">No specifications added yet</p>
+          <div className="text-center py-10">
+            <SlidersHorizontal size={32} className="mx-auto text-slate-300 mb-2" />
+            <p className="text-sm text-[var(--text-secondary)] font-medium">No specifications added yet</p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">Add specifications using the form above</p>
+          </div>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-            <table className="w-full">
+          <div className="overflow-x-auto">
+            <table className="crm-table">
               <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Key</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Value</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Unit</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">Actions</th>
+                <tr>
+                  <th className="crm-th">Key</th>
+                  <th className="crm-th">Value</th>
+                  <th className="crm-th">Unit</th>
+                  <th className="crm-th text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {specs.map((spec) => (
-                  <tr key={spec.id} className="border-b border-slate-200">
-                    <td className="px-4 py-3">{spec.specKey}</td>
-                    <td className="px-4 py-3">{spec.specValue}</td>
-                    <td className="px-4 py-3 text-slate-500">{spec.unit || "-"}</td>
-                    <td className="px-4 py-3 text-right">
+                  <tr key={spec.id} className="crm-tr">
+                    <td className="crm-td font-medium text-foreground">{spec.specKey}</td>
+                    <td className="crm-td text-muted-foreground">{spec.specValue}</td>
+                    <td className="crm-td text-muted-foreground">{spec.unit || "—"}</td>
+                    <td className="crm-td text-right">
                       <button
                         onClick={() => handleDeleteSpec(spec.id)}
-                        className="p-1.5 rounded hover:bg-red-50 text-red-600 hover:text-red-600 transition-colors"
+                        className="action-icon-btn text-rose-500 hover:bg-rose-50"
                         title="Delete"
                       >
-                        <X size={16} />
+                        <Trash2 size={15} />
                       </button>
                     </td>
                   </tr>

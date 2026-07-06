@@ -415,15 +415,20 @@ export default function LeadsPage() {
       setIsModalOpen(false);
       toast.success(formData.id ? "Lead updated successfully." : "Lead created successfully.");
       loadLeads();
-      // Open guided workflow modal for new leads (Plan Visit → Log Activity)
+      // Open guided workflow modal for new leads — only when self-assigned
+      // (creator is the assignee). If Admin assigns to an executive, the
+      // executive gets a notification instead; no popup for the Admin.
       if (!formData.id) {
         const newLead = res.data as any;
-        setWorkflowModal({
-          open: true,
-          leadId: newLead?.id || "",
-          leadCode: newLead?.leadCode || "",
-          leadName: formData.name,
-        });
+        const isSelfAssigned = !formData.assignedUserId || formData.assignedUserId === user?.id;
+        if (isSelfAssigned) {
+          setWorkflowModal({
+            open: true,
+            leadId: newLead?.id || "",
+            leadCode: newLead?.leadCode || "",
+            leadName: formData.name,
+          });
+        }
       }
     } else {
       setFormError(res.message || "Operation failed");
@@ -717,7 +722,7 @@ export default function LeadsPage() {
                   <tr
                     key={l.id}
                     className="crm-tr table-row-clickable"
-                    onClick={() => router.push(`/leads/${l.id}`)}
+                    onClick={() => router.push(`/leads/${l.id}?status=${l.status}`)}
                   >
                     <td className="crm-td text-theme-muted text-xs font-medium">
                       {(page - 1) * 10 + idx + 1}
@@ -858,7 +863,7 @@ export default function LeadsPage() {
                                 );
                               })()}
                               <button
-                                onClick={(e) => { e.stopPropagation(); setGuidanceLeadId(null); router.push(`/leads/${l.id}`); }}
+                                onClick={(e) => { e.stopPropagation(); setGuidanceLeadId(null); router.push(`/leads/${l.id}?status=${l.status}`); }}
                                 className="mt-2 w-full text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center justify-center gap-1 pt-2 border-t border-slate-100 dark:border-slate-700"
                               >
                                 Open Lead Detail <ChevronRight size={12} />

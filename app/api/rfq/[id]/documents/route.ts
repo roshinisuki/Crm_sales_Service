@@ -16,7 +16,7 @@ export async function POST(
   // Validate RFQ exists
   const rfq = await prisma.rFQ.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
-    select: { rfqCode: true },
+    select: { rfqCode: true, customerId: true },
   });
   if (!rfq) return NextResponse.json({ success: false, message: "RFQ not found" }, { status: 404 });
 
@@ -56,6 +56,7 @@ export async function POST(
       mimeType: file.type,
       description: formData.get("description") as string || null,
       uploadedById: user.id,
+      customerId: rfq.customerId,
       companyId: user.companyId,
     },
   });

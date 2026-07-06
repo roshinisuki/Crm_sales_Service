@@ -9,6 +9,7 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import UploadDocumentModal from "@/components/documents/UploadDocumentModal";
 import DocumentPreviewModal from "@/components/documents/DocumentPreviewModal";
+import CompanyGrid from "@/components/documents/CompanyGrid";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -87,6 +88,7 @@ export default function DocumentsListPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<"all" | "company">("all");
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const toast = useToast();
@@ -166,35 +168,66 @@ export default function DocumentsListPage() {
   return (
     <PageContainer>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Document Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Manage all your business documents in one place</p>
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[var(--primary)]/10 to-[var(--primary)]/5 flex items-center justify-center flex-shrink-0">
+            <svg width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="text-[var(--primary)]">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M9 13h6 M9 17h6 M9 9h2" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Document Management</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Manage all your business documents in one place</p>
+          </div>
         </div>
         <button
           onClick={() => setUploadOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[var(--primary)] text-white rounded-xl text-sm font-medium hover:bg-[var(--primary-hover)] transition-all shadow-sm hover:shadow-md"
         >
           <Ico d={icons.plus} size={16} /> Upload Document
         </button>
       </div>
 
+      {/* View Toggle — segmented control */}
+      <div className="inline-flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl mb-5">
+        <button
+          onClick={() => setViewMode("all")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            viewMode === "all" ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          All Documents
+        </button>
+        <button
+          onClick={() => setViewMode("company")}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            viewMode === "company" ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          By Company
+        </button>
+      </div>
+
       {/* KPI Cards */}
+      {viewMode === "all" && (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: "Total Documents", value: stats.total, icon: "📂", color: "text-slate-700" },
-          { label: "Drawings", value: stats.drawings, icon: "📐", color: "text-blue-600" },
-          { label: "NDAs", value: stats.ndas, icon: "🤝", color: "text-amber-600" },
-          { label: "Uploaded This Month", value: stats.thisMonth, icon: "📤", color: "text-emerald-600" },
+          { label: "Total Documents", value: stats.total, icon: "📂", color: "text-slate-700", bg: "bg-slate-50", ring: "ring-slate-200/60" },
+          { label: "Drawings", value: stats.drawings, icon: "📐", color: "text-blue-600", bg: "bg-blue-50", ring: "ring-blue-200/60" },
+          { label: "NDAs", value: stats.ndas, icon: "🤝", color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-200/60" },
+          { label: "Uploaded This Month", value: stats.thisMonth, icon: "📤", color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-200/60" },
         ].map((card) => (
-          <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">{card.icon}</span>
-              <span className={`text-2xl font-bold ${card.color}`}>{card.value}</span>
+          <div key={card.label} className="bg-white rounded-2xl border border-slate-200/80 p-5 hover:shadow-md hover:border-slate-300 transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center text-xl ring-1 ${card.ring}`}>
+                {card.icon}
+              </div>
+              <span className={`text-3xl font-bold ${card.color} tracking-tight`}>{card.value}</span>
             </div>
-            <p className="text-xs font-medium text-slate-500">{card.label}</p>
+            <p className="text-xs font-medium text-slate-500 tracking-wide uppercase">{card.label}</p>
           </div>
         ))}
       </div>
+      )}
 
       {/* Tab Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -202,45 +235,54 @@ export default function DocumentsListPage() {
           <Link
             key={f.value}
             href={f.value ? `/documents?type=${f.value}` : "/documents"}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
               typeFilter === f.value
-                ? "bg-[var(--primary)] text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
             }`}
           >
+            <span>{f.icon}</span>
             {f.label}
           </Link>
         ))}
       </div>
 
-      {/* Search */}
+      {/* Search — only in flat list view */}
+      {viewMode === "all" && (
       <div className="relative mb-4">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
           <Ico d={icons.search} size={16} />
         </div>
         <input
           type="text"
-          placeholder="Search documents…"
+          placeholder="Search by name, code, or description…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+          className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]/30 transition-all"
         />
       </div>
+      )}
 
-      {/* Table / Empty State */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Company Grid or Table */}
+      {viewMode === "company" ? (
+        <CompanyGrid documentType={typeFilter} />
+      ) : (
+      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
         {loading ? (
-          <div className="text-center py-12 text-gray-400 text-sm">Loading documents…</div>
+          <div className="text-center py-16 text-slate-400 text-sm">
+            <div className="inline-block w-8 h-8 border-2 border-slate-200 border-t-[var(--primary)] rounded-full animate-spin mb-3" />
+            <div>Loading documents…</div>
+          </div>
         ) : documents.length === 0 ? (
-          <div className="text-center py-16 px-4">
-            <div className="text-4xl mb-3">{currentTabIcon}</div>
-            <div className="font-semibold text-sm text-slate-700 mb-1">No {currentTabLabel} found</div>
-            <div className="text-xs text-slate-400 mb-4">
+          <div className="text-center py-20 px-4">
+            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-3xl mx-auto mb-4">{currentTabIcon}</div>
+            <div className="font-medium text-sm text-slate-700 mb-1">No {currentTabLabel} found</div>
+            <div className="text-xs text-slate-400 mb-5">
               {searchQuery ? `No results for "${searchQuery}"` : "Upload your first document to get started"}
             </div>
             <button
               onClick={() => setUploadOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--primary-hover)]"
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[var(--primary)] text-white rounded-xl text-sm font-medium hover:bg-[var(--primary-hover)] transition-all shadow-sm hover:shadow-md"
             >
               <Ico d={icons.plus} size={16} /> Upload Document
             </button>
@@ -248,34 +290,34 @@ export default function DocumentsListPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
+              <thead className="bg-slate-50/80 border-b border-slate-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Code</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Name</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Type</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Related To</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Version</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">File Size</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Uploaded By</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-700">Date</th>
-                  <th className="text-right px-4 py-3 font-semibold text-gray-700">Actions</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Code</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Name</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Type</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Related To</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Ver</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Size</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Uploaded By</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Date</th>
+                  <th className="text-right px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {documents.map((doc: any) => {
                   const linkBuilder = entityLinkMap[doc.entityType];
                   const entityLabel = entityTypeLabels[doc.entityType] || doc.entityType;
                   const entityIcon = entityIcons[doc.entityType] ?? "📎";
                   return (
-                    <tr key={doc.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-600">{doc.documentCode}</td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{doc.name}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_COLORS[doc.documentType] ?? "bg-gray-100 text-gray-600"}`}>
+                    <tr key={doc.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-5 py-3.5 font-mono text-xs text-slate-500">{doc.documentCode}</td>
+                      <td className="px-5 py-3.5 font-medium text-slate-800">{doc.name}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE_COLORS[doc.documentType] ?? "bg-gray-100 text-gray-600"}`}>
                           {doc.documentType}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-5 py-3.5">
                         {doc.entityType && doc.relatedEntityName ? (
                           linkBuilder ? (
                             <Link
@@ -295,17 +337,17 @@ export default function DocumentsListPage() {
                           <span className="text-xs text-slate-300">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">v{doc.version ?? 1}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{formatSize(doc.fileSize)}</td>
-                      <td className="px-4 py-3 text-gray-600">{doc.uploadedBy?.name || "—"}</td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
+                      <td className="px-5 py-3.5 text-slate-500 text-xs">v{doc.version ?? 1}</td>
+                      <td className="px-5 py-3.5 text-slate-500 text-xs">{formatSize(doc.fileSize)}</td>
+                      <td className="px-5 py-3.5 text-slate-600">{doc.uploadedBy?.name || "—"}</td>
+                      <td className="px-5 py-3.5 text-slate-500 text-xs">
                         {new Date(doc.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => setPreviewDoc(doc)}
-                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-600"
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
                             title="Preview"
                           >
                             <Ico d={icons.eye} size={15} />
@@ -315,7 +357,7 @@ export default function DocumentsListPage() {
                             target="_blank"
                             rel="noopener noreferrer"
                             download={doc.name}
-                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-600"
+                            className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
                             title="Download"
                           >
                             <Ico d={icons.download} size={15} />
@@ -323,7 +365,7 @@ export default function DocumentsListPage() {
                           {(user?.role === "Admin" || user?.role === "SalesManager" || doc.uploadedById === user?.id) && (
                             <button
                               onClick={() => handleDelete(doc.id)}
-                              className="p-1.5 rounded-md hover:bg-red-50 text-red-600"
+                              className="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-colors"
                               title="Delete"
                             >
                               <Ico d={icons.trash} size={15} />
@@ -339,6 +381,7 @@ export default function DocumentsListPage() {
           </div>
         )}
       </div>
+      )}
 
       <UploadDocumentModal
         isOpen={uploadOpen}
