@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 const STATUS_TABS = [
-  { key: "", label: "All Visits" },
+  { key: "", label: "Visits Overview" },
   { key: "PLANNED", label: "Planned" },
   { key: "CHECKED_IN", label: "Checked In" },
   { key: "CHECKED_OUT", label: "Checked Out" },
@@ -293,7 +293,7 @@ function VisitsListContent() {
                 <Users size={15} />
               </span>
               <div>
-                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">All Visits</h3>
+                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Visits Overview</h3>
                 <p className="text-[11.5px] text-[var(--text-tertiary)]">{visits.length} visit{visits.length !== 1 ? "s" : ""} in current view</p>
               </div>
             </div>

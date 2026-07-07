@@ -775,50 +775,50 @@ function SidebarContent({
   const openSectionLabel = (label: string) => () => setOpenSection(label);
 
   const leadSubItems = isVariant2 ? [
-    { href: "/leads", label: "All Leads" },
+    { href: "/leads", label: "Leads Overview" },
     { href: "/leads?status=New", label: "New Leads" },
-    { href: "/leads?status=TodayFollowUp", label: "Today's Follow Up" },
-    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-ups" },
+    { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
     { href: "/leads?status=SQL", label: "SQL" },
     { href: "/leads?status=Overdue", label: "Overdue Leads" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
     { href: "/leads?status=Duplicate", label: "Duplicate Leads" },
   ] : [
-    { href: "/leads", label: "All Leads" },
+    { href: "/leads", label: "Leads Overview" },
     { href: "/leads?status=New", label: "New Leads" },
-    { href: "/leads?status=TodayFollowUp", label: "Today's Follow-up" },
-    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-ups" },
+    { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
 
   const accountsSubItems = isVariant2 ? [
-    { href: "/customer-master", label: "All Accounts" },
+    { href: "/customer-master", label: "Accounts Overview" },
     { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
     { href: "/customer-master?status=Prospect", label: "Prospect Accounts" },
     { href: "/customer-master?status=Inactive", label: "Inactive Accounts" },
   ] : [
-    { href: "/customer-master", label: "All Accounts" },
+    { href: "/customer-master", label: "Accounts Overview" },
     { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
   ];
 
   const contactsSubItems = isVariant2 ? [
-    { href: "/contacts", label: "All Contacts" },
+    { href: "/contacts", label: "Contacts Overview" },
     { href: "/contacts?type=Technical", label: "Technical Contacts" },
     { href: "/contacts?type=Purchase", label: "Purchase Contacts" },
     { href: "/contacts?type=Finance", label: "Finance Contacts" },
     { href: "/contacts?type=Management", label: "Management Contacts" },
   ] : [
-    { href: "/contacts", label: "All Contacts" },
+    { href: "/contacts", label: "Contacts Overview" },
   ];
 
   const activitySubItems = isVariant2 ? [
+    { href: "/activities", label: "Activities Overview" },
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
-    { href: "/activities?type=Note", label: "Notes" },
     { href: "/activities?type=Email", label: "Emails" },
     { href: "/activities?type=WhatsApp", label: "WhatsApp" },
+    { href: "/activities?type=Note", label: "Notes" },
     { href: "/timeline", label: "Timeline" },
   ] : [
+    { href: "/activities", label: "Activities Overview" },
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
     { href: "/activities?type=Email", label: "Emails" },
@@ -826,34 +826,36 @@ function SidebarContent({
   ];
 
   const taskSubItems = isVariant2 ? [
-    { href: "/tasks", label: "All Tasks" },
+    { href: "/tasks", label: "Tasks Overview" },
     { href: "/tasks?status=Pending", label: "Pending" },
     { href: "/tasks?status=Completed", label: "Completed" },
     { href: "/tasks?status=Overdue", label: "Overdue" },
     { href: "/tasks?status=Cancelled", label: "Cancelled" },
   ] : [
+    { href: "/tasks", label: "Tasks Overview" },
     { href: "/tasks?status=Pending", label: "Pending" },
     { href: "/tasks?status=Completed", label: "Completed" },
     { href: "/tasks?status=Overdue", label: "Overdue" },
   ];
 
   const followUpSubItems = isVariant2 ? [
-    { href: "/follow-up", label: "All Follow Ups" },
+    { href: "/follow-up", label: "Follow Ups Overview" },
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
     { href: "/follow-up?status=Cancelled", label: "Cancelled" },
   ] : [
-    { href: "/follow-up", label: "All follow ups" },
+    { href: "/follow-up", label: "Follow Ups Overview" },
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
   ];
 
   const salesPipelineSubItems = [
-    { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
+    { href: "/sales-pipeline/pipeline-list", label: "Pipeline Overview" },
     { href: "/sales-pipeline/pipeline-list?stage=Qualified", label: "Qualified" },
     { href: "/sales-pipeline/pipeline-list?stage=RequirementGathering", label: "Requirement Gathering" },
+    { href: "/sales-pipeline/pipeline-list?stage=TechnicalDiscussion", label: "Technical Discussion" },
     { href: "/sales-pipeline/pipeline-list?stage=MeetingScheduled", label: "Meeting Scheduled" },
     { href: "/sales-pipeline/pipeline-list?stage=DemoConducted", label: "Demo Conducted" },
     { divider: true },
@@ -862,13 +864,13 @@ function SidebarContent({
   ];
 
   const dealSubItems = isVariant2 ? [
-    { href: "/deals", label: "All Deals" },
+    { href: "/deals", label: "Deals Overview" },
     { href: "/deals?status=Active", label: "Active Deals" },
+    { href: "/deals?status=OnHold", label: "On Hold Deals" },
     { href: "/deals?status=Won", label: "Won Deals" },
     { href: "/deals?status=Lost", label: "Lost Deals" },
-    { href: "/deals?status=OnHold", label: "On Hold Deals" },
   ] : [
-    { href: "/deals", label: "All Deals" },
+    { href: "/deals", label: "Deals Overview" },
     { href: "/deals?status=Active", label: "Active Deals" },
     { href: "/deals?status=Won", label: "Won Deals" },
     { href: "/deals?status=Lost", label: "Lost Deals" },
@@ -912,7 +914,7 @@ function SidebarContent({
 
   // Variant 2 navigation items
   const customerVisitsSubItems = [
-    { href: "/visits", label: "All Visits" },
+    { href: "/visits", label: "Visits Overview" },
     { href: "/visits?status=PLANNED", label: "Planned Visits" },
     { href: "/visits?status=COMPLETED", label: "Completed Visits" },
     { href: "/visits?status=MISSED", label: "Missed Visits" },
@@ -920,7 +922,7 @@ function SidebarContent({
   ];
 
   const productCatalogueSubItems = [
-    { href: "/catalogue", label: "Overview" },
+    { href: "/catalogue", label: "Catalogue Overview" },
     { href: "/catalogue/categories", label: "Categories" },
     { href: "/catalogue/products", label: "Products" },
     { href: "/catalogue/specifications", label: "Specifications" },
@@ -929,7 +931,7 @@ function SidebarContent({
   ];
 
   const rfqSubItems = [
-    { href: "/rfq", label: "All RFQs" },
+    { href: "/rfq", label: "RFQ Overview" },
     { href: "/rfq?status=New", label: "New RFQ" },
     { href: "/rfq?status=UnderReview", label: "Under Review" },
     { href: "/rfq?status=CostingPending", label: "Costing Pending" },
@@ -938,7 +940,7 @@ function SidebarContent({
   ];
 
   const quotationSubItems = isVariant3 ? [
-    { href: "/quotations", label: "All Quotations" },
+    { href: "/quotations", label: "Quotation Overview" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=UnderReview", label: "Under Review" },
@@ -946,7 +948,7 @@ function SidebarContent({
     { href: "/quotations?status=Rejected", label: "Rejected" },
     { href: "/quotations?status=Expired", label: "Expired" },
   ] : [
-    { href: "/quotations", label: "All Quotations" },
+    { href: "/quotations", label: "Quotation Overview" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=Accepted", label: "Accepted" },
@@ -954,6 +956,7 @@ function SidebarContent({
   ];
 
   const forecastSubItems = [
+    { href: "/forecast", label: "Forecast Overview" },
     { href: "/forecast?type=Revenue", label: "Revenue Forecast" },
     { href: "/forecast?type=Opportunity", label: "Opportunity Forecast" },
     { href: "/forecast?type=Sales", label: "Sales Forecast" },
@@ -962,39 +965,39 @@ function SidebarContent({
 
   // ─── Variant 3 navigation items ───
   const sampleMgmtSubItems = [
-    { href: "/samples", label: "All Samples" },
-    { href: "/samples?status=New", label: "New Requests" },
+    { href: "/samples", label: "Sample Overview" },
+    { href: "/samples?status=New", label: "New Sample Request" },
     { href: "/samples?status=UnderReview", label: "Under Review" },
-    { href: "/samples?status=SentToCustomer", label: "Sent to Customer" },
+    { href: "/samples?status=SentToCustomer", label: "Sent To Customer" },
     { href: "/samples?status=Approved", label: "Approved" },
     { href: "/samples?status=Rejected", label: "Rejected" },
-    { href: "/samples?status=Revision", label: "Revision Requested" },
+    { href: "/samples?status=Revision", label: "Revisions" },
   ];
 
   const negotiationMgmtSubItems = [
-    { href: "/negotiations", label: "All Negotiations" },
-    { href: "/negotiations?status=Active", label: "Active" },
+    { href: "/negotiations", label: "Negotiation Overview" },
+    { href: "/negotiations?status=Active", label: "Active Negotiation" },
+    { href: "/negotiations?status=PendingApproval", label: "Pending Approval" },
     { href: "/negotiations?status=PriceRevision", label: "Price Revision" },
     { href: "/negotiations?status=CommercialDiscussion", label: "Commercial Discussion" },
-    { href: "/negotiations?status=PendingApproval", label: "Pending Approval" },
     { href: "/negotiations?status=Won", label: "Won" },
     { href: "/negotiations?status=Lost", label: "Lost" },
   ];
 
   const purchaseOrderMgmtSubItems = [
-    { href: "/purchase-orders", label: "All Purchase Orders" },
-    { href: "/purchase-orders?status=New", label: "New" },
+    { href: "/purchase-orders", label: "PO Overview" },
+    { href: "/purchase-orders?status=New", label: "New PO" },
     { href: "/purchase-orders?status=UnderValidation", label: "Under Validation" },
-    { href: "/purchase-orders?status=Approved", label: "Approved" },
-    { href: "/purchase-orders?status=Rejected", label: "Rejected" },
-    { href: "/purchase-orders?status=Closed", label: "Closed" },
+    { href: "/purchase-orders?status=Approved", label: "Approved PO" },
+    { href: "/purchase-orders?status=Rejected", label: "Rejected PO" },
+    { href: "/purchase-orders?status=Closed", label: "Closed PO" },
   ];
 
   const documentMgmtSubItems = [
-    { href: "/documents", label: "All Documents" },
+    { href: "/documents", label: "Documents Overview" },
     { href: "/documents?type=Drawing", label: "Drawings" },
-    { href: "/documents?type=TechnicalSpec", label: "Technical Specs" },
-    { href: "/documents?type=NDA", label: "NDAs" },
+    { href: "/documents?type=TechnicalSpec", label: "Technical Specifications" },
+    { href: "/documents?type=NDA", label: "NDA" },
     { href: "/documents?type=Quotation", label: "Quotations" },
     { href: "/documents?type=PurchaseOrder", label: "Purchase Orders" },
     { href: "/documents?type=Agreement", label: "Agreements" },
@@ -1002,7 +1005,7 @@ function SidebarContent({
   ];
 
   const approvalCenterSubItems = [
-    { href: "/approvals", label: "All Approvals" },
+    { href: "/approvals", label: "Approvals Overview" },
     { href: "/approvals?type=Quotation", label: "Quotation Approvals" },
     { href: "/approvals?type=Discount", label: "Discount Approvals" },
     { href: "/approvals?type=Negotiation", label: "Negotiation Approvals" },
@@ -1011,6 +1014,7 @@ function SidebarContent({
 
   // ─── Variant 4 navigation items ───
   const competitorMgmtSubItems = [
+    { href: "/competitors", label: "Competitor Overview" },
     { href: "/competitors", label: "Competitors" },
     { href: "/competitors/products", label: "Competitor Products" },
     { href: "/competitors/lost-analysis", label: "Lost Deals Analysis" },
@@ -1018,6 +1022,7 @@ function SidebarContent({
   ];
 
   const keyAccountMgmtSubItems = [
+    { href: "/key-accounts", label: "KAM Overview" },
     { href: "/key-accounts?importance=Critical", label: "Strategic Accounts" },
     { href: "/key-accounts?view=revenue", label: "Revenue Potential" },
     { href: "/key-accounts/visits", label: "Visit Schedule" },
@@ -1025,6 +1030,7 @@ function SidebarContent({
   ];
 
   const territoryMgmtSubItems = [
+    { href: "/territories", label: "Territory Overview" },
     { href: "/territories?view=regions", label: "Regions" },
     { href: "/territories", label: "Sales Territories" },
     { href: "/territories/accounts", label: "Territory Accounts" },
@@ -1032,6 +1038,7 @@ function SidebarContent({
   ];
 
   const targetMgmtSubItems = [
+    { href: "/targets", label: "Target Overview" },
     { href: "/targets?type=Monthly", label: "Monthly Targets" },
     { href: "/targets?type=Quarterly", label: "Quarterly Targets" },
     { href: "/targets?type=Yearly", label: "Yearly Targets" },

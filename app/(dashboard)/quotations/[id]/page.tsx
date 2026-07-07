@@ -41,6 +41,8 @@ const statusColors: Record<string, string> = {
   Accepted: "bg-green-100 text-green-700",
   Rejected: "bg-red-100 text-red-700",
   Expired: "bg-gray-100 text-gray-500",
+  PendingApproval: "bg-orange-100 text-orange-700",
+  Approved: "bg-green-100 text-green-700",
 };
 
 const DISCOUNT_THRESHOLD = 10;
@@ -391,6 +393,11 @@ export default function QuotationDetailPage() {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-800">{quotation.quotationCode}</h1>
               <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold">R{quotation.revisionNumber || 1}</span>
+              {quotation.negotiationId && (
+                <a href={`/negotiations/${quotation.negotiationId}`} className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-xs font-bold hover:underline" title="Linked negotiation">
+                  Negotiation
+                </a>
+              )}
             </div>
             <p className="text-sm text-slate-500 mt-0.5">Quotation Details</p>
           </div>
@@ -473,8 +480,8 @@ export default function QuotationDetailPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
           <Ico d={icons.clock} size={20} className="text-blue-600" />
           <div className="flex-1">
-            <p className="text-sm font-semibold text-blue-800">Awaiting approval from {latestApproval.approver?.name || "Sales Manager"}</p>
-            <p className="text-xs text-blue-600">Discount: {latestApproval.discountPercent}%</p>
+            <p className="text-sm font-semibold text-blue-800">Awaiting approval from {latestApproval.approver?.name || "Sales Manager"}{latestApproval.requiredApproverRole ? ` (${latestApproval.requiredApproverRole})` : ""}</p>
+            <p className="text-xs text-blue-600">Discount: {latestApproval.discountPercent}%{latestApproval.revisionAuthorId === user?.id ? " — you authored this revision and cannot approve it yourself" : ""}</p>
           </div>
           {isApprover && (
             <div className="flex items-center gap-2">

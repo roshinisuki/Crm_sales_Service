@@ -3,6 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 
+const DEFAULT_ESCALATION_THRESHOLD = 15;
+const DEFAULT_ESCALATION_ROLE = "SalesDirector";
+
+async function getEscalationConfig(): Promise<{ threshold: number; role: string }> {
+  const [thresholdConfig, roleConfig] = await Promise.all([
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_escalation_threshold" } }),
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_escalation_role" } }),
+  ]);
+  const threshold = thresholdConfig ? parseFloat(thresholdConfig.value) : DEFAULT_ESCALATION_THRESHOLD;
+  const role = roleConfig?.value || DEFAULT_ESCALATION_ROLE;
+  return { threshold: isNaN(threshold) ? DEFAULT_ESCALATION_THRESHOLD : threshold, role };
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,14 +37,19 @@ export async function POST(
   }
 
   // Find Sales Manager for approval (from same company)
+  // If discount exceeds escalation threshold, route to escalation role instead
+  const escalationConfig = await getEscalationConfig();
+  const requiresEscalation = existing.discountPercent > escalationConfig.threshold;
+  const approverRole = requiresEscalation ? escalationConfig.role : "SalesManager";
+
   let approverId = body.approverId;
   if (!approverId) {
     const manager = await prisma.user.findFirst({
-      where: { role: "SalesManager", companyId: user.companyId, isActive: true },
+      where: { role: approverRole, companyId: user.companyId, isActive: true },
       select: { id: true },
     });
     if (!manager) {
-      return NextResponse.json({ success: false, message: "No Sales Manager found to approve" }, { status: 400 });
+      return NextResponse.json({ success: false, message: `No ${approverRole} found to approve` }, { status: 400 });
     }
     approverId = manager.id;
   }
@@ -54,6 +72,8 @@ export async function POST(
           status: "Pending",
           discountPercent: existing.discountPercent,
           notes: body.notes || null,
+          requiredApproverRole: approverRole,
+          revisionAuthorId: existing.createdById,
         },
       });
 
@@ -61,8 +81,8 @@ export async function POST(
       await tx.notification.create({
         data: {
           userId: approverId,
-          title: "Approval Needed: Quotation",
-          message: `Approval needed: Quotation ${existing.quotationCode} has ${existing.discountPercent}% discount`,
+          title: requiresEscalation ? "Escalation Approval Needed: Quotation" : "Approval Needed: Quotation",
+          message: `Approval needed: Quotation ${existing.quotationCode} has ${existing.discountPercent}% discount${requiresEscalation ? " — escalated to " + approverRole : ""}`,
           type: "Approval",
           link: `/quotations/${id}`,
         },

@@ -27,10 +27,10 @@ const icons = {
 };
 
 const docTypeFilters = [
-  { value: "", label: "All Documents", icon: "📂" },
+  { value: "", label: "Documents Overview", icon: "📂" },
   { value: "Drawing", label: "Drawings", icon: "📐" },
-  { value: "TechnicalSpec", label: "Technical Specs", icon: "📋" },
-  { value: "NDA", label: "NDAs", icon: "🤝" },
+  { value: "TechnicalSpec", label: "Technical Specifications", icon: "📋" },
+  { value: "NDA", label: "NDA", icon: "🤝" },
   { value: "Quotation", label: "Quotations", icon: "💰" },
   { value: "PurchaseOrder", label: "Purchase Orders", icon: "📋" },
   { value: "Agreement", label: "Agreements", icon: "📜" },

@@ -31,6 +31,8 @@ const statusStyles: Record<string, { badge: string; dot: string }> = {
   Accepted: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
   Rejected: { badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
   Expired: { badge: "bg-gray-50 text-gray-500 border-gray-200", dot: "bg-gray-400" },
+  PendingApproval: { badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
+  Approved: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
 };
 
 function QuotationListContent() {
@@ -193,7 +195,17 @@ function QuotationListContent() {
                     className="crm-tr table-row-clickable"
                     onClick={() => router.push(`/quotations/${q.id}?status=${q.status}`)}
                   >
-                    <td className="crm-td font-medium text-foreground">{q.quotationCode}</td>
+                    <td className="crm-td font-medium text-foreground">
+                      <div className="flex items-center gap-1.5">
+                        {q.quotationCode}
+                        {q.revisionNumber > 1 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold">R{q.revisionNumber}</span>
+                        )}
+                        {q.negotiationId && (
+                          <a href={`/negotiations/${q.negotiationId}`} onClick={e => e.stopPropagation()} className="text-xs text-blue-600 hover:underline" title="Linked negotiation">NEG</a>
+                        )}
+                      </div>
+                    </td>
                     <td className="crm-td">
                       <span className="row-primary-link">{q.customer?.name || "—"}</span>
                     </td>

@@ -12,6 +12,8 @@ export async function POST(
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
   const { id } = await params;
+  const body = await request.json().catch(() => ({}));
+  const negotiationId: string | undefined = body.negotiationId;
 
   const existing = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
@@ -92,6 +94,8 @@ export async function POST(
           status: "Draft",
           createdById: user.id,
           companyId: user.companyId,
+          negotiationId: negotiationId || existing.negotiationId || null,
+          parentQuotationId: existing.parentQuotationId || id,
         },
       });
 

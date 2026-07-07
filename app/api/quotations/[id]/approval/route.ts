@@ -34,9 +34,25 @@ export async function PUT(
     return NextResponse.json({ success: false, message: "No pending approval found" }, { status: 404 });
   }
 
+  // Self-approval prevention: the user who authored the price revision in negotiation cannot approve it
+  if (approval.revisionAuthorId && approval.revisionAuthorId === user.id) {
+    return NextResponse.json(
+      { success: false, message: "You cannot approve a quotation revision that you authored yourself in negotiation. This must be approved by a different approver." },
+      { status: 403 }
+    );
+  }
+
+  // Escalation role check: if requiredApproverRole is set, verify the approver's role matches
+  if (approval.requiredApproverRole && user.role !== approval.requiredApproverRole && user.role !== "Admin") {
+    return NextResponse.json(
+      { success: false, message: `This quotation revision requires approval from a ${approval.requiredApproverRole}. Your role (${user.role}) is not authorized to approve this revision.` },
+      { status: 403 }
+    );
+  }
+
   const existing = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
-    select: { quotationCode: true, createdById: true },
+    select: { quotationCode: true, createdById: true, negotiationId: true, revisionNumber: true, parentQuotationId: true },
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
@@ -51,6 +67,56 @@ export async function PUT(
         },
       });
 
+      // Update quotation status based on approval decision
+      const newQuoteStatus = body.decision === "Approved" ? "Approved" : "Rejected";
+      await tx.quotation.update({
+        where: { id },
+        data: { status: newQuoteStatus },
+      });
+
+      // Sync linked negotiation status if this quotation is linked to a negotiation
+      if (existing.negotiationId) {
+        if (body.decision === "Approved") {
+          // Approve the pending negotiation revision and move negotiation to PriceRevision (Ready for PO)
+          const pendingRevision = await tx.negotiationRevision.findFirst({
+            where: { negotiationId: existing.negotiationId, status: "Pending" },
+            orderBy: { revisionNumber: "desc" },
+            take: 1,
+          });
+          if (pendingRevision) {
+            await tx.negotiationRevision.update({
+              where: { id: pendingRevision.id },
+              data: { status: "Approved" },
+            });
+          }
+          await tx.negotiation.update({
+            where: { id: existing.negotiationId },
+            data: {
+              status: "PriceRevision",
+              discountApproved: approval.discountPercent,
+              approvedById: user.id,
+            },
+          });
+        } else {
+          // Reject: revert negotiation to Active so the negotiator can revise again
+          const pendingRevision = await tx.negotiationRevision.findFirst({
+            where: { negotiationId: existing.negotiationId, status: "Pending" },
+            orderBy: { revisionNumber: "desc" },
+            take: 1,
+          });
+          if (pendingRevision) {
+            await tx.negotiationRevision.update({
+              where: { id: pendingRevision.id },
+              data: { status: "Rejected" },
+            });
+          }
+          await tx.negotiation.update({
+            where: { id: existing.negotiationId },
+            data: { status: "Active" },
+          });
+        }
+      }
+
       // Notify creator
       await tx.notification.create({
         data: {
@@ -58,7 +124,7 @@ export async function PUT(
           title: body.decision === "Approved" ? "Quotation Approved" : "Quotation Approval Rejected",
           message:
             body.decision === "Approved"
-              ? `Quotation ${existing.quotationCode} approved — you may now send`
+              ? `Quotation ${existing.quotationCode} (R${existing.revisionNumber}) approved — you may now send`
               : `Quotation approval rejected: ${body.notes || "No notes provided"}`,
           type: "Approval",
           link: `/quotations/${id}`,

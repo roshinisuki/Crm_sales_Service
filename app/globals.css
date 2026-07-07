@@ -895,6 +895,79 @@ body {
   margin-top: 4px;
 }
 
+/* ─── Form Layout System ────────────────────────────────────────────────────── */
+@utility form-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+@utility form-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+@utility form-section-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@utility form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+}
+
+@utility form-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 200ms ease;
+  border: none;
+  outline: none;
+  white-space: nowrap;
+}
+
+@utility form-btn-primary {
+  background: var(--primary);
+  color: var(--accent-contrast);
+  box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+  &:hover { background: var(--primary-hover); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+@utility form-btn-secondary {
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  &:hover { background: var(--surface-1); color: var(--text-primary); }
+}
+
+@utility form-btn-danger {
+  background: var(--status-danger);
+  color: #FFFFFF;
+  &:hover { opacity: 0.9; }
+}
+
 /* ─── Avatar ─────────────────────────────────────────────────────────────────── */
 @utility avatar-sm {
   width: 28px; height: 28px;

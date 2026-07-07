@@ -91,6 +91,7 @@ model User {
   createdQuotations           Quotation[]                 @relation("CreatedQuotations")
   quotationApprover           QuotationApproval[]         @relation("QuotationApprover")
   requestedQuotationApprovals QuotationApproval[]         @relation("RequestedQuotationApprovals")
+  quotationRevisionAuthors    QuotationApproval[]         @relation("QuotationRevisionAuthors")
   createdRevisionSnapshots    QuotationRevisionSnapshot[] @relation("CreatedRevisionSnapshots")
   changedQuotationStatuses    QuotationStatusHistory[]    @relation("ChangedQuotationStatus")
   exportedReports             ReportExportLog[]           @relation("ExportedReports")
@@ -1306,6 +1307,8 @@ model Quotation {
   taxAmount                Float                       @default(0)
   rejectionReasonId        String?
   assignedUserId           String?
+  negotiationId            String?
+  parentQuotationId        String?
   negotiations             Negotiation[]
   purchaseOrders           PurchaseOrder[]
   assignedUser             User?                       @relation("AssignedQuotations", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1314,6 +1317,9 @@ model Quotation {
   createdBy                User                        @relation("CreatedQuotations", fields: [createdById], references: [id], onUpdate: NoAction)
   customer                 Customer                    @relation(fields: [customerId], references: [id], onUpdate: NoAction)
   deal                     Deal?                       @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  negotiation              Negotiation?                @relation("NegotiationQuotationRevisions", fields: [negotiationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parentQuotation          Quotation?                  @relation("QuotationRevisions", fields: [parentQuotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  childRevisions           Quotation[]                 @relation("QuotationRevisions")
   rfq                      RFQ?                        @relation(fields: [rfqId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   quotationApprovals       QuotationApproval[]
   items                    QuotationItem[]
@@ -1328,6 +1334,8 @@ model Quotation {
   @@index([validUntil])
   @@index([revisionNumber])
   @@index([status, validUntil])
+  @@index([negotiationId])
+  @@index([parentQuotationId])
 }
 
 model QuotationItem {
@@ -1473,6 +1481,7 @@ model Negotiation {
   deal              Deal?                 @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   deletedBy         User?                 @relation("NegotiationDeletedBy", fields: [deletedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   quotation         Quotation?            @relation(fields: [quotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotationRevisions Quotation[]           @relation("NegotiationQuotationRevisions")
   revisions         NegotiationRevision[]
   PurchaseOrder     PurchaseOrder[]
   competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementNegotiation")
@@ -2006,23 +2015,27 @@ model QuotationRevisionSnapshot {
 }
 
 model QuotationApproval {
-  id              String    @id @default(uuid())
-  quotationId     String
-  requestedById   String?
-  approverId      String?
-  status          String    @default("Pending")
-  discountPercent Float     @default(0)
-  notes           String?   @db.NVarChar(Max)
-  decidedAt       DateTime?
-  createdAt       DateTime  @default(now())
-  approver        User?     @relation("QuotationApprover", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quotation       Quotation @relation(fields: [quotationId], references: [id], onUpdate: NoAction)
-  requestedBy     User?     @relation("RequestedQuotationApprovals", fields: [requestedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                   String    @id @default(uuid())
+  quotationId          String
+  requestedById        String?
+  approverId           String?
+  status               String    @default("Pending")
+  discountPercent      Float     @default(0)
+  notes                String?   @db.NVarChar(Max)
+  decidedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  requiredApproverRole String?
+  revisionAuthorId     String?
+  approver             User?     @relation("QuotationApprover", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotation            Quotation @relation(fields: [quotationId], references: [id], onUpdate: NoAction)
+  requestedBy          User?     @relation("RequestedQuotationApprovals", fields: [requestedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revisionAuthor       User?     @relation("QuotationRevisionAuthors", fields: [revisionAuthorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([quotationId])
   @@index([status])
   @@index([approverId])
   @@index([requestedById])
+  @@index([revisionAuthorId])
 }
 
 model OpportunityContact {

@@ -23,7 +23,7 @@ export async function GET(
       createdBy: { select: { id: true, name: true } },
       quotationStatusHistories: { include: { changedBy: { select: { id: true, name: true } } }, orderBy: { changedAt: "desc" } },
       revisionSnapshots: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { revisionNumber: "desc" } },
-      quotationApprovals: { include: { requestedBy: { select: { id: true, name: true } }, approver: { select: { id: true, name: true } } }, orderBy: { createdAt: "desc" } },
+      quotationApprovals: { include: { requestedBy: { select: { id: true, name: true } }, approver: { select: { id: true, name: true } }, revisionAuthor: { select: { id: true, name: true } } }, orderBy: { createdAt: "desc" } },
     },
   });
 

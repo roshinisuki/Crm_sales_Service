@@ -67,7 +67,7 @@ function SalesPipelineListContent() {
 
   // Build a label lookup from the status config
   const STATUS_LABELS: Record<string, string> = {
-    "": "All Opportunities",
+    "": "Pipeline Overview",
     overdue: "Overdue",
     ...Object.fromEntries(PIPELINE_STATUS.map((s) => [s.value, s.label])),
   };

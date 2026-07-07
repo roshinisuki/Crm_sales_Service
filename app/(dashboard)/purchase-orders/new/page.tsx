@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
+import { FormSection, FormGrid, FormActions, FormButton, CompactFormContainer } from "@/components/ui/FormLayout";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -170,244 +172,217 @@ export default function NewPurchaseOrderPage() {
 
   return (
     <PageContainer className="space-y-4 p-0">
+      <CompactFormContainer width="wide">
       <div className="flex items-center gap-3">
-        <button onClick={() => router.push("/purchase-orders")} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer">
+        <button onClick={() => router.push("/purchase-orders")} className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-[var(--text-secondary)] cursor-pointer transition-colors">
           <Ico d={icons.back} size={18} />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">New Purchase Order</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Create a purchase order with line items</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">New Purchase Order</h1>
+          <p className="text-sm text-[var(--text-tertiary)] mt-0.5">Create a purchase order with line items</p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Header section */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-5">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">PO Header</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer *</label>
-              <input
+        <FormSection title="PO Header" description="Customer and purchase order details">
+          <FormGrid>
+            <FormField label="Customer" required>
+              <Input
                 type="text"
                 placeholder="Search customer..."
                 value={customerSearch}
                 onChange={(e) => setCustomerSearch(e.target.value)}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all mb-2"
+                className="mb-2"
               />
-              <select
+              <Select
                 value={form.customerId}
                 onChange={(e) => setForm({ ...form, customerId: e.target.value, contactId: "" })}
                 required
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
               >
                 <option value="">-- Select Customer --</option>
                 {filteredCustomers.map((c: any) => (
                   <option key={c.id} value={c.id}>{c.customerCode} - {c.name}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Contact</label>
-              <select
+            <FormField label="Contact">
+              <Select
                 value={form.contactId}
                 onChange={(e) => setForm({ ...form, contactId: e.target.value })}
                 disabled={!form.customerId}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer disabled:opacity-50"
               >
                 <option value="">-- Select Contact --</option>
                 {contacts.map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Linked Negotiation</label>
-              <select
+            <FormField label="Linked Negotiation">
+              <Select
                 value={form.negotiationId}
                 onChange={(e) => setForm({ ...form, negotiationId: e.target.value })}
                 disabled={!form.customerId}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer disabled:opacity-50"
               >
                 <option value="">-- None --</option>
                 {negotiations.map((n: any) => (
                   <option key={n.id} value={n.id}>{n.negotiationCode} - {n.status}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Linked Quotation</label>
-              <select
+            <FormField label="Linked Quotation">
+              <Select
                 value={form.quotationId}
                 onChange={(e) => setForm({ ...form, quotationId: e.target.value })}
                 disabled={!form.customerId}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer disabled:opacity-50"
               >
                 <option value="">-- None --</option>
                 {quotations.map((q: any) => (
                   <option key={q.id} value={q.id}>{q.quotationCode}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">PO Number (customer's)</label>
-              <input
+            <FormField label="PO Number (customer's)">
+              <Input
                 type="text"
                 value={form.poNumber}
                 onChange={(e) => setForm({ ...form, poNumber: e.target.value })}
                 placeholder="Customer's PO reference"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">PO Date</label>
-              <input
+            <FormField label="PO Date">
+              <Input
                 type="date"
                 value={form.poDate}
                 onChange={(e) => setForm({ ...form, poDate: e.target.value })}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Expected Delivery</label>
-              <input
+            <FormField label="Expected Delivery">
+              <Input
                 type="date"
                 value={form.expectedDelivery}
                 onChange={(e) => setForm({ ...form, expectedDelivery: e.target.value })}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Assigned To</label>
-              <select
+            <FormField label="Assigned To">
+              <Select
                 value={form.assignedUserId}
                 onChange={(e) => setForm({ ...form, assignedUserId: e.target.value })}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
               >
                 <option value="">-- Unassigned --</option>
                 {users.map((u: any) => (
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Payment Terms</label>
-              <input
+            <FormField label="Payment Terms">
+              <Input
                 type="text"
                 value={form.paymentTerms}
                 onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })}
                 placeholder="e.g. Net 30"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
-            </div>
+            </FormField>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Delivery Terms</label>
-              <input
+            <FormField label="Delivery Terms">
+              <Input
                 type="text"
                 value={form.deliveryTerms}
                 onChange={(e) => setForm({ ...form, deliveryTerms: e.target.value })}
                 placeholder="e.g. FOB Destination"
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
               />
-            </div>
-          </div>
+            </FormField>
+          </FormGrid>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Shipping Address</label>
-              <textarea
+          <FormGrid>
+            <FormField label="Shipping Address">
+              <Textarea
                 value={form.shippingAddress}
                 onChange={(e) => setForm({ ...form, shippingAddress: e.target.value })}
                 rows={2}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Billing Address</label>
-              <textarea
+            </FormField>
+            <FormField label="Billing Address">
+              <Textarea
                 value={form.billingAddress}
                 onChange={(e) => setForm({ ...form, billingAddress: e.target.value })}
                 rows={2}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
               />
-            </div>
-          </div>
-        </div>
+            </FormField>
+          </FormGrid>
+        </FormSection>
 
         {/* Line items */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Line Items</h2>
-            <button type="button" onClick={addItem} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">
-              <Ico d={icons.plus} size={14} /> Add Item
-            </button>
-          </div>
-
+        <FormSection
+          title="Line Items"
+          description="Products and quantities for this purchase order"
+          actions={<FormButton variant="secondary" type="button" onClick={addItem}><Ico d={icons.plus} size={14} /> Add Item</FormButton>}
+        >
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Product</th>
-                  <th className="text-left px-3 py-2 text-xs font-semibold text-slate-600">Description</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600 w-24">Qty</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600 w-28">Unit Price</th>
-                  <th className="text-right px-3 py-2 text-xs font-semibold text-slate-600 w-28">Total</th>
+                <tr className="bg-[var(--surface-2)] border-b border-[var(--border)]">
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-[var(--text-secondary)]">Product</th>
+                  <th className="text-left px-3 py-2 text-xs font-semibold text-[var(--text-secondary)]">Description</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] w-24">Qty</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] w-28">Unit Price</th>
+                  <th className="text-right px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] w-28">Total</th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((it, i) => (
-                  <tr key={i} className="border-b border-slate-100">
+                  <tr key={i} className="border-b border-[var(--border-subtle)]">
                     <td className="px-3 py-2">
-                      <select
+                      <Select
                         value={it.productId}
                         onChange={(e) => updateItem(i, "productId", e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all cursor-pointer"
+                        className="py-1.5 text-sm"
                       >
                         <option value="">-- None --</option>
                         {products.map((p: any) => (
                           <option key={p.id} value={p.id}>{p.productCode || p.name}</option>
                         ))}
-                      </select>
+                      </Select>
                     </td>
                     <td className="px-3 py-2">
-                      <input
+                      <Input
                         type="text"
                         value={it.description}
                         onChange={(e) => updateItem(i, "description", e.target.value)}
                         placeholder="Item description"
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                        className="py-1.5 text-sm"
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <input
+                      <Input
                         type="number"
                         step="0.01"
                         min="0"
                         value={it.quantity}
                         onChange={(e) => updateItem(i, "quantity", e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                        className="py-1.5 text-sm text-right"
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <input
+                      <Input
                         type="number"
                         step="0.01"
                         min="0"
                         value={it.unitPrice}
                         onChange={(e) => updateItem(i, "unitPrice", e.target.value)}
-                        className="w-full px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                        className="py-1.5 text-sm text-right"
                       />
                     </td>
-                    <td className="px-3 py-2 text-sm text-right font-medium text-slate-700">
+                    <td className="px-3 py-2 text-sm text-right font-medium text-[var(--text-primary)]">
                       ${(it.totalPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-3 py-2">
@@ -427,68 +402,58 @@ export default function NewPurchaseOrderPage() {
           <div className="flex justify-end">
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Subtotal</span>
-                <span className="font-medium text-slate-800">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-[var(--text-secondary)]">Subtotal</span>
+                <span className="font-medium text-[var(--text-primary)]">${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Discount %</span>
-                <input
+                <span className="text-[var(--text-secondary)]">Discount %</span>
+                <Input
                   type="number"
                   step="0.01"
                   min="0"
                   value={form.discountPercent}
                   onChange={(e) => setForm({ ...form, discountPercent: e.target.value })}
-                  className="w-20 px-2 py-1 rounded-lg bg-slate-50 border border-slate-200 text-sm text-right focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                  className="w-20 text-right"
                 />
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500">Discount Amount</span>
-                <span className="text-slate-700">-${discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-[var(--text-secondary)]">Discount Amount</span>
+                <span className="text-[var(--text-primary)]">-${discountAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex justify-between text-base pt-2 border-t border-slate-200">
-                <span className="font-semibold text-slate-800">Final Total</span>
+              <div className="flex justify-between text-base pt-2 border-t border-[var(--border)]">
+                <span className="font-semibold text-[var(--text-primary)]">Final Total</span>
                 <span className="font-bold text-[var(--primary)]">${finalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
-        </div>
+        </FormSection>
 
         {/* Notes */}
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Additional Information</h2>
-          <div className="grid grid-cols-1 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Special Instructions</label>
-              <textarea
-                value={form.specialInstructions}
-                onChange={(e) => setForm({ ...form, specialInstructions: e.target.value })}
-                rows={2}
-                placeholder="Any special handling, packaging, or delivery instructions..."
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Notes</label>
-              <textarea
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                rows={2}
-                placeholder="Internal notes..."
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
-              />
-            </div>
-          </div>
-        </div>
+        <FormSection title="Additional Information">
+          <FormField label="Special Instructions">
+            <Textarea
+              value={form.specialInstructions}
+              onChange={(e) => setForm({ ...form, specialInstructions: e.target.value })}
+              rows={2}
+              placeholder="Any special handling, packaging, or delivery instructions..."
+            />
+          </FormField>
+          <FormField label="Notes">
+            <Textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={2}
+              placeholder="Internal notes..."
+            />
+          </FormField>
+        </FormSection>
 
-        <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => router.push("/purchase-orders")} className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
-            Cancel
-          </button>
-          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60">
-            {saving ? "Saving..." : "Create Purchase Order"}
-          </button>
-        </div>
+        <FormActions>
+          <FormButton variant="secondary" type="button" onClick={() => router.push("/purchase-orders")}>Cancel</FormButton>
+          <FormButton type="submit" disabled={saving}>{saving ? "Saving..." : "Create Purchase Order"}</FormButton>
+        </FormActions>
       </form>
+      </CompactFormContainer>
     </PageContainer>
   );
 }

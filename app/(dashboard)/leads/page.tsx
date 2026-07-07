@@ -32,9 +32,9 @@ import LeadImportModal from "@/components/leads/LeadImportModal";
 const LEAD_STATUSES = ["New", "Contacted", "FollowUpDue", "SQL", "Qualified", "Converted", "Lost", "Overdue", "Duplicate"];
 const LEAD_SOURCES  = ["Website", "Facebook", "Instagram", "LinkedIn", "Referral", "WalkIn", "ColdCall", "Partner", "Trade Show", "Tender Portal"];
 const V2_TABS = [
-  { key: "", label: "All Leads" },
+  { key: "", label: "Leads Overview" },
   { key: "New", label: "New" },
-  { key: "TodayFollowUp", label: "Today's Follow Up" },
+  { key: "TodayFollowUp", label: "Follow-Up Due" },
   { key: "UpcomingFollowUp", label: "Upcoming Follow-ups" },
   { key: "SQL", label: "SQL" },
   { key: "Overdue", label: "Overdue" },
@@ -543,7 +543,7 @@ export default function LeadsPage() {
         <div className="px-4 sm:px-5 py-3.5 border-b border-theme flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3 shrink-0">
             <h2 className="text-base font-bold text-theme-primary whitespace-nowrap">
-              {V2_TABS.find(t => t.key === activeTab)?.label || "All Leads"}
+              {V2_TABS.find(t => t.key === activeTab)?.label || "Leads Overview"}
             </h2>
             <span className="text-xs font-medium text-theme-muted bg-surface-2 px-2 py-0.5 rounded-full whitespace-nowrap">
               {filtered.length} {filtered.length === 1 ? "lead" : "leads"}
