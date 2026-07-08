@@ -276,13 +276,12 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
       agentPerformance.sort((a, b) => b.revenue - a.revenue);
     }
 
-    // 5. Revenue Trend (Won deals by month over last 6 months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    sixMonthsAgo.setHours(0, 0, 0, 0);
+    // 5. Revenue Trend (Won deals by day over last 7 days)
+    const sevenDaysAgoTrend = new Date();
+    sevenDaysAgoTrend.setDate(sevenDaysAgoTrend.getDate() - 6);
+    sevenDaysAgoTrend.setHours(0, 0, 0, 0);
 
-    const trendCutoff = dateCutoff && dateCutoff > sixMonthsAgo ? dateCutoff : sixMonthsAgo;
+    const trendCutoff = dateCutoff && dateCutoff > sevenDaysAgoTrend ? dateCutoff : sevenDaysAgoTrend;
 
     const wonDealsTrend = await prisma.deal.findMany({
       where: {
@@ -296,20 +295,20 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
       orderBy: { updatedAt: "asc" }
     });
 
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const trendMap: { [key: string]: number } = {};
 
-    // Initialize last 6 months
-    for (let i = 0; i < 6; i++) {
+    // Initialize last 7 days
+    for (let i = 6; i >= 0; i--) {
       const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const label = `${months[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
+      d.setDate(d.getDate() - i);
+      const label = daysOfWeek[d.getDay()];
       trendMap[label] = 0;
     }
 
     wonDealsTrend.forEach((d) => {
       const date = new Date(d.updatedAt);
-      const label = `${months[date.getMonth()]} ${date.getFullYear().toString().slice(-2)}`;
+      const label = daysOfWeek[date.getDay()];
       if (trendMap[label] !== undefined) {
         trendMap[label] += d.dealValue;
       }
@@ -317,9 +316,8 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
 
     // Convert map to ordered array
     const revenueTrend = Object.keys(trendMap)
-      .reverse()
       .map((key) => ({
-        month: key,
+        month: key, // Keeping property name as month to not break frontend interfaces
         revenue: trendMap[key]
       }));
 
@@ -438,6 +436,68 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
       };
     }
 
+    // --- CROSS MODULE METRICS ---
+    const totalAccounts = await prisma.customer.count({ where: rbacCustomerFilter });
+    const totalContacts = await prisma.contact.count({ where: { companyId: userPayload.companyId } });
+    
+    // RFQ
+    const rfqStats = await prisma.rFQ.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+      where: { companyId: userPayload.companyId }
+    });
+    
+    // Samples
+    const sampleStats = await prisma.sampleRequest.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+      where: { companyId: userPayload.companyId }
+    });
+
+    // Activities
+    const [pendingTasks, completedTasks] = await Promise.all([
+      prisma.task.count({ where: { companyId: userPayload.companyId, status: { not: 'Completed' } } }),
+      prisma.task.count({ where: { companyId: userPayload.companyId, status: 'Completed' } })
+    ]);
+    const totalFollowUps = await prisma.followUp.count({ where: { companyId: userPayload.companyId } });
+
+    // Visits
+    const [customerVisits, marketingVisits] = await Promise.all([
+      prisma.customerVisit.count({ where: { companyId: userPayload.companyId } }),
+      prisma.marketingVisit.count({ where: { companyId: userPayload.companyId } })
+    ]);
+
+    // Competitors
+    const competitorMentions = await prisma.competitorInvolvement.count({ where: { companyId: userPayload.companyId } });
+
+    // Catalogue
+    const activeProducts = await prisma.product.count({ where: { companyId: userPayload.companyId, isActive: true } });
+
+    const crossModule = {
+      accounts: { total: totalAccounts, contacts: totalContacts },
+      rfq: {
+        total: rfqStats.reduce((sum, s) => sum + (s._count._all || 0), 0),
+        pending: rfqStats.find(s => s.status === 'New' || s.status === 'UnderReview')?._count._all || 0,
+        value: 0
+      },
+      samples: {
+        total: sampleStats.reduce((sum, s) => sum + (s._count._all || 0), 0),
+        pending: sampleStats.find(s => s.status === 'New' || s.status === 'UnderReview')?._count._all || 0
+      },
+      activities: {
+        pending: pendingTasks,
+        completed: completedTasks,
+        followUps: totalFollowUps
+      },
+      visits: {
+        total: customerVisits + marketingVisits,
+        customer: customerVisits,
+        marketing: marketingVisits
+      },
+      competitors: { mentions: competitorMentions },
+      catalogue: { activeProducts }
+    };
+
     return {
       success: true,
       data: {
@@ -446,10 +506,12 @@ export async function getSalesAnalyticsAction(dateRange?: string) {
           qualifiedLeads,
           openDeals: openDealsCount,
           wonDeals: wonDealsCount,
+          lostDeals: lostDealsCount,
           pipelineRevenue,
           wonRevenue,
           conversionRate
         },
+        crossModule,
         funnel: funnelStages,
         leadSources: sourceAnalytics,
         agentPerformance,

@@ -2,11 +2,11 @@
 
 import React, { useState } from "react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler } from "chart.js";
-import { Doughnut, Line } from "react-chartjs-2";
+import { Doughnut, Line, Bar } from "react-chartjs-2";
 import { cn } from "@/lib/ui-utils";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { CountUp, parseCountValue } from "@/components/ui/CountUp";
-import { Phone, Mail, Calendar, FileCheck, FileText, Clock, Rocket } from "lucide-react";
+import { Phone, Mail, Calendar, FileCheck, FileText, Clock, Rocket, Package, Activity, Users } from "lucide-react";
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, PointElement, LineElement, Filler);
 
@@ -329,9 +329,9 @@ export function LeadSourcesTable({ leadSources }: { leadSources: any[] }) {
 export function AgentLeaderboard({ agentPerformance }: { agentPerformance: any[] }) {
   const { formatCurrency } = useCurrency();
   return (
-    <div className="bg-white border border-slate-100 p-6 rounded-3xl shadow-sm">
-      <h3 className="text-sm font-bold text-slate-800 mb-6">Executive Sales Leaderboard</h3>
-      <div className="space-y-4">
+    <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-[24px] h-[340px] flex flex-col shadow-sm transition-colors duration-300">
+      <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-6 shrink-0">Executive Sales Leaderboard</h3>
+      <div className="space-y-4 flex-1 overflow-y-auto pr-1 min-h-0">
         {!agentPerformance || agentPerformance.length === 0 ? (
           <p className="text-xs text-slate-500 italic text-center py-6">Leaderboard metrics unavailable.</p>
         ) : (
@@ -1009,32 +1009,41 @@ export function ActionRequiredWidget({ followUps = [] }: { followUps?: any[] }) 
 // Donut chart showing part-of-whole pipeline distribution. Chart sits on the left,
 // custom legend on the right, filling the card without wasted space.
 export function PipelinePieChart({ funnel }: { funnel: any[] }) {
+  const [accentColor, setAccentColor] = useState('#2563EB');
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const updateColors = () => {
+        const style = window.getComputedStyle(document.documentElement);
+        const acc = style.getPropertyValue('--accent').trim();
+        if (acc) setAccentColor(acc);
+      };
+
+      updateColors();
+      const observer = new MutationObserver(() => updateColors());
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] });
+      return () => observer.disconnect();
+    }
+  }, []);
+
   if (!funnel || funnel.length === 0) {
     return (
-      <AnalyticsCard title="Pipeline Distribution" right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">0 Total</span>}>
+      <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-[24px] p-6 h-full flex flex-col items-center justify-center">
+        <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 mb-4">Pipeline Performance</h3>
         <AnalyticsEmptyState>No pipeline data yet.</AnalyticsEmptyState>
-      </AnalyticsCard>
+      </div>
     );
   }
 
   const total = funnel.reduce((sum: number, f: any) => sum + (f.count || 0), 0);
-  if (total === 0) {
-    return (
-      <AnalyticsCard title="Pipeline Distribution" right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">0 Total</span>}>
-        <AnalyticsEmptyState>No opportunities in pipeline yet.</AnalyticsEmptyState>
-      </AnalyticsCard>
-    );
-  }
-
-  // Distinct segment colors — aligned with CRM chart palette
+  
+  // Dynamic palette based on accent color (opacity variations)
   const palette = [
-    '#2090FF', // blue
-    '#FF6901', // orange
-    '#10B981', // emerald
-    '#F59E0B', // amber
-    '#8B5CF6', // violet
-    '#EF4444', // red
-    '#14B8A6', // teal
+    accentColor, 
+    accentColor + 'CC', // 80%
+    accentColor + '99', // 60%
+    accentColor + '66', // 40%
+    accentColor + '33', // 20%
   ];
 
   const stageItems = funnel.map((f: any, i: number) => ({
@@ -1050,21 +1059,21 @@ export function PipelinePieChart({ funnel }: { funnel: any[] }) {
       backgroundColor: stageItems.map((s: any) => s.color),
       borderColor: 'transparent',
       borderWidth: 0,
-      hoverOffset: 6,
-      cutout: '62%',
+      hoverOffset: 4,
+      cutout: '75%',
     }],
   };
 
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    layout: { padding: 0 },
+    layout: { padding: 10 },
     plugins: {
       legend: { display: false },
       tooltip: {
         callbacks: {
           label: (ctx: any) => {
-            const val = ctx.parsed;
+            const val = ctx.raw;
             const pct = total > 0 ? Math.round((val / total) * 100) : 0;
             return ` ${ctx.label}: ${val} (${pct}%)`;
           },
@@ -1074,44 +1083,42 @@ export function PipelinePieChart({ funnel }: { funnel: any[] }) {
   };
 
   return (
-    <AnalyticsCard
-      title="Pipeline Distribution"
-      right={<span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{total} Total</span>}
-    >
-      <div className="flex-1 flex items-center gap-4 min-h-0">
-        {/* Chart area */}
-        <div className="relative flex-1 min-h-0 h-full">
-          <Doughnut data={chartData} options={options} />
-          {/* Center label */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-2xl font-bold text-slate-800 dark:text-slate-200">{total}</span>
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total</span>
-          </div>
-        </div>
+    <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-[24px] p-6 h-full flex flex-col justify-between shadow-sm transition-colors duration-300">
+      <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 text-center mb-6">Pipeline Performance</h3>
 
-        {/* Custom legend */}
-        <div className="w-36 shrink-0 flex flex-col justify-center gap-3 pr-2">
-          {stageItems.map((stage: any, idx: number) => (
-            <div key={idx} className="flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
-                <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{stage.stage}</span>
-              </div>
-              <div className="shrink-0 text-right ml-2">
-                <span className="font-bold text-slate-800 dark:text-slate-200">{stage.count}</span>
-                <span className="text-[10px] text-slate-400 ml-1">({stage.pct}%)</span>
-              </div>
-            </div>
-          ))}
+      {/* Chart & Center Label */}
+      <div className="relative w-full h-[180px] flex items-center justify-center shrink-0">
+        <Doughnut data={chartData} options={options} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
+          <span className="text-[11px] font-bold text-slate-500 mb-0.5">Total Count</span>
+          <span className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none">{total}</span>
         </div>
       </div>
-    </AnalyticsCard>
+
+      {/* Footer Text & Button */}
+      <div className="mt-8 text-center space-y-4">
+        <p className="text-[11px] font-medium text-slate-500 px-4 leading-relaxed">
+          Here are some tips on how to<br/>improve your score.
+        </p>
+        <button className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors">
+          Guide Views
+        </button>
+      </div>
+
+      {/* Horizontal Legend */}
+      <div className="flex items-center justify-center gap-3 mt-6">
+        {stageItems.slice(0, 3).map((stage: any, idx: number) => (
+          <div key={idx} className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm transition-colors duration-300" style={{ backgroundColor: stage.color }} />
+            <span className="text-[10px] font-bold text-slate-500">{stage.stage}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
 // ─── Customer Score Trend Line Chart ─────────────────────────────────────────
-// Shows customer satisfaction scores over time, sourced from demoCustomerRating.
-// Separate from pipeline/revenue data. Uses the shared AnalyticsCard shell.
 export function CustomerScoreTrendChart({ scoreTrend }: { scoreTrend: any[] }) {
   const [accentColor, setAccentColor] = useState('#2090FF');
 
@@ -1193,5 +1200,551 @@ export function CustomerScoreTrendChart({ scoreTrend }: { scoreTrend: any[] }) {
         <Line data={chartData} options={options} />
       </div>
     </AnalyticsCard>
+  );
+}
+
+// ─── MASTER DASHBOARD WIDGETS ────────────────────────────────────────────────
+export function CrossModuleBentoGrid({ crossModule }: { crossModule: any }) {
+  const [accentColor, setAccentColor] = useState('#2563EB');
+  const [isDark, setIsDark] = useState(false);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const updateColors = () => {
+        const style = window.getComputedStyle(document.documentElement);
+        const acc = style.getPropertyValue('--accent').trim();
+        if (acc) setAccentColor(acc);
+        setIsDark(document.documentElement.classList.contains('dark'));
+      };
+
+      updateColors();
+      const observer = new MutationObserver(() => updateColors());
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class', 'data-theme'] });
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  if (!crossModule) return null;
+
+  const labels = [
+    "Active Accounts", 
+    "Active Contacts", 
+    "Pending Samples", 
+    "Total Samples", 
+    "Pending RFQs", 
+    "Total RFQs", 
+    "Pending Tasks", 
+    "Total Visits", 
+    "Active Products"
+  ];
+
+  const dataValues = [
+    crossModule.accounts?.total || 0,
+    crossModule.accounts?.contacts || 0,
+    crossModule.samples?.pending || 0,
+    crossModule.samples?.total || 0,
+    crossModule.rfq?.pending || 0,
+    crossModule.rfq?.total || 0,
+    crossModule.activities?.pending || 0,
+    crossModule.visits?.total || 0,
+    crossModule.catalogue?.activeProducts || 0
+  ];
+
+  const chartData = {
+    labels,
+    datasets: [
+      {
+        label: 'Metrics',
+        data: dataValues,
+        backgroundColor: accentColor,
+        borderRadius: 8,
+        maxBarThickness: 32,
+      }
+    ]
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx: any) => ` ${ctx.raw}`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          font: { size: 10, weight: 'bold' as const },
+          color: isDark ? '#94a3b8' : '#64748b'
+        }
+      },
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(148,163,184,0.1)',
+        },
+        ticks: {
+          font: { size: 10 },
+          color: isDark ? '#94a3b8' : '#64748b'
+        }
+      }
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-[24px] p-6 h-full shadow-sm flex flex-col transition-colors duration-300">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100">System Overview</h3>
+      </div>
+      <div className="flex-1 w-full min-h-[300px]">
+        <Bar data={chartData} options={options} />
+      </div>
+    </div>
+  );
+}
+
+export function OverallCRMHealthScore({ kpis, crossModule }: { kpis: any, crossModule: any }) {
+  const conversionScore = Math.min((kpis?.conversionRate || 0) * 1.5, 50);
+  const activityScore = Math.min(((crossModule?.samples?.total || 0) + (crossModule?.rfq?.total || 0)) * 2, 50);
+  const totalScore = Math.round(conversionScore + activityScore);
+  
+  let quality = "Good";
+  let color = "#10b981";
+  
+  if (totalScore > 85) { quality = "Excellent"; color = "var(--accent)"; }
+  else if (totalScore < 50) { quality = "Needs Attention"; color = "#f59e0b"; }
+  else if (totalScore < 30) { quality = "Critical"; color = "#ef4444"; }
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border-subtle)] p-6 rounded-[24px] mb-6 flex flex-col h-[180px] justify-between">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">CRM Health Score</h3>
+        <span className="w-8 h-8 rounded-xl bg-[var(--surface-hover)] flex items-center justify-center text-[var(--text-muted)] cursor-pointer hover:text-[var(--text-primary)] transition-colors">
+          <Activity size={14} />
+        </span>
+      </div>
+      
+      <div>
+        <div className="flex items-end justify-between mb-4">
+          <div>
+            <p className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">System Vitality</p>
+            <h4 className="text-xl font-black" style={{ color }}>{quality}</h4>
+          </div>
+          <div className="text-4xl font-black text-[var(--text-primary)] tracking-tighter">{totalScore}%</div>
+        </div>
+        <div className="w-full h-3 bg-[var(--border-subtle)] rounded-full overflow-hidden flex shadow-inner">
+          <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${totalScore}%`, backgroundColor: color }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function RecentActivityFeed({ needsAttention, crossModule }: { needsAttention: any, crossModule: any }) {
+  const alerts = [];
+
+  const inactiveDeals = needsAttention?.inactiveDeals || 0;
+  const overdueFollowUps = needsAttention?.overdueFollowUps || 0;
+  const unassignedLeads = needsAttention?.unassignedLeads || 0;
+  const pendingApprovals = needsAttention?.pendingApprovals || 0;
+  const pendingRFQs = crossModule?.rfq?.pending || 0;
+
+  if (inactiveDeals > 0) {
+    alerts.push({
+      type: "risk",
+      colorClass: "bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-100/30",
+      icon: <Clock size={14} />,
+      message: `<strong>${inactiveDeals} deals</strong> are at risk (inactive > 7 days or past close date).`,
+      meta: "Pipeline Alert"
+    });
+  }
+  if (overdueFollowUps > 0) {
+    alerts.push({
+      type: "warning",
+      colorClass: "bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-100/30",
+      icon: <Calendar size={14} />,
+      message: `<strong>${overdueFollowUps} follow-ups</strong> are overdue and require action.`,
+      meta: "Tasks Engine"
+    });
+  }
+  if (unassignedLeads > 0) {
+    alerts.push({
+      type: "leads",
+      colorClass: "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border border-blue-100/30",
+      icon: <Users size={14} />,
+      message: `<strong>${unassignedLeads} new leads</strong> are currently unassigned.`,
+      meta: "Lead Ingestion"
+    });
+  }
+  if (pendingApprovals > 0) {
+    alerts.push({
+      type: "approval",
+      colorClass: "bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400 border border-purple-100/30",
+      icon: <FileCheck size={14} />,
+      message: `<strong>${pendingApprovals} visits</strong> are awaiting manager approval.`,
+      meta: "Manager Approvals"
+    });
+  }
+  if (pendingRFQs > 0) {
+    alerts.push({
+      type: "rfq",
+      colorClass: "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border border-indigo-100/30",
+      icon: <FileText size={14} />,
+      message: `<strong>${pendingRFQs} RFQs</strong> are pending under-review.`,
+      meta: "Visits & RFP"
+    });
+  }
+
+  if (alerts.length === 0) {
+    alerts.push({
+      type: "info",
+      colorClass: "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100/30",
+      icon: <Activity size={14} />,
+      message: `<strong>All clear!</strong> No urgent alerts or overdue actions found.`,
+      meta: "System Overview"
+    });
+  }
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border-subtle)] p-6 rounded-[24px] h-[340px] flex flex-col justify-between hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] transition-all duration-300">
+      <div className="flex items-center justify-between mb-4 shrink-0">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">System Alerts & Activity</h3>
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping shrink-0" />
+      </div>
+      
+      <div className="flex-1 overflow-y-auto pr-2 space-y-4 min-h-0">
+        {alerts.slice(0, 4).map((alert, idx) => (
+          <div key={idx} className="flex gap-3 relative py-1 border-b border-[var(--border-subtle)] last:border-0 pb-3 last:pb-0">
+            <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", alert.colorClass)}>
+              {alert.icon}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-[var(--text-primary)] leading-tight font-medium" dangerouslySetInnerHTML={{ __html: alert.message }} />
+              <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mt-1">{alert.meta}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function LeadSourceDoughnut({ leadSources }: { leadSources: any[] }) {
+  const [accentColor, setAccentColor] = useState('#2563EB');
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const updateColors = () => {
+        const style = window.getComputedStyle(document.documentElement);
+        const acc = style.getPropertyValue('--accent').trim();
+        if (acc) setAccentColor(acc);
+      };
+      updateColors();
+      const observer = new MutationObserver(updateColors);
+      observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+      return () => observer.disconnect();
+    }
+  }, []);
+
+  const validSources = (leadSources || [])
+    .filter((ls: any) => ls.source && ls.source !== "Unknown" && ls.source !== "")
+    .slice(0, 4); 
+  
+  const totalLeads = validSources.reduce((sum, s) => sum + (s.count || 0), 0);
+
+  const palette = [
+    accentColor,
+    accentColor + 'CC', 
+    accentColor + '99', 
+    accentColor + '66', 
+    accentColor + '33', 
+  ];
+
+  const chartData = {
+    labels: validSources.map((ls: any) => ls.source),
+    datasets: [{
+      data: validSources.map((ls: any) => ls.count),
+      backgroundColor: palette.slice(0, validSources.length),
+      borderWidth: 0,
+      hoverOffset: 4,
+      cutout: '75%',
+    }],
+  };
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx: any) => {
+            const val = ctx.raw;
+            const pct = totalLeads > 0 ? Math.round((val / totalLeads) * 100) : 0;
+            return ` ${ctx.label}: ${val} (${pct}%)`;
+          }
+        }
+      }
+    }
+  };
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border-subtle)] p-6 rounded-[24px] h-[340px] flex flex-col justify-between hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] transition-all duration-300">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Lead Source Distribution</h3>
+      </div>
+      
+      {totalLeads === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-xs text-[var(--text-muted)] italic">No lead source data available</p>
+        </div>
+      ) : (
+        <>
+          <div className="relative w-full h-[140px] flex items-center justify-center shrink-0 mt-2">
+            <Doughnut data={chartData} options={options} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-1">
+              <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-0.5">Leads</span>
+              <span className="text-2xl font-black text-[var(--text-primary)] tracking-tight leading-none">{totalLeads}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-4 text-[10px] font-bold text-[var(--text-muted)]">
+            {validSources.map((ls: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-1.5 last:border-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: palette[idx % palette.length] }} />
+                  <span className="truncate">{ls.source}</span>
+                </div>
+                <span className="text-[var(--text-primary)] pl-1 shrink-0">{ls.count} ({totalLeads > 0 ? Math.round((ls.count / totalLeads) * 100) : 0}%)</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function WinLossSummaryWidget({ kpis }: { kpis: any }) {
+  if (!kpis) return null;
+
+  const won = kpis.wonDeals || 0;
+  const lost = kpis.lostDeals || 0;
+  const total = won + lost;
+  const conversionRate = kpis.conversionRate || 0;
+
+  const wonPct = total > 0 ? Math.round((won / total) * 100) : 0;
+  const lostPct = total > 0 ? Math.round((lost / total) * 100) : 0;
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border-subtle)] p-6 rounded-[24px] h-[340px] flex flex-col justify-between hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] transition-all duration-300">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Win vs Loss Summary</h3>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-around py-2">
+        <div className="flex items-center gap-5">
+          <div className="relative w-20 h-20 shrink-0">
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="26" fill="none" stroke="var(--border-subtle)" strokeWidth="5.5" />
+              <circle 
+                cx="32" cy="32" r="26" fill="none" 
+                stroke="url(#winLossGrad)" 
+                strokeWidth="5.5" 
+                strokeDasharray={2 * Math.PI * 26} 
+                strokeDashoffset={2 * Math.PI * 26 - (conversionRate / 100) * (2 * Math.PI * 26)} 
+                strokeLinecap="round" 
+                className="transition-all duration-1000 ease-out" 
+              />
+              <defs>
+                <linearGradient id="winLossGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#10b981" />
+                  <stop offset="100%" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none mt-0.5">
+              <span className="text-base font-extrabold text-[var(--text-primary)] tracking-tighter leading-none">{conversionRate}%</span>
+              <span className="text-[7px] font-bold text-[var(--text-muted)] uppercase tracking-wider mt-0.5">Won</span>
+            </div>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-xs font-extrabold text-[var(--text-primary)] leading-snug">Overall Conversion Rate</h4>
+            <p className="text-[11px] text-[var(--text-muted)] font-medium mt-1 leading-snug">
+              Ratio of closed deals won successfully. Higher conversions indicate efficient pipeline management.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2 mt-2">
+          <div className="flex justify-between items-center text-[10px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+            <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Won Deals</span>
+            <span className="flex items-center gap-1">Lost Deals <span className="w-1.5 h-1.5 rounded-full bg-red-500" /></span>
+          </div>
+          <div className="w-full h-3.5 bg-[var(--surface-hover)] rounded-full overflow-hidden flex p-0.5 border border-[var(--border-subtle)] shadow-inner">
+            {total === 0 ? (
+              <div className="w-full h-full bg-slate-200 dark:bg-slate-800 rounded-full" />
+            ) : (
+              <>
+                <div className="h-full bg-emerald-500 rounded-l-full transition-all duration-500" style={{ width: `${Math.max(wonPct, 4)}%` }} />
+                <div className="h-full bg-red-500 rounded-r-full transition-all duration-500" style={{ width: `${Math.max(lostPct, 4)}%` }} />
+              </>
+            )}
+          </div>
+          <div className="flex justify-between items-center text-xs font-black text-[var(--text-primary)] mt-1">
+            <span>{won} won <span className="text-[10px] font-medium text-[var(--text-muted)]">({wonPct}%)</span></span>
+            <span>{lost} lost <span className="text-[10px] font-medium text-[var(--text-muted)]">({lostPct}%)</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ForecastVsTargetWidget({ kpis, agentPerformance }: { kpis: any, agentPerformance: any[] }) {
+  const { formatCurrency } = useCurrency();
+  
+  const target = (agentPerformance || []).reduce((sum, a) => sum + (a.targetAmount || 0), 0) || 5000000; 
+  const achieved = kpis?.wonRevenue || 0;
+  const forecast = kpis?.pipelineRevenue || 0; 
+
+  const achievedPct = Math.min(Math.round((achieved / target) * 100), 100);
+  const forecastPct = Math.min(Math.round((forecast / target) * 100), 100);
+  const gap = Math.max(target - achieved, 0);
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border-subtle)] p-6 rounded-[24px] h-[340px] flex flex-col justify-between hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] transition-all duration-300">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Forecast vs Target</h3>
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent-soft)]">
+          Monthly Quota
+        </span>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-around py-2">
+        <div className="space-y-4">
+          <div>
+            <div className="flex justify-between items-baseline mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Achieved vs Target</span>
+              <span className="text-sm font-black text-[var(--text-primary)]">{formatCurrency(achieved)} / <span className="text-slate-400 font-semibold">{formatCurrency(target)}</span></span>
+            </div>
+            
+            <div className="w-full h-3 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-full overflow-hidden relative shadow-inner">
+              <div 
+                className="h-full bg-gradient-to-r from-[var(--accent)] to-blue-400 rounded-full transition-all duration-1000 ease-out" 
+                style={{ width: `${achievedPct}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)] mt-1">
+              <span>{achievedPct}% Completed</span>
+              <span>Gap: {formatCurrency(gap)}</span>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-baseline mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Open Pipeline (Forecast)</span>
+              <span className="text-xs font-black text-blue-500 dark:text-blue-400">+{formatCurrency(forecast)}</span>
+            </div>
+            <div className="w-full h-3 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-full overflow-hidden relative shadow-inner">
+              <div 
+                className="h-full bg-blue-500/30 dark:bg-blue-400/20 rounded-full transition-all duration-1000 ease-out" 
+                style={{ width: `${forecastPct}%` }}
+              />
+              <div 
+                className="absolute left-0 top-0 h-full bg-blue-500 rounded-full transition-all duration-1000 ease-out" 
+                style={{ width: `${Math.min(achievedPct, forecastPct)}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)] mt-1">
+              <span>Potential Quota Met: {Math.min(achievedPct + forecastPct, 100)}%</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-3 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-2xl text-[10px] text-[var(--text-muted)] leading-relaxed font-semibold">
+          💡 <strong>Forecast Alert</strong>: Closing all open deals will hit <strong>{Math.round(((achieved + forecast) / target) * 100)}%</strong> of your target quota this month.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function FollowUpTrendWidget({ followUpMetrics }: { followUpMetrics: any }) {
+  if (!followUpMetrics) return null;
+
+  const pending = followUpMetrics.pending || 0;
+  const overdue = followUpMetrics.overdue || 0;
+  const completedToday = followUpMetrics.completedToday || 0;
+  const dueToday = followUpMetrics.dueToday || 0;
+  const upcoming = followUpMetrics.upcoming || 0;
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border-subtle)] p-6 rounded-[24px] h-[340px] flex flex-col justify-between hover:shadow-[0_8px_30px_rgba(0,0,0,0.03)] transition-all duration-300">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-[var(--text-primary)]">Follow-up Action Health</h3>
+      </div>
+
+      <div className="flex-1 flex flex-col justify-around py-2">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-3 rounded-2xl bg-[var(--surface-hover)] border border-[var(--border-subtle)] flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Overdue</p>
+              <p className="text-lg font-black text-red-500 mt-1">{overdue}</p>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-950/20 text-red-500 flex items-center justify-center shrink-0 border border-red-100/30">
+              <Clock size={16} />
+            </div>
+          </div>
+          
+          <div className="p-3 rounded-2xl bg-[var(--surface-hover)] border border-[var(--border-subtle)] flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Due Today</p>
+              <p className="text-lg font-black text-blue-500 mt-1">{dueToday}</p>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/20 text-blue-500 flex items-center justify-center shrink-0 border border-blue-100/30">
+              <Calendar size={16} />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-[var(--surface-hover)] border border-[var(--border-subtle)] flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Upcoming</p>
+              <p className="text-lg font-black text-amber-500 mt-1">{upcoming}</p>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/20 text-amber-500 flex items-center justify-center shrink-0 border border-amber-100/30">
+              <Clock size={16} />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-[var(--surface-hover)] border border-[var(--border-subtle)] flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Done Today</p>
+              <p className="text-lg font-black text-emerald-500 mt-1">{completedToday}</p>
+            </div>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 text-emerald-500 flex items-center justify-center shrink-0 border border-emerald-100/30">
+              <FileCheck size={16} />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2">
+          <div className="flex justify-between text-[10px] font-bold text-[var(--text-muted)] mb-1">
+            <span>Overall Action Backlog</span>
+            <span>{overdue} overdue / {pending} total</span>
+          </div>
+          <div className="w-full h-2.5 bg-[var(--surface-hover)] border border-[var(--border-subtle)] rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-red-500 rounded-full" 
+              style={{ width: `${pending > 0 ? Math.round((overdue / pending) * 100) : 0}%` }}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
