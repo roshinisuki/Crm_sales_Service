@@ -72,6 +72,8 @@ export async function PUT(
     // V2: Sample management + technical discussion
     "requiresSamples", "sampleStatus",
     "techDiscussionDate", "techDiscussionAttendees", "techDiscussionQuestions", "techDiscussionConfirmed",
+    // V5: Manufacturing pipeline fields
+    "leadVerified", "tdDiscussionDate", "tdAttendees", "tdEngineerId", "additionalNotes",
   ];
 
   const data: Record<string, any> = {};
@@ -82,9 +84,9 @@ export async function PUT(
         data[key] = body[key] !== null && body[key] !== "" ? parseInt(body[key]) || null : null;
       } else if (["expectedBudget", "finalDiscussedBudget", "discountRequested", "proposalValue"].includes(key)) {
         data[key] = body[key] !== null && body[key] !== "" ? parseFloat(body[key]) || null : null;
-      } else if (["expectedGoLive", "meetingDate", "demoDate", "nextFollowUpDate", "requirementCompletedAt", "techDiscussionDate", "demoFollowUpDate"].includes(key)) {
+      } else if (["expectedGoLive", "meetingDate", "demoDate", "nextFollowUpDate", "requirementCompletedAt", "techDiscussionDate", "demoFollowUpDate", "tdDiscussionDate"].includes(key)) {
         data[key] = body[key] ? new Date(body[key]) : null;
-      } else if (["techDiscussionConfirmed"].includes(key)) {
+      } else if (["techDiscussionConfirmed", "leadVerified"].includes(key)) {
         data[key] = Boolean(body[key]);
       } else {
         data[key] = body[key];

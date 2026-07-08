@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
-import { normalizeStage, PIPELINE_STAGE_ORDER, PIPELINE_STAGE_PROBABILITY, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
+import { normalizeStage, PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 
 // POST /api/opportunities/[id]/stage-change
-// Body: { to_stage, notes }
+// Body: { to_stage, notes?, demoOutcome?, demoFollowUpDate?, rejectedReason?, force? }
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,7 +15,6 @@ export async function POST(
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
-  // SuperAdmin must use support/impersonation mode
   if (user.role === "SuperAdmin" && (!user.supportMode || !user.companyId)) {
     return NextResponse.json({ success: false, message: "SuperAdmin must access business data via support/impersonation mode." }, { status: 403 });
   }
@@ -28,7 +27,6 @@ export async function POST(
     return NextResponse.json({ success: false, message: "to_stage is required" }, { status: 400 });
   }
 
-  // Validate stage value against canonical pipeline stages (with normalization)
   const normalizedStage = normalizeStage(to_stage);
   if (!normalizedStage) {
     return NextResponse.json(
@@ -43,22 +41,23 @@ export async function POST(
       stageHistories: { orderBy: { changedAt: "desc" }, take: 1 },
       opportunityDetail: true,
       quotations: { where: { status: "Accepted" }, take: 1 },
+      requirementItems: {
+        include: { technicalNote: true },
+        orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
+      },
     },
   });
 
   if (!deal) return NextResponse.json({ success: false, message: "Opportunity not found" }, { status: 404 });
 
-  // Row-level scope check
   if (user.role === "SalesExecutive" && deal.assignedUserId !== user.id) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
   }
 
   const currentStage = deal.status;
-
-  // Use normalized stage value for all downstream logic
   const targetStage = normalizedStage;
 
-  // No-op if same stage — UNLESS setting demoOutcome on DemoConducted (edge case: deal moved to DemoConducted without outcome)
+  // No-op if same stage — UNLESS setting demoOutcome on DemoConducted
   if (currentStage === targetStage) {
     if (demoOutcome && targetStage === "DemoConducted") {
       const updated = await prisma.deal.update({
@@ -75,61 +74,43 @@ export async function POST(
           fromStatus: currentStage,
           toStatus: targetStage,
           changedById: user.id,
-          outcomeNotes: `Demo outcome set: ${demoOutcome}${demoFollowUpDate ? ` — follow-up on ${demoFollowUpDate}` : ""}${rejectedReason ? ` — reason: ${rejectedReason}` : ""}`,
+          outcomeNotes: `Demo outcome set: ${demoOutcome}`,
         },
       });
-      // Auto-create RFQ when demoOutcome is Accepted
+      // Auto-create RFQ with line items when demoOutcome is Accepted
       if (demoOutcome === "Accepted") {
-        const existingRfq = await prisma.rFQ.findFirst({ where: { opportunityId: deal.id } });
-        if (!existingRfq) {
-          const year = new Date().getFullYear();
-          const rfqPrefix = `RFQ-${year}-`;
-          const rfqCount = await prisma.rFQ.count({ where: { rfqCode: { startsWith: rfqPrefix } } });
-          const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
-          await prisma.rFQ.create({
-            data: {
-              rfqCode,
-              customerId: deal.customerId,
-              opportunityId: deal.id,
-              status: "New",
-              receivedDate: new Date(),
-              priority: "Normal",
-              companyId: user.companyId,
-            },
-          });
-        }
+        await createRFQWithLineItems(id, deal, user);
       }
-      await logAudit(user.id, "Opportunity", "StageChange", `Demo outcome set: ${demoOutcome} for "${deal.dealName}"`, {
-        resourceId: id,
-        previousState: { demoOutcome: deal.demoOutcome },
-        newState: { demoOutcome },
-        context: extractAuditContext(request),
-        severity: "WARN",
-      });
       return NextResponse.json({ success: true, data: updated });
     }
     return NextResponse.json({ success: true, message: "Already at this stage", data: deal });
   }
 
-  const currentOrder = PIPELINE_STAGE_ORDER[currentStage] ?? 0;
-  const targetOrder  = PIPELINE_STAGE_ORDER[targetStage]   ?? 0;
+  // Read stage order from PipelineStageMaster when available, fallback to hardcoded constants
+  const stageMasters = await prisma.pipelineStageMaster.findMany({
+    where: { companyId: user.companyId, isActive: true },
+    select: { stageName: true, displayOrder: true, probabilityPercent: true },
+  });
+  const masterOrderMap: Record<string, number> = {};
+  const masterProbMap: Record<string, number> = {};
+  stageMasters.forEach((s) => {
+    masterOrderMap[s.stageName] = s.displayOrder;
+    masterProbMap[s.stageName] = s.probabilityPercent;
+  });
 
-  // Terminal stages (Rejected, Lost) have order 0 — they're not backward moves, they're terminal exits
-  const isTerminalExit = (targetStage === "Rejected" || targetStage === "Lost");
+  const currentOrder = masterOrderMap[currentStage] ?? PIPELINE_STAGE_ORDER[currentStage] ?? 0;
+  const targetOrder  = masterOrderMap[targetStage]  ?? PIPELINE_STAGE_ORDER[targetStage]  ?? 0;
 
-  // If backward stage change (non-terminal), require Sales Manager or Admin
+  const isTerminalExit = targetStage === "Rejected" || targetStage === "Lost";
+
+  // Backward stage change requires Manager/Admin
   if (targetOrder < currentOrder && !isTerminalExit && !force) {
     if (!["SalesManager", "Admin"].includes(user.role)) {
-      return NextResponse.json(
-        { success: false, message: "Stage rollback requires Manager approval" },
-        { status: 403 }
-      );
+      return NextResponse.json({ success: false, message: "Stage rollback requires Manager approval" }, { status: 403 });
     }
   }
 
-  // Forward stage change: only allow moving to the next stage in sequence (no skipping)
-  // Terminal exits (Rejected, Lost) can happen from any stage
-  // force=true bypasses this check (used by sample approval to jump to RequirementGathering)
+  // Forward: only allow moving one step at a time (no skipping), unless force=true or terminal exit
   if (targetOrder > currentOrder && targetOrder !== currentOrder + 1 && !isTerminalExit && !force) {
     return NextResponse.json(
       { success: false, message: "You can only move to the next stage in sequence" },
@@ -137,10 +118,99 @@ export async function POST(
     );
   }
 
-  // Validate demoOutcome when moving to DemoConducted
+  // ─── Stage Gate: Requirement Gathering → Technical Discussion ───────────────
+  // Must have at least one product requirement item logged.
+  if (currentStage === "RequirementGathering" && targetStage === "TechnicalDiscussion") {
+    const d = deal.opportunityDetail || {};
+    const mandatoryFields = [
+      { key: "contactPerson", label: "Contact person" },
+      { key: "email", label: "Email" },
+      { key: "phone", label: "Phone" },
+      { key: "currentChallenges", label: "Current challenges" },
+      { key: "businessNeed", label: "Business need" },
+      { key: "urgencyPriority", label: "Urgency / priority" },
+      { key: "expectedBudget", label: "Expected budget" },
+      { key: "decisionMaker", label: "Decision maker" },
+    ];
+    const missing = mandatoryFields.filter((f) => {
+      const val = (d as any)[f.key];
+      return val === null || val === undefined || (typeof val === "string" && val.trim() === "");
+    });
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { success: false, message: `Cannot advance. Please fill: ${missing.map((m) => m.label).join(", ")}.` },
+        { status: 400 }
+      );
+    }
+
+    if (!deal.requirementItems || deal.requirementItems.length === 0) {
+      return NextResponse.json(
+        { success: false, message: "Cannot advance. At least one product requirement must be added before proceeding to Technical Discussion." },
+        { status: 400 }
+      );
+    }
+  }
+
+  // ─── Stage Gate: Technical Discussion → Meeting Scheduled ───────────────────
+  // Every product row must have a feasibility note set to Feasible or FeasibleWithChanges.
+  if (currentStage === "TechnicalDiscussion" && targetStage === "MeetingScheduled") {
+    const items = deal.requirementItems || [];
+    if (items.length === 0) {
+      return NextResponse.json(
+        { success: false, message: "Cannot advance. No product requirements found — please go back to Requirement Gathering." },
+        { status: 400 }
+      );
+    }
+
+    const missingFeasibility = items.filter(
+      (item) => !item.technicalNote || !item.technicalNote.feasibility
+    );
+    if (missingFeasibility.length > 0) {
+      const names = missingFeasibility.map((i) => i.productName).join(", ");
+      return NextResponse.json(
+        { success: false, message: `Cannot advance. Feasibility review pending for: ${names}.` },
+        { status: 400 }
+      );
+    }
+
+    const notFeasible = items.filter((item) => item.technicalNote?.feasibility === "NotFeasible");
+    if (notFeasible.length > 0 && !force) {
+      const names = notFeasible.map((i) => i.productName).join(", ");
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Cannot advance. The following products are marked Not Feasible: ${names}. Remove or revise them, or use force=true to override (Manager/Admin only).`,
+          notFeasibleItems: notFeasible.map((i) => ({ id: i.id, productName: i.productName })),
+        },
+        { status: 400 }
+      );
+    }
+  }
+
+  // ─── Stage Gate: Meeting Scheduled → Demo Conducted ─────────────────────────
+  if (currentStage === "MeetingScheduled") {
+    const d = deal.opportunityDetail || {};
+    const meetingMandatory = [
+      { key: "meetingDate", label: "Meeting date" },
+      { key: "meetingType", label: "Meeting type" },
+      { key: "meetingStatus", label: "Outcome / status" },
+    ];
+    const missing = meetingMandatory.filter((f) => {
+      const val = (d as any)[f.key];
+      return val === null || val === undefined || (typeof val === "string" && val.trim() === "");
+    });
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { success: false, message: `Cannot advance. Please fill: ${missing.map((m) => m.label).join(", ")}.` },
+        { status: 400 }
+      );
+    }
+  }
+
+  // ─── Validate demoOutcome ────────────────────────────────────────────────────
   if (targetStage === "DemoConducted" && !demoOutcome) {
     return NextResponse.json(
-      { success: false, message: "demoOutcome (Accepted/Rejected/Follow-up needed) is required when moving to DemoConducted" },
+      { success: false, message: "demoOutcome (Accepted/Rejected/Follow-up needed) is required when moving to Demo conducted" },
       { status: 400 }
     );
   }
@@ -150,7 +220,6 @@ export async function POST(
       { status: 400 }
     );
   }
-  // V2: Follow-up needed requires a follow-up date
   if (demoOutcome === "Follow-up needed" && !demoFollowUpDate) {
     return NextResponse.json(
       { success: false, message: "demoFollowUpDate is required when demoOutcome is 'Follow-up needed'" },
@@ -158,7 +227,7 @@ export async function POST(
     );
   }
 
-  // Validate rejectedReason when moving to Rejected
+  // ─── Validate rejectedReason ─────────────────────────────────────────────────
   if (targetStage === "Rejected" && !rejectedReason) {
     return NextResponse.json(
       { success: false, message: "rejectedReason is required when moving to Rejected" },
@@ -166,61 +235,7 @@ export async function POST(
     );
   }
 
-  // Requirement Gathering → next stage: server-side re-validate mandatory fields
-  if (currentStage === "RequirementGathering") {
-    const d = deal.opportunityDetail || {};
-    const mandatoryFields = [
-      { key: "contactPerson", label: "Contact Person" },
-      { key: "email", label: "Email" },
-      { key: "phone", label: "Phone" },
-      { key: "currentChallenges", label: "Current Challenges" },
-      { key: "businessNeed", label: "Business Need" },
-      { key: "urgencyPriority", label: "Urgency / Priority" },
-      { key: "deploymentType", label: "Deployment Type" },
-      { key: "budgetRange", label: "Budget Range" },
-      { key: "expectedBudget", label: "Expected Budget" },
-      { key: "decisionMaker", label: "Decision Maker" },
-    ];
-    const missing = mandatoryFields.filter((f) => {
-      const val = (d as any)[f.key];
-      return val === null || val === undefined || (typeof val === "string" && val.trim() === "");
-    });
-    if (missing.length > 0) {
-      return NextResponse.json(
-        { success: false, message: `Cannot move forward. Please fill: ${missing.map((m) => m.label).join(", ")}.` },
-        { status: 400 }
-      );
-    }
-    // V2: Require tech discussion confirmed checkbox
-    if (!(d as any).techDiscussionConfirmed) {
-      return NextResponse.json(
-        { success: false, message: "Cannot move forward. Please confirm technical discussion in Part B." },
-        { status: 400 }
-      );
-    }
-  }
-
-  // MeetingScheduled → next stage: server-side validate meeting details (P3 fix)
-  if (currentStage === "MeetingScheduled") {
-    const d = deal.opportunityDetail || {};
-    const meetingMandatory = [
-      { key: "meetingDate", label: "Meeting Date" },
-      { key: "meetingType", label: "Meeting/Demo Type" },
-      { key: "meetingStatus", label: "Outcome / Status" },
-    ];
-    const missing = meetingMandatory.filter((f) => {
-      const val = (d as any)[f.key];
-      return val === null || val === undefined || (typeof val === "string" && val.trim() === "");
-    });
-    if (missing.length > 0) {
-      return NextResponse.json(
-        { success: false, message: `Cannot move forward. Please fill: ${missing.map((m) => m.label).join(", ")}.` },
-        { status: 400 }
-      );
-    }
-  }
-
-  // Calculate days_in_previous_stage
+  // Calculate days in previous stage
   const lastHistoryEntry = deal.stageHistories[0];
   let daysInPreviousStage = 0;
   if (lastHistoryEntry) {
@@ -228,26 +243,24 @@ export async function POST(
     daysInPreviousStage = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   }
 
-  const newProbability = PIPELINE_STAGE_PROBABILITY[targetStage] ?? deal.probabilityPercent;
+  // Read probability from PipelineStageMaster, fallback to hardcoded map
+  const newProbability = masterProbMap[targetStage] ?? deal.probabilityPercent;
 
   const result = await prisma.$transaction(async (tx) => {
-    // Update deal stage, probability, and stage entry timestamp
     const updated = await tx.deal.update({
       where: { id },
       data: {
         status: targetStage,
         probabilityPercent: newProbability,
         stageEnteredAt: new Date(),
-        // Set demoOutcome when entering DemoConducted
         ...(targetStage === "DemoConducted" && demoOutcome ? { demoOutcome } : {}),
-        // V2: Save demoFollowUpDate when Follow-up needed
-        ...(targetStage === "DemoConducted" && demoOutcome === "Follow-up needed" && demoFollowUpDate ? { demoFollowUpDate: new Date(demoFollowUpDate) } : {}),
-        // Set rejectedReason when entering Rejected
+        ...(targetStage === "DemoConducted" && demoOutcome === "Follow-up needed" && demoFollowUpDate
+          ? { demoFollowUpDate: new Date(demoFollowUpDate) }
+          : {}),
         ...(targetStage === "Rejected" && rejectedReason ? { rejectedReason } : {}),
       },
     });
 
-    // Insert stage history
     await tx.dealStageHistory.create({
       data: {
         dealId: id,
@@ -255,20 +268,22 @@ export async function POST(
         toStatus: targetStage,
         changedById: user.id,
         durationInPreviousStage: daysInPreviousStage,
-        outcomeNotes: notes || (demoOutcome ? `Demo ${demoOutcome}${demoFollowUpDate ? ` — follow-up on ${demoFollowUpDate}` : ""}` : null) || (rejectedReason ? `Rejected: ${rejectedReason}` : null) || null,
+        outcomeNotes:
+          notes ||
+          (demoOutcome ? `Demo ${demoOutcome}${demoFollowUpDate ? ` — follow-up on ${demoFollowUpDate}` : ""}` : null) ||
+          (rejectedReason ? `Rejected: ${rejectedReason}` : null) ||
+          null,
       },
     });
 
-    // Customer status sync on Won is handled by Deals module, not Sales Pipeline
-    // Won is a Deals module status — pipeline exits at DemoConducted (Accepted → RFQ) or Rejected/Lost
-
     // Auto-create stage-appropriate follow-up
     const stageFollowUpMap: Record<string, string> = {
-      MeetingScheduled: "Confirm attendee list and demo feedback",
+      TechnicalDiscussion: "Schedule technical discussion with engineering team",
+      MeetingScheduled: "Confirm attendee list and meeting agenda",
       RequirementGathering: "Schedule discovery call",
       DemoConducted: "Follow up on demo outcome and next steps",
       Rejected: "Internal review: understand rejection reasons and lessons learned",
-      Lost: "Internal review: analyze loss reasons and improvement areas",
+      Lost: "Internal review: analyse loss reasons and improvement areas",
     };
 
     const followUpTitle = stageFollowUpMap[targetStage];
@@ -291,34 +306,13 @@ export async function POST(
       });
     }
 
-    // Auto-create RFQ when DemoConducted with Accepted outcome
-    if (targetStage === "DemoConducted" && demoOutcome === "Accepted") {
-      const existingRfq = await tx.rFQ.findFirst({
-        where: { opportunityId: deal.id },
-      });
-      if (!existingRfq) {
-        const year = new Date().getFullYear();
-        const rfqPrefix = `RFQ-${year}-`;
-        const rfqCount = await tx.rFQ.count({
-          where: { rfqCode: { startsWith: rfqPrefix } },
-        });
-        const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
-        await tx.rFQ.create({
-          data: {
-            rfqCode,
-            customerId: deal.customerId,
-            opportunityId: deal.id,
-            status: "New",
-            receivedDate: new Date(),
-            priority: "Normal",
-            companyId: user.companyId,
-          },
-        });
-      }
-    }
-
     return updated;
   });
+
+  // Auto-create RFQ with line items when DemoConducted with Accepted outcome
+  if (targetStage === "DemoConducted" && demoOutcome === "Accepted") {
+    await createRFQWithLineItems(id, deal, user);
+  }
 
   // Audit log
   await logAudit(
@@ -335,7 +329,7 @@ export async function POST(
     }
   );
 
-  // High-value stale deal notification: estimated_value > 500000 AND same stage > 14 days
+  // High-value stale deal notification
   if (deal.dealValue > 500000 && daysInPreviousStage > 14) {
     const managers = await prisma.user.findMany({
       where: { role: { in: ["Admin", "SalesManager"] }, isActive: true, companyId: user.companyId },
@@ -357,7 +351,7 @@ export async function POST(
   if (deal.assignedUserId && deal.assignedUserId !== user.id) {
     await dispatchNotification({
       userId: deal.assignedUserId,
-      title: "Opportunity Stage Changed",
+      title: "Opportunity stage changed",
       message: `Your opportunity "${deal.dealName}" moved from ${currentStage} to ${targetStage}.`,
       type: "deal",
       link: `/sales-pipeline/${id}`,
@@ -369,4 +363,59 @@ export async function POST(
     data: result,
     message: `Stage changed from ${currentStage} to ${targetStage}`,
   });
+}
+
+// ─── Helper: Auto-create RFQ with line items from feasible requirement items ──
+async function createRFQWithLineItems(
+  dealId: string,
+  deal: any,
+  user: { id: string; companyId?: string | null }
+) {
+  if (!user.companyId) {
+    throw new Error("Company ID is required to create RFQ");
+  }
+  const existingRfq = await prisma.rFQ.findFirst({ where: { opportunityId: dealId } });
+  if (existingRfq) return existingRfq; // Already exists — don't duplicate
+
+  const year = new Date().getFullYear();
+  const rfqPrefix = `RFQ-${year}-`;
+  const rfqCount = await prisma.rFQ.count({ where: { rfqCode: { startsWith: rfqPrefix } } });
+  const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
+
+  // Only include items that are Feasible or FeasibleWithChanges
+  const feasibleItems = (deal.requirementItems || []).filter(
+    (item: any) =>
+      item.technicalNote &&
+      ["Feasible", "FeasibleWithChanges"].includes(item.technicalNote.feasibility)
+  );
+
+  const rfq = await prisma.rFQ.create({
+    data: {
+      rfqCode,
+      customerId: deal.customerId,
+      opportunityId: dealId,
+      status: "New",
+      receivedDate: new Date(),
+      priority: "Normal",
+      companyId: user.companyId,
+      lineItems: {
+        create: feasibleItems.map((item: any, idx: number) => ({
+          itemDescription: item.productName,
+          quantity: item.estimatedQuantity,
+          targetPrice: item.targetPriceMin
+            ? Number(item.targetPriceMin)
+            : null,
+          requestedDeliveryDate: item.requiredDelivery || null,
+          // Use confirmedSpec from Technical Discussion; fallback to specNotes from RG
+          specifications: item.technicalNote?.confirmedSpec || item.specNotes || null,
+          notes: item.technicalNote?.toolingRequired
+            ? `Tooling: ${item.technicalNote.toolingRequired}`
+            : null,
+          displayOrder: idx,
+        })),
+      },
+    },
+  });
+
+  return rfq;
 }

@@ -18,16 +18,24 @@ import {
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
+import { StageAccordion } from "@/components/pipeline/StageAccordion";
+import { ProductRequirementTable, type RequirementItem } from "@/components/pipeline/ProductRequirementTable";
+import { TechnicalFeasibilityTable, type TechNoteRow } from "@/components/pipeline/TechnicalFeasibilityTable";
+import { StageAdvanceButton } from "@/components/pipeline/StageAdvanceButton";
+import { RFQSummaryCard } from "@/components/pipeline/RFQSummaryCard";
+import { generateStageSummary } from "@/components/pipeline/StageSummaryLine";
 import { PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 import { getUsersAction } from "@/app/actions/users";
 
 const STAGE_DISPLAY_LABELS: Record<string, string> = {
-  Qualified: "Qualified",
-  RequirementGathering: "Req. Gathering",
-  MeetingScheduled: "Meeting Scheduled",
-  DemoConducted: "Demo Conducted",
-  Rejected: "Rejected",
-  Lost: "Lost",
+  Qualified:            "Qualified",
+  RequirementGathering: "Requirement gathering",
+  TechnicalDiscussion:  "Technical discussion",
+  MeetingScheduled:     "Meeting scheduled",
+  DemoConducted:        "Demo conducted",
+  Won:                  "Won",
+  Rejected:             "Rejected",
+  Lost:                 "Lost",
 };
 
 const STAGE_PILL: Record<string, string> = {
@@ -35,6 +43,8 @@ const STAGE_PILL: Record<string, string> = {
     "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50",
   RequirementGathering:
     "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/50",
+  TechnicalDiscussion:
+    "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50",
   MeetingScheduled:
     "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/50",
   DemoConducted:
@@ -46,11 +56,12 @@ const STAGE_PILL: Record<string, string> = {
 };
 
 const STAGE_FILTERS = [
-  { label: "All Stages", value: "" },
+  { label: "All stages", value: "" },
   { label: "Qualified", value: "Qualified" },
-  { label: "Req. Gathering", value: "RequirementGathering" },
-  { label: "Meeting Scheduled", value: "MeetingScheduled" },
-  { label: "Demo Conducted", value: "DemoConducted" },
+  { label: "Req. gathering", value: "RequirementGathering" },
+  { label: "Tech. discussion", value: "TechnicalDiscussion" },
+  { label: "Meeting scheduled", value: "MeetingScheduled" },
+  { label: "Demo conducted", value: "DemoConducted" },
   { label: "Rejected", value: "Rejected" },
   { label: "Lost", value: "Lost" },
 ];
@@ -80,53 +91,51 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 const STAGE_LABELS: Record<string, string> = {
-  Qualified: "Qualified",
-  RequirementGathering: "Requirement Gathering",
-  MeetingScheduled: "Meeting Scheduled",
-  DemoConducted: "Demo Conducted",
-  Lost: "Lost",
-  Rejected: "Rejected",
+  Qualified:            "Qualified",
+  RequirementGathering: "Requirement gathering",
+  TechnicalDiscussion:  "Technical discussion",
+  MeetingScheduled:     "Meeting scheduled",
+  DemoConducted:        "Demo conducted",
+  Won:                  "Won",
+  Lost:                 "Lost",
+  Rejected:             "Rejected",
 };
 
 // Required fields per stage — must be saved before moving forward
+// NOTE: deploymentType removed (SaaS-only). Product requirements gate handled by API.
 const STAGE_REQUIRED_FIELDS: Record<string, { field: string; label: string }[]> = {
   RequirementGathering: [
-    { field: "contactPerson", label: "Contact Person" },
+    { field: "contactPerson", label: "Contact person" },
     { field: "email", label: "Email" },
     { field: "phone", label: "Phone" },
-    { field: "currentChallenges", label: "Current Challenges" },
-    { field: "businessNeed", label: "Business Need" },
-    { field: "urgencyPriority", label: "Urgency / Priority" },
-    { field: "deploymentType", label: "Deployment Type" },
-    { field: "budgetRange", label: "Budget Range" },
-    { field: "expectedBudget", label: "Expected Budget" },
-    { field: "decisionMaker", label: "Decision Maker" },
+    { field: "currentChallenges", label: "Current challenges" },
+    { field: "businessNeed", label: "Business need" },
+    { field: "urgencyPriority", label: "Urgency / priority" },
+    { field: "expectedBudget", label: "Expected budget" },
+    { field: "decisionMaker", label: "Decision maker" },
   ],
   MeetingScheduled: [
-    { field: "meetingDate", label: "Meeting/Demo Date" },
-    { field: "meetingType", label: "Meeting/Demo Type" },
-    { field: "meetingStatus", label: "Outcome / Status" },
+    { field: "meetingDate", label: "Meeting / demo date" },
+    { field: "meetingType", label: "Meeting / demo type" },
+    { field: "meetingStatus", label: "Outcome / status" },
   ],
   DemoConducted: [
-    { field: "demoDate", label: "Demo Date" },
-    { field: "demoType", label: "Demo Type" },
-    { field: "demoInterestLevel", label: "Interest Level" },
+    { field: "demoDate", label: "Demo date" },
+    { field: "demoType", label: "Demo type" },
+    { field: "demoInterestLevel", label: "Interest level" },
   ],
-  // Rejected is terminal — no required fields
   Rejected: [],
 };
 
 const RG_MANDATORY_FIELDS = [
-  { key: "contactPerson", label: "Contact Person", section: "Customer Details" },
-  { key: "email", label: "Email", section: "Customer Details" },
-  { key: "phone", label: "Phone", section: "Customer Details" },
-  { key: "currentChallenges", label: "Current Challenges", section: "Business Requirements" },
-  { key: "businessNeed", label: "Business Need", section: "Business Requirements" },
-  { key: "urgencyPriority", label: "Urgency / Priority", section: "Business Requirements" },
-  { key: "deploymentType", label: "Deployment Type", section: "Technical Requirements" },
-  { key: "budgetRange", label: "Budget Range", section: "Commercial Information" },
-  { key: "expectedBudget", label: "Expected Budget", section: "Commercial Information" },
-  { key: "decisionMaker", label: "Decision Maker", section: "Commercial Information" },
+  { key: "contactPerson", label: "Contact person", section: "Customer details" },
+  { key: "email",         label: "Email",          section: "Customer details" },
+  { key: "phone",         label: "Phone",          section: "Customer details" },
+  { key: "currentChallenges", label: "Current challenges", section: "Business requirements" },
+  { key: "businessNeed",  label: "Business need",  section: "Business requirements" },
+  { key: "urgencyPriority", label: "Urgency / priority", section: "Business requirements" },
+  { key: "expectedBudget", label: "Expected budget", section: "Commercial information" },
+  { key: "decisionMaker", label: "Decision maker", section: "Commercial information" },
 ];
 
 const getMissingMandatoryFields = (formData: any) => {
@@ -510,7 +519,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   // RG form state
   const [rgForm, setRgForm] = useState<any>({});
-  const [rgExpanded, setRgExpanded] = useState<Record<string, boolean>>({ customer_info: true, business_req: false, tech_req: false, tech_discussion: false, commercial_info: false, internal_notes: false });
+  const [rgExpanded, setRgExpanded] = useState<Record<string, boolean>>({ customer_info: true, business_req: false, commercial_info: false, internal_notes: false });
   const [rgSaving, setRgSaving] = useState(false);
   const [rgAttempted, setRgAttempted] = useState(false);
   const [stageMoving, setStageMoving] = useState(false);
@@ -522,12 +531,18 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [sampleForm, setSampleForm] = useState({ productId: "", quantity: "1", specifications: "" });
   const [sampleSaving, setSampleSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
-  // Demo outcome form state (MeetingScheduled → DemoConducted transition)
+  // Demo outcome form state (MeetingScheduled -> DemoConducted transition)
   const [demoOutcomeChoice, setDemoOutcomeChoice] = useState<"Accepted" | "Follow-up needed" | "Rejected" | "">("");
   const [demoNotes, setDemoNotes] = useState("");
   const [demoFollowUpDate, setDemoFollowUpDate] = useState("");
   const [demoRejectionReason, setDemoRejectionReason] = useState("");
   const [demoRejectionRemarks, setDemoRejectionRemarks] = useState("");
+  // V5: Manufacturing pipeline — product requirement items
+  const [requirementItems, setRequirementItems] = useState<RequirementItem[]>([]);
+  const [tdRows, setTdRows] = useState<TechNoteRow[]>([]);
+  const [tdForm, setTdForm] = useState({ tdDiscussionDate: "", tdAttendees: "", tdEngineerId: "" });
+  // V5: lead-verified flag (Qualified stage)
+  const [leadVerified, setLeadVerified] = useState(false);
 
   const fetchOpportunities = useCallback(async () => {
     setOppsLoading(true);
@@ -584,105 +599,94 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       // Initialize RG form from opportunityDetail
       const d = json.data.opportunityDetail || {};
       setRgForm({
-        currentChallenges: d.currentChallenges || "",
-        painPoints: d.painPoints || "",
-        painPointsList: d.painPointsList || "",
-        modulesRequired: d.modulesRequired || "",
-        deploymentType: d.deploymentType || "",
-        integrationsRequired: d.integrationsRequired || "",
-        userCountSales: d.userCountSales || "",
-        userCountManagers: d.userCountManagers || "",
-        userCountAdmins: d.userCountAdmins || "",
-        budgetRange: d.budgetRange || "",
-        timeline: d.timeline || "",
-        procurementProcess: d.procurementProcess || "",
-        decisionMaker: d.decisionMaker || "",
-        influencer: d.influencer || "",
-        budgetOwner: d.budgetOwner || "",
-        expectedGoLive: d.expectedGoLive ? d.expectedGoLive.split("T")[0] : "",
-        currentVendor: d.currentVendor || "",
-        competitorsEvaluated: d.competitorsEvaluated || "",
-        businessNeed: d.businessNeed || "",
-        expectedOutcome: d.expectedOutcome || "",
-        requiredDepartments: d.requiredDepartments || "",
-        numberOfUsers: d.numberOfUsers || "",
-        urgencyPriority: d.urgencyPriority || "",
-        businessGoals: d.businessGoals || "",
-        successCriteria: d.successCriteria || "",
-        existingSoftwareStack: d.existingSoftwareStack || "",
-        securityCompliance: d.securityCompliance || "",
-        userRolesPermissions: d.userRolesPermissions || "",
-        reportingRequirements: d.reportingRequirements || "",
-        dataMigrationRequired: d.dataMigrationRequired || "",
-        customizationNeeded: d.customizationNeeded || "",
-        apiThirdPartyReqs: d.apiThirdPartyReqs || "",
-        technicalConstraints: d.technicalConstraints || "",
-        itTeamNotes: d.itTeamNotes || "",
-        expectedBudget: d.expectedBudget || "",
-        finalDiscussedBudget: d.finalDiscussedBudget || "",
-        pricingModel: d.pricingModel || "",
-        licenseCount: d.licenseCount || "",
-        paymentTerms: d.paymentTerms || "",
-        billingCycle: d.billingCycle || "",
-        competitorInfo: d.competitorInfo || "",
-        commercialRisks: d.commercialRisks || "",
-        discountRequested: d.discountRequested || "",
-        proposalValue: d.proposalValue || "",
-        negotiationNotes: d.negotiationNotes || "",
-        internalSalesNotes: d.internalSalesNotes || "",
-        presalesNotes: d.presalesNotes || "",
-        objections: d.objections || "",
-        followUpSummary: d.followUpSummary || "",
-        risksBlockers: d.risksBlockers || "",
-        nextSteps: d.nextSteps || "",
-        managementNotes: d.managementNotes || "",
-        companyName: d.companyName || "",
-        industry: d.industry || "",
-        contactPerson: d.contactPerson || "",
-        email: d.email || "",
-        phone: d.phone || "",
-        employeeCount: d.employeeCount || "",
-        approvalProcess: d.approvalProcess || "",
+        // Customer details
+        companyName:      d.companyName || "",
+        industry:         d.industry || "",
+        contactPerson:    d.contactPerson || "",
+        email:            d.email || "",
+        phone:            d.phone || "",
+        employeeCount:    d.employeeCount || "",
+        approvalProcess:  d.approvalProcess || "",
         buyingAuthorityNotes: d.buyingAuthorityNotes || "",
+        // Business requirements (manufacturing-relevant)
+        currentChallenges: d.currentChallenges || "",
+        businessNeed:     d.businessNeed || "",
+        urgencyPriority:  d.urgencyPriority || "",
+        expectedOutcome:  d.expectedOutcome || "",
+        currentVendor:    d.currentVendor || "",
+        competitorsEvaluated: d.competitorsEvaluated || "",
+        // Commercial information
+        budgetRange:      d.budgetRange || "",
+        timeline:         d.timeline || "",
+        expectedBudget:   d.expectedBudget || "",
+        finalDiscussedBudget: d.finalDiscussedBudget || "",
+        procurementProcess: d.procurementProcess || "",
+        decisionMaker:    d.decisionMaker || "",
+        influencer:       d.influencer || "",
+        budgetOwner:      d.budgetOwner || "",
+        expectedGoLive:   d.expectedGoLive ? d.expectedGoLive.split("T")[0] : "",
+        paymentTerms:     d.paymentTerms || "",
+        competitorInfo:   d.competitorInfo || "",
+        // Internal notes (consolidated)
+        additionalNotes:  d.additionalNotes || d.internalSalesNotes || "",
+        internalSalesNotes: d.internalSalesNotes || "",  // alias for backward compat
         // Meeting Scheduled
-        meetingType: d.meetingType || "",
-        meetingMode: d.meetingMode || "",
-        meetingDate: d.meetingDate ? d.meetingDate.split("T")[0] : "",
-        meetingStatus: d.meetingStatus || "",
-        meetingDuration: d.meetingDuration || "",
+        meetingType:      d.meetingType || "",
+        meetingMode:      d.meetingMode || "",
+        meetingDate:      d.meetingDate ? d.meetingDate.split("T")[0] : "",
+        meetingStatus:    d.meetingStatus || "",
+        meetingDuration:  d.meetingDuration || "",
         meetingParticipants: d.meetingParticipants || "",
-        meetingLocation: d.meetingLocation || "",
-        meetingAgenda: d.meetingAgenda || "",
-        meetingOutcome: d.meetingOutcome || "",
+        meetingLocation:  d.meetingLocation || "",
+        meetingAgenda:    d.meetingAgenda || "",
+        meetingOutcome:   d.meetingOutcome || "",
         nextFollowUpDate: d.nextFollowUpDate ? d.nextFollowUpDate.split("T")[0] : "",
         // Demo Conducted
-        demoType: d.demoType || "",
-        demoDate: d.demoDate ? d.demoDate.split("T")[0] : "",
-        demoPresenter: d.demoPresenter || "",
-        demoDuration: d.demoDuration || "",
-        demoAttendees: d.demoAttendees || "",
+        demoType:         d.demoType || "",
+        demoDate:         d.demoDate ? d.demoDate.split("T")[0] : "",
+        demoPresenter:    d.demoPresenter || "",
+        demoDuration:     d.demoDuration || "",
+        demoAttendees:    d.demoAttendees || "",
         demoCustomerRating: d.demoCustomerRating || "",
         demoInterestLevel: d.demoInterestLevel || "",
         demoQuestionsRaised: d.demoQuestionsRaised || "",
         demoRejectionReason: d.demoRejectionReason || "",
         demoRejectionRemarks: d.demoRejectionRemarks || "",
         demoCompetitorName: d.demoCompetitorName || "",
-        // Proposal Sent
-        proposedSolution: d.proposedSolution || "",
-        scopeClassification: d.scopeClassification || "",
-        estimatedDuration: d.estimatedDuration || "",
-        developmentEffort: d.developmentEffort || "",
-        implementationEffort: d.implementationEffort || "",
-        supportRequirements: d.supportRequirements || "",
-        // V2: Sample management + technical discussion
-        requiresSamples: d.requiresSamples || "",
-        sampleStatus: d.sampleStatus || "",
-        techDiscussionDate: d.techDiscussionDate ? d.techDiscussionDate.split("T")[0] : "",
-        techDiscussionAttendees: d.techDiscussionAttendees || "",
-        techDiscussionQuestions: d.techDiscussionQuestions || "",
-        techDiscussionConfirmed: d.techDiscussionConfirmed || false,
+        // V2: Sample management
+        requiresSamples:  d.requiresSamples || "",
+        sampleStatus:     d.sampleStatus || "",
         demoFollowUpDate: d.demoFollowUpDate ? d.demoFollowUpDate.split("T")[0] : "",
       });
+      // V5: Lead verified (Qualified stage) — separate from businessNeed to avoid key collision
+      setLeadVerified(d.leadVerified ?? false);
+      // V5: Technical Discussion form
+      setTdForm({
+        tdDiscussionDate: d.tdDiscussionDate ? d.tdDiscussionDate.split("T")[0] : "",
+        tdAttendees:      d.tdAttendees || "",
+        tdEngineerId:     d.tdEngineerId || "",
+      });
+      // V5: Seed requirement items and TD rows from the deal's requirementItems relation
+      const reqItems: RequirementItem[] = (json.data.requirementItems || []).map((item: any) => ({
+        id:                item.id,
+        productName:       item.productName,
+        estimatedQuantity: String(item.estimatedQuantity),
+        targetPriceMin:    item.targetPriceMin != null ? String(item.targetPriceMin) : "",
+        targetPriceMax:    item.targetPriceMax != null ? String(item.targetPriceMax) : "",
+        material:          item.material || "",
+        requiredDelivery:  item.requiredDelivery ? item.requiredDelivery.split("T")[0] : "",
+        specNotes:         item.specNotes || "",
+        attachmentUrl:     item.attachmentUrl || "",
+      }));
+      setRequirementItems(reqItems);
+      const tdRowsInit: TechNoteRow[] = (json.data.requirementItems || []).map((item: any) => ({
+        requirementItemId: item.id,
+        productName:       item.productName,
+        feasibility:       (item.technicalNote?.feasibility || "") as any,
+        confirmedSpec:     item.technicalNote?.confirmedSpec || "",
+        toolingRequired:   item.technicalNote?.toolingRequired || "",
+      }));
+      setTdRows(tdRowsInit);
       } else {
         const msg = json.message || `Failed to load opportunity (HTTP ${res.status})`;
         setFetchError(msg);
@@ -838,7 +842,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       const saveRes = await fetch(`/api/opportunities/${id}/details`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...rgForm, ...(options?.extraFields || {}) }),
+        body: JSON.stringify({
+          ...rgForm,
+          leadVerified,
+          ...tdForm,
+          ...(options?.extraFields || {}),
+        }),
       });
       if (!saveRes.ok) {
         const json = await saveRes.json().catch(() => ({}));
@@ -1007,6 +1016,99 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     }
   };
 
+  // V5: Manufacturing pipeline handlers
+  const handleSaveRequirementItem = async (item: RequirementItem, index: number) => {
+    try {
+      const isNew = !item.id;
+      const url = isNew
+        ? `/api/opportunities/${id}/requirement-items`
+        : `/api/opportunities/${id}/requirement-items/${item.id}`;
+      const method = isNew ? "POST" : "PATCH";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productName: item.productName,
+          estimatedQuantity: item.estimatedQuantity,
+          targetPriceMin: item.targetPriceMin,
+          targetPriceMax: item.targetPriceMax,
+          material: item.material,
+          requiredDelivery: item.requiredDelivery,
+          specNotes: item.specNotes,
+          attachmentUrl: item.attachmentUrl,
+        }),
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        toast.success("Product requirement saved");
+        await fetchDeal();
+      } else {
+        toast.error(json.message || "Failed to save product requirement");
+      }
+    } catch {
+      toast.error("Failed to save product requirement due to a network error");
+    }
+  };
+
+  const handleDeleteRequirementItem = async (item: RequirementItem, index: number) => {
+    if (!item.id) {
+      setRequirementItems(prev => prev.filter((_, i) => i !== index));
+      return;
+    }
+    try {
+      const res = await fetch(`/api/opportunities/${id}/requirement-items?itemId=${item.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Product requirement deleted");
+        await fetchDeal();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.message || "Failed to delete product requirement");
+      }
+    } catch {
+      toast.error("Failed to delete product requirement due to a network error");
+    }
+  };
+
+  const handleSaveTechFeasibility = async (itemId: string) => {
+    const row = tdRows.find((r) => r.requirementItemId === itemId);
+    if (!row) return;
+
+    setTdRows((prev) =>
+      prev.map((r) => (r.requirementItemId === itemId ? { ...r, saving: true } : r))
+    );
+
+    try {
+      const res = await fetch(`/api/opportunities/${id}/requirement-items/${itemId}/technical-note`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          feasibility: row.feasibility,
+          confirmedSpec: row.confirmedSpec,
+          toolingRequired: row.toolingRequired,
+          engineerId: tdForm.tdEngineerId || undefined,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success("Technical feasibility updated");
+        await fetchDeal();
+      } else {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.message || "Failed to save technical feasibility");
+      }
+    } catch {
+      toast.error("Failed to save technical feasibility due to a network error");
+    } finally {
+      setTdRows((prev) =>
+        prev.map((r) => (r.requirementItemId === itemId ? { ...r, saving: false } : r))
+      );
+    }
+  };
+
   // ─── Stage-Gate Validation ──────────────────────────────────────────────────
   // Checks that current stage's required fields are saved before moving forward.
   // Backward moves (reviewing) are always allowed (subject to Manager/Admin API check).
@@ -1016,7 +1118,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     const res = await fetch(`/api/opportunities/${id}/details`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(rgForm),
+      body: JSON.stringify({
+        ...rgForm,
+        leadVerified,
+        ...tdForm,
+      }),
     });
     setRgSaving(false);
     if (res.ok) {
@@ -1041,7 +1147,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       const res = await fetch(`/api/opportunities/${id}/details`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...rgForm, meetingStatus: "Held" }),
+        body: JSON.stringify({ ...rgForm, leadVerified, ...tdForm, meetingStatus: "Held" }),
       });
       if (res.ok) {
         toast.success("Meeting marked as conducted — record outcome below");
@@ -1068,7 +1174,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     const res = await fetch(`/api/opportunities/${id}/details`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...rgForm, stage_context: viewingStage }),
+      body: JSON.stringify({
+        ...rgForm,
+        leadVerified,
+        ...tdForm,
+        stage_context: viewingStage,
+      }),
     });
     setRgSaving(false);
     if (res.ok) {
@@ -1426,10 +1537,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               <FormField label="Timeline">
                 <Input value={rgForm.timeline || ""} onChange={(e) => setRgForm({ ...rgForm, timeline: e.target.value })} />
               </FormField>
-              <FormField label="Lead is Genuine (verified requirement)" className="md:col-span-2">
+              <FormField label="Lead is genuine (verified requirement)" className="md:col-span-2">
                 <Select
-                  value={rgForm.businessNeed ? "Yes" : "No"}
-                  onChange={(e) => setRgForm({ ...rgForm, businessNeed: e.target.value === "Yes" ? "Verified requirement" : "" })}
+                  value={leadVerified ? "Yes" : "No"}
+                  onChange={(e) => setLeadVerified(e.target.value === "Yes")}
                 >
                   <option value="">Select...</option>
                   <option value="Yes">Yes</option>
@@ -1442,8 +1553,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   onChange={(e) => setRgForm({ ...rgForm, requiresSamples: e.target.value })}
                 >
                   <option value="">Select...</option>
-                  <option value="yes">Yes — route to Sample Management</option>
-                  <option value="no">No — proceed to Requirement Gathering</option>
+                  <option value="yes">Yes — route to sample management</option>
+                  <option value="no">No — proceed to requirement gathering</option>
                 </Select>
               </FormField>
               <FormField label="Notes" className="md:col-span-2">
@@ -1526,75 +1637,24 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               )}
             </div>
 
-            {/* Technical Requirements */}
+            {/* Technical Requirements — Now Product Requirement Items table */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               <button onClick={() => toggleRGSection("tech_req")} className="w-full px-4 py-3 bg-slate-50 flex items-center justify-between text-sm font-bold text-slate-700 hover:bg-slate-100 transition-colors">
-                <span>Technical Requirements</span>
+                <span>Product Requirements</span>
                 <ChevronRight size={16} className={cn("transition-transform", rgExpanded.tech_req && "rotate-90")} />
               </button>
               {rgExpanded.tech_req && (
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField label="Deployment Type" required error={rgAttempted && !rgForm.deploymentType ? "This field is required" : ""}>
-                    <Select value={rgForm.deploymentType || ""} onChange={(e) => setRgForm({ ...rgForm, deploymentType: e.target.value })} className={cn(rgAttempted && !rgForm.deploymentType && "border-rose-500")}>
-                      <option value="">Select...</option>
-                      <option value="Cloud SaaS">Cloud SaaS</option>
-                      <option value="On-Premise">On-Premise</option>
-                      <option value="Hybrid">Hybrid</option>
-                    </Select>
-                  </FormField>
-                  <FormField label="Integrations Required"><Textarea rows={2} value={rgForm.integrationsRequired || ""} onChange={(e) => setRgForm({ ...rgForm, integrationsRequired: e.target.value })} /></FormField>
-                  <FormField label="Existing Software Stack"><Textarea rows={2} value={rgForm.existingSoftwareStack || ""} onChange={(e) => setRgForm({ ...rgForm, existingSoftwareStack: e.target.value })} /></FormField>
-                  <FormField label="Security & Compliance"><Textarea rows={2} value={rgForm.securityCompliance || ""} onChange={(e) => setRgForm({ ...rgForm, securityCompliance: e.target.value })} /></FormField>
-                  <FormField label="User Roles & Permissions"><Textarea rows={2} value={rgForm.userRolesPermissions || ""} onChange={(e) => setRgForm({ ...rgForm, userRolesPermissions: e.target.value })} /></FormField>
-                  <FormField label="Reporting Requirements"><Textarea rows={2} value={rgForm.reportingRequirements || ""} onChange={(e) => setRgForm({ ...rgForm, reportingRequirements: e.target.value })} /></FormField>
-                  <FormField label="Data Migration Required">
-                    <Select value={rgForm.dataMigrationRequired || ""} onChange={(e) => setRgForm({ ...rgForm, dataMigrationRequired: e.target.value })}>
-                      <option value="">Select...</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
-                    </Select>
-                  </FormField>
-                  <FormField label="Customization Needed"><Textarea rows={2} value={rgForm.customizationNeeded || ""} onChange={(e) => setRgForm({ ...rgForm, customizationNeeded: e.target.value })} /></FormField>
-                  <FormField label="API / Third-Party Reqs"><Textarea rows={2} value={rgForm.apiThirdPartyReqs || ""} onChange={(e) => setRgForm({ ...rgForm, apiThirdPartyReqs: e.target.value })} /></FormField>
-                  <FormField label="Technical Constraints"><Textarea rows={2} value={rgForm.technicalConstraints || ""} onChange={(e) => setRgForm({ ...rgForm, technicalConstraints: e.target.value })} /></FormField>
-                  <FormField label="IT Team Notes"><Textarea rows={2} value={rgForm.itTeamNotes || ""} onChange={(e) => setRgForm({ ...rgForm, itTeamNotes: e.target.value })} /></FormField>
-                  <FormField label="User Count — Sales"><Input type="number" value={rgForm.userCountSales || ""} onChange={(e) => setRgForm({ ...rgForm, userCountSales: e.target.value })} /></FormField>
-                  <FormField label="User Count — Managers"><Input type="number" value={rgForm.userCountManagers || ""} onChange={(e) => setRgForm({ ...rgForm, userCountManagers: e.target.value })} /></FormField>
-                  <FormField label="User Count — Admins"><Input type="number" value={rgForm.userCountAdmins || ""} onChange={(e) => setRgForm({ ...rgForm, userCountAdmins: e.target.value })} /></FormField>
-                </div>
-              )}
-            </div>
-
-            {/* V2 Part B — Technical Discussion (closing step of Requirement Gathering) */}
-            <div className="border-2 border-[var(--primary)]/30 rounded-xl overflow-hidden bg-[var(--primary)]/[0.02]">
-              <button onClick={() => toggleRGSection("tech_discussion")} className="w-full px-4 py-3 bg-[var(--primary)]/5 flex items-center justify-between text-sm font-bold text-slate-700 hover:bg-[var(--primary)]/10 transition-colors">
-                <span>Part B — Technical Discussion (Closing Step)</span>
-                <ChevronRight size={16} className={cn("transition-transform", rgExpanded.tech_discussion && "rotate-90")} />
-              </button>
-              {rgExpanded.tech_discussion && (
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField label="Discussion Date" required>
-                    <Input type="date" value={rgForm.techDiscussionDate || ""} onChange={(e) => setRgForm({ ...rgForm, techDiscussionDate: e.target.value })} />
-                  </FormField>
-                  <FormField label="Attendees" required>
-                    <Input value={rgForm.techDiscussionAttendees || ""} onChange={(e) => setRgForm({ ...rgForm, techDiscussionAttendees: e.target.value })} placeholder="Names of participants" />
-                  </FormField>
-                  <FormField label="Technical Questions Raised" className="md:col-span-2">
-                    <Textarea rows={3} value={rgForm.techDiscussionQuestions || ""} onChange={(e) => setRgForm({ ...rgForm, techDiscussionQuestions: e.target.value })} placeholder="Key technical questions and concerns discussed..." />
-                  </FormField>
-                  <FormField label="Requirements technically confirmed?" required className="md:col-span-2">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={rgForm.techDiscussionConfirmed || false}
-                        onChange={(e) => setRgForm({ ...rgForm, techDiscussionConfirmed: e.target.checked })}
-                        className="w-5 h-5 rounded border-2 border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)] cursor-pointer"
-                      />
-                      <span className="text-sm font-medium text-slate-700">
-                        I confirm that requirements have been technically validated with the customer
-                      </span>
-                    </label>
-                  </FormField>
+                <div className="p-4 space-y-4">
+                  <p className="text-xs text-slate-500">
+                    Specify the parts, materials, quantities, target prices, and required delivery schedules.
+                  </p>
+                  <ProductRequirementTable
+                    items={requirementItems}
+                    onChange={(next) => setRequirementItems(next)}
+                    onSaveItem={handleSaveRequirementItem}
+                    onDeleteItem={handleDeleteRequirementItem}
+                    readOnly={isReviewingCompleted || !canEditOpportunity(user, deal)}
+                  />
                 </div>
               )}
             </div>
@@ -1607,27 +1667,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               </button>
               {rgExpanded.commercial_info && (
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField label="Budget Range" required error={rgAttempted && !rgForm.budgetRange ? "This field is required" : ""}><Input value={rgForm.budgetRange || ""} onChange={(e) => setRgForm({ ...rgForm, budgetRange: e.target.value })} className={cn(rgAttempted && !rgForm.budgetRange && "border-rose-500")} /></FormField>
+                  <FormField label="Budget Range (early qualified estimate)" required error={rgAttempted && !rgForm.budgetRange ? "This field is required" : ""}><Input value={rgForm.budgetRange || ""} onChange={(e) => setRgForm({ ...rgForm, budgetRange: e.target.value })} className={cn(rgAttempted && !rgForm.budgetRange && "border-rose-500")} /></FormField>
                   <FormField label="Expected Budget" required error={rgAttempted && !rgForm.expectedBudget ? "This field is required" : ""}><Input type="number" value={rgForm.expectedBudget || ""} onChange={(e) => setRgForm({ ...rgForm, expectedBudget: e.target.value })} className={cn(rgAttempted && !rgForm.expectedBudget && "border-rose-500")} /></FormField>
                   <FormField label="Final Discussed Budget"><Input type="number" value={rgForm.finalDiscussedBudget || ""} onChange={(e) => setRgForm({ ...rgForm, finalDiscussedBudget: e.target.value })} /></FormField>
-                  <FormField label="Pricing Model">
-                    <Select value={rgForm.pricingModel || ""} onChange={(e) => setRgForm({ ...rgForm, pricingModel: e.target.value })}>
-                      <option value="">Select...</option>
-                      <option value="Subscription">Subscription</option>
-                      <option value="One-time">One-time</option>
-                      <option value="Usage-based">Usage-based</option>
-                    </Select>
-                  </FormField>
-                  <FormField label="License Count"><Input type="number" value={rgForm.licenseCount || ""} onChange={(e) => setRgForm({ ...rgForm, licenseCount: e.target.value })} /></FormField>
                   <FormField label="Payment Terms"><Input value={rgForm.paymentTerms || ""} onChange={(e) => setRgForm({ ...rgForm, paymentTerms: e.target.value })} /></FormField>
-                  <FormField label="Billing Cycle">
-                    <Select value={rgForm.billingCycle || ""} onChange={(e) => setRgForm({ ...rgForm, billingCycle: e.target.value })}>
-                      <option value="">Select...</option>
-                      <option value="Monthly">Monthly</option>
-                      <option value="Quarterly">Quarterly</option>
-                      <option value="Annual">Annual</option>
-                    </Select>
-                  </FormField>
                   <FormField label="Timeline"><Input value={rgForm.timeline || ""} onChange={(e) => setRgForm({ ...rgForm, timeline: e.target.value })} /></FormField>
                   <FormField label="Procurement Process"><Textarea rows={2} value={rgForm.procurementProcess || ""} onChange={(e) => setRgForm({ ...rgForm, procurementProcess: e.target.value })} /></FormField>
                   <FormField label="Expected Go-Live Date"><Input type="date" value={rgForm.expectedGoLive || ""} onChange={(e) => setRgForm({ ...rgForm, expectedGoLive: e.target.value })} /></FormField>
@@ -1652,16 +1695,75 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 <ChevronRight size={16} className={cn("transition-transform", rgExpanded.internal_notes && "rotate-90")} />
               </button>
               {rgExpanded.internal_notes && (
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField label="Internal Sales Notes"><Textarea rows={3} value={rgForm.internalSalesNotes || ""} onChange={(e) => setRgForm({ ...rgForm, internalSalesNotes: e.target.value })} /></FormField>
-                  <FormField label="Pre-Sales Notes"><Textarea rows={3} value={rgForm.presalesNotes || ""} onChange={(e) => setRgForm({ ...rgForm, presalesNotes: e.target.value })} /></FormField>
-                  <FormField label="Objections"><Textarea rows={2} value={rgForm.objections || ""} onChange={(e) => setRgForm({ ...rgForm, objections: e.target.value })} /></FormField>
-                  <FormField label="Follow-Up Summary"><Textarea rows={2} value={rgForm.followUpSummary || ""} onChange={(e) => setRgForm({ ...rgForm, followUpSummary: e.target.value })} /></FormField>
-                  <FormField label="Risks & Blockers"><Textarea rows={2} value={rgForm.risksBlockers || ""} onChange={(e) => setRgForm({ ...rgForm, risksBlockers: e.target.value })} /></FormField>
-                  <FormField label="Next Steps"><Textarea rows={2} value={rgForm.nextSteps || ""} onChange={(e) => setRgForm({ ...rgForm, nextSteps: e.target.value })} /></FormField>
-                  <FormField label="Management Notes"><Textarea rows={2} value={rgForm.managementNotes || ""} onChange={(e) => setRgForm({ ...rgForm, managementNotes: e.target.value })} /></FormField>
+                <div className="p-4 grid grid-cols-1 gap-4">
+                  <FormField label="Consolidated notes / remarks">
+                    <Textarea rows={4} value={rgForm.additionalNotes || rgForm.internalSalesNotes || ""} onChange={(e) => setRgForm({ ...rgForm, additionalNotes: e.target.value })} placeholder="Internal notes, presales review details, objections, and next steps..." />
+                  </FormField>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {effectiveStage === "TechnicalDiscussion" && (
+          <div className="space-y-6">
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between">
+                <span>Discussion Header Details</span>
+              </div>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField label="Discussion Date">
+                  <Input
+                    type="date"
+                    value={tdForm.tdDiscussionDate}
+                    onChange={(e) => setTdForm({ ...tdForm, tdDiscussionDate: e.target.value })}
+                    readOnly={isReviewingCompleted || !canEditOpportunity(user, deal)}
+                  />
+                </FormField>
+                <FormField label="Attendees">
+                  <Input
+                    value={tdForm.tdAttendees}
+                    onChange={(e) => setTdForm({ ...tdForm, tdAttendees: e.target.value })}
+                    placeholder="Names of participants"
+                    readOnly={isReviewingCompleted || !canEditOpportunity(user, deal)}
+                  />
+                </FormField>
+                <FormField label="Assigned Engineer" className="md:col-span-2">
+                  <Select
+                    value={tdForm.tdEngineerId}
+                    onChange={(e) => setTdForm({ ...tdForm, tdEngineerId: e.target.value })}
+                    disabled={isReviewingCompleted || !canEditOpportunity(user, deal)}
+                  >
+                    <option value="">Select costing engineer...</option>
+                    {users
+                      .filter((u: any) => u.role === "CostingEngineer" || u.role === "Admin" || u.role === "SalesManager")
+                      .map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                      ))}
+                  </Select>
+                </FormField>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between">
+                <span>Product Feasibility Review</span>
+              </div>
+              <div className="p-4 space-y-4">
+                <p className="text-xs text-slate-500">
+                  Assess each product requirements' manufacturing feasibility, confirm specifications, and note tooling requirements.
+                </p>
+                <TechnicalFeasibilityTable
+                  rows={tdRows}
+                  onFieldChange={(itemId, field, val) => {
+                    setTdRows((prev) =>
+                      prev.map((r) => (r.requirementItemId === itemId ? { ...r, [field]: val } : r))
+                    );
+                  }}
+                  onSaveRow={handleSaveTechFeasibility}
+                  readOnly={isReviewingCompleted || !canEditOpportunity(user, deal)}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -2022,21 +2124,44 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
               {/* Outcome: Accepted — show RFQ/Quotation links */}
               {outcome === "Accepted" && (
-                <div className="rounded-xl border border-green-200 bg-green-50/50 p-5 space-y-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle size={20} className="text-green-600 shrink-0" />
-                    <div>
-                      <p className="text-sm font-bold text-green-800">Demo Accepted — Proceed to Quotation</p>
-                      <p className="text-xs text-green-600 mt-0.5">An RFQ has been auto-created. Continue the sales flow: RFQ → Quotation → Negotiation → Deal Won.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-green-200">
-                    <button
-                      onClick={() => router.push(`/rfq/new?opportunityId=${deal.id}`)}
-                      className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-2"
-                    >
-                      <MessageSquare size={15} /> View / Create RFQ
-                    </button>
+                <div className="space-y-4">
+                  <RFQSummaryCard
+                    items={(requirementItems || []).map((item) => {
+                      const tdRow = tdRows.find((r) => r.requirementItemId === item.id);
+                      return {
+                        productName: item.productName,
+                        quantity: parseInt(item.estimatedQuantity) || 0,
+                        confirmedSpec: tdRow?.confirmedSpec || null,
+                        specNotes: item.specNotes || null,
+                        material: item.material || null,
+                        requiredDelivery: item.requiredDelivery || null,
+                        feasibility: tdRow?.feasibility as any,
+                      };
+                    })}
+                    rfqId={deal.rfqs?.[0]?.id}
+                    opportunityId={id}
+                    onCreateRFQ={async () => {
+                      // Trigger POST to stage-change with demoOutcome Accepted
+                      const res = await fetch(`/api/opportunities/${id}/stage-change`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          to_stage: "DemoConducted",
+                          demoOutcome: "Accepted",
+                        }),
+                      });
+                      const json = await res.json();
+                      if (json.success) {
+                        toast.success("RFQ created successfully");
+                        await fetchDeal();
+                        return { rfqId: json.data?.rfqs?.[0]?.id || deal.rfqs?.[0]?.id };
+                      } else {
+                        toast.error(json.message || "Failed to auto-populate RFQ");
+                        return {};
+                      }
+                    }}
+                  />
+                  <div className="flex justify-end mt-2">
                     <button
                       onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
                       className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-2"
@@ -2396,24 +2521,64 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               }
 
               const nextStage = getNextStageKey(deal.status);
-              const stageRequired = STAGE_REQUIRED_FIELDS[deal.status] || [];
-              const missing = stageRequired.filter((r) => {
-                const val = (rgForm as any)[r.field];
-                return !val || (typeof val === "string" && val.trim() === "");
-              });
-              const allMandatoryFilled = missing.length === 0;
-              const isRg = effectiveStage === "RequirementGathering";
-              const attemptedFlag = isRg ? rgAttempted : false;
-              // V2: RG exit gate requires tech discussion confirmed
-              const techGatePassed = !isRg || rgForm.techDiscussionConfirmed === true;
-              const canAdvance = allMandatoryFilled && techGatePassed;
-              // MeetingScheduled: status-driven footer
-              const meetingStatus = rgForm.meetingStatus || "";
               const isMeetingScheduled = effectiveStage === "MeetingScheduled";
+
+              // 1. Calculate blocking reasons for current stage
+              const blockingReasons: string[] = [];
+              let hasNotFeasible = false;
+              let notFeasibleNames: string[] = [];
+
+              if (deal.status === "RequirementGathering") {
+                const missing = (STAGE_REQUIRED_FIELDS.RequirementGathering || []).filter((r) => {
+                  const val = (rgForm as any)[r.field];
+                  return !val || (typeof val === "string" && val.trim() === "");
+                });
+                if (missing.length > 0) {
+                  blockingReasons.push(`Required fields missing: ${missing.map((m) => m.label).join(", ")}`);
+                }
+                if (!requirementItems || requirementItems.length === 0) {
+                  blockingReasons.push("At least one product requirement must be added to proceed.");
+                }
+              } else if (deal.status === "TechnicalDiscussion") {
+                if (!requirementItems || requirementItems.length === 0) {
+                  blockingReasons.push("At least one product requirement must be added to proceed.");
+                } else {
+                  const missingFeasibility = tdRows.filter((r) => !r.feasibility);
+                  if (missingFeasibility.length > 0) {
+                    blockingReasons.push(`Feasibility review pending for: ${missingFeasibility.map((r) => r.productName).join(", ")}.`);
+                  }
+                  const notFeasible = tdRows.filter((r) => r.feasibility === "NotFeasible");
+                  if (notFeasible.length > 0) {
+                    hasNotFeasible = true;
+                    notFeasibleNames = notFeasible.map((r) => r.productName);
+                    blockingReasons.push(`Products marked Not feasible: ${notFeasibleNames.join(", ")}.`);
+                  }
+                }
+              } else if (deal.status === "MeetingScheduled") {
+                const missing = (STAGE_REQUIRED_FIELDS.MeetingScheduled || []).filter((r) => {
+                  const val = (rgForm as any)[r.field];
+                  return !val || (typeof val === "string" && val.trim() === "");
+                });
+                if (missing.length > 0) {
+                  blockingReasons.push(`Required fields missing: ${missing.map((m) => m.label).join(", ")}`);
+                }
+                if (!deal.assignedUserId && !editForm.assignedUserId) {
+                  blockingReasons.push("Assign an executive to proceed.");
+                }
+              } else {
+                const stageRequired = STAGE_REQUIRED_FIELDS[deal.status] || [];
+                const missing = stageRequired.filter((r) => {
+                  const val = (rgForm as any)[r.field];
+                  return !val || (typeof val === "string" && val.trim() === "");
+                });
+                if (missing.length > 0) {
+                  blockingReasons.push(`Required fields missing: ${missing.map((m) => m.label).join(", ")}`);
+                }
+              }
+
+              const meetingStatus = rgForm.meetingStatus || "";
               const meetingIsScheduled = meetingStatus === "" || meetingStatus === "Scheduled";
               const meetingHasOutcome = !!deal.demoOutcome;
-              // Date-gate: only allow "Mark as Conducted" on or after the meeting date
-              // Parse meetingDate as local date (not UTC) to avoid timezone comparison issues
               const meetingDateObj = rgForm.meetingDate ? new Date(rgForm.meetingDate + "T00:00:00") : null;
               const today = new Date(); today.setHours(0, 0, 0, 0);
               const meetingDateReached = !meetingDateObj || meetingDateObj <= today;
@@ -2422,14 +2587,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 : "";
 
               return (
-                <div className="flex flex-col items-end gap-3">
-                  {attemptedFlag && missing.length > 0 && (
-                    <p className="text-xs text-rose-500 font-medium">Please fill: {missing.map((m) => m.label).join(", ")}</p>
-                  )}
-                  {attemptedFlag && isRg && !techGatePassed && (
-                    <p className="text-xs text-rose-500 font-medium">Please confirm technical discussion in Part B to proceed</p>
-                  )}
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col items-end gap-3 w-full">
+                  <div className="flex items-center gap-3 w-full justify-between sm:justify-end">
                     <button
                       onClick={handleSaveRG}
                       disabled={rgSaving || stageMoving}
@@ -2446,148 +2605,56 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                       {rgSaving ? "Saving..." : "Save Details"}
                     </button>
 
-                    {/* MeetingScheduled: "Mark as Conducted" when in Scheduled state — only on/after meeting date */}
+                    {/* MeetingScheduled: "Mark as Conducted" button when in Scheduled state */}
                     {isMeetingScheduled && meetingIsScheduled && !meetingHasOutcome && (
                       <div className="flex flex-col items-end gap-1.5">
-                        {(!rgForm.meetingType || !rgForm.meetingDate || (!deal.assignedUserId && !editForm.assignedUserId)) && (
-                          <p className="text-xs text-rose-500 font-medium">
-                            {!rgForm.meetingType && "Meeting Type, "}
-                            {!rgForm.meetingDate && "Meeting Date, "}
-                            {(!deal.assignedUserId && !editForm.assignedUserId) && "Assigned Executive, "}
-                            required to mark as conducted
-                          </p>
-                        )}
                         {!meetingDateReached && rgForm.meetingDate && (
                           <p className="text-xs text-amber-500 font-medium">
                             📅 Meeting scheduled for {meetingDateFormattedShort}. Come back on that day to mark as conducted.
                           </p>
                         )}
-                        {meetingDateReached && (
-                          <button
-                            onClick={() => {
-                              if (!rgForm.meetingType || !rgForm.meetingDate) {
-                                setRgAttempted(true);
-                                toast.error("Please fill Meeting Type and Meeting Date first");
-                                return;
-                              }
-                              if (!deal.assignedUserId && !editForm.assignedUserId) {
-                                setRgAttempted(true);
-                                toast.error("Please assign an executive first");
-                                return;
-                              }
-                              handleMarkConducted();
-                            }}
-                            disabled={rgSaving || stageMoving}
-                            style={{
-                              background: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "var(--brand-primary, var(--primary))" : "var(--color-background-secondary, #e2e8f0)",
-                              color: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "#fff" : "var(--text-tertiary, #64748b)",
-                              padding: "10px 24px",
-                              borderRadius: "8px",
-                              fontWeight: 500,
-                              cursor: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "pointer" : "not-allowed",
-                              border: "none",
-                              transition: "background 0.15s",
-                            }}
-                            className="text-sm font-medium flex items-center gap-2"
-                          >
-                            {rgSaving ? "Saving..." : <><CheckCircle size={16} /> Mark as Conducted →</>}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            if (!rgForm.meetingType || !rgForm.meetingDate) {
+                              setRgAttempted(true);
+                              toast.error("Please fill Meeting Type and Meeting Date first");
+                              return;
+                            }
+                            if (!deal.assignedUserId && !editForm.assignedUserId) {
+                              setRgAttempted(true);
+                              toast.error("Please assign an executive first");
+                              return;
+                            }
+                            handleMarkConducted();
+                          }}
+                          disabled={rgSaving || stageMoving}
+                          style={{
+                            background: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "var(--brand-primary, var(--primary))" : "var(--color-background-secondary, #e2e8f0)",
+                            color: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "#fff" : "var(--text-tertiary, #64748b)",
+                            padding: "10px 24px",
+                            borderRadius: "8px",
+                            fontWeight: 500,
+                            cursor: (rgForm.meetingType && rgForm.meetingDate && (deal.assignedUserId || editForm.assignedUserId)) ? "pointer" : "not-allowed",
+                            border: "none",
+                            transition: "background 0.15s",
+                          }}
+                          className="text-sm font-medium flex items-center gap-2"
+                        >
+                          {rgSaving ? "Saving..." : <><CheckCircle size={16} /> Mark as Conducted →</>}
+                        </button>
                       </div>
                     )}
 
-                    {/* Non-MeetingScheduled stages: original demo outcome buttons (hidden when outcome already set) */}
-                    {nextStage && nextStage === "DemoConducted" && !isMeetingScheduled && !meetingHasOutcome && (
-                      <>
-                        <button
-                          onClick={() => {
-                            if (isRg) setRgAttempted(true);
-                            if (canAdvance) handleSaveAndMove(nextStage, { demoOutcome: "Accepted" });
-                          }}
-                          disabled={!canAdvance || stageMoving}
-                          style={{
-                            background: canAdvance ? "#16A34A" : "var(--color-background-secondary, #e2e8f0)",
-                            color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
-                            padding: "10px 24px",
-                            borderRadius: "8px",
-                            fontWeight: 500,
-                            cursor: allMandatoryFilled ? "pointer" : "not-allowed",
-                            border: "none",
-                            transition: "background 0.15s",
-                          }}
-                          className="text-sm font-medium flex items-center gap-2"
-                        >
-                          {stageMoving ? "Moving..." : <><CheckCircle size={16} /> Demo Accepted →</>}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (isRg) setRgAttempted(true);
-                            if (canAdvance) {
-                              if (!rgForm.demoFollowUpDate) {
-                                toast.error("Please set a follow-up date in the demo details above");
-                                return;
-                              }
-                              handleSaveAndMove(nextStage, { demoOutcome: "Follow-up needed" });
-                            }
-                          }}
-                          disabled={!canAdvance || stageMoving}
-                          style={{
-                            background: canAdvance ? "#F59E0B" : "var(--color-background-secondary, #e2e8f0)",
-                            color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
-                            padding: "10px 24px",
-                            borderRadius: "8px",
-                            fontWeight: 500,
-                            cursor: canAdvance ? "pointer" : "not-allowed",
-                            border: "none",
-                            transition: "background 0.15s",
-                          }}
-                          className="text-sm font-medium flex items-center gap-2"
-                        >
-                          {stageMoving ? "Moving..." : <><AlertTriangle size={16} /> Follow-up Needed →</>}
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (isRg) setRgAttempted(true);
-                            if (canAdvance) handleSaveAndMove(nextStage, { demoOutcome: "Rejected" });
-                          }}
-                          disabled={!canAdvance || stageMoving}
-                          style={{
-                            background: canAdvance ? "#EA580C" : "var(--color-background-secondary, #e2e8f0)",
-                            color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
-                            padding: "10px 24px",
-                            borderRadius: "8px",
-                            fontWeight: 500,
-                            cursor: allMandatoryFilled ? "pointer" : "not-allowed",
-                            border: "none",
-                            transition: "background 0.15s",
-                          }}
-                          className="text-sm font-medium flex items-center gap-2"
-                        >
-                          {stageMoving ? "Moving..." : <><XCircle size={16} /> Demo Rejected →</>}
-                        </button>
-                      </>
-                    )}
-                    {nextStage && nextStage !== "DemoConducted" && !isMeetingScheduled && (
-                      <button
-                        onClick={() => {
-                          if (isRg) setRgAttempted(true);
-                          if (canAdvance) handleSaveAndMove(nextStage);
-                        }}
-                        disabled={!canAdvance || stageMoving}
-                        style={{
-                          background: canAdvance ? "var(--brand-primary, var(--primary))" : "var(--color-background-secondary, #e2e8f0)",
-                          color: canAdvance ? "#fff" : "var(--text-tertiary, #64748b)",
-                          padding: "10px 24px",
-                          borderRadius: "8px",
-                          fontWeight: 500,
-                          cursor: allMandatoryFilled ? "pointer" : "not-allowed",
-                          border: "none",
-                          transition: "background 0.15s",
-                        }}
-                        className="text-sm font-medium flex items-center gap-2"
-                      >
-                        {stageMoving ? "Moving..." : <>Save & Move to Next Stage →</>}
-                      </button>
+                    {/* Custom advance buttons for stages */}
+                    {nextStage && !isMeetingScheduled && (
+                      <StageAdvanceButton
+                        label={`Advance to ${STAGE_DISPLAY_LABELS[nextStage]}`}
+                        blockingReasons={blockingReasons}
+                        hasNotFeasible={hasNotFeasible}
+                        notFeasibleNames={notFeasibleNames}
+                        onAdvance={() => handleSaveAndMove(nextStage)}
+                        loading={stageMoving}
+                      />
                     )}
                   </div>
                 </div>
@@ -2637,52 +2704,28 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
+          {/* Product Requirements */}
           <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-2 bg-slate-100 text-xs font-bold text-slate-600 uppercase tracking-wider">Business Requirements</div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ReadOnlyField label="Current Challenges" value={rgForm.currentChallenges} />
-              <ReadOnlyField label="Pain Points" value={rgForm.painPoints} />
-              <ReadOnlyField label="Business Need" value={rgForm.businessNeed} />
-              <ReadOnlyField label="Expected Outcome" value={rgForm.expectedOutcome} />
-              <ReadOnlyField label="Required Departments" value={rgForm.requiredDepartments} />
-              <ReadOnlyField label="Number of Users" value={rgForm.numberOfUsers} />
-              <ReadOnlyField label="Urgency / Priority" value={rgForm.urgencyPriority} />
-              <ReadOnlyField label="Business Goals" value={rgForm.businessGoals} />
-              <ReadOnlyField label="Success Criteria" value={rgForm.successCriteria} />
-              <ReadOnlyField label="Modules Required" value={rgForm.modulesRequired} />
+            <div className="px-4 py-2 bg-slate-100 text-xs font-bold text-slate-600 uppercase tracking-wider">Product Requirements</div>
+            <div className="p-4">
+              <ProductRequirementTable
+                items={requirementItems}
+                onChange={() => {}}
+                onSaveItem={async () => {}}
+                onDeleteItem={async () => {}}
+                readOnly={true}
+              />
             </div>
           </div>
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-2 bg-slate-100 text-xs font-bold text-slate-600 uppercase tracking-wider">Technical Requirements</div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <ReadOnlyField label="Deployment Type" value={rgForm.deploymentType} />
-              <ReadOnlyField label="Integrations Required" value={rgForm.integrationsRequired} />
-              <ReadOnlyField label="Existing Software Stack" value={rgForm.existingSoftwareStack} />
-              <ReadOnlyField label="Security & Compliance" value={rgForm.securityCompliance} />
-              <ReadOnlyField label="User Roles & Permissions" value={rgForm.userRolesPermissions} />
-              <ReadOnlyField label="Reporting Requirements" value={rgForm.reportingRequirements} />
-              <ReadOnlyField label="Data Migration Required" value={rgForm.dataMigrationRequired} />
-              <ReadOnlyField label="Customization Needed" value={rgForm.customizationNeeded} />
-              <ReadOnlyField label="API / Third-Party Reqs" value={rgForm.apiThirdPartyReqs} />
-              <ReadOnlyField label="Technical Constraints" value={rgForm.technicalConstraints} />
-              <ReadOnlyField label="IT Team Notes" value={rgForm.itTeamNotes} />
-              <ReadOnlyField label="User Count — Sales" value={rgForm.userCountSales} />
-              <ReadOnlyField label="User Count — Managers" value={rgForm.userCountManagers} />
-              <ReadOnlyField label="User Count — Admins" value={rgForm.userCountAdmins} />
-            </div>
-          </div>
-
+          {/* Commercial Information */}
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-4 py-2 bg-slate-100 text-xs font-bold text-slate-600 uppercase tracking-wider">Commercial Information</div>
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <ReadOnlyField label="Budget Range" value={rgForm.budgetRange} />
+              <ReadOnlyField label="Budget Range (early qualified estimate)" value={rgForm.budgetRange} />
               <ReadOnlyField label="Expected Budget" value={rgForm.expectedBudget} />
               <ReadOnlyField label="Final Discussed Budget" value={rgForm.finalDiscussedBudget} />
-              <ReadOnlyField label="Pricing Model" value={rgForm.pricingModel} />
-              <ReadOnlyField label="License Count" value={rgForm.licenseCount} />
               <ReadOnlyField label="Payment Terms" value={rgForm.paymentTerms} />
-              <ReadOnlyField label="Billing Cycle" value={rgForm.billingCycle} />
               <ReadOnlyField label="Timeline" value={rgForm.timeline} />
               <ReadOnlyField label="Procurement Process" value={rgForm.procurementProcess} />
               <ReadOnlyField label="Expected Go-Live" value={rgForm.expectedGoLive} />
@@ -2699,16 +2742,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
+          {/* Internal Notes */}
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-4 py-2 bg-slate-100 text-xs font-bold text-slate-600 uppercase tracking-wider">Internal Notes</div>
-            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ReadOnlyField label="Internal Sales Notes" value={rgForm.internalSalesNotes} />
-              <ReadOnlyField label="Pre-Sales Notes" value={rgForm.presalesNotes} />
-              <ReadOnlyField label="Objections" value={rgForm.objections} />
-              <ReadOnlyField label="Follow-Up Summary" value={rgForm.followUpSummary} />
-              <ReadOnlyField label="Risks & Blockers" value={rgForm.risksBlockers} />
-              <ReadOnlyField label="Next Steps" value={rgForm.nextSteps} />
-              <ReadOnlyField label="Management Notes" value={rgForm.managementNotes} />
+            <div className="p-4">
+              <ReadOnlyField label="Consolidated notes / remarks" value={rgForm.additionalNotes || rgForm.internalSalesNotes} />
             </div>
           </div>
         </div>

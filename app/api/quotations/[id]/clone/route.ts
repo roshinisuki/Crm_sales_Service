@@ -39,6 +39,7 @@ export async function POST(
         deliveryTerms: existing.deliveryTerms,
         freightTerms: existing.freightTerms,
         leadTimeDays: existing.leadTimeDays,
+        overallMarginPercent: existing.overallMarginPercent ? Number(existing.overallMarginPercent) : null,
         items: existing.items.map((it) => ({
           description: it.description,
           quantity: it.quantity,
@@ -49,6 +50,10 @@ export async function POST(
           hsn: it.hsn,
           unit: it.unit,
           notes: it.notes,
+          costBasisUnitPrice: it.costBasisUnitPrice ? Number(it.costBasisUnitPrice) : null,
+          marginPercent: it.marginPercent ? Number(it.marginPercent) : null,
+          priceSource: it.priceSource,
+          quantityBreakId: it.quantityBreakId,
         })),
       });
 
@@ -90,6 +95,7 @@ export async function POST(
           deliveryTerms: existing.deliveryTerms,
           freightTerms: existing.freightTerms,
           leadTimeDays: existing.leadTimeDays,
+          overallMarginPercent: existing.overallMarginPercent,
           revisionNumber: existing.revisionNumber + 1,
           status: "Draft",
           createdById: user.id,
@@ -99,7 +105,7 @@ export async function POST(
         },
       });
 
-      // 4. Copy line items
+      // 4. Copy line items with cost basis fields
       for (const item of existing.items) {
         await tx.quotationItem.create({
           data: {
@@ -115,6 +121,10 @@ export async function POST(
             hsn: item.hsn,
             unit: item.unit,
             notes: item.notes,
+            costBasisUnitPrice: item.costBasisUnitPrice,
+            marginPercent: item.marginPercent,
+            priceSource: item.priceSource,
+            quantityBreakId: item.quantityBreakId,
           },
         });
       }

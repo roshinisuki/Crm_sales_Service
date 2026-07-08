@@ -3,8 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 
-// POST /api/quotations/[id]/negotiate
-// Move quotation into UnderReview (negotiation) status after it has been sent or viewed.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +15,10 @@ export async function POST(
 
   const existing = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
-    include: { customer: { select: { id: true, name: true } } },
+    include: {
+      customer: { select: { id: true, name: true } },
+      items: true,
+    },
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
@@ -75,8 +76,18 @@ export async function POST(
         });
       }
 
+      // Calculate costBasisUnitPrice average
+      let totalCostBasis = 0;
+      let costBasisCount = 0;
+      for (const item of existing.items || []) {
+        if (item.costBasisUnitPrice != null) {
+          totalCostBasis += Number(item.costBasisUnitPrice);
+          costBasisCount++;
+        }
+      }
+      const costBasisAvg = costBasisCount > 0 ? (totalCostBasis / costBasisCount) : null;
+
       // Auto-create a Negotiation record so it appears in the Negotiations module
-      // Check if a negotiation already exists for this quotation to avoid duplicates
       const existingNeg = await tx.negotiation.findFirst({
         where: { quotationId: id, deletedAt: null },
         select: { id: true },
@@ -96,6 +107,16 @@ export async function POST(
             status: "Active",
             assignedUserId: deal?.assignedUserId || null,
             companyId: user.companyId,
+            costBasisUnitPrice: costBasisAvg,
+            overallMarginPercent: existing.overallMarginPercent,
+          },
+        });
+      } else {
+        await tx.negotiation.update({
+          where: { id: existingNeg.id },
+          data: {
+            costBasisUnitPrice: costBasisAvg,
+            overallMarginPercent: existing.overallMarginPercent,
           },
         });
       }

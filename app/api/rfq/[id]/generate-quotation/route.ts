@@ -13,40 +13,90 @@ export async function POST(
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
   const { id } = await params;
+  const body = await request.json();
 
   // Validate RFQ exists
   const rfq = await prisma.rFQ.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
-      lineItems: { include: { product: { select: { id: true, productCode: true } } }, orderBy: { displayOrder: "asc" } },
-      costingSheets: { orderBy: { createdAt: "desc" } },
+      lineItems: {
+        include: {
+          product: { select: { id: true, productCode: true } },
+          quantityBreaks: {
+            include: {
+              costingSheets: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
+            },
+          },
+        },
+        orderBy: { displayOrder: "asc" },
+      },
       customer: { select: { id: true, name: true } },
     },
   });
 
   if (!rfq) return NextResponse.json({ success: false, message: "RFQ not found" }, { status: 404 });
 
-  // Validate: at least one costing sheet exists
-  if (rfq.costingSheets.length === 0) {
-    return NextResponse.json(
-      { success: false, message: "Cannot generate quotation — no costing sheet submitted for this RFQ" },
-      { status: 400 }
-    );
+  // 1. Block unless all line items costingStatus = Done
+  const pendingItems = rfq.lineItems.filter((item) => item.costingStatus !== "Done");
+  if (pendingItems.length > 0) {
+    const names = pendingItems.map((item) => item.itemDescription).join(", ");
+    return NextResponse.json({
+      success: false,
+      message: `Cannot generate quotation — the following line items are still pending costing: ${names}`,
+      pendingItems: pendingItems.map((item) => ({ id: item.id, itemDescription: item.itemDescription })),
+    }, { status: 400 });
   }
 
-  // Build a map: lineItemId -> latest costing sheet for that line item
-  const lineItemCostingMap = new Map<string, any>();
-  const rfqLevelCosting = rfq.costingSheets.find((cs) => !cs.rfqLineItemId);
-  for (const cs of rfq.costingSheets) {
-    if (cs.rfqLineItemId && !lineItemCostingMap.has(cs.rfqLineItemId)) {
-      lineItemCostingMap.set(cs.rfqLineItemId, cs);
+  // 2. Fetch Margin Floor threshold
+  const floorConfig = await prisma.systemConfig.findFirst({
+    where: { key: "rfq_margin_floor_percent" },
+  });
+  const threshold = floorConfig ? parseFloat(floorConfig.value) : 15.0;
+
+  // 3. Margin Floor Check
+  const lowMarginItems: any[] = [];
+  const activeCostingSheets: any[] = [];
+
+  for (const item of rfq.lineItems) {
+    for (const qb of item.quantityBreaks) {
+      const costing = qb.costingSheets[0];
+      if (!costing) {
+        return NextResponse.json({
+          success: false,
+          message: `Missing costing details for line item ${item.itemDescription} (Qty: ${qb.quantity})`,
+        }, { status: 400 });
+      }
+      activeCostingSheets.push({ item, qb, costing });
+      if (costing.marginPercent < threshold) {
+        lowMarginItems.push({
+          itemDescription: item.itemDescription,
+          quantity: qb.quantity,
+          marginPercent: costing.marginPercent,
+        });
+      }
+    }
+  }
+
+  if (lowMarginItems.length > 0) {
+    const isAuthorized = ["SalesManager", "Admin"].includes(user.role || "");
+    if (!isAuthorized) {
+      return NextResponse.json({
+        success: false,
+        isMarginBlocked: true,
+        threshold,
+        lowMarginItems,
+        message: `Quotation generation blocked: One or more items fall below the margin floor of ${threshold}%. Approval from a Sales Manager or Admin is required.`,
+      }, { status: 403 });
     }
   }
 
   try {
     // Atomic transaction: create quotation + line items + update RFQ status
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Generate quotation number: QT-YYYY-NNNNN
+      // Generate quotation number: QT-YYYY-NNNNN
       const year = new Date().getFullYear();
       const yearCount = await tx.quotation.count({
         where: {
@@ -56,10 +106,9 @@ export async function POST(
       });
       const quotationCode = `QT-${year}-${String(yearCount + 1).padStart(5, "0")}`;
 
-      // 2. Create quotation
-      const quotationDate = new Date();
+      const validityDays = body.validityDays ? parseInt(body.validityDays) : 30;
       const validityDate = new Date();
-      validityDate.setDate(validityDate.getDate() + 30);
+      validityDate.setDate(validityDate.getDate() + validityDays);
 
       const quotation = await tx.quotation.create({
         data: {
@@ -79,20 +128,15 @@ export async function POST(
         },
       });
 
-      // 3. Create quotation line items from RFQ line items — use per-line-item costing
       let subtotal = 0;
       let taxAmount = 0;
 
-      for (const item of rfq.lineItems) {
-        // Lookup per-line-item costing, fallback to RFQ-level costing
-        const lineCosting = lineItemCostingMap.get(item.id);
-        const costing = lineCosting || rfqLevelCosting;
-        if (!costing) {
-          throw new Error(`No costing found for line item: ${item.itemDescription}`);
-        }
+      // Create quotation line items — one for each quantity break
+      for (const entry of activeCostingSheets) {
+        const { item, qb, costing } = entry;
         const unitPrice = costing.computedUnitPrice;
 
-        // Lookup tax_percent from tax_master by product HSN code (default 18%)
+        // Lookup tax_percent from tax_master by product code, default 18%
         let taxPercent = 18;
         if (item.product?.productCode) {
           const taxEntry = await tx.taxMaster.findFirst({
@@ -101,7 +145,7 @@ export async function POST(
           if (taxEntry) taxPercent = taxEntry.taxPercent;
         }
 
-        const lineTotal = item.quantity * unitPrice;
+        const lineTotal = qb.quantity * unitPrice;
         const lineTax = lineTotal * (taxPercent / 100);
 
         subtotal += lineTotal;
@@ -111,21 +155,21 @@ export async function POST(
           data: {
             quotationId: quotation.id,
             productId: item.productId || null,
-            description: item.itemDescription,
-            quantity: item.quantity,
+            description: `${item.itemDescription} (Tier: ${qb.quantity} qty)`,
+            quantity: qb.quantity,
             unitPrice,
             totalPrice: lineTotal,
             discountPercent: 0,
             taxPercent,
             lineTotal,
-            unit: item.unit || null,
+            unit: item.unit || "Pcs",
           },
         });
       }
 
       const grandTotal = subtotal + taxAmount;
 
-      // 4. Update quotation with computed totals
+      // Update quotation with computed totals
       await tx.quotation.update({
         where: { id: quotation.id },
         data: {
@@ -136,7 +180,7 @@ export async function POST(
         },
       });
 
-      // 5. Update RFQ status
+      // Update RFQ status
       await tx.rFQ.update({
         where: { id },
         data: { status: "QuotationCreated" },
@@ -148,7 +192,7 @@ export async function POST(
           fromStatus: rfq.status,
           toStatus: "QuotationCreated",
           changedById: user.id,
-          notes: `Quotation ${quotationCode} generated`,
+          notes: `Quotation ${quotationCode} generated.${lowMarginItems.length > 0 ? " Approved low-margin items." : ""}`,
         },
       });
 

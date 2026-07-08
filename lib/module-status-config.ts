@@ -41,8 +41,10 @@ export interface ModuleStatusConfig {
 export const PIPELINE_STAGE_VALUES = [
   "Qualified",
   "RequirementGathering",
+  "TechnicalDiscussion",   // Promoted from RG checkbox to its own real stage
   "MeetingScheduled",
   "DemoConducted",
+  "Won",
   "Rejected",
   "Lost", // terminal — kept for legacy compatibility
 ] as const;
@@ -53,8 +55,10 @@ export type PipelineStage = (typeof PIPELINE_STAGE_VALUES)[number];
 export const PIPELINE_STAGE_ORDER: Record<string, number> = {
   Qualified:              1,
   RequirementGathering:   2,
-  MeetingScheduled:       3,
-  DemoConducted:          4,
+  TechnicalDiscussion:    3,
+  MeetingScheduled:       4,
+  DemoConducted:          5,
+  Won:                    6,
   Rejected:               0,
   Lost:                   0,
 };
@@ -63,17 +67,19 @@ export const PIPELINE_STAGE_ORDER: Record<string, number> = {
 export const PIPELINE_STAGE_PROBABILITY: Record<string, number> = {
   Qualified:              20,
   RequirementGathering:   35,
-  MeetingScheduled:       50,
-  DemoConducted:          70,
+  TechnicalDiscussion:    50,
+  MeetingScheduled:       60,
+  DemoConducted:          75,
+  Won:                    100,
   Rejected:                0,
   Lost:                    0,
 };
 
 /** Terminal stages (no further pipeline progression) */
-export const PIPELINE_CLOSED_STAGES = ["Rejected", "Lost"];
+export const PIPELINE_CLOSED_STAGES = ["Won", "Rejected", "Lost"];
 
 /** Open stages eligible for overdue computation */
-export const PIPELINE_OPEN_STAGES = ["Qualified", "RequirementGathering", "MeetingScheduled", "DemoConducted"];
+export const PIPELINE_OPEN_STAGES = ["Qualified", "RequirementGathering", "TechnicalDiscussion", "MeetingScheduled", "DemoConducted"];
 
 /**
  * Normalize a stage string: trim whitespace and match exact case.
@@ -99,9 +105,11 @@ export function isValidStage(raw: string): boolean {
 
 export const PIPELINE_STATUS: StatusOption[] = [
   { label: "Qualified", value: "Qualified" },
-  { label: "Req. Gathering", value: "RequirementGathering" },
-  { label: "Meeting Scheduled", value: "MeetingScheduled" },
-  { label: "Demo Conducted", value: "DemoConducted" },
+  { label: "Req. gathering", value: "RequirementGathering" },
+  { label: "Tech. discussion", value: "TechnicalDiscussion" },
+  { label: "Meeting scheduled", value: "MeetingScheduled" },
+  { label: "Demo conducted", value: "DemoConducted" },
+  { label: "Won", value: "Won" },
   { label: "Overdue", value: "overdue" },
   { label: "Rejected", value: "Rejected" },
 ];

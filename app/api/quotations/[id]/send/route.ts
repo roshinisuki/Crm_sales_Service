@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { dispatchNotification } from "@/lib/notifications";
 
 export async function POST(
   request: NextRequest,
@@ -23,32 +24,79 @@ export async function POST(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
-  // Validate: status must be Draft
   if (existing.status !== "Draft") {
     return NextResponse.json({ success: false, message: "Only Draft quotations can be sent" }, { status: 400 });
   }
 
-  // Validate: must have at least 1 line item
   if (existing.items.length === 0) {
     return NextResponse.json({ success: false, message: "Cannot send quotation without line items" }, { status: 400 });
   }
 
-  // Validate: validity_date >= today
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (new Date(existing.validUntil) < today) {
     return NextResponse.json({ success: false, message: "Validity date has passed — update before sending" }, { status: 400 });
   }
 
-  // Check discount threshold (default 10%)
-  const discountThreshold = 10;
+  // Fetch approval and floor matrices
+  const [discountConfig, floorConfig] = await Promise.all([
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_discount_threshold" } }),
+    prisma.systemConfig.findFirst({ where: { key: "quotation_margin_floor_percent" } }),
+  ]);
+  const discountThreshold = discountConfig ? parseFloat(discountConfig.value) : 5.0;
+  const marginFloor = floorConfig ? parseFloat(floorConfig.value) : 15.0;
+
+  // Compute realized weighted discount and evaluate triggers
+  let totalGross = 0;
+  let totalNet = existing.subtotal - (existing.subtotal * existing.discountPercent / 100);
+
+  let maxLineDiscount = 0;
+  let hasMarginBreach = false;
+  const reasons: string[] = [];
+
+  for (const item of existing.items) {
+    const qty = item.quantity || 0;
+    const unitPrice = item.unitPrice || 0;
+    const gross = qty * unitPrice;
+    totalGross += gross;
+
+    if (item.discountPercent > maxLineDiscount) {
+      maxLineDiscount = item.discountPercent;
+    }
+
+    if (item.costBasisUnitPrice != null) {
+      const costBasis = Number(item.costBasisUnitPrice);
+      const margin = unitPrice > 0 ? ((unitPrice - costBasis) / unitPrice) * 100 : 0;
+      if (margin < marginFloor) {
+        hasMarginBreach = true;
+      }
+    }
+  }
+
+  const blendedDiscount = totalGross > 0 ? ((totalGross - totalNet) / totalGross) * 100 : 0;
+
+  if (blendedDiscount > discountThreshold) {
+    reasons.push(`Blended discount of ${blendedDiscount.toFixed(1)}% exceeds the ${discountThreshold}% threshold`);
+  }
+  if (maxLineDiscount > discountThreshold) {
+    reasons.push(`Line-item discount ceiling of ${maxLineDiscount.toFixed(1)}% exceeds the ${discountThreshold}% threshold`);
+  }
+  if (hasMarginBreach) {
+    reasons.push(`One or more line items have margins falling below the minimum floor of ${marginFloor}%`);
+  }
+
   const hasApprovedApproval = existing.quotationApprovals.some(
     (a: any) => a.status === "Approved"
   );
 
-  if (existing.discountPercent > discountThreshold && !hasApprovedApproval) {
+  if (reasons.length > 0 && !hasApprovedApproval) {
     return NextResponse.json(
-      { success: false, requires_approval: true, message: `Manager approval required before sending (discount ${existing.discountPercent}% > ${discountThreshold}% threshold)` },
+      {
+        success: false,
+        requires_approval: true,
+        reasons,
+        message: `Quotation requires manager approval before sending. Reasons:\n- ${reasons.join("\n- ")}`,
+      },
       { status: 402 }
     );
   }
@@ -68,7 +116,7 @@ export async function POST(
           fromStatus: "Draft",
           toStatus: "Sent",
           changedById: user.id,
-          notes: "Quotation sent to customer",
+          notes: `Quotation sent to customer.${reasons.length > 0 ? " Approved override." : ""}`,
         },
       });
 
@@ -78,33 +126,21 @@ export async function POST(
 
       await tx.followUp.create({
         data: {
-          customerId: existing.customerId,
-          type: "Call",
+          assignedUserId: existing.assignedUserId || user.id,
           nextMeetingDate: followUpDate,
-          remarks: `Follow up on Quotation ${existing.quotationCode}`,
+          remarks: `Auto-generated follow up for quotation ${existing.quotationCode}`,
           status: "Pending",
-          assignedUserId: user.id,
+          customerId: existing.customerId,
           companyId: user.companyId,
-        },
-      });
-
-      // 4. Notification to creator
-      await tx.notification.create({
-        data: {
-          userId: user.id,
-          title: "Quotation Sent",
-          message: `Quotation ${existing.quotationCode} sent successfully to ${existing.customer?.name || "customer"}`,
-          type: "Quotation",
-          link: `/quotations/${id}`,
+          notes: `Auto-generated follow up for quotation ${existing.quotationCode} sent to ${existing.customer?.name || "Customer"}.`,
         },
       });
 
       return q;
     });
 
-    await logAudit(user.id, "Quotation", "Send", `Sent quotation ${existing.quotationCode}`, {
+    await logAudit(user.id, "Quotation", "Send", `Sent quotation ${existing.quotationCode} to customer`, {
       resourceId: id,
-      previousState: { status: "Draft" },
       newState: { status: "Sent" },
       context: extractAuditContext(request),
     });

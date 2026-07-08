@@ -55,6 +55,15 @@ export async function GET(
           orderBy: { createdAt: "desc" },
         },
         lostReasonRef: { select: { id: true, name: true } },
+        // Manufacturing pipeline: product requirement items with per-product feasibility notes
+        requirementItems: {
+          include: {
+            technicalNote: {
+              include: { engineer: { select: { id: true, name: true, role: true } } },
+            },
+          },
+          orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
+        },
         _count: { select: { quotations: true, tasks: true } },
       },
     });

@@ -10,12 +10,12 @@ import { PageShell } from "@/components/ui/PageShell";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { formatDate, formatDateTime, cn } from "@/lib/ui-utils";
-import { FieldGrid } from "@/components/shared/FieldGrid";
-import { StatusPill } from "@/components/shared/StatusPill";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
+import { CostingDetailsPanel } from "@/components/rfq/CostingDetailsPanel";
+import { GenerateQuotationModal } from "@/components/rfq/GenerateQuotationModal";
 import {
   CheckCircle, Clock, FileText, Calculator, ArrowRight,
-  AlertTriangle, Upload, Download, Trash2, Plus, Pencil, X, RotateCcw,
+  AlertTriangle, Trash2, Plus, Pencil, RotateCcw, Link2, DollarSign, Percent
 } from "lucide-react";
 
 const STATUS_STEPS = [
@@ -49,32 +49,26 @@ export default function RFQDetailPage() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
 
-  // Costing form state — per-line-item mode
-  const [costingForm, setCostingForm] = useState({ material_cost: "", labour_cost: "", overhead_percent: "", margin_percent: "", freight_cost: "", packaging_cost: "", tooling_cost: "", other_cost: "", notes: "" });
-  const [submittingCosting, setSubmittingCosting] = useState(false);
-  const [perLineItemCosting, setPerLineItemCosting] = useState<Record<string, any>>({});
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenReason, setReopenReason] = useState("");
   const [reopening, setReopening] = useState(false);
-  const [showCostingHistory, setShowCostingHistory] = useState(false);
+
+  // Costing slide-over panel
+  const [selectedLineItem, setSelectedLineItem] = useState<any | null>(null);
+  const [isCostingPanelOpen, setIsCostingPanelOpen] = useState(false);
 
   // Assign costing modal
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignCostingUser, setAssignCostingUser] = useState("");
   const [assigning, setAssigning] = useState(false);
 
-  // Generate quotation confirmation
+  // Generate quotation checklist modal
   const [showGenQuoteModal, setShowGenQuoteModal] = useState(false);
-  const [generating, setGenerating] = useState(false);
-
-  // File upload
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
 
   // Line item form
   const [showLineItemModal, setShowLineItemModal] = useState(false);
   const [editingLineItemId, setEditingLineItemId] = useState<string | null>(null);
-  const [lineItemForm, setLineItemForm] = useState({ item_description: "", product_id: "", quantity: "1", unit: "", target_price: "", delivery_date: "", specifications: "" });
+  const [lineItemForm, setLineItemForm] = useState({ item_description: "", product_id: "", quantity: "1", unit: "Pcs", target_price: "", delivery_date: "", specifications: "", quantity_breaks: "" });
   const [savingLineItem, setSavingLineItem] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
 
@@ -124,20 +118,6 @@ export default function RFQDetailPage() {
     fetch("/api/catalogue/products").then(res => res.json()).then(data => { if (data.success) setProducts(data.data || []); });
   }, [id]);
 
-  // Real-time costing calculator — includes additional costs
-  const computedPrice = (() => {
-    const m = parseFloat(costingForm.material_cost) || 0;
-    const l = parseFloat(costingForm.labour_cost) || 0;
-    const o = parseFloat(costingForm.overhead_percent) || 0;
-    const mg = parseFloat(costingForm.margin_percent) || 0;
-    const fr = parseFloat(costingForm.freight_cost) || 0;
-    const pk = parseFloat(costingForm.packaging_cost) || 0;
-    const tl = parseFloat(costingForm.tooling_cost) || 0;
-    const ot = parseFloat(costingForm.other_cost) || 0;
-    if (m <= 0 || l <= 0) return 0;
-    return (m + l + fr + pk + tl + ot) * (1 + o / 100) * (1 + mg / 100);
-  })();
-
   const handleStatusChange = async (newStatus: string) => {
     try {
       const res = await fetch(`/api/rfq/${id}`, {
@@ -185,89 +165,6 @@ export default function RFQDetailPage() {
     }
   };
 
-  const handleSubmitCosting = async () => {
-    // Check if per-line-item mode (RFQ has line items)
-    const hasLineItems = rfq?.lineItems && rfq.lineItems.length > 0;
-
-    setSubmittingCosting(true);
-    try {
-      let body: any;
-
-      if (hasLineItems) {
-        // Per-line-item costing
-        const lineItems = rfq.lineItems.map((li: any) => {
-          const lc = perLineItemCosting[li.id] || {};
-          return {
-            line_item_id: li.id,
-            material_cost: lc.material_cost || "0",
-            labour_cost: lc.labour_cost || "0",
-            overhead_percent: lc.overhead_percent || "0",
-            margin_percent: lc.margin_percent || "0",
-            freight_cost: lc.freight_cost || "0",
-            packaging_cost: lc.packaging_cost || "0",
-            tooling_cost: lc.tooling_cost || "0",
-            other_cost: lc.other_cost || "0",
-            notes: costingForm.notes || undefined,
-          };
-        });
-
-        // Validate at least material + labour > 0 for each
-        for (const li of lineItems) {
-          if (parseFloat(li.material_cost) <= 0 || parseFloat(li.labour_cost) <= 0) {
-            toast.error("Material and labour cost must be > 0 for each line item");
-            setSubmittingCosting(false);
-            return;
-          }
-        }
-
-        body = { line_items: lineItems };
-      } else {
-        // Legacy single costing
-        const m = parseFloat(costingForm.material_cost);
-        const l = parseFloat(costingForm.labour_cost);
-        const o = parseFloat(costingForm.overhead_percent);
-        const mg = parseFloat(costingForm.margin_percent);
-
-        if (!m || m <= 0) { toast.error("Material cost must be greater than 0"); setSubmittingCosting(false); return; }
-        if (!l || l <= 0) { toast.error("Labour cost must be greater than 0"); setSubmittingCosting(false); return; }
-        if (isNaN(o) || o < 0) { toast.error("Overhead percent must be 0 or greater"); setSubmittingCosting(false); return; }
-        if (isNaN(mg) || mg < 0) { toast.error("Margin percent must be 0 or greater"); setSubmittingCosting(false); return; }
-
-        body = {
-          material_cost: m,
-          labour_cost: l,
-          overhead_percent: o,
-          margin_percent: mg,
-          freight_cost: parseFloat(costingForm.freight_cost) || 0,
-          packaging_cost: parseFloat(costingForm.packaging_cost) || 0,
-          tooling_cost: parseFloat(costingForm.tooling_cost) || 0,
-          other_cost: parseFloat(costingForm.other_cost) || 0,
-          notes: costingForm.notes || undefined,
-        };
-      }
-
-      const res = await fetch(`/api/rfq/${id}/costing-sheet`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Costing sheet submitted");
-        setCostingForm({ material_cost: "", labour_cost: "", overhead_percent: "", margin_percent: "", freight_cost: "", packaging_cost: "", tooling_cost: "", other_cost: "", notes: "" });
-        setPerLineItemCosting({});
-        loadCostingSheets();
-        loadRFQ();
-      } else {
-        toast.error(data.message || "Failed to submit costing");
-      }
-    } catch {
-      toast.error("Failed to submit costing");
-    } finally {
-      setSubmittingCosting(false);
-    }
-  };
-
   const handleReopen = async () => {
     if (!reopenReason.trim()) {
       toast.error("A reason is required to reopen the RFQ");
@@ -296,69 +193,25 @@ export default function RFQDetailPage() {
     }
   };
 
-  const handleGenerateQuotation = async () => {
-    setGenerating(true);
-    try {
-      const res = await fetch(`/api/rfq/${id}/generate-quotation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Quotation ${data.data.quotation_code} generated`);
-        setShowGenQuoteModal(false);
-        router.push(`/quotations/${data.data.quotation_id}`);
-      } else {
-        toast.error(data.message || "Failed to generate quotation");
-      }
-    } catch {
-      toast.error("Failed to generate quotation");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("document_type", "Drawing");
-      const res = await fetch(`/api/rfq/${id}/documents`, { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success) {
-        toast.success("File uploaded");
-        loadDocuments();
-      } else {
-        toast.error(data.message || "Failed to upload");
-      }
-    } catch {
-      toast.error("Failed to upload file");
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
   // Line item handlers
   const openAddLineItem = () => {
     setEditingLineItemId(null);
-    setLineItemForm({ item_description: "", product_id: "", quantity: "1", unit: "", target_price: "", delivery_date: "", specifications: "" });
+    setLineItemForm({ item_description: "", product_id: "", quantity: "1", unit: "Pcs", target_price: "", delivery_date: "", specifications: "", quantity_breaks: "" });
     setShowLineItemModal(true);
   };
 
   const openEditLineItem = (item: any) => {
     setEditingLineItemId(item.id);
+    const qbString = item.quantityBreaks ? item.quantityBreaks.map((q: any) => q.quantity).join(", ") : "";
     setLineItemForm({
       item_description: item.itemDescription || "",
       product_id: item.productId || "",
       quantity: String(item.quantity || 1),
-      unit: item.unit || "",
+      unit: item.unit || "Pcs",
       target_price: item.targetPrice ? String(item.targetPrice) : "",
       delivery_date: item.requestedDeliveryDate ? new Date(item.requestedDeliveryDate).toISOString().split("T")[0] : "",
       specifications: item.specifications || "",
+      quantity_breaks: qbString,
     });
     setShowLineItemModal(true);
   };
@@ -370,14 +223,29 @@ export default function RFQDetailPage() {
     }
     setSavingLineItem(true);
     try {
+      // Parse quantity breaks (comma-separated list of numbers)
+      const breaksStr = lineItemForm.quantity_breaks.trim();
+      let quantityBreaks: number[] = [];
+      if (breaksStr) {
+        quantityBreaks = breaksStr.split(",").map((s) => parseFloat(s.trim())).filter((n) => !isNaN(n) && n > 0);
+      }
+      // Include the primary quantity in breaks if not already present
+      const primaryQty = parseFloat(lineItemForm.quantity) || 1;
+      if (!quantityBreaks.includes(primaryQty)) {
+        quantityBreaks.unshift(primaryQty);
+      }
+      // Sort breaks ascending
+      quantityBreaks.sort((a, b) => a - b);
+
       const payload: any = {
         item_description: lineItemForm.item_description,
         product_id: lineItemForm.product_id || undefined,
-        quantity: lineItemForm.quantity,
-        unit: lineItemForm.unit || undefined,
+        quantity: primaryQty,
+        unit: lineItemForm.unit || "Pcs",
         target_price: lineItemForm.target_price || undefined,
         delivery_date: lineItemForm.delivery_date || undefined,
         specifications: lineItemForm.specifications || undefined,
+        quantity_breaks: quantityBreaks,
       };
 
       let res;
@@ -388,6 +256,7 @@ export default function RFQDetailPage() {
           body: JSON.stringify(payload),
         });
       } else {
+        // Since we also need to support quantity breaks on creation, let's pass that to POST /line-items
         res = await fetch(`/api/rfq/${id}/line-items`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -505,9 +374,30 @@ export default function RFQDetailPage() {
   const daysUntilDue = rfq.customerDueDate
     ? Math.ceil((new Date(rfq.customerDueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : null;
-  const hasLineItems = rfq.lineItems && rfq.lineItems.length > 0;
-  const hasCostingSheet = costingSheets.length > 0;
-  const latestCosting = costingSheets[0];
+
+  // KPI Calculations
+  const totalItemsCount = rfq.lineItems?.length || 0;
+  const pendingItemsCount = rfq.lineItems?.filter((item: any) => item.costingStatus !== "Done").length || 0;
+
+  let costedValue = 0;
+  let totalMarginSum = 0;
+  let costedSheetsCount = 0;
+
+  for (const item of rfq.lineItems || []) {
+    for (const qb of item.quantityBreaks || []) {
+      if (qb.computedUnitPrice > 0) {
+        costedValue += qb.computedUnitPrice * qb.quantity;
+      }
+    }
+  }
+
+  for (const cs of costingSheets) {
+    if (cs.marginPercent != null) {
+      totalMarginSum += cs.marginPercent;
+      costedSheetsCount++;
+    }
+  }
+  const avgMargin = costedSheetsCount > 0 ? (totalMarginSum / costedSheetsCount).toFixed(1) : "0.0";
 
   return (
     <PageShell
@@ -516,12 +406,26 @@ export default function RFQDetailPage() {
       breadcrumb={[{ label: "RFQs", href: "/rfq" }]}
     >
       <div className="space-y-6">
+        {/* Deal linkage link */}
+        {rfq.opportunity && (
+          <div className="flex items-center gap-1.5 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/50 rounded-xl text-xs text-emerald-800 dark:text-emerald-300">
+            <Link2 size={13} />
+            <span>RFQ created from deal:</span>
+            <button
+              onClick={() => router.push(`/sales-pipeline/${rfq.opportunityId}/opportunity-detail`)}
+              className="font-bold underline hover:text-emerald-600 cursor-pointer"
+            >
+              {rfq.opportunity.dealName}
+            </button>
+          </div>
+        )}
+
         {/* Header Card */}
         <div className="crm-card p-6">
           <div className="flex items-start justify-between mb-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-800">{rfq.rfqCode}</h2>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">{rfq.rfqCode}</h2>
                 {rfq.revisedAt && (
                   <span className="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-700 font-medium" title={`Revised: ${formatDate(rfq.revisedAt)}`}>
                     REVISED
@@ -567,9 +471,40 @@ export default function RFQDetailPage() {
           )}
         </div>
 
+        {/* KPI metrics row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="crm-card p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Costed Value</p>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">₹{costedValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
+            </div>
+            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-500">
+              <DollarSign size={20} />
+            </div>
+          </div>
+          <div className="crm-card p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Costing Items</p>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{pendingItemsCount} of {totalItemsCount}</h3>
+            </div>
+            <div className="p-3 bg-amber-50 rounded-xl text-amber-500">
+              <Clock size={20} />
+            </div>
+          </div>
+          <div className="crm-card p-5 flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Margin</p>
+              <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{avgMargin}%</h3>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-xl text-blue-500">
+              <Percent size={20} />
+            </div>
+          </div>
+        </div>
+
         {/* Status Progress Tracker */}
         <div className="crm-card p-6">
-          <h3 className="text-sm font-bold text-slate-800 mb-4">Status Progress</h3>
+          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4">Status Progress</h3>
           <div className="flex items-center justify-between">
             {STATUS_STEPS.map((step, idx) => {
               const Icon = step.icon;
@@ -614,7 +549,10 @@ export default function RFQDetailPage() {
         {/* Line Items Section */}
         <div className="crm-card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-slate-800">Line Items</h3>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Line Items</h3>
+              <p className="text-xs text-slate-400 mt-0.5">💡 Click on any line item to open its costing sheet and input manufacturing parameters.</p>
+            </div>
             {rfq.status !== "CostingPending" && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
               <button onClick={openAddLineItem} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
                 <Plus size={14} /> Add Line Item
@@ -627,39 +565,76 @@ export default function RFQDetailPage() {
                 <thead>
                   <tr>
                     <th className="crm-th">Description</th>
-                    <th className="crm-th">Product</th>
-                    <th className="crm-th">Qty</th>
-                    <th className="crm-th">Unit</th>
+                    <th className="crm-th">Product Linked</th>
+                    <th className="crm-th">Status</th>
+                    <th className="crm-th">Quantity Breaks / Tiers</th>
                     <th className="crm-th">Target Price</th>
-                    <th className="crm-th">Delivery Date</th>
+                    <th className="crm-th">Requested Delivery Date</th>
                     {rfq.status !== "CostingPending" && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
                       <th className="crm-th text-right">Actions</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {rfq.lineItems.map((item: any) => (
-                    <tr key={item.id}>
-                      <td className="crm-td font-medium text-foreground">{item.itemDescription}</td>
-                      <td className="crm-td text-foreground">{item.product?.name || item.product?.productCode || "—"}</td>
-                      <td className="crm-td text-foreground">{item.quantity}</td>
-                      <td className="crm-td text-foreground">{item.unit || "—"}</td>
-                      <td className="crm-td text-foreground">{item.targetPrice ? `₹${item.targetPrice.toFixed(2)}` : "—"}</td>
-                      <td className="crm-td text-foreground">{item.requestedDeliveryDate ? formatDate(item.requestedDeliveryDate) : "—"}</td>
-                      {rfq.status !== "CostingPending" && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
-                        <td className="crm-td text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button onClick={() => openEditLineItem(item)} className="row-action-btn" title="Edit">
-                              <Pencil size={14} />
-                            </button>
-                            <button onClick={() => handleDeleteLineItem(item.id)} className="row-action-btn row-action-btn-danger" title="Delete">
-                              <Trash2 size={14} />
-                            </button>
+                  {rfq.lineItems.map((item: any) => {
+                    return (
+                      <tr
+                        key={item.id}
+                        onClick={() => {
+                          if (canSeeFullCosting) {
+                            setSelectedLineItem(item);
+                            setIsCostingPanelOpen(true);
+                          }
+                        }}
+                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                      >
+                        <td className="crm-td font-medium text-foreground">{item.itemDescription}</td>
+                        <td className="crm-td text-foreground">{item.product?.name || item.product?.productCode || <span className="text-slate-300 italic">No master product</span>}</td>
+                        <td className="crm-td">
+                          {item.costingStatus === "Done" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                              Costed
+                            </span>
+                          ) : item.costingStatus === "InProgress" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                              In Progress
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">
+                              Costing Pending
+                            </span>
+                          )}
+                        </td>
+                        <td className="crm-td text-foreground">
+                          <div className="flex flex-wrap gap-1">
+                            {item.quantityBreaks && item.quantityBreaks.length > 0 ? (
+                              item.quantityBreaks.map((qb: any) => (
+                                <span key={qb.id} className="inline-block px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-300 border border-slate-200/50">
+                                  {qb.quantity} qty {qb.computedUnitPrice > 0 && `(₹${qb.computedUnitPrice.toFixed(2)})`}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
                           </div>
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td className="crm-td text-foreground">{item.targetPrice ? `₹${item.targetPrice.toFixed(2)}` : "—"}</td>
+                        <td className="crm-td text-foreground">{item.requestedDeliveryDate ? formatDate(item.requestedDeliveryDate) : "—"}</td>
+                        {rfq.status !== "CostingPending" && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
+                          <td className="crm-td text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button onClick={() => openEditLineItem(item)} className="row-action-btn" title="Edit">
+                                <Pencil size={14} />
+                              </button>
+                              <button onClick={() => handleDeleteLineItem(item.id)} className="row-action-btn row-action-btn-danger" title="Delete">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -673,7 +648,7 @@ export default function RFQDetailPage() {
           <div className="crm-card p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Assign Costing Owner</h3>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Assign Costing Owner</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Assign a costing engineer to proceed with costing</p>
               </div>
               <button
@@ -689,7 +664,7 @@ export default function RFQDetailPage() {
         {/* Status History */}
         {rfq.rfqStatusHistories && rfq.rfqStatusHistories.length > 0 && (
           <div className="crm-card p-6">
-            <h3 className="text-sm font-bold text-slate-800 mb-4">Status History</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-4">Status History</h3>
             <div className="space-y-3">
               {rfq.rfqStatusHistories.map((h: any, idx: number) => (
                 <div key={h.id || idx} className="flex items-start gap-3">
@@ -699,7 +674,7 @@ export default function RFQDetailPage() {
                   </div>
                   <div className="flex-1 pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-800">{h.toStatus.replace(/([A-Z])/g, " $1").trim()}</span>
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{h.toStatus.replace(/([A-Z])/g, " $1").trim()}</span>
                       {h.fromStatus && <span className="text-xs text-slate-400">from {h.fromStatus.replace(/([A-Z])/g, " $1").trim()}</span>}
                     </div>
                     {h.notes && <p className="text-xs text-slate-500 mt-0.5">{h.notes}</p>}
@@ -723,185 +698,17 @@ export default function RFQDetailPage() {
           />
         </div>
 
-        {/* Costing Sheet Section — visible after Costing Pending */}
-        {(rfq.status === "CostingPending" || rfq.status === "QuotationCreated" || rfq.status === "Closed") && (
-          <div className="crm-card p-6">
-            <h3 className="text-sm font-bold text-slate-800 mb-4">Costing Sheet</h3>
-
-            {/* Role-restricted: Full breakdown for Costing Engineer / Admin / Sales Manager */}
-            {canSeeFullCosting ? (
-              <>
-                {rfq.status === "CostingPending" && (
-                  <div className="space-y-4 mb-6">
-                    {/* Per-line-item costing mode */}
-                    {rfq.lineItems && rfq.lineItems.length > 0 ? (
-                      <div className="space-y-3">
-                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Per-Line-Item Costing</p>
-                        {rfq.lineItems.map((li: any) => {
-                          const lc = perLineItemCosting[li.id] || {};
-                          const liPrice = (() => {
-                            const m = parseFloat(lc.material_cost) || 0;
-                            const l = parseFloat(lc.labour_cost) || 0;
-                            const o = parseFloat(lc.overhead_percent) || 0;
-                            const mg = parseFloat(lc.margin_percent) || 0;
-                            const fr = parseFloat(lc.freight_cost) || 0;
-                            const pk = parseFloat(lc.packaging_cost) || 0;
-                            const tl = parseFloat(lc.tooling_cost) || 0;
-                            const ot = parseFloat(lc.other_cost) || 0;
-                            if (m <= 0 || l <= 0) return 0;
-                            return (m + l + fr + pk + tl + ot) * (1 + o / 100) * (1 + mg / 100);
-                          })();
-                          return (
-                            <div key={li.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-slate-800">{li.itemDescription}</span>
-                                <span className="text-xs text-slate-500">Qty: {li.quantity} {li.unit || ""}</span>
-                              </div>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                <FormField label="Material ₹" required>
-                                  <Input type="number" step="0.01" value={lc.material_cost || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, material_cost: e.target.value } })} placeholder="0.00" />
-                                </FormField>
-                                <FormField label="Labour ₹" required>
-                                  <Input type="number" step="0.01" value={lc.labour_cost || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, labour_cost: e.target.value } })} placeholder="0.00" />
-                                </FormField>
-                                <FormField label="Overhead %">
-                                  <Input type="number" step="0.01" value={lc.overhead_percent || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, overhead_percent: e.target.value } })} placeholder="0" />
-                                </FormField>
-                                <FormField label="Margin %">
-                                  <Input type="number" step="0.01" value={lc.margin_percent || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, margin_percent: e.target.value } })} placeholder="0" />
-                                </FormField>
-                                <FormField label="Freight ₹">
-                                  <Input type="number" step="0.01" value={lc.freight_cost || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, freight_cost: e.target.value } })} placeholder="0.00" />
-                                </FormField>
-                                <FormField label="Packaging ₹">
-                                  <Input type="number" step="0.01" value={lc.packaging_cost || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, packaging_cost: e.target.value } })} placeholder="0.00" />
-                                </FormField>
-                                <FormField label="Tooling ₹">
-                                  <Input type="number" step="0.01" value={lc.tooling_cost || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, tooling_cost: e.target.value } })} placeholder="0.00" />
-                                </FormField>
-                                <FormField label="Other ₹">
-                                  <Input type="number" step="0.01" value={lc.other_cost || ""} onChange={(e: any) => setPerLineItemCosting({ ...perLineItemCosting, [li.id]: { ...lc, other_cost: e.target.value } })} placeholder="0.00" />
-                                </FormField>
-                              </div>
-                              {liPrice > 0 && (
-                                <p className="text-xs text-slate-600 mt-2">Unit Price: <span className="font-bold">₹{liPrice.toFixed(2)}</span></p>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      /* Legacy single costing mode */
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField label="Material Cost (₹)" required>
-                          <Input type="number" step="0.01" value={costingForm.material_cost} onChange={(e: any) => setCostingForm({ ...costingForm, material_cost: e.target.value })} placeholder="0.00" />
-                        </FormField>
-                        <FormField label="Labour Cost (₹)" required>
-                          <Input type="number" step="0.01" value={costingForm.labour_cost} onChange={(e: any) => setCostingForm({ ...costingForm, labour_cost: e.target.value })} placeholder="0.00" />
-                        </FormField>
-                        <FormField label="Overhead %" required>
-                          <Input type="number" step="0.01" value={costingForm.overhead_percent} onChange={(e: any) => setCostingForm({ ...costingForm, overhead_percent: e.target.value })} placeholder="0" />
-                        </FormField>
-                        <FormField label="Margin %" required>
-                          <Input type="number" step="0.01" value={costingForm.margin_percent} onChange={(e: any) => setCostingForm({ ...costingForm, margin_percent: e.target.value })} placeholder="0" />
-                        </FormField>
-                        <FormField label="Freight Cost (₹)">
-                          <Input type="number" step="0.01" value={costingForm.freight_cost} onChange={(e: any) => setCostingForm({ ...costingForm, freight_cost: e.target.value })} placeholder="0.00" />
-                        </FormField>
-                        <FormField label="Packaging Cost (₹)">
-                          <Input type="number" step="0.01" value={costingForm.packaging_cost} onChange={(e: any) => setCostingForm({ ...costingForm, packaging_cost: e.target.value })} placeholder="0.00" />
-                        </FormField>
-                        <FormField label="Tooling Cost (₹)">
-                          <Input type="number" step="0.01" value={costingForm.tooling_cost} onChange={(e: any) => setCostingForm({ ...costingForm, tooling_cost: e.target.value })} placeholder="0.00" />
-                        </FormField>
-                        <FormField label="Other Cost (₹)">
-                          <Input type="number" step="0.01" value={costingForm.other_cost} onChange={(e: any) => setCostingForm({ ...costingForm, other_cost: e.target.value })} placeholder="0.00" />
-                        </FormField>
-                      </div>
-                    )}
-
-                    {/* Real-time formula display — only for legacy mode */}
-                    {(!rfq.lineItems || rfq.lineItems.length === 0) && (
-                      <div className="p-4 bg-slate-50 rounded-xl">
-                        <p className="text-xs text-slate-500 mb-1">Formula: (Material + Labour + Freight + Packaging + Tooling + Other) × (1 + Overhead%) × (1 + Margin%)</p>
-                        <p className="text-lg font-bold text-slate-800">
-                          Computed Unit Price: ₹{computedPrice > 0 ? computedPrice.toFixed(2) : "0.00"}
-                        </p>
-                      </div>
-                    )}
-
-                    <FormField label="Notes (optional)">
-                      <Textarea
-                        value={costingForm.notes}
-                        onChange={(e: any) => setCostingForm({ ...costingForm, notes: e.target.value })}
-                        rows={2}
-                      />
-                    </FormField>
-
-                    <button
-                      onClick={handleSubmitCosting}
-                      disabled={submittingCosting}
-                      className="px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 cursor-pointer"
-                    >
-                      {submittingCosting ? "Submitting..." : "Submit Costing"}
-                    </button>
-                  </div>
-                )}
-
-                {/* Costing history */}
-                {costingSheets.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Costing History</p>
-                      <button onClick={() => setShowCostingHistory(!showCostingHistory)} className="text-xs text-[var(--primary)] hover:underline cursor-pointer">
-                        {showCostingHistory ? "Hide" : "Show All"}
-                      </button>
-                    </div>
-                    {(showCostingHistory ? costingSheets : costingSheets.slice(0, 1)).map((cs: any) => (
-                      <div key={cs.id} className="p-3 rounded-xl bg-slate-50">
-                        {cs.rfqLineItemId && (
-                          <p className="text-xs font-medium text-slate-600 mb-1">
-                            Line Item: {rfq.lineItems?.find((li: any) => li.id === cs.rfqLineItemId)?.itemDescription || "—"}
-                          </p>
-                        )}
-                        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm">
-                          <div><span className="text-slate-500">Material:</span> <span className="font-medium text-slate-800">₹{cs.materialCost.toFixed(2)}</span></div>
-                          <div><span className="text-slate-500">Labour:</span> <span className="font-medium text-slate-800">₹{cs.labourCost.toFixed(2)}</span></div>
-                          <div><span className="text-slate-500">Overhead:</span> <span className="font-medium text-slate-800">{cs.overheadPercent}%</span></div>
-                          <div><span className="text-slate-500">Margin:</span> <span className="font-medium text-slate-800">{cs.marginPercent}%</span></div>
-                          <div><span className="text-slate-500">Freight:</span> <span className="font-medium text-slate-800">₹{(cs.freightCost || 0).toFixed(2)}</span></div>
-                          <div><span className="text-slate-500">Unit Price:</span> <span className="font-bold text-slate-800">₹{cs.computedUnitPrice.toFixed(2)}</span></div>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1">By {cs.submittedBy?.name || "—"} · {formatDateTime(cs.createdAt)}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              /* Sales Executive / Telecaller: Read-only computed price only */
-              <div className="p-4 bg-slate-50 rounded-xl">
-                {latestCosting ? (
-                  <p className="text-lg font-bold text-slate-800">Computed Unit Price: ₹{latestCosting.computedUnitPrice.toFixed(2)}</p>
-                ) : (
-                  <p className="text-sm text-slate-400">Costing sheet not yet submitted</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Generate Quotation Button */}
-        {hasCostingSheet && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
+        {rfq.lineItems && rfq.lineItems.length > 0 && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
           <div className="crm-card p-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Generate Quotation</h3>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Generate Quotation</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Create a quotation from this RFQ with the latest costing</p>
               </div>
               <button
                 onClick={() => setShowGenQuoteModal(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer animate-pulse"
               >
                 <ArrowRight size={16} /> Generate Quotation
               </button>
@@ -912,7 +719,7 @@ export default function RFQDetailPage() {
         {/* Linked Quotations */}
         {rfq.quotations && rfq.quotations.length > 0 && (
           <div className="crm-card p-6">
-            <h3 className="text-sm font-bold text-slate-800 mb-3">Linked Quotations</h3>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">Linked Quotations</h3>
             <div className="space-y-2">
               {rfq.quotations.map((q: any) => (
                 <button key={q.id} onClick={() => router.push(`/quotations/${q.id}`)} className="flex items-center justify-between w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer">
@@ -924,6 +731,33 @@ export default function RFQDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Slide-over panel costing details */}
+      <CostingDetailsPanel
+        isOpen={isCostingPanelOpen}
+        onClose={() => {
+          setSelectedLineItem(null);
+          setIsCostingPanelOpen(false);
+        }}
+        lineItem={selectedLineItem}
+        rfqId={id}
+        onSaved={() => {
+          loadRFQ();
+          loadCostingSheets();
+        }}
+      />
+
+      {/* Generate Quotation Checklist Modal */}
+      <GenerateQuotationModal
+        isOpen={showGenQuoteModal}
+        onClose={() => setShowGenQuoteModal(false)}
+        rfqId={id}
+        userRole={user?.role}
+        onSuccess={(quotationId, quotationCode) => {
+          toast.success(`Quotation ${quotationCode} generated successfully!`);
+          router.push(`/quotations/${quotationId}`);
+        }}
+      />
 
       {/* Assign Costing Modal */}
       <Modal
@@ -948,32 +782,6 @@ export default function RFQDetailPage() {
             ))}
           </Select>
         </FormField>
-      </Modal>
-
-      {/* Generate Quotation Confirmation Modal */}
-      <Modal
-        open={showGenQuoteModal}
-        title="Generate Quotation"
-        subtitle="This will create a quotation with line items from this RFQ"
-        onClose={() => setShowGenQuoteModal(false)}
-        footer={
-          <>
-            <button onClick={() => setShowGenQuoteModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
-            <button onClick={handleGenerateQuotation} disabled={generating} className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 cursor-pointer">
-              {generating ? "Generating..." : "Generate"}
-            </button>
-          </>
-        }
-      >
-        <p className="text-sm text-slate-600">
-          A quotation will be created with:
-          <br />• {rfq.lineItems?.length || 0} line item(s) from this RFQ
-          <br />• Unit price: ₹{latestCosting?.computedUnitPrice.toFixed(2) || "0.00"} (from latest costing)
-          <br />• Validity: 30 days from today
-          <br />• Status: Draft
-          <br /><br />
-          You will be redirected to the quotation page after generation.
-        </p>
       </Modal>
 
       {/* Line Item Modal (Add / Edit) */}
@@ -1009,7 +817,7 @@ export default function RFQDetailPage() {
                 ))}
               </Select>
             </FormField>
-            <FormField label="Quantity">
+            <FormField label="Primary Quantity">
               <Input
                 type="number"
                 value={lineItemForm.quantity}
@@ -1038,6 +846,14 @@ export default function RFQDetailPage() {
                 type="date"
                 value={lineItemForm.delivery_date}
                 onChange={(e: any) => setLineItemForm({ ...lineItemForm, delivery_date: e.target.value })}
+              />
+            </FormField>
+            <FormField label="Quantity Breaks / Tiers (optional)">
+              <Input
+                type="text"
+                value={lineItemForm.quantity_breaks}
+                onChange={(e: any) => setLineItemForm({ ...lineItemForm, quantity_breaks: e.target.value })}
+                placeholder="e.g. 500, 1000, 2000"
               />
             </FormField>
           </div>

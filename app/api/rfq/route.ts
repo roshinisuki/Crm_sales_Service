@@ -53,8 +53,47 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json();
 
+  let customerId = body.customerId;
+  const opportunityId = body.opportunity_id || null;
+  let linkedLineItems: any[] = [];
+
+  // Fetch opportunity data to pre-populate customer and line items if opportunityId is present
+  if (opportunityId) {
+    const deal = await prisma.deal.findFirst({
+      where: { id: opportunityId, companyId: user.companyId },
+      include: {
+        requirementItems: {
+          include: { technicalNote: true },
+        },
+      },
+    });
+
+    if (deal) {
+      customerId = deal.customerId;
+      linkedLineItems = deal.requirementItems.map((item) => {
+        const confirmed = item.technicalNote?.confirmedSpec || "";
+        const tooling = item.technicalNote?.toolingRequired || "";
+        let specs = item.specNotes || "";
+        if (confirmed) {
+          specs = `Confirmed Specs: ${confirmed}${tooling ? `. Tooling: ${tooling}` : ""}. Original notes: ${specs}`;
+        }
+        if (item.attachmentUrl) {
+          specs = `Drawing/Document URL: ${item.attachmentUrl}\n${specs}`;
+        }
+        return {
+          item_description: item.productName,
+          quantity: item.estimatedQuantity,
+          target_price: item.targetPriceMax ? Number(item.targetPriceMax) : (item.targetPriceMin ? Number(item.targetPriceMin) : null),
+          specifications: specs,
+          notes: item.specNotes || null,
+          unit: "Pcs",
+        };
+      });
+    }
+  }
+
   // Validation: required fields
-  if (!body.customerId) {
+  if (!customerId) {
     return NextResponse.json({ success: false, message: "Customer is required" }, { status: 400 });
   }
 
@@ -86,16 +125,20 @@ export async function POST(request: NextRequest) {
   });
   const rfqCode = `RFQ-${year}-${String(yearCount + 1).padStart(5, "0")}`;
 
-  // Validate line items if provided
+  // Validate line items if provided and not linking opportunity
   const lineItems = body.line_items || [];
-  if (lineItems.length > 0) {
-    for (const item of lineItems) {
-      if (!item.item_description || !item.item_description.trim()) {
-        return NextResponse.json(
-          { success: false, message: "Each line item must have a description" },
-          { status: 400 }
-        );
-      }
+  const finalItems = linkedLineItems.length > 0 ? linkedLineItems : lineItems;
+
+  if (finalItems.length === 0) {
+    return NextResponse.json({ success: false, message: "At least one line item is required to create an RFQ" }, { status: 400 });
+  }
+
+  for (const item of finalItems) {
+    if (!item.item_description || !item.item_description.trim()) {
+      return NextResponse.json(
+        { success: false, message: "Each line item must have a description" },
+        { status: 400 }
+      );
     }
   }
 
@@ -104,7 +147,7 @@ export async function POST(request: NextRequest) {
     const created = await tx.rFQ.create({
       data: {
         rfqCode,
-        customerId: body.customerId,
+        customerId,
         contactId: body.contactId || null,
         productId: body.productId || null,
         quantity: body.quantity ? parseFloat(body.quantity) : null,
@@ -116,27 +159,51 @@ export async function POST(request: NextRequest) {
         requirementDetails: body.requirementDetails || null,
         assignedUserId: body.assignedUserId || user.id,
         notes: body.notes || null,
-        opportunityId: body.opportunity_id || null,
+        opportunityId: opportunityId,
         status: "New",
         companyId: user.companyId,
       },
     });
 
-    // Insert line items
-    if (lineItems.length > 0) {
-      await tx.rFQLineItem.createMany({
-        data: lineItems.map((item: any, idx: number) => ({
+    // Insert line items and their default quantity breaks
+    for (let idx = 0; idx < finalItems.length; idx++) {
+      const item = finalItems[idx];
+
+      // Scan catalogue for product name match to pre-fill productId
+      let resolvedProductId = item.product_id || null;
+      if (!resolvedProductId && item.item_description) {
+        const matchedProd = await tx.product.findFirst({
+          where: {
+            name: { equals: item.item_description },
+            companyId: user.companyId,
+          },
+        });
+        if (matchedProd) resolvedProductId = matchedProd.id;
+      }
+
+      const createdItem = await tx.rFQLineItem.create({
+        data: {
           rfqId: created.id,
           itemDescription: item.item_description,
-          productId: item.product_id || null,
+          productId: resolvedProductId,
           quantity: parseFloat(item.quantity) || 1,
-          unit: item.unit || null,
+          unit: item.unit || "Pcs",
           targetPrice: item.target_price ? parseFloat(item.target_price) : null,
           requestedDeliveryDate: item.delivery_date ? new Date(item.delivery_date) : null,
           specifications: item.specifications || null,
           notes: item.notes || null,
           displayOrder: idx,
-        })),
+          costingStatus: "Pending",
+        },
+      });
+
+      // Insert default quantity break tier
+      await tx.rFQLineItemQuantityBreak.create({
+        data: {
+          lineItemId: createdItem.id,
+          quantity: parseFloat(item.quantity) || 1,
+          computedUnitPrice: 0,
+        },
       });
     }
 
@@ -152,11 +219,11 @@ export async function POST(request: NextRequest) {
     });
 
     // If opportunity_id provided, update opportunity stage to 'RequirementGathering'
-    if (body.opportunity_id) {
-      const opp = await tx.deal.findUnique({ where: { id: body.opportunity_id } });
+    if (opportunityId) {
+      const opp = await tx.deal.findUnique({ where: { id: opportunityId } });
       if (opp && opp.status !== "RequirementGathering" && opp.status !== "ProposalSent" && opp.status !== "Negotiation" && opp.status !== "Won" && opp.status !== "Lost") {
         await tx.deal.update({
-          where: { id: body.opportunity_id },
+          where: { id: opportunityId },
           data: { status: "RequirementGathering" },
         });
       }
@@ -200,7 +267,7 @@ export async function POST(request: NextRequest) {
 
   await logAudit(user.id, "RFQ", "Create", `Created RFQ ${rfqCode} (Priority: ${priority})`, {
     resourceId: rfq.id,
-    newState: { rfqCode, priority, status: "New", customerId: body.customerId },
+    newState: { rfqCode, priority, status: "New", customerId },
     context: extractAuditContext(request),
     severity: "INFO",
   });
@@ -212,7 +279,11 @@ export async function POST(request: NextRequest) {
       customer: { select: { id: true, name: true, customerCode: true } },
       contact: { select: { id: true, name: true } },
       assignedUser: { select: { id: true, name: true } },
-      lineItems: true,
+      lineItems: {
+        include: {
+          quantityBreaks: true,
+        },
+      },
     },
   });
 

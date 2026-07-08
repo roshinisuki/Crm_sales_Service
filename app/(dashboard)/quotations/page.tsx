@@ -106,16 +106,7 @@ function QuotationListContent() {
     });
   };
 
-  const handleDuplicate = async (id: string) => {
-    try {
-      const res = await fetch(`/api/quotations/${id}/clone`, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Cloned as ${data.data.quotationCode} (R${data.data.revisionNumber})`);
-        loadQuotations();
-      } else toast.error(data.message || "Failed");
-    } catch { toast.error("Failed"); }
-  };
+
 
   return (
     <PageContainer className="space-y-4 p-0">
@@ -216,7 +207,6 @@ function QuotationListContent() {
                     <td className="crm-td text-foreground">{new Date(q.validUntil).toLocaleDateString()}</td>
                     <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
-                        <button onClick={() => handleDuplicate(q.id)} className="row-action-btn" title="Duplicate"><Ico d={icons.copy} size={15} /></button>
                         <button onClick={() => handleDelete(q.id)} className="row-action-btn row-action-btn-danger" title="Delete"><Ico d={icons.x} size={15} /></button>
                       </div>
                     </td>

@@ -17,9 +17,29 @@ export async function GET(
     include: {
       customer: { select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, billingAddress: true, gstNumber: true, accountType: true } },
       contact: { select: { id: true, name: true, email: true, phone: true } },
-      rfq: { select: { id: true, rfqCode: true, status: true } },
+      rfq: {
+        include: {
+          lineItems: {
+            include: {
+              quantityBreaks: {
+                include: {
+                  costingSheets: {
+                    orderBy: { createdAt: "desc" },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       deal: { select: { id: true, dealName: true, status: true, opportunityCode: true } },
-      items: { include: { product: { select: { id: true, name: true, productCode: true, unit: true, basePrice: true } } } },
+      items: {
+        include: {
+          product: { select: { id: true, name: true, productCode: true, unit: true, basePrice: true, hsnCode: true } },
+          quantityBreak: { select: { id: true, quantity: true, computedUnitPrice: true } },
+        },
+      },
       createdBy: { select: { id: true, name: true } },
       quotationStatusHistories: { include: { changedBy: { select: { id: true, name: true } } }, orderBy: { changedAt: "desc" } },
       revisionSnapshots: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { revisionNumber: "desc" } },
@@ -29,7 +49,18 @@ export async function GET(
 
   if (!quotation) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
-  return NextResponse.json({ success: true, data: quotation });
+  const [discountConfig, floorConfig] = await Promise.all([
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_discount_threshold" } }),
+    prisma.systemConfig.findFirst({ where: { key: "quotation_margin_floor_percent" } }),
+  ]);
+  const discountThreshold = discountConfig ? parseFloat(discountConfig.value) : 5.0;
+  const marginFloor = floorConfig ? parseFloat(floorConfig.value) : 15.0;
+
+  return NextResponse.json({
+    success: true,
+    data: quotation,
+    config: { discountThreshold, marginFloor },
+  });
 }
 
 export async function PUT(
@@ -49,97 +80,171 @@ export async function PUT(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
-  // Only Draft quotations can be edited
   if (existing.status !== "Draft") {
     return NextResponse.json({ success: false, message: "Only Draft quotations can be edited" }, { status: 400 });
   }
 
   const discountPercent = body.discountPercent !== undefined ? parseFloat(body.discountPercent) || 0 : existing.discountPercent;
 
-  // ── SERVER-COMPUTE ALL TOTALS ──
-  // Use new items if provided, otherwise use existing items
-  let itemsToCompute: any[];
-  if (body.items && Array.isArray(body.items)) {
-    itemsToCompute = body.items;
-  } else {
-    itemsToCompute = existing.items.map((it: any) => ({
-      productId: it.productId,
-      description: it.description,
-      quantity: it.quantity,
-      unitPrice: it.unitPrice,
-      discountPercent: it.discountPercent,
-      taxPercent: it.taxPercent,
-      hsn: it.hsn,
-      unit: it.unit,
-      notes: it.notes,
-    }));
-  }
+  // Fetch margin floor threshold
+  const floorConfig = await prisma.systemConfig.findFirst({
+    where: { key: "quotation_margin_floor_percent" },
+  });
+  const marginFloor = floorConfig ? parseFloat(floorConfig.value) : 15.0;
+
+  const isManagerOrAdmin = ["SalesManager", "Admin"].includes(user.role || "");
+
+  // Determine items to process
+  let itemsToCompute = body.items && Array.isArray(body.items) ? body.items : existing.items;
 
   let subtotal = 0;
   let taxAmount = 0;
+  let totalGrossRevenue = 0;
+  let totalRevenueForMargin = 0;
+  let totalMarginRevenue = 0;
 
-  const computedItems = itemsToCompute.map((item: any) => {
+  const processedItems: any[] = [];
+
+  // Map and validate line items
+  for (const item of itemsToCompute) {
     const qty = parseFloat(item.quantity) || 0;
     const unitPrice = parseFloat(item.unitPrice) || 0;
     const lineDiscount = parseFloat(item.discountPercent) || 0;
-    const taxPercent = parseFloat(item.taxPercent) || 18;
+
+    // Preserve or determine costing details
+    // Find matching existing item to preserve costBasisUnitPrice
+    const matchedExisting = existing.items.find(
+      (it) => it.productId === item.productId || (it.productId === null && it.description === item.description)
+    );
+
+    let costBasis: number | null = null;
+    let priceSource = "StandaloneManual";
+    let qbId: string | null = null;
+
+    if (matchedExisting) {
+      costBasis = matchedExisting.costBasisUnitPrice ? Number(matchedExisting.costBasisUnitPrice) : null;
+      priceSource = matchedExisting.priceSource || "StandaloneManual";
+      qbId = matchedExisting.quantityBreakId || null;
+    } else if (item.costBasisUnitPrice != null) {
+      costBasis = parseFloat(item.costBasisUnitPrice);
+      priceSource = item.priceSource || "RFQCosting";
+      qbId = item.quantityBreakId || null;
+    }
+
+    // Live margin calculations
+    let marginVal: number | null = null;
+    if (costBasis != null && costBasis > 0) {
+      marginVal = unitPrice > 0 ? ((unitPrice - costBasis) / unitPrice) * 100 : 0;
+      if (unitPrice !== costBasis) {
+        priceSource = "ManualOverride";
+      }
+
+      // Block save check if margin falls below floor
+      if (marginVal < marginFloor && !isManagerOrAdmin) {
+        return NextResponse.json({
+          success: false,
+          isMarginBlocked: true,
+          threshold: marginFloor,
+          message: `Save blocked: Margin for item "${item.description || "Product"}" falls below the minimum floor of ${marginFloor}%. Approval from a Sales Manager or Admin is required to override.`,
+        }, { status: 403 });
+      }
+
+      totalRevenueForMargin += qty * unitPrice;
+      totalMarginRevenue += qty * (unitPrice - costBasis);
+    } else {
+      priceSource = "StandaloneManual";
+    }
 
     const lineTotal = qty * unitPrice * (1 - lineDiscount / 100);
-    const lineTax = lineTotal * (taxPercent / 100);
-
+    totalGrossRevenue += qty * unitPrice;
     subtotal += lineTotal;
-    taxAmount += lineTax;
 
-    return {
+    processedItems.push({
       productId: item.productId || null,
       description: item.description,
       quantity: qty,
       unitPrice,
       totalPrice: lineTotal,
       discountPercent: lineDiscount,
-      taxPercent,
       lineTotal,
       hsn: item.hsn || null,
-      unit: item.unit || null,
+      unit: item.unit || "Pcs",
       notes: item.notes || null,
-    };
-  });
+      costBasisUnitPrice: costBasis,
+      marginPercent: marginVal,
+      priceSource,
+      quantityBreakId: qbId,
+    });
+  }
 
-  const discountAmount = subtotal * (discountPercent / 100);
-  const grandTotal = subtotal - discountAmount + taxAmount;
-
-  // Build update data for quotation-level fields
-  const updateData: any = {
-    subtotal,
-    taxAmount,
-    totalAmount: subtotal,
-    finalAmount: grandTotal,
-    discountPercent,
-  };
-  if (body.validUntil !== undefined) updateData.validUntil = new Date(body.validUntil);
-  if (body.termsAndConditions !== undefined) updateData.termsAndConditions = body.termsAndConditions || null;
-  if (body.paymentTerms !== undefined) updateData.paymentTerms = body.paymentTerms || null;
-  if (body.deliveryTerms !== undefined) updateData.deliveryTerms = body.deliveryTerms || null;
-  if (body.freightTerms !== undefined) updateData.freightTerms = body.freightTerms || null;
-  if (body.leadTimeDays !== undefined) updateData.leadTimeDays = body.leadTimeDays ? parseInt(body.leadTimeDays) : null;
-  if (body.contactId !== undefined) updateData.contactId = body.contactId || null;
-
+  // Consistent Tax lookups inside transaction
   try {
     const quotation = await prisma.$transaction(async (tx) => {
+      let totalTax = 0;
+
+      for (const pi of processedItems) {
+        let taxPercent = 18;
+        let hsn = pi.hsn;
+
+        if (pi.productId) {
+          const prod = await tx.product.findUnique({
+            where: { id: pi.productId },
+            select: { hsnCode: true, productCode: true }
+          });
+          if (prod) {
+            hsn = prod.hsnCode || hsn || prod.productCode;
+          }
+        }
+
+        if (hsn) {
+          const taxEntry = await tx.taxMaster.findFirst({
+            where: { hsnCode: hsn, isActive: true }
+          });
+          if (taxEntry) taxPercent = taxEntry.taxPercent;
+        }
+
+        pi.taxPercent = taxPercent;
+        const lineTax = pi.lineTotal * (taxPercent / 100);
+        totalTax += lineTax;
+      }
+
+      const discountAmount = subtotal * (discountPercent / 100);
+      const netTotal = subtotal - discountAmount;
+      const grandTotal = netTotal + totalTax;
+
+      // Compute overall weighted margin percent
+      const overallMarginPercent = totalRevenueForMargin > 0 ? (totalMarginRevenue / totalRevenueForMargin) * 100 : null;
+
+      // Build update data
+      const updateData: any = {
+        subtotal,
+        taxAmount: totalTax,
+        totalAmount: subtotal,
+        finalAmount: grandTotal,
+        discountPercent,
+        overallMarginPercent,
+      };
+
+      if (body.validUntil !== undefined) updateData.validUntil = new Date(body.validUntil);
+      if (body.termsAndConditions !== undefined) updateData.termsAndConditions = body.termsAndConditions || null;
+      if (body.paymentTerms !== undefined) updateData.paymentTerms = body.paymentTerms || null;
+      if (body.deliveryTerms !== undefined) updateData.deliveryTerms = body.deliveryTerms || null;
+      if (body.freightTerms !== undefined) updateData.freightTerms = body.freightTerms || null;
+      if (body.leadTimeDays !== undefined) updateData.leadTimeDays = body.leadTimeDays ? parseInt(body.leadTimeDays) : null;
+      if (body.contactId !== undefined) updateData.contactId = body.contactId || null;
+
       // Update quotation
       const q = await tx.quotation.update({
         where: { id },
         data: updateData,
       });
 
-      // If items provided, replace all line items
-      if (body.items && Array.isArray(body.items)) {
-        await tx.quotationItem.deleteMany({ where: { quotationId: id } });
-        for (const item of computedItems) {
-          await tx.quotationItem.create({
-            data: { quotationId: id, ...item },
-          });
-        }
+      // Replace line items
+      await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+      for (const item of processedItems) {
+        await tx.quotationItem.create({
+          data: { quotationId: id, ...item },
+        });
       }
 
       return q;
@@ -156,7 +261,7 @@ export async function PUT(
     await logAudit(user.id, "Quotation", "Update", `Updated quotation ${existing.quotationCode}`, {
       resourceId: id,
       previousState: { status: existing.status, discountPercent: existing.discountPercent, subtotal: existing.subtotal, finalAmount: existing.finalAmount },
-      newState: { discountPercent, subtotal, taxAmount, grandTotal },
+      newState: { discountPercent, subtotal, grandTotal: quotation.finalAmount },
       context: extractAuditContext(request),
     });
 
@@ -184,7 +289,6 @@ export async function DELETE(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
-  // Only Draft quotations can be deleted
   if (existing.status !== "Draft") {
     return NextResponse.json({ success: false, message: "Only Draft quotations can be deleted" }, { status: 400 });
   }

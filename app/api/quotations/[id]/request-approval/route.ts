@@ -29,6 +29,7 @@ export async function POST(
 
   const existing = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
+    include: { items: true },
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
@@ -36,10 +37,56 @@ export async function POST(
     return NextResponse.json({ success: false, message: "Only Draft quotations can request approval" }, { status: 400 });
   }
 
+  // Load thresholds
+  const [discountConfig, floorConfig] = await Promise.all([
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_discount_threshold" } }),
+    prisma.systemConfig.findFirst({ where: { key: "quotation_margin_floor_percent" } }),
+  ]);
+  const discountThreshold = discountConfig ? parseFloat(discountConfig.value) : 5.0;
+  const marginFloor = floorConfig ? parseFloat(floorConfig.value) : 15.0;
+
+  // Evaluate discount & margin levels
+  let totalGross = 0;
+  let totalNet = existing.subtotal - (existing.subtotal * existing.discountPercent / 100);
+
+  let maxLineDiscount = 0;
+  let hasMarginBreach = false;
+  const triggers: string[] = [];
+
+  for (const item of existing.items) {
+    const qty = item.quantity || 0;
+    const unitPrice = item.unitPrice || 0;
+    totalGross += qty * unitPrice;
+
+    if (item.discountPercent > maxLineDiscount) {
+      maxLineDiscount = item.discountPercent;
+    }
+
+    if (item.costBasisUnitPrice != null) {
+      const costBasis = Number(item.costBasisUnitPrice);
+      const margin = unitPrice > 0 ? ((unitPrice - costBasis) / unitPrice) * 100 : 0;
+      if (margin < marginFloor) {
+        hasMarginBreach = true;
+        triggers.push(`Item "${item.description}" has margin of ${margin.toFixed(1)}% (below ${marginFloor}% floor)`);
+      }
+    }
+  }
+
+  const blendedDiscount = totalGross > 0 ? ((totalGross - totalNet) / totalGross) * 100 : 0;
+
+  if (blendedDiscount > discountThreshold) {
+    triggers.push(`Blended discount of ${blendedDiscount.toFixed(1)}% exceeds the ${discountThreshold}% threshold`);
+  }
+  if (maxLineDiscount > discountThreshold) {
+    triggers.push(`Line item discount ceiling of ${maxLineDiscount.toFixed(1)}% exceeds the ${discountThreshold}% threshold`);
+  }
+
+  const triggerSummary = triggers.join("; ");
+
   // Find Sales Manager for approval (from same company)
   // If discount exceeds escalation threshold, route to escalation role instead
   const escalationConfig = await getEscalationConfig();
-  const requiresEscalation = existing.discountPercent > escalationConfig.threshold;
+  const requiresEscalation = blendedDiscount > escalationConfig.threshold || existing.discountPercent > escalationConfig.threshold;
   const approverRole = requiresEscalation ? escalationConfig.role : "SalesManager";
 
   let approverId = body.approverId;
@@ -70,19 +117,19 @@ export async function POST(
           requestedById: user.id,
           approverId,
           status: "Pending",
-          discountPercent: existing.discountPercent,
-          notes: body.notes || null,
+          discountPercent: blendedDiscount, // use blended discount
+          notes: body.notes ? `${body.notes} (Triggers: ${triggerSummary})` : `Requested approval due to: ${triggerSummary}`,
           requiredApproverRole: approverRole,
           revisionAuthorId: existing.createdById,
         },
       });
 
-      // Notify approver
+      // Notify approver with detailed reason
       await tx.notification.create({
         data: {
           userId: approverId,
           title: requiresEscalation ? "Escalation Approval Needed: Quotation" : "Approval Needed: Quotation",
-          message: `Approval needed: Quotation ${existing.quotationCode} has ${existing.discountPercent}% discount${requiresEscalation ? " — escalated to " + approverRole : ""}`,
+          message: `Quotation ${existing.quotationCode} requires approval: ${triggers[0] || "discount exceeds limit"}`,
           type: "Approval",
           link: `/quotations/${id}`,
         },
@@ -91,13 +138,13 @@ export async function POST(
       return appr;
     });
 
-    await logAudit(user.id, "Quotation", "RequestApproval", `Requested approval for quotation ${existing.quotationCode}`, {
+    await logAudit(user.id, "Quotation", "RequestApproval", `Requested approval for quotation ${existing.quotationCode} due to: ${triggerSummary}`, {
       resourceId: id,
-      newState: { approverId, discountPercent: existing.discountPercent },
+      newState: { approverId, blendedDiscount, triggers },
       context: extractAuditContext(request),
     });
 
-    return NextResponse.json({ success: true, data: approval }, { status: 201 });
+    return NextResponse.json({ success: true, data: { ...approval, triggers } }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json(
       { success: false, message: `Failed to request approval: ${error.message}` },

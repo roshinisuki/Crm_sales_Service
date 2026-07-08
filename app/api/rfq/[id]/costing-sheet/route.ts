@@ -18,7 +18,10 @@ export async function GET(
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
       costingSheets: {
-        include: { submittedBy: { select: { id: true, name: true } } },
+        include: {
+          submittedBy: { select: { id: true, name: true } },
+          quantityBreak: true,
+        },
         orderBy: { createdAt: "desc" },
       },
     },
@@ -36,6 +39,8 @@ export async function GET(
     const restricted = rfq.costingSheets.map((cs) => ({
       id: cs.id,
       rfqId: cs.rfqId,
+      rfqLineItemId: cs.rfqLineItemId,
+      quantityBreakId: cs.quantityBreakId,
       computedUnitPrice: cs.computedUnitPrice,
       createdAt: cs.createdAt,
       submittedBy: cs.submittedBy,
@@ -45,9 +50,6 @@ export async function GET(
 }
 
 // POST: Submit costing sheet(s) (Costing Engineer / Admin only)
-// Supports two modes:
-//   1. Legacy single costing: { material_cost, labour_cost, ... }
-//   2. Per-line-item costing: { line_items: [{ line_item_id, material_cost, labour_cost, ... }] }
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -67,11 +69,21 @@ export async function POST(
 
   const rfq = await prisma.rFQ.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
-    select: { rfqCode: true, assignedUserId: true, lineItems: { select: { id: true, itemDescription: true } } },
+    include: {
+      lineItems: {
+        include: {
+          quantityBreaks: true,
+          product: {
+            include: {
+              category: true,
+            },
+          },
+        },
+      },
+    },
   });
   if (!rfq) return NextResponse.json({ success: false, message: "RFQ not found" }, { status: 404 });
 
-  // Helper to validate and compute unit price
   const computeUnitPrice = (mc: number, lc: number, oh: number, mg: number, fr: number, pk: number, tl: number, ot: number) => {
     return (mc + lc + fr + pk + tl + ot) * (1 + oh / 100) * (1 + mg / 100);
   };
@@ -83,118 +95,128 @@ export async function POST(
     return { valid: true, value: n };
   };
 
+  const lineItemsCosting = body.line_items;
+  if (!lineItemsCosting || !Array.isArray(lineItemsCosting) || lineItemsCosting.length === 0) {
+    return NextResponse.json({ success: false, message: "At least one line item costing entry is required" }, { status: 400 });
+  }
+
   const createdSheets: any[] = [];
 
-  if (body.line_items && Array.isArray(body.line_items)) {
-    // Per-line-item costing mode
-    if (body.line_items.length === 0) {
-      return NextResponse.json({ success: false, message: "At least one line item costing is required" }, { status: 400 });
-    }
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const li of lineItemsCosting) {
+        const lineItem = rfq.lineItems.find((l) => l.id === li.line_item_id);
+        if (!lineItem) {
+          throw new Error(`Line item ${li.line_item_id} not found in this RFQ`);
+        }
 
-    for (const li of body.line_items) {
-      const mc = validateCost(li.material_cost, "Material cost", false);
-      const lc = validateCost(li.labour_cost, "Labour cost", false);
-      const oh = validateCost(li.overhead_percent, "Overhead percent");
-      const mg = validateCost(li.margin_percent, "Margin percent");
-      const fr = validateCost(li.freight_cost || 0, "Freight cost");
-      const pk = validateCost(li.packaging_cost || 0, "Packaging cost");
-      const tl = validateCost(li.tooling_cost || 0, "Tooling cost");
-      const ot = validateCost(li.other_cost || 0, "Other cost");
+        const qb = lineItem.quantityBreaks.find((q) => q.id === li.quantity_break_id);
+        if (!qb) {
+          throw new Error(`Quantity break ${li.quantity_break_id} not found for line item ${lineItem.itemDescription}`);
+        }
 
-      if (!mc.valid) return NextResponse.json({ success: false, message: mc.message }, { status: 400 });
-      if (!lc.valid) return NextResponse.json({ success: false, message: lc.message }, { status: 400 });
-      if (!oh.valid) return NextResponse.json({ success: false, message: oh.message }, { status: 400 });
-      if (!mg.valid) return NextResponse.json({ success: false, message: mg.message }, { status: 400 });
+        const mc = validateCost(li.material_cost, "Material cost");
+        const lc = validateCost(li.labour_cost, "Labour cost");
+        const fr = validateCost(li.freight_cost || 0, "Freight cost");
+        const pk = validateCost(li.packaging_cost || 0, "Packaging cost");
+        const tl = validateCost(li.tooling_cost || 0, "Tooling cost");
+        const ot = validateCost(li.other_cost || 0, "Other cost");
 
-      const computedUnitPrice = computeUnitPrice(mc.value, lc.value, oh.value, mg.value, fr.value, pk.value, tl.value, ot.value);
-      if (computedUnitPrice <= 0) {
-        return NextResponse.json({ success: false, message: "Computed unit price must be greater than 0" }, { status: 400 });
+        if (!mc.valid) throw new Error(mc.message);
+        if (!lc.valid) throw new Error(lc.message);
+
+        // Auto-fill from Product Category defaults if overhead or margin is blank/omitted
+        let ohVal = li.overhead_percent !== undefined && li.overhead_percent !== "" ? parseFloat(li.overhead_percent) : null;
+        if (ohVal === null || isNaN(ohVal)) {
+          ohVal = lineItem.product?.category?.defaultOverheadPercent ? Number(lineItem.product.category.defaultOverheadPercent) : 0;
+        }
+
+        let mgVal = li.margin_percent !== undefined && li.margin_percent !== "" ? parseFloat(li.margin_percent) : null;
+        if (mgVal === null || isNaN(mgVal)) {
+          mgVal = lineItem.product?.category?.defaultMarginPercent ? Number(lineItem.product.category.defaultMarginPercent) : 0;
+        }
+
+        const computedUnitPrice = computeUnitPrice(mc.value, lc.value, ohVal, mgVal, fr.value, pk.value, tl.value, ot.value);
+        if (computedUnitPrice <= 0) {
+          throw new Error("Computed unit price must be greater than 0");
+        }
+
+        // Notes scoped per costing sheet
+        const sheetNotes = li.notes || undefined;
+
+        const sheet = await tx.rFQCostingSheet.create({
+          data: {
+            rfqId: id,
+            rfqLineItemId: lineItem.id,
+            quantityBreakId: qb.id,
+            materialCost: mc.value,
+            labourCost: lc.value,
+            overheadPercent: ohVal,
+            marginPercent: mgVal,
+            freightCost: fr.value,
+            packagingCost: pk.value,
+            toolingCost: tl.value,
+            otherCost: ot.value,
+            computedUnitPrice,
+            submittedById: user.id,
+            notes: sheetNotes,
+          },
+        });
+
+        // Update quantity break
+        await tx.rFQLineItemQuantityBreak.update({
+          where: { id: qb.id },
+          data: { computedUnitPrice },
+        });
+
+        createdSheets.push(sheet);
       }
 
-      // Validate line item belongs to this RFQ
-      const lineItemExists = rfq.lineItems.some((li2) => li2.id === li.line_item_id);
-      if (!lineItemExists) {
-        return NextResponse.json({ success: false, message: `Line item ${li.line_item_id} not found in this RFQ` }, { status: 400 });
-      }
+      // Sync costingStatus for modified line items
+      const lineItemIdsToCheck = Array.from(new Set(lineItemsCosting.map((l) => l.line_item_id)));
+      for (const lineItemId of lineItemIdsToCheck) {
+        const breaks = await tx.rFQLineItemQuantityBreak.findMany({
+          where: { lineItemId },
+          include: { costingSheets: { orderBy: { createdAt: "desc" }, take: 1 } },
+        });
 
-      const sheet = await prisma.rFQCostingSheet.create({
-        data: {
-          rfqId: id,
-          rfqLineItemId: li.line_item_id,
-          materialCost: mc.value,
-          labourCost: lc.value,
-          overheadPercent: oh.value,
-          marginPercent: mg.value,
-          freightCost: fr.value,
-          packagingCost: pk.value,
-          toolingCost: tl.value,
-          otherCost: ot.value,
-          computedUnitPrice,
-          submittedById: user.id,
-          notes: li.notes || body.notes || null,
-        },
+        const totalBreaks = breaks.length;
+        const costedBreaks = breaks.filter((b) => b.costingSheets.length > 0).length;
+
+        let status = "Pending";
+        if (costedBreaks === totalBreaks) {
+          status = "Done";
+        } else if (costedBreaks > 0) {
+          status = "InProgress";
+        }
+
+        await tx.rFQLineItem.update({
+          where: { id: lineItemId },
+          data: { costingStatus: status },
+        });
+      }
+    });
+
+    // Notify assigned sales executive
+    if (rfq.assignedUserId) {
+      await dispatchNotification({
+        userId: rfq.assignedUserId,
+        title: "Costing Ready for RFQ",
+        message: `Costing is updated for RFQ ${rfq.rfqCode}. ${createdSheets.length} quantity break(s) costed.`,
+        type: "rfq",
+        link: `/rfq/${id}`,
       });
-      createdSheets.push(sheet);
-    }
-  } else {
-    // Legacy single costing mode (no line item association)
-    const mc = validateCost(body.material_cost, "Material cost", false);
-    const lc = validateCost(body.labour_cost, "Labour cost", false);
-    const oh = validateCost(body.overhead_percent, "Overhead percent");
-    const mg = validateCost(body.margin_percent, "Margin percent");
-    const fr = validateCost(body.freight_cost || 0, "Freight cost");
-    const pk = validateCost(body.packaging_cost || 0, "Packaging cost");
-    const tl = validateCost(body.tooling_cost || 0, "Tooling cost");
-    const ot = validateCost(body.other_cost || 0, "Other cost");
-
-    if (!mc.valid) return NextResponse.json({ success: false, message: mc.message }, { status: 400 });
-    if (!lc.valid) return NextResponse.json({ success: false, message: lc.message }, { status: 400 });
-    if (!oh.valid) return NextResponse.json({ success: false, message: oh.message }, { status: 400 });
-    if (!mg.valid) return NextResponse.json({ success: false, message: mg.message }, { status: 400 });
-
-    const computedUnitPrice = computeUnitPrice(mc.value, lc.value, oh.value, mg.value, fr.value, pk.value, tl.value, ot.value);
-    if (computedUnitPrice <= 0) {
-      return NextResponse.json({ success: false, message: "Computed unit price must be greater than 0" }, { status: 400 });
     }
 
-    const sheet = await prisma.rFQCostingSheet.create({
-      data: {
-        rfqId: id,
-        rfqLineItemId: null,
-        materialCost: mc.value,
-        labourCost: lc.value,
-        overheadPercent: oh.value,
-        marginPercent: mg.value,
-        freightCost: fr.value,
-        packagingCost: pk.value,
-        toolingCost: tl.value,
-        otherCost: ot.value,
-        computedUnitPrice,
-        submittedById: user.id,
-        notes: body.notes || null,
-      },
+    await logAudit(user.id, "RFQ", "SubmitCosting", `Submitted costing for RFQ ${rfq.rfqCode} (${createdSheets.length} sheet(s))`, {
+      resourceId: id,
+      newState: { sheets: createdSheets.map((s) => ({ lineItemId: s.rfqLineItemId, quantityBreakId: s.quantityBreakId, computedUnitPrice: s.computedUnitPrice })) },
+      context: extractAuditContext(request),
+      severity: "INFO",
     });
-    createdSheets.push(sheet);
+
+    return NextResponse.json({ success: true, data: createdSheets }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, message: error.message }, { status: 400 });
   }
-
-  // Notify assigned sales executive
-  if (rfq.assignedUserId) {
-    const latestPrice = createdSheets[createdSheets.length - 1].computedUnitPrice;
-    await dispatchNotification({
-      userId: rfq.assignedUserId,
-      title: "Costing Ready for RFQ",
-      message: `Costing is ready for RFQ ${rfq.rfqCode}. ${createdSheets.length} line item(s) costed.`,
-      type: "rfq",
-      link: `/rfq/${id}`,
-    });
-  }
-
-  await logAudit(user.id, "RFQ", "SubmitCosting", `Submitted costing for RFQ ${rfq.rfqCode} (${createdSheets.length} sheet(s))`, {
-    resourceId: id,
-    newState: { sheets: createdSheets.map((s) => ({ lineItemId: s.rfqLineItemId, computedUnitPrice: s.computedUnitPrice })) },
-    context: extractAuditContext(request),
-    severity: "INFO",
-  });
-
-  return NextResponse.json({ success: true, data: createdSheets }, { status: 201 });
 }

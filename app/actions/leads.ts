@@ -1536,6 +1536,8 @@ export async function convertLeadV2Action(
           timeline: lead.timelineAsked,
           decisionMaker: lead.name,
           industry: lead.industryType || null,
+          // V5: leadVerified maps from lead.isGenuine (avoids businessNeed key collision)
+          leadVerified: lead.isGenuine ?? false,
         },
       });
 
