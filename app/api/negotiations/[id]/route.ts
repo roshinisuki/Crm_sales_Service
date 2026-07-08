@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { transitionDealStatus } from "@/lib/dealService";
 
 const VALID_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Won", "Lost"];
 
@@ -121,6 +122,57 @@ export async function PUT(
       newState: { status: body.status },
       context: extractAuditContext(request),
     });
+
+    // Cascade Won/Lost to linked Deal and Quotation
+    if (body.status === "Won" || body.status === "Lost") {
+      // Update linked Quotation
+      if (existing.quotationId) {
+        const quotation = await prisma.quotation.findUnique({
+          where: { id: existing.quotationId },
+          select: { id: true, status: true, quotationCode: true },
+        });
+        if (quotation && !["Accepted", "Rejected", "Expired"].includes(quotation.status)) {
+          const newQuoteStatus = body.status === "Won" ? "Accepted" : "Rejected";
+          await prisma.quotation.update({
+            where: { id: quotation.id },
+            data: {
+              status: newQuoteStatus,
+              ...(body.status === "Won" ? { acceptedAt: new Date() } : {}),
+              ...(body.status === "Lost" ? { rejectedAt: new Date(), rejectionReasonId: body.lossReasonId || null } : {}),
+            },
+          });
+          await prisma.quotationStatusHistory.create({
+            data: {
+              quotationId: quotation.id,
+              fromStatus: quotation.status,
+              toStatus: newQuoteStatus,
+              changedById: user.id,
+              notes: `Auto-cascaded from negotiation ${existing.negotiationCode} (${body.status})`,
+            },
+          });
+        }
+      }
+
+      // Update linked Deal via transitionDealStatus
+      if (existing.dealId) {
+        const deal = await prisma.deal.findUnique({
+          where: { id: existing.dealId },
+          select: { id: true, status: true },
+        });
+        if (deal && deal.status !== body.status) {
+          try {
+            await transitionDealStatus(deal.id, body.status, {
+              actorId: user.id,
+              reason: `Negotiation ${existing.negotiationCode} closed as ${body.status}`,
+              companyId: user.companyId!,
+            });
+          } catch (err: any) {
+            // If transitionDealStatus throws (e.g. Won gate), log but don't block negotiation update
+            console.error(`Negotiation cascade: deal transition failed: ${err.message}`);
+          }
+        }
+      }
+    }
   } else {
     await logAudit(user.id, "Negotiation", "Update", `Updated negotiation ${existing.negotiationCode}`, {
       resourceId: id,

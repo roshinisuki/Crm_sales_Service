@@ -38,6 +38,7 @@ interface ProductRequirementTableProps {
   onDeleteItem: (item: RequirementItem, index: number) => Promise<void>;
   readOnly?: boolean;
   saving?: boolean;
+  products?: { id: string; name: string; productCode?: string; category?: string | { id: string; name: string } }[];
 }
 
 export function ProductRequirementTable({
@@ -47,14 +48,36 @@ export function ProductRequirementTable({
   onDeleteItem,
   readOnly = false,
   saving = false,
+  products = [],
 }: ProductRequirementTableProps) {
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
   const [confirmDeleteIndex, setConfirmDeleteIndex] = useState<number | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const [productSearch, setProductSearch] = useState<Record<number, string>>({});
+  const [showDropdown, setShowDropdown] = useState<Record<number, boolean>>({});
 
   const hasData = (item: RequirementItem) =>
     item.productName || item.estimatedQuantity || item.material || item.attachmentUrl;
+
+  const filteredProducts = (search: string) => {
+    if (!search.trim()) return products.slice(0, 15);
+    const q = search.toLowerCase();
+    return products
+      .filter((p) =>
+        p.name.toLowerCase().includes(q) ||
+        (p.productCode || "").toLowerCase().includes(q) ||
+        (typeof p.category === "string" ? p.category : p.category?.name || "").toLowerCase().includes(q)
+      )
+      .slice(0, 15);
+  };
+
+  const handleProductSelect = (index: number, product: { id: string; name: string; productCode?: string; category?: string | { id: string; name: string } }) => {
+    const next = items.map((it, i) => (i === index ? { ...it, productName: product.name } : it));
+    onChange(next);
+    setShowDropdown({ ...showDropdown, [index]: false });
+    setProductSearch({ ...productSearch, [index]: "" });
+  };
 
   const handleFieldChange = (index: number, field: keyof RequirementItem, value: string) => {
     const next = items.map((it, i) => (i === index ? { ...it, [field]: value } : it));
@@ -122,20 +145,55 @@ export function ProductRequirementTable({
                   idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/50 dark:bg-slate-800/30"
                 )}
               >
-                {/* Product name */}
-                <td className="px-3 py-2">
+                {/* Product name — searchable autocomplete */}
+                <td className="px-3 py-2 relative">
                   {readOnly ? (
                     <span className="font-medium text-slate-800 dark:text-slate-200">{item.productName || "—"}</span>
                   ) : (
-                    <input
-                      ref={idx === items.length - 1 && item._isNew ? firstInputRef : undefined}
-                      type="text"
-                      value={item.productName}
-                      onChange={(e) => handleFieldChange(idx, "productName", e.target.value)}
-                      placeholder="e.g. Bracket assembly"
-                      required
-                      className="w-full min-w-[140px] px-2 py-1 rounded border border-transparent hover:border-slate-300 focus:border-[var(--primary)] focus:outline-none bg-transparent text-sm transition-colors"
-                    />
+                    <div className="relative">
+                      <input
+                        ref={idx === items.length - 1 && item._isNew ? firstInputRef : undefined}
+                        type="text"
+                        value={item.productName}
+                        onChange={(e) => {
+                          handleFieldChange(idx, "productName", e.target.value);
+                          setProductSearch({ ...productSearch, [idx]: e.target.value });
+                          setShowDropdown({ ...showDropdown, [idx]: true });
+                        }}
+                        onFocus={() => {
+                          setProductSearch({ ...productSearch, [idx]: item.productName });
+                          setShowDropdown({ ...showDropdown, [idx]: true });
+                        }}
+                        onBlur={() => setTimeout(() => setShowDropdown({ ...showDropdown, [idx]: false }), 200)}
+                        placeholder="Type to search products…"
+                        required
+                        className="w-full min-w-[140px] px-2 py-1 rounded border border-transparent hover:border-slate-300 focus:border-[var(--primary)] focus:outline-none bg-transparent text-sm transition-colors"
+                      />
+                      {showDropdown[idx] && (
+                        <div className="absolute z-30 left-0 top-full mt-0.5 w-96 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                          {filteredProducts(productSearch[idx] ?? item.productName).length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-slate-400">
+                              {products.length === 0 ? "No products in catalogue" : "No match — press Enter to use typed text"}
+                            </div>
+                          ) : (
+                            filteredProducts(productSearch[idx] ?? item.productName).map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onMouseDown={(e) => { e.preventDefault(); handleProductSelect(idx, p); }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 border-b border-slate-100 last:border-0"
+                              >
+                                <div className="flex items-baseline gap-2">
+                                  <span className="font-medium text-slate-700">{p.name}</span>
+                                  {p.productCode && <span className="text-xs text-slate-400">{p.productCode}</span>}
+                                </div>
+                                {p.category && <span className="text-xs text-slate-400">{typeof p.category === "string" ? p.category : p.category.name}</span>}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </td>
                 {/* Qty */}
@@ -293,13 +351,45 @@ export function ProductRequirementTable({
                 {readOnly ? (
                   <p className="font-medium text-slate-800 dark:text-slate-200">{item.productName || "—"}</p>
                 ) : (
-                  <input
-                    type="text"
-                    value={item.productName}
-                    onChange={(e) => handleFieldChange(idx, "productName", e.target.value)}
-                    placeholder="Product / part name"
-                    className="w-full px-2 py-1 rounded border border-slate-200 focus:border-[var(--primary)] focus:outline-none bg-transparent text-sm font-medium"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={item.productName}
+                      onChange={(e) => {
+                        handleFieldChange(idx, "productName", e.target.value);
+                        setProductSearch({ ...productSearch, [idx]: e.target.value });
+                        setShowDropdown({ ...showDropdown, [idx]: true });
+                      }}
+                      onFocus={() => {
+                        setProductSearch({ ...productSearch, [idx]: item.productName });
+                        setShowDropdown({ ...showDropdown, [idx]: true });
+                      }}
+                      onBlur={() => setTimeout(() => setShowDropdown({ ...showDropdown, [idx]: false }), 200)}
+                      placeholder="Type to search products…"
+                      className="w-full px-2 py-1 rounded border border-slate-200 focus:border-[var(--primary)] focus:outline-none bg-transparent text-sm font-medium"
+                    />
+                    {showDropdown[idx] && (
+                      <div className="absolute z-20 left-0 top-full mt-0.5 w-full max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                        {filteredProducts(productSearch[idx] ?? item.productName).length === 0 ? (
+                          <div className="px-3 py-2 text-xs text-slate-400">
+                            {products.length === 0 ? "No products in catalogue" : "No match — type to use custom name"}
+                          </div>
+                        ) : (
+                          filteredProducts(productSearch[idx] ?? item.productName).map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={(e) => { e.preventDefault(); handleProductSelect(idx, p); }}
+                              className="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 border-b border-slate-50 last:border-0"
+                            >
+                              <span className="font-medium text-slate-700">{p.name}</span>
+                              {p.productCode && <span className="text-xs text-slate-400 ml-2">{p.productCode}</span>}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               {!readOnly && (

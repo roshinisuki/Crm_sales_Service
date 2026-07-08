@@ -32,8 +32,17 @@ async function main() {
   await prisma.followUp.deleteMany({});        // references Lead & Customer
   await prisma.dealStageHistory.deleteMany({});
   await prisma.opportunityDetail.deleteMany({});
+  await prisma.opportunityRequirementItem.deleteMany({});
+  await prisma.opportunityTechnicalNote.deleteMany({});
   await prisma.proposal.deleteMany({});
   await prisma.approvalHistory.deleteMany({});
+  await prisma.rFQ.deleteMany({});            // references Deal via opportunityId
+  await prisma.quotationItem.deleteMany({});
+  await prisma.quotation.deleteMany({});       // references Deal via dealId
+  await prisma.negotiationRevision.deleteMany({});
+  await prisma.negotiation.deleteMany({});     // references Deal via dealId
+  await prisma.purchaseOrderItem.deleteMany({});
+  await prisma.purchaseOrder.deleteMany({});
   await prisma.deal.deleteMany({});            // references Customer
   await prisma.leadOwnerHistory.deleteMany({});
   await prisma.lead.deleteMany({});            // referenced by FollowUp
@@ -49,7 +58,6 @@ async function main() {
   await prisma.salesTarget.deleteMany({});
   await prisma.territory.deleteMany({});
   await prisma.keyAccount.deleteMany({});
-  await prisma.rFQ.deleteMany({});
   await prisma.invoice.deleteMany({});
   await prisma.supportTicket.deleteMany({});
   await prisma.lostDealAnalysis.deleteMany({});
@@ -63,11 +71,9 @@ async function main() {
   await prisma.productSpecification.deleteMany({});
   await prisma.product.deleteMany({});
   await prisma.productCategory.deleteMany({});
-  await prisma.quotationItem.deleteMany({});
-  await prisma.negotiationRevision.deleteMany({});
-  await prisma.purchaseOrderItem.deleteMany({});
   await prisma.proposalVersion.deleteMany({});
   await prisma.pipelineStage.deleteMany({});
+  await prisma.pipelineStageMaster.deleteMany({});
   await prisma.exchangeRate.deleteMany({});
   await prisma.emailTemplate.deleteMany({});
   await prisma.whatsAppTemplate.deleteMany({});
@@ -145,16 +151,16 @@ async function main() {
   // ---- Customers ----
   console.log("Seeding customers...");
   const customersData = [
-    { code: "CUST-001", name: "Tata Motors Ltd.", email: "procurement@tatamotors.com", phone: "+91-9876501001", city: "Pune", status: "Active" },
-    { code: "CUST-002", name: "Ashok Leyland Industries", email: "supply@ashokleyland.com", phone: "+91-9845501002", city: "Chennai", status: "Active" },
-    { code: "CUST-003", name: "L&T Heavy Engineering", email: "vendor@larsentoubro.com", phone: "+91-9823501003", city: "Mumbai", status: "Active" },
-    { code: "CUST-004", name: "JSW Steel Ltd.", email: "ops@jswsteel.com", phone: "+91-9912501004", city: "Bangalore", status: "Active" },
-    { code: "CUST-005", name: "TVS Motor Company", email: "procurement@tvsmotors.com", phone: "+91-9898501005", city: "Hosur", status: "Inactive" },
-    { code: "CUST-006", name: "Bharat Forge Ltd.", email: "supply@bharatforge.com", phone: "+91-9867501006", city: "Pune", status: "Active" },
-    { code: "CUST-007", name: "Amara Raja Batteries", email: "contact@amararaja.com", phone: "+91-9876501007", city: "Hyderabad", status: "Inactive" },
-    { code: "CUST-008", name: "Bosch India Pvt. Ltd.", email: "vendor@boschindia.com", phone: "+91-9845501008", city: "Bangalore", status: "Active" },
-    { code: "CUST-009", name: "Mahindra & Mahindra", email: "procurement@mahindra.com", phone: "+91-9823501009", city: "Mumbai", status: "Active" },
-    { code: "CUST-010", name: "Kirloskar Electric Co.", email: "supply@kirloskar.com", phone: "+91-9912501010", city: "Bangalore", status: "Active" },
+    { code: "CUST-001", name: "Tata Motors Ltd.", email: "procurement@tatamotors.com", phone: "+91-9876501001", city: "Pune", status: "Active", industryType: "Automotive" },
+    { code: "CUST-002", name: "Ashok Leyland Industries", email: "supply@ashokleyland.com", phone: "+91-9845501002", city: "Chennai", status: "Active", industryType: "Automotive" },
+    { code: "CUST-003", name: "L&T Heavy Engineering", email: "vendor@larsentoubro.com", phone: "+91-9823501003", city: "Mumbai", status: "Active", industryType: "Heavy Engineering" },
+    { code: "CUST-004", name: "JSW Steel Ltd.", email: "ops@jswsteel.com", phone: "+91-9912501004", city: "Bangalore", status: "Active", industryType: "Steel & Metals" },
+    { code: "CUST-005", name: "TVS Motor Company", email: "procurement@tvsmotors.com", phone: "+91-9898501005", city: "Hosur", status: "Inactive", industryType: "Automotive" },
+    { code: "CUST-006", name: "Bharat Forge Ltd.", email: "supply@bharatforge.com", phone: "+91-9867501006", city: "Pune", status: "Active", industryType: "Forging" },
+    { code: "CUST-007", name: "Amara Raja Batteries", email: "contact@amararaja.com", phone: "+91-9876501007", city: "Hyderabad", status: "Inactive", industryType: "Battery Manufacturing" },
+    { code: "CUST-008", name: "Bosch India Pvt. Ltd.", email: "vendor@boschindia.com", phone: "+91-9845501008", city: "Bangalore", status: "Active", industryType: "Auto Components" },
+    { code: "CUST-009", name: "Mahindra & Mahindra", email: "procurement@mahindra.com", phone: "+91-9823501009", city: "Mumbai", status: "Active", industryType: "Automotive" },
+    { code: "CUST-010", name: "Kirloskar Electric Co.", email: "supply@kirloskar.com", phone: "+91-9912501010", city: "Bangalore", status: "Active", industryType: "Electrical Equipment" },
   ];
   const createdCustomers: any[] = [];
   for (const c of customersData) {
@@ -167,6 +173,7 @@ async function main() {
         phone: c.phone,
         city: c.city,
         status: c.status,
+        industryType: c.industryType,
         companyId: defaultCompany.id,
         updatedAt: now,
       },
@@ -422,21 +429,21 @@ async function main() {
   // ---- Leads ----
   console.log("Seeding leads...");
   const leadsData = [
-    { name: "Ravi Kumar",     email: "ravi.kumar@tatamotors.com",       phone: "+91-9876543210", city: "Pune",        source: "Exhibition",     notes: "Interested in hydraulic press maintenance contract. Met at IMTEX 2026." },
-    { name: "Suresh Reddy",   email: "suresh.reddy@ashokleyland.com",   phone: "+91-9845123456", city: "Chennai",     source: "Referral",      notes: "Enquiry for CNC machine parts supply — referred by Bosch India account." },
-    { name: "Anita Sharma",   email: "anita.sharma@larsen.com",         phone: "+91-9823456789", city: "Mumbai",     source: "Cold Call",     notes: "Requires custom steel fabrication for auto components — urgent requirement Q3." },
-    { name: "Vikram Singh",   email: "vikram.singh@jswsteel.com",       phone: "+91-9912345678", city: "Bangalore",  source: "LinkedIn",      notes: "Looking for industrial automation vendor. Currently evaluating 3 suppliers." },
-    { name: "Priya Nair",     email: "priya.nair@tvsmotors.com",        phone: "+91-9898765432", city: "Hosur",      source: "Website",       notes: "Submitted RFQ for 500 units of precision-machined components per month." },
-    { name: "Arun Kumar",     email: "arun.kumar@bharatforge.com",      phone: "+91-9867890123", city: "Pune",        source: "WhatsApp",      notes: "Forging process upgrade enquiry. Wants technical demo at plant." },
-    { name: "Karthik Iyer",   email: "karthik.iyer@amararaja.com",      phone: "+91-9876012345", city: "Hyderabad",  source: "Email Campaign",notes: "Battery assembly line equipment requirement — timeline: 6 months." },
-    { name: "Deepa Menon",    email: "deepa.menon@boschindia.com",      phone: "+91-9845234567", city: "Bangalore",  source: "Referral",      notes: "Quality control system upgrade for fuel injector line. Budget pre-approved." },
-    { name: "Rajesh Patel",   email: "rajesh.patel@mahindra.com",       phone: "+91-9823678901", city: "Mumbai",     source: "Exhibition",     notes: "Tractor transmission component sourcing. Visited stall at Auto Expo 2026." },
-    { name: "Sunita Kapoor",  email: "sunita.kapoor@kirloskar.com",     phone: "+91-9912456789", city: "Bangalore",  source: "Cold Call",     notes: "Motor winding upgrade project. Technical evaluation stage." },
-    { name: "Mohit Jain",     email: "mohit.jain@cummins.co.in",        phone: "+91-9867012345", city: "Pune",        source: "LinkedIn",      notes: "Generator set components — annual contract potential ₹45L." },
-    { name: "Kavitha Rajan",  email: "kavitha.rajan@thermax.com",       phone: "+91-9876789012", city: "Pune",        source: "Website",       notes: "Boiler maintenance services RFQ. Decision expected by end of month." },
+    { name: "Ravi Kumar",     companyName: "Tata Motors Ltd.",     email: "ravi.kumar@tatamotors.com",       phone: "+91-9876543210", city: "Pune",        source: "Exhibition",     industryType: "Automotive",           budgetAsked: "₹50-75L", timelineAsked: "Q3 2026", estimatedValue: 7500000, notes: "Interested in hydraulic press maintenance contract. Met at IMTEX 2026." },
+    { name: "Suresh Reddy",   companyName: "Ashok Leyland Industries", email: "suresh.reddy@ashokleyland.com", phone: "+91-9845123456", city: "Chennai",     source: "Referral",      industryType: "Automotive",           budgetAsked: "₹20-30L", timelineAsked: "2 months",  estimatedValue: 3000000, notes: "Enquiry for CNC machine parts supply — referred by Bosch India account." },
+    { name: "Anita Sharma",   companyName: "L&T Heavy Engineering", email: "anita.sharma@larsen.com",       phone: "+91-9823456789", city: "Mumbai",     source: "Cold Call",     industryType: "Heavy Engineering",     budgetAsked: "₹1-1.5Cr", timelineAsked: "Q3 2026",  estimatedValue: 15000000, notes: "Requires custom steel fabrication for auto components — urgent requirement Q3." },
+    { name: "Vikram Singh",   companyName: "JSW Steel Ltd.",       email: "vikram.singh@jswsteel.com",       phone: "+91-9912345678", city: "Bangalore",  source: "LinkedIn",      industryType: "Steel & Metals",        budgetAsked: "₹40-60L", timelineAsked: "4 months",  estimatedValue: 6000000, notes: "Looking for industrial automation vendor. Currently evaluating 3 suppliers." },
+    { name: "Priya Nair",     companyName: "TVS Motor Company",    email: "priya.nair@tvsmotors.com",        phone: "+91-9898765432", city: "Hosur",      source: "Website",       industryType: "Automotive",           budgetAsked: "₹15-25L", timelineAsked: "3 months",  estimatedValue: 2500000, notes: "Submitted RFQ for 500 units of precision-machined components per month." },
+    { name: "Arun Kumar",     companyName: "Bharat Forge Ltd.",    email: "arun.kumar@bharatforge.com",      phone: "+91-9867890123", city: "Pune",        source: "WhatsApp",      industryType: "Forging",               budgetAsked: "₹80L-1Cr", timelineAsked: "6 months", estimatedValue: 10000000, notes: "Forging process upgrade enquiry. Wants technical demo at plant." },
+    { name: "Karthik Iyer",   companyName: "Amara Raja Batteries", email: "karthik.iyer@amararaja.com",      phone: "+91-9876012345", city: "Hyderabad",  source: "Email Campaign",industryType: "Battery Manufacturing",  budgetAsked: "₹35-50L", timelineAsked: "6 months",  estimatedValue: 5000000, notes: "Battery assembly line equipment requirement — timeline: 6 months." },
+    { name: "Deepa Menon",    companyName: "Bosch India Pvt. Ltd.", email: "deepa.menon@boschindia.com",     phone: "+91-9845234567", city: "Bangalore",  source: "Referral",      industryType: "Auto Components",       budgetAsked: "₹25-40L", timelineAsked: "Q4 2026",  estimatedValue: 4000000, notes: "Quality control system upgrade for fuel injector line. Budget pre-approved." },
+    { name: "Rajesh Patel",   companyName: "Mahindra & Mahindra",  email: "rajesh.patel@mahindra.com",       phone: "+91-9823678901", city: "Mumbai",     source: "Exhibition",     industryType: "Automotive",           budgetAsked: "₹30-45L", timelineAsked: "5 months",  estimatedValue: 4500000, notes: "Tractor transmission component sourcing. Visited stall at Auto Expo 2026." },
+    { name: "Sunita Kapoor",  companyName: "Kirloskar Electric Co.", email: "sunita.kapoor@kirloskar.com",   phone: "+91-9912456789", city: "Bangalore",  source: "Cold Call",     industryType: "Electrical Equipment",   budgetAsked: "₹10-20L", timelineAsked: "Q4 2026",  estimatedValue: 2000000, notes: "Motor winding upgrade project. Technical evaluation stage." },
+    { name: "Mohit Jain",     companyName: "Cummins",             email: "mohit.jain@cummins.co.in",        phone: "+91-9867012345", city: "Pune",        source: "LinkedIn",      industryType: "Power Generation",      budgetAsked: "₹45L", timelineAsked: "Annual",     estimatedValue: 4500000, notes: "Generator set components — annual contract potential ₹45L." },
+    { name: "Kavitha Rajan",  companyName: "Thermax",             email: "kavitha.rajan@thermax.com",       phone: "+91-9876789012", city: "Pune",        source: "Website",       industryType: "Boiler & Energy",       budgetAsked: "₹20-35L", timelineAsked: "1 month",   estimatedValue: 3500000, notes: "Boiler maintenance services RFQ. Decision expected by end of month." },
   ];
   const leadStatuses = ["New", "Contacted", "FollowUpDue", "SQL", "Qualified", "Converted", "Lost"];
-  const createdLeads: { id: string; name: string }[] = [];
+  const createdLeads: { id: string; name: string; companyName: string; email: string; phone: string; industryType: string; budgetAsked: string; timelineAsked: string; estimatedValue: number; notes: string }[] = [];
   for (let i = 0; i < leadsData.length; i++) {
     const exec = execs[i % execs.length];
     const ld = leadsData[i];
@@ -446,18 +453,23 @@ async function main() {
         id: leadId,
         leadCode: `LEAD-${String(i + 1).padStart(4, "0")}`,
         name: ld.name,
+        companyName: ld.companyName,
         email: ld.email,
         phone: ld.phone,
         city: ld.city,
         status: leadStatuses[i % leadStatuses.length],
         assignedUserId: exec.id,
         leadSource: ld.source,
+        industryType: ld.industryType,
+        budgetAsked: ld.budgetAsked,
+        timelineAsked: ld.timelineAsked,
+        estimatedValue: ld.estimatedValue,
         notes: ld.notes,
         slaStatus: "Pending",
         companyId: defaultCompany.id,
       },
     });
-    createdLeads.push({ id: leadId, name: ld.name });
+    createdLeads.push({ id: leadId, name: ld.name, companyName: ld.companyName, email: ld.email, phone: ld.phone, industryType: ld.industryType, budgetAsked: ld.budgetAsked, timelineAsked: ld.timelineAsked, estimatedValue: ld.estimatedValue, notes: ld.notes });
   }
   console.log(`${leadsData.length} leads created.`);
 
@@ -511,23 +523,58 @@ async function main() {
     "Battery Assembly Line Equipment", "Quality Control System — Bosch", "Tractor Component Sourcing — Mahindra",
     "Generator Set Components — Cummins Annual"
   ];
-  const dealStatuses = ["SalesOpportunity", "Won", "Lost"];
+  const dealStatuses = ["Qualified", "RequirementGathering", "TechnicalDiscussion", "MeetingScheduled", "DemoConducted", "Won", "Lost"];
   for (let i = 0; i < dealNames.length; i++) {
     const exec = execs[i % execs.length];
     const customer = createdCustomers[i % createdCustomers.length];
+    const lead = createdLeads[i % createdLeads.length];
     const closeDate = new Date(now);
     closeDate.setDate(closeDate.getDate() + 30 + i * 5);
-    await prisma.deal.create({
+
+    // Link customer to lead so the API can auto-fill from lead data
+    await prisma.customer.update({
+      where: { id: customer.id },
+      data: { convertedFromLead: lead.id },
+    });
+
+    const deal = await prisma.deal.create({
       data: {
         id: uuidv4(),
         dealName: dealNames[i],
         customerId: customer.id,
-        dealValue: 10000 + i * 2500,
+        dealValue: lead.estimatedValue || (10000 + i * 2500),
         expectedCloseDate: closeDate,
         assignedUserId: exec.id,
         status: dealStatuses[i % dealStatuses.length],
         notes: `Sample deal created via seed script.`,
         companyId: defaultCompany.id,
+      },
+    });
+
+    // Create OpportunityDetail with data auto-filled from the originating lead
+    await prisma.opportunityDetail.create({
+      data: {
+        dealId: deal.id,
+        companyName:   customer.name,
+        industry:      customer.industryType || lead.industryType,
+        contactPerson: lead.name,
+        email:         lead.email,
+        phone:         lead.phone,
+        budgetRange:   lead.budgetAsked,
+        timeline:      lead.timelineAsked,
+        decisionMaker: lead.name,
+        businessNeed:  lead.notes,
+        expectedBudget: lead.estimatedValue,
+      },
+    });
+
+    // Create Deal Stage History for the initial stage
+    await prisma.dealStageHistory.create({
+      data: {
+        dealId: deal.id,
+        fromStatus: null,
+        toStatus: dealStatuses[i % dealStatuses.length],
+        changedById: exec.id,
       },
     });
   }
@@ -685,30 +732,29 @@ async function main() {
   }
   console.log(`${extraTasks.length} additional tasks created.`);
 
-  // ---- Pipeline Stages (Variant 2) ----
+  // ---- Pipeline Stage Master (canonical stage definitions that control behavior) ----
   console.log("Seeding default pipeline stages...");
   const defaultStages = [
-    { name: 'New Lead', order: 1, color: '#378ADD' },
-    { name: 'Qualified', order: 2, color: '#10B981' },
-    { name: 'Requirement Gathering', order: 3, color: '#F59E0B' },
-    { name: 'Technical Discussion', order: 4, color: '#8B5CF6' },
-    { name: 'Meeting Scheduled', order: 5, color: '#EC4899' },
-    { name: 'Demo Conducted', order: 6, color: '#06B6D4' },
-    { name: 'Proposal Sent', order: 7, color: '#84CC16' },
-    { name: 'Won', order: 8, color: '#22C55E' },
-    { name: 'Lost', order: 9, color: '#EF4444' },
+    { stageName: 'Qualified',             displayName: 'Qualified',              displayOrder: 1, probabilityPercent: 20, isClosedStage: false },
+    { stageName: 'RequirementGathering',  displayName: 'Requirement Gathering',  displayOrder: 2, probabilityPercent: 35, isClosedStage: false },
+    { stageName: 'TechnicalDiscussion',   displayName: 'Technical Discussion',   displayOrder: 3, probabilityPercent: 50, isClosedStage: false },
+    { stageName: 'MeetingScheduled',      displayName: 'Meeting Scheduled',      displayOrder: 4, probabilityPercent: 60, isClosedStage: false },
+    { stageName: 'DemoConducted',         displayName: 'Demo Conducted',         displayOrder: 5, probabilityPercent: 75, isClosedStage: false },
+    { stageName: 'Won',                   displayName: 'Won',                    displayOrder: 6, probabilityPercent: 100, isClosedStage: true },
+    { stageName: 'Rejected',              displayName: 'Rejected',               displayOrder: 0, probabilityPercent: 0, isClosedStage: true },
+    { stageName: 'Lost',                  displayName: 'Lost',                   displayOrder: 0, probabilityPercent: 0, isClosedStage: true },
   ];
-  
-  // Get all companies (should be just one in this setup, but we'll handle multiple)
+
   const companies = await prisma.company.findMany();
   for (const company of companies) {
     for (const stage of defaultStages) {
-      await prisma.pipelineStage.create({
+      await prisma.pipelineStageMaster.create({
         data: {
-          id: uuidv4(),
-          name: stage.name,
-          order: stage.order,
-          color: stage.color,
+          stageName: stage.stageName,
+          displayName: stage.displayName,
+          displayOrder: stage.displayOrder,
+          probabilityPercent: stage.probabilityPercent,
+          isClosedStage: stage.isClosedStage,
           isActive: true,
           companyId: company.id,
         },
@@ -716,6 +762,213 @@ async function main() {
     }
   }
   console.log(`${defaultStages.length} pipeline stages seeded for ${companies.length} company/companies.`);
+
+  // ---- Product Categories ----
+  console.log("Seeding product categories...");
+  const categoriesData = [
+    { name: "CNC Machined Components", description: "Precision-machined parts for automotive and industrial applications", defaultOverhead: 15, defaultMargin: 20 },
+    { name: "Forging Components", description: "Forged parts and assemblies for heavy machinery", defaultOverhead: 18, defaultMargin: 22 },
+    { name: "Hydraulic Systems", description: "Hydraulic presses, cylinders, and maintenance parts", defaultOverhead: 12, defaultMargin: 18 },
+    { name: "Steel Fabrication", description: "Custom steel fabrication and structural components", defaultOverhead: 20, defaultMargin: 25 },
+    { name: "Industrial Automation", description: "Automation systems, PLC panels, and control units", defaultOverhead: 10, defaultMargin: 15 },
+    { name: "Battery Assembly Equipment", description: "Equipment for battery manufacturing and assembly lines", defaultOverhead: 14, defaultMargin: 20 },
+    { name: "Quality Control Systems", description: "Inspection systems, gauges, and testing equipment", defaultOverhead: 12, defaultMargin: 18 },
+    { name: "Electrical Equipment", description: "Motors, windings, and electrical components", defaultOverhead: 13, defaultMargin: 19 },
+    { name: "Power Generation Components", description: "Generator set parts and power equipment", defaultOverhead: 16, defaultMargin: 22 },
+    { name: "Boiler & Energy Systems", description: "Boiler components, heat exchangers, and energy systems", defaultOverhead: 18, defaultMargin: 24 },
+  ];
+  const createdCategories: Record<string, string> = {};
+  for (const cat of categoriesData) {
+    const created = await prisma.productCategory.create({
+      data: {
+        name: cat.name,
+        description: cat.description,
+        isActive: true,
+        defaultOverheadPercent: cat.defaultOverhead,
+        defaultMarginPercent: cat.defaultMargin,
+        companyId: defaultCompany.id,
+      },
+    });
+    createdCategories[cat.name] = created.id;
+  }
+  console.log(`${categoriesData.length} product categories created.`);
+
+  // ---- Products ----
+  console.log("Seeding products...");
+  const productsData = [
+    { code: "PRD-001", name: "CNC Bracket Assembly — Type A",        category: "CNC Machined Components",      unit: "pcs",  basePrice: 450,   hsn: "8473",    type: "Finished" },
+    { code: "PRD-002", name: "CNC Shaft Housing — 50mm bore",        category: "CNC Machined Components",      unit: "pcs",  basePrice: 680,   hsn: "8473",    type: "Finished" },
+    { code: "PRD-003", name: "Precision Flange — EN8 Steel",         category: "CNC Machined Components",      unit: "pcs",  basePrice: 320,   hsn: "8484",    type: "Finished" },
+    { code: "PRD-004", name: "CNC Valve Body — SS316",               category: "CNC Machined Components",      unit: "pcs",  basePrice: 1200,  hsn: "8481",    type: "Finished" },
+    { code: "PRD-005", name: "Connecting Rod Forging — EN24",        category: "Forging Components",           unit: "pcs",  basePrice: 850,   hsn: "8431",    type: "Finished" },
+    { code: "PRD-006", name: "Crankshaft Forging Blank",             category: "Forging Components",           unit: "pcs",  basePrice: 2200,  hsn: "8431",    type: "Semi-Finished" },
+    { code: "PRD-007", name: "Hydraulic Press Cylinder — 100 Ton",   category: "Hydraulic Systems",            unit: "set",  basePrice: 85000, hsn: "8412",    type: "Finished" },
+    { code: "PRD-008", name: "Hydraulic Seal Kit — Standard",        category: "Hydraulic Systems",            unit: "kit",  basePrice: 3500,  hsn: "8484",    type: "Consumable" },
+    { code: "PRD-009", name: "Hydraulic Press Maintenance Package",  category: "Hydraulic Systems",            unit: "job",  basePrice: 25000, hsn: "9987",    type: "Service" },
+    { code: "PRD-010", name: "Steel Fabrication Frame — Custom",     category: "Steel Fabrication",            unit: "pcs",  basePrice: 15000, hsn: "7308",    type: "Finished" },
+    { code: "PRD-011", name: "Structural Steel Bracket — IS2062",    category: "Steel Fabrication",            unit: "pcs",  basePrice: 2800,  hsn: "7308",    type: "Finished" },
+    { code: "PRD-012", name: "PLC Control Panel — Siemens S7-1500",  category: "Industrial Automation",        unit: "set",  basePrice: 125000,hsn: "8537",    type: "Finished" },
+    { code: "PRD-013", name: "SCADA Monitoring System — Industrial", category: "Industrial Automation",        unit: "set",  basePrice: 95000, hsn: "8537",    type: "Finished" },
+    { code: "PRD-014", name: "Battery Cell Assembly Jig",            category: "Battery Assembly Equipment",   unit: "pcs",  basePrice: 45000, hsn: "8479",    type: "Finished" },
+    { code: "PRD-015", name: "Battery Welding Station — Laser Type", category: "Battery Assembly Equipment",   unit: "set",  basePrice: 180000,hsn: "8515",    type: "Finished" },
+    { code: "PRD-016", name: "Fuel Injector Inspection Gauge",       category: "Quality Control Systems",      unit: "pcs",  basePrice: 8500,  hsn: "9031",    type: "Finished" },
+    { code: "PRD-017", name: "Automated Vision Inspection System",   category: "Quality Control Systems",      unit: "set",  basePrice: 220000,hsn: "9031",    type: "Finished" },
+    { code: "PRD-018", name: "Motor Winding — 3-Phase 50HP",         category: "Electrical Equipment",         unit: "pcs",  basePrice: 18500, hsn: "8501",    type: "Finished" },
+    { code: "PRD-019", name: "Stator Core Assembly — 100kW",         category: "Electrical Equipment",         unit: "pcs",  basePrice: 32000, hsn: "8501",    type: "Finished" },
+    { code: "PRD-020", name: "Generator Set Alternator — 250kVA",    category: "Power Generation Components",  unit: "pcs",  basePrice: 145000,hsn: "8501",    type: "Finished" },
+    { code: "PRD-021", name: "Engine Cooling Radiator — Genset",     category: "Power Generation Components",  unit: "pcs",  basePrice: 28000, hsn: "8419",    type: "Finished" },
+    { code: "PRD-022", name: "Boiler Tube Bundle — SA210 Grade A1",  category: "Boiler & Energy Systems",      unit: "set",  basePrice: 95000, hsn: "8402",    type: "Finished" },
+    { code: "PRD-023", name: "Heat Exchanger Shell — Carbon Steel",  category: "Boiler & Energy Systems",      unit: "pcs",  basePrice: 68000, hsn: "8419",    type: "Finished" },
+    { code: "PRD-024", name: "Tractor Transmission Gear Set",        category: "CNC Machined Components",      unit: "set",  basePrice: 35000, hsn: "8483",    type: "Finished" },
+  ];
+  for (const p of productsData) {
+    await prisma.product.create({
+      data: {
+        productCode: p.code,
+        name: p.name,
+        categoryId: createdCategories[p.category] || null,
+        unit: p.unit,
+        basePrice: p.basePrice,
+        hsnCode: p.hsn,
+        productType: p.type,
+        isActive: true,
+        companyId: defaultCompany.id,
+      },
+    });
+  }
+  console.log(`${productsData.length} products created.`);
+
+  // ---- Master Data for Costing ----
+  console.log("Seeding master data for costing...");
+
+  // Material Rates
+  const materialRates = [
+    { code: "MAT-001", name: "EN8 Steel Round Bar", unitRate: 85, unit: "kg" },
+    { code: "MAT-002", name: "EN24 Steel Round Bar", unitRate: 120, unit: "kg" },
+    { code: "MAT-003", name: "SS316 Stainless Steel", unitRate: 350, unit: "kg" },
+    { code: "MAT-004", name: "Aluminum 6061", unitRate: 180, unit: "kg" },
+    { code: "MAT-005", name: "Carbon Steel Plate IS2062", unitRate: 65, unit: "kg" },
+    { code: "MAT-006", name: "Brass Rod", unitRate: 280, unit: "kg" },
+    { code: "MAT-007", name: "Copper Wire", unitRate: 450, unit: "kg" },
+    { code: "MAT-008", name: "Cast Iron", unitRate: 45, unit: "kg" },
+  ];
+  for (const mr of materialRates) {
+    await prisma.materialRate.create({
+      data: {
+        materialCode: mr.code,
+        materialName: mr.name,
+        unitRate: mr.unitRate,
+        unit: mr.unit,
+        currency: "INR",
+        validFrom: new Date("2024-01-01"),
+        companyId: defaultCompany.id,
+      },
+    });
+  }
+  console.log(`${materialRates.length} material rates created.`);
+
+  // Labor Rates
+  const laborRates = [
+    { workCenter: "CNC-Machining", hourlyRate: 450, setupRate: 200 },
+    { workCenter: "Forging-Press", hourlyRate: 380, setupRate: 150 },
+    { workCenter: "Hydraulic-Assembly", hourlyRate: 320, setupRate: 100 },
+    { workCenter: "Welding-Fabrication", hourlyRate: 350, setupRate: 120 },
+    { workCenter: "Electrical-Assembly", hourlyRate: 400, setupRate: 150 },
+    { workCenter: "Quality-Inspection", hourlyRate: 280, setupRate: 80 },
+    { workCenter: "Packaging", hourlyRate: 180, setupRate: 50 },
+  ];
+  for (const lr of laborRates) {
+    await prisma.laborRate.create({
+      data: {
+        workCenter: lr.workCenter,
+        hourlyRate: lr.hourlyRate,
+        setupRate: lr.setupRate,
+        currency: "INR",
+        validFrom: new Date("2024-01-01"),
+        companyId: defaultCompany.id,
+      },
+    });
+  }
+  console.log(`${laborRates.length} labor rates created.`);
+
+  // BOM Items (Bill of Materials)
+  const bomItems = [
+    // CNC Bracket Assembly
+    { productCode: "PRD-001", materialCode: "MAT-001", quantity: 2.5, scrap: 5 },
+    { productCode: "PRD-001", materialCode: "MAT-003", quantity: 0.8, scrap: 3 },
+    // CNC Shaft Housing
+    { productCode: "PRD-002", materialCode: "MAT-002", quantity: 3.2, scrap: 6 },
+    { productCode: "PRD-002", materialCode: "MAT-003", quantity: 1.2, scrap: 4 },
+    // Connecting Rod Forging
+    { productCode: "PRD-005", materialCode: "MAT-002", quantity: 4.5, scrap: 8 },
+    { productCode: "PRD-005", materialCode: "MAT-008", quantity: 1.8, scrap: 5 },
+    // Hydraulic Press Cylinder
+    { productCode: "PRD-007", materialCode: "MAT-003", quantity: 8.5, scrap: 4 },
+    { productCode: "PRD-007", materialCode: "MAT-006", quantity: 2.3, scrap: 3 },
+    // PLC Control Panel
+    { productCode: "PRD-012", materialCode: "MAT-004", quantity: 5.2, scrap: 5 },
+    { productCode: "PRD-012", materialCode: "MAT-007", quantity: 1.5, scrap: 2 },
+  ];
+  for (const bom of bomItems) {
+    const product = await prisma.product.findFirst({
+      where: { productCode: bom.productCode, companyId: defaultCompany.id },
+    });
+    if (product) {
+      await prisma.bOMItem.create({
+        data: {
+          productId: product.id,
+          materialCode: bom.materialCode,
+          quantity: bom.quantity,
+          scrapPercent: bom.scrap,
+          companyId: defaultCompany.id,
+        },
+      });
+    }
+  }
+  console.log(`${bomItems.length} BOM items created.`);
+
+  // Routing Operations
+  const routingOps = [
+    // CNC Bracket Assembly
+    { productCode: "PRD-001", sequence: 1, operation: "CNC Roughing", workCenter: "CNC-Machining", cycleTime: 15, setup: 5 },
+    { productCode: "PRD-001", sequence: 2, operation: "CNC Finishing", workCenter: "CNC-Machining", cycleTime: 20, setup: 8 },
+    { productCode: "PRD-001", sequence: 3, operation: "Quality Inspection", workCenter: "Quality-Inspection", cycleTime: 10, setup: 3 },
+    // CNC Shaft Housing
+    { productCode: "PRD-002", sequence: 1, operation: "CNC Turning", workCenter: "CNC-Machining", cycleTime: 25, setup: 10 },
+    { productCode: "PRD-002", sequence: 2, operation: "CNC Milling", workCenter: "CNC-Machining", cycleTime: 18, setup: 7 },
+    { productCode: "PRD-002", sequence: 3, operation: "Grinding", workCenter: "CNC-Machining", cycleTime: 12, setup: 5 },
+    // Connecting Rod Forging
+    { productCode: "PRD-005", sequence: 1, operation: "Heating", workCenter: "Forging-Press", cycleTime: 8, setup: 15 },
+    { productCode: "PRD-005", sequence: 2, operation: "Forging", workCenter: "Forging-Press", cycleTime: 12, setup: 20 },
+    { productCode: "PRD-005", sequence: 3, operation: "Trimming", workCenter: "Forging-Press", cycleTime: 6, setup: 8 },
+    // Hydraulic Press Cylinder
+    { productCode: "PRD-007", sequence: 1, operation: "Tube Cutting", workCenter: "Welding-Fabrication", cycleTime: 20, setup: 12 },
+    { productCode: "PRD-007", sequence: 2, operation: "Welding", workCenter: "Welding-Fabrication", cycleTime: 35, setup: 18 },
+    { productCode: "PRD-007", sequence: 3, operation: "Assembly", workCenter: "Hydraulic-Assembly", cycleTime: 45, setup: 25 },
+    // PLC Control Panel
+    { productCode: "PRD-012", sequence: 1, operation: "Panel Fabrication", workCenter: "Welding-Fabrication", cycleTime: 30, setup: 15 },
+    { productCode: "PRD-012", sequence: 2, operation: "Component Assembly", workCenter: "Electrical-Assembly", cycleTime: 60, setup: 30 },
+    { productCode: "PRD-012", sequence: 3, operation: "Testing", workCenter: "Quality-Inspection", cycleTime: 25, setup: 10 },
+  ];
+  for (const route of routingOps) {
+    const product = await prisma.product.findFirst({
+      where: { productCode: route.productCode, companyId: defaultCompany.id },
+    });
+    if (product) {
+      await prisma.routingOperation.create({
+        data: {
+          productId: product.id,
+          sequence: route.sequence,
+          operationName: route.operation,
+          workCenter: route.workCenter,
+          cycleTimeMin: route.cycleTime,
+          setupTimeMin: route.setup,
+          companyId: defaultCompany.id,
+        },
+      });
+    }
+  }
+  console.log(`${routingOps.length} routing operations created.`);
 
   // ---- Service Workspace Seeding ----
   await seedServiceWorkspace(prisma);

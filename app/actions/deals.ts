@@ -479,6 +479,15 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
         throw new Error("Validation Failed: Must complete required Meeting fields (Date, Type, Status).");
       }
     }
+    // TechnicalDiscussion: requires at least one product requirement item
+    if (status === "TechnicalDiscussion") {
+      const reqItemCount = await prisma.opportunityRequirementItem.count({
+        where: { dealId: id },
+      });
+      if (reqItemCount === 0) {
+        throw new Error("Validation Failed: Must add at least one product requirement before entering Technical Discussion.");
+      }
+    }
     if (status === "ProposalSent") {
       if (!details || !details.proposedSolution) {
         throw new Error("Validation Failed: Must fill in Proposed Solution before sending proposal.");
@@ -491,7 +500,7 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
     const { normalizeStage } = await import("@/lib/module-status-config");
     const normalizedStatus = normalizeStage(status);
     if (!normalizedStatus) {
-      return { success: false, message: `Invalid stage "${status}". Valid stages: Qualified, RequirementGathering, MeetingScheduled, DemoConducted, Rejected, Lost` };
+      return { success: false, message: `Invalid stage "${status}". Valid stages: Qualified, RequirementGathering, TechnicalDiscussion, MeetingScheduled, DemoConducted, Won, Lost, Rejected` };
     }
 
     // Use centralized transitionDealStatus for all status changes

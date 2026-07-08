@@ -473,7 +473,7 @@ export default function RFQDetailPage() {
 
         {/* KPI metrics row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="crm-card p-5 flex items-center justify-between">
+          <div className="crm-card p-5 flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Costed Value</p>
               <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">₹{costedValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
@@ -482,7 +482,7 @@ export default function RFQDetailPage() {
               <DollarSign size={20} />
             </div>
           </div>
-          <div className="crm-card p-5 flex items-center justify-between">
+          <div className="crm-card p-5 flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Costing Items</p>
               <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{pendingItemsCount} of {totalItemsCount}</h3>
@@ -491,7 +491,7 @@ export default function RFQDetailPage() {
               <Clock size={20} />
             </div>
           </div>
-          <div className="crm-card p-5 flex items-center justify-between">
+          <div className="crm-card p-5 flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="space-y-1">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Margin</p>
               <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{avgMargin}%</h3>

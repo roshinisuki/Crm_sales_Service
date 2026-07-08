@@ -29,7 +29,7 @@ export async function GET(
       where: { id, deletedAt: null, companyId: user.companyId },
       include: {
         customer: {
-          select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, status: true, industryType: true },
+          select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, status: true, industryType: true, convertedFromLead: true },
         },
         assignedUser: { select: { id: true, name: true, email: true } },
         opportunityDetail: true,
@@ -100,7 +100,21 @@ export async function GET(
       take: 10,
     });
 
-    return NextResponse.json({ success: true, data: { ...deal, rfqs } });
+    // Fetch the originating lead (if deal was created from lead conversion)
+    // so the frontend can auto-fill Qualified/RG fields from lead data
+    let lead: any = null;
+    if (deal.customer?.convertedFromLead) {
+      lead = await prisma.lead.findUnique({
+        where: { id: deal.customer.convertedFromLead },
+        select: {
+          id: true, name: true, companyName: true, email: true, phone: true,
+          city: true, industryType: true, budgetAsked: true, timelineAsked: true,
+          estimatedValue: true, leadSource: true, notes: true, designation: true,
+        },
+      });
+    }
+
+    return NextResponse.json({ success: true, data: { ...deal, rfqs, lead } });
   } catch (error: any) {
     console.error("[GET /api/opportunities/[id]] error:", error);
     return NextResponse.json(

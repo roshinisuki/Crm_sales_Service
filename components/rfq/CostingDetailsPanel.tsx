@@ -119,21 +119,28 @@ export function CostingDetailsPanel({
 
     if (lineItem.productId) {
       setLoadingDefaults(true);
-      fetch(`/api/catalogue/products/${lineItem.productId}/costing-defaults`)
+      fetch(`/api/rfq/${rfqId}/line-items/${lineItem.id}/auto-fill`)
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
-            setDefaults(data.data);
+            setDefaults({
+              materialCost: data.data.material_cost,
+              labourCost: data.data.labour_cost,
+              overheadPercent: data.data.overhead_percent,
+              marginPercent: data.data.margin_percent,
+              bomFound: data.data.sources.material_cost === "bom",
+              routingFound: data.data.sources.labour_cost === "routing",
+            });
             // Pre-fill breaks that don't have sheets saved yet
             setTierForms((prev) => {
               const updated = { ...prev };
               for (const qb of lineItem.quantityBreaks) {
                 if (!updated[qb.id]) {
                   updated[qb.id] = {
-                    material_cost: String(data.data.materialCost),
+                    material_cost: String(data.data.material_cost),
                     labour_cost: String(data.data.labourCost),
-                    overhead_percent: String(data.data.overheadPercent),
-                    margin_percent: String(data.data.marginPercent),
+                    overhead_percent: String(data.data.overhead_percent),
+                    margin_percent: String(data.data.margin_percent),
                     freight_cost: "0",
                     packaging_cost: "0",
                     tooling_cost: "0",

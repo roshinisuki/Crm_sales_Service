@@ -1139,6 +1139,12 @@ export async function convertLeadToDealAction(
     if (!lead) return { success: false, message: "Lead not found" };
     if (lead.status === "Converted") return { success: false, message: "Lead is already converted" };
 
+    // Gate: Lead should be SQL or Qualified before conversion
+    // Admin/SalesManager can bypass this gate
+    if (!["SQL", "Qualified", "Converted"].includes(lead.status) && !["Admin", "SalesManager"].includes(userPayload.role)) {
+      return { success: false, message: "Lead must be qualified (SQL status) before conversion. Only managers can bypass this gate." };
+    }
+
     // Access scope check
     if (!checkRecordScope(userPayload, lead, "Lead")) {
       return { success: false, message: "Unauthorized: Access denied." };
@@ -1236,13 +1242,15 @@ export async function convertLeadToDealAction(
       await tx.opportunityDetail.create({
         data: {
           dealId: deal.id,
-          companyName: lead.name,
+          companyName: lead.companyName || lead.name,
           email: lead.email,
           phone: lead.phone,
           contactPerson: lead.name,
+          industry: lead.industryType,
           budgetRange: lead.budgetAsked,
           timeline: lead.timelineAsked,
           decisionMaker: lead.name,
+          businessNeed: lead.notes,
         }
       });
 
@@ -1444,6 +1452,13 @@ export async function convertLeadV2Action(
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     if (!lead) return { success: false, message: "Lead not found." };
     if (lead.status === "Converted") return { success: false, message: "Lead is already converted." };
+
+    // Gate: Lead should be SQL or Qualified before conversion
+    // Admin/SalesManager can bypass this gate
+    if (!["SQL", "Qualified", "Converted"].includes(lead.status) && !["Admin", "SalesManager"].includes(userPayload.role)) {
+      return { success: false, message: "Lead must be qualified (SQL status) before conversion. Only managers can bypass this gate." };
+    }
+
     if (!checkRecordScope(userPayload, lead, "Lead")) {
       return { success: false, message: "Unauthorized: Access denied." };
     }
@@ -1536,6 +1551,7 @@ export async function convertLeadV2Action(
           timeline: lead.timelineAsked,
           decisionMaker: lead.name,
           industry: lead.industryType || null,
+          businessNeed: lead.notes || null,
           // V5: leadVerified maps from lead.isGenuine (avoids businessNeed key collision)
           leadVerified: lead.isGenuine ?? false,
         },

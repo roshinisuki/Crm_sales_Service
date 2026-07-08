@@ -1,0 +1,40 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/quotations-expire",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/rfq-autoclose",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/tasks-overdue",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/visits-auto-checkout",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/visits-missed",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/subscriptions",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/update-target-achievements",
+      "schedule": "0 23 * * *"
+    },
+    {
+      "path": "/api/cron/nightly-batch",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/proposals",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

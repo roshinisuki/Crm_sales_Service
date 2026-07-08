@@ -2414,8 +2414,10 @@ model MaterialRate {
   validFrom    DateTime
   validTo      DateTime?
   supplierId   String?
+  companyId    String?
 
   @@index([materialCode, validFrom])
+  @@index([companyId])
 }
 
 model LaborRate {
@@ -2426,8 +2428,10 @@ model LaborRate {
   currency    String    @default("INR")
   validFrom   DateTime
   validTo     DateTime?
+  companyId    String?
 
   @@index([workCenter, validFrom])
+  @@index([companyId])
 }
 
 model BOMItem {
@@ -2437,8 +2441,11 @@ model BOMItem {
   materialCode String
   quantity     Decimal  @db.Decimal(12, 4)
   scrapPercent Decimal  @db.Decimal(5, 2) @default(0)
+  companyId    String?
 
   @@index([productId])
+  @@index([materialCode])
+  @@index([companyId])
 }
 
 model RoutingOperation {
@@ -2449,9 +2456,12 @@ model RoutingOperation {
   operationName String
   workCenter    String
   cycleTimeMin  Decimal  @db.Decimal(10, 3)
-  setupTimeMin  Decimal  @db.Decimal(10, 3) @default(0)
+  setupTimeMin Decimal  @db.Decimal(10, 3) @default(0)
+  companyId    String?
 
   @@index([productId, sequence])
+  @@index([workCenter])
+  @@index([companyId])
 }
 
 model RFQLineItemQuantityBreak {

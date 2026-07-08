@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
+import { transitionDealStatus } from "@/lib/dealService";
 
 // Create a Deal from an Accepted Quotation.
 // Links the quotation back to the new deal via `quotation.dealId`.
@@ -47,7 +48,7 @@ export async function POST(
   const finalAssignedUserId = user.role === "SalesExecutive" ? user.id : assignedUserId;
 
   const result = await prisma.$transaction(async (tx) => {
-    // 1. Create the Deal
+    // 1. Create the Deal at Qualified (pipeline vocabulary)
     const deal = await tx.deal.create({
       data: {
         dealName,
@@ -56,17 +57,17 @@ export async function POST(
         expectedCloseDate,
         assignedUserId: finalAssignedUserId,
         notes: `Created from Quotation ${existing.quotationCode}. ${notes || ""}`.trim(),
-        status: "Active",
+        status: "Qualified",
         companyId: user.companyId,
       },
     });
 
-    // 2. Log stage history
+    // 2. Record initial stage history
     await tx.dealStageHistory.create({
       data: {
         dealId: deal.id,
         fromStatus: null,
-        toStatus: "Active",
+        toStatus: "Qualified",
         changedById: user.id,
       },
     });
@@ -76,6 +77,14 @@ export async function POST(
       where: { id: existing.id },
       data: { dealId: deal.id },
     });
+
+    // 4. Transition to Won through the centralized state machine
+    // (quotation is already Accepted, so the Won gate will pass)
+    await transitionDealStatus(deal.id, "Won", {
+      actorId: user.id,
+      reason: `Won via quotation ${existing.quotationCode} acceptance (deal created from quotation)`,
+      companyId: user.companyId!,
+    }, tx);
 
     return deal;
   });

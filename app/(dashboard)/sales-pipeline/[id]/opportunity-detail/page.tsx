@@ -596,32 +596,46 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         notes: json.data.notes || "",
         assignedUserId: json.data.assignedUserId || "",
       });
-      // Initialize RG form from opportunityDetail
+      // Initialize RG form from opportunityDetail, auto-filling from customer/contact/lead
       const d = json.data.opportunityDetail || {};
+      const cust = json.data.customer || {};
+      const lead = json.data.lead || null;
+      const primaryContact = json.data.opportunityContacts?.find((oc: any) => oc.isPrimary)?.contact
+        || json.data.opportunityContacts?.[0]?.contact
+        || null;
+
+      // Auto-fill priority: opportunityDetail (saved) > lead (originating) > customer (master)
+      const autoFill = (detailVal: any, leadVal: any, custVal: any) => {
+        if (detailVal !== null && detailVal !== undefined && String(detailVal).trim() !== "") return detailVal;
+        if (leadVal !== null && leadVal !== undefined && String(leadVal).trim() !== "") return leadVal;
+        if (custVal !== null && custVal !== undefined && String(custVal).trim() !== "") return custVal;
+        return "";
+      };
+
       setRgForm({
-        // Customer details
-        companyName:      d.companyName || "",
-        industry:         d.industry || "",
-        contactPerson:    d.contactPerson || "",
-        email:            d.email || "",
-        phone:            d.phone || "",
+        // Customer details — auto-fill from lead/customer/contact
+        companyName:      autoFill(d.companyName, lead?.companyName || lead?.name, cust.name),
+        industry:         autoFill(d.industry, lead?.industryType, cust.industryType),
+        contactPerson:    autoFill(d.contactPerson, lead?.name, primaryContact?.name),
+        email:            autoFill(d.email, lead?.email, cust.email || primaryContact?.email),
+        phone:            autoFill(d.phone, lead?.phone, cust.phone || primaryContact?.phone),
         employeeCount:    d.employeeCount || "",
         approvalProcess:  d.approvalProcess || "",
         buyingAuthorityNotes: d.buyingAuthorityNotes || "",
         // Business requirements (manufacturing-relevant)
         currentChallenges: d.currentChallenges || "",
-        businessNeed:     d.businessNeed || "",
+        businessNeed:     autoFill(d.businessNeed, lead?.notes, ""),
         urgencyPriority:  d.urgencyPriority || "",
         expectedOutcome:  d.expectedOutcome || "",
         currentVendor:    d.currentVendor || "",
         competitorsEvaluated: d.competitorsEvaluated || "",
-        // Commercial information
-        budgetRange:      d.budgetRange || "",
-        timeline:         d.timeline || "",
-        expectedBudget:   d.expectedBudget || "",
+        // Commercial information — auto-fill budget/timeline from lead
+        budgetRange:      autoFill(d.budgetRange, lead?.budgetAsked, ""),
+        timeline:         autoFill(d.timeline, lead?.timelineAsked, ""),
+        expectedBudget:   d.expectedBudget || (lead?.estimatedValue ? String(lead.estimatedValue) : ""),
         finalDiscussedBudget: d.finalDiscussedBudget || "",
         procurementProcess: d.procurementProcess || "",
-        decisionMaker:    d.decisionMaker || "",
+        decisionMaker:    autoFill(d.decisionMaker, lead?.name, primaryContact?.name),
         influencer:       d.influencer || "",
         budgetOwner:      d.budgetOwner || "",
         expectedGoLive:   d.expectedGoLive ? d.expectedGoLive.split("T")[0] : "",
@@ -629,7 +643,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         competitorInfo:   d.competitorInfo || "",
         // Internal notes (consolidated)
         additionalNotes:  d.additionalNotes || d.internalSalesNotes || "",
-        internalSalesNotes: d.internalSalesNotes || "",  // alias for backward compat
+        internalSalesNotes: d.internalSalesNotes || "",
         // Meeting Scheduled
         meetingType:      d.meetingType || "",
         meetingMode:      d.meetingMode || "",
@@ -1533,9 +1547,15 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField label="Budget discussed">
                 <Input value={rgForm.budgetRange || ""} onChange={(e) => setRgForm({ ...rgForm, budgetRange: e.target.value })} />
+                {deal?.lead?.budgetAsked && !deal?.opportunityDetail?.budgetRange && (
+                  <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
+                )}
               </FormField>
               <FormField label="Timeline">
                 <Input value={rgForm.timeline || ""} onChange={(e) => setRgForm({ ...rgForm, timeline: e.target.value })} />
+                {deal?.lead?.timelineAsked && !deal?.opportunityDetail?.timeline && (
+                  <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
+                )}
               </FormField>
               <FormField label="Lead is genuine (verified requirement)" className="md:col-span-2">
                 <Select
@@ -1595,11 +1615,36 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               </button>
               {rgExpanded.customer_info && (
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField label="Company Name"><Input value={rgForm.companyName || ""} onChange={(e) => setRgForm({ ...rgForm, companyName: e.target.value })} /></FormField>
-                  <FormField label="Industry"><Input value={rgForm.industry || ""} onChange={(e) => setRgForm({ ...rgForm, industry: e.target.value })} /></FormField>
-                  <FormField label="Contact Person" required error={rgAttempted && !rgForm.contactPerson ? "This field is required" : ""}><Input value={rgForm.contactPerson || ""} onChange={(e) => setRgForm({ ...rgForm, contactPerson: e.target.value })} className={cn(rgAttempted && !rgForm.contactPerson && "border-rose-500")} /></FormField>
-                  <FormField label="Email" required error={rgAttempted && !rgForm.email ? "This field is required" : ""}><Input value={rgForm.email || ""} onChange={(e) => setRgForm({ ...rgForm, email: e.target.value })} className={cn(rgAttempted && !rgForm.email && "border-rose-500")} /></FormField>
-                  <FormField label="Phone" required error={rgAttempted && !rgForm.phone ? "This field is required" : ""}><Input value={rgForm.phone || ""} onChange={(e) => setRgForm({ ...rgForm, phone: e.target.value })} className={cn(rgAttempted && !rgForm.phone && "border-rose-500")} /></FormField>
+                  <FormField label="Company Name">
+                    <Input value={rgForm.companyName || ""} onChange={(e) => setRgForm({ ...rgForm, companyName: e.target.value })} />
+                    {deal?.lead && !deal?.opportunityDetail?.companyName && rgForm.companyName && (
+                      <p className="text-xs text-slate-400 mt-1">Auto-filled from lead/customer</p>
+                    )}
+                  </FormField>
+                  <FormField label="Industry">
+                    <Input value={rgForm.industry || ""} onChange={(e) => setRgForm({ ...rgForm, industry: e.target.value })} />
+                    {deal?.lead?.industryType && !deal?.opportunityDetail?.industry && rgForm.industry && (
+                      <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
+                    )}
+                  </FormField>
+                  <FormField label="Contact Person" required error={rgAttempted && !rgForm.contactPerson ? "This field is required" : ""}>
+                    <Input value={rgForm.contactPerson || ""} onChange={(e) => setRgForm({ ...rgForm, contactPerson: e.target.value })} className={cn(rgAttempted && !rgForm.contactPerson && "border-rose-500")} />
+                    {deal?.lead && !deal?.opportunityDetail?.contactPerson && rgForm.contactPerson && (
+                      <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
+                    )}
+                  </FormField>
+                  <FormField label="Email" required error={rgAttempted && !rgForm.email ? "This field is required" : ""}>
+                    <Input value={rgForm.email || ""} onChange={(e) => setRgForm({ ...rgForm, email: e.target.value })} className={cn(rgAttempted && !rgForm.email && "border-rose-500")} />
+                    {deal?.lead && !deal?.opportunityDetail?.email && rgForm.email && (
+                      <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
+                    )}
+                  </FormField>
+                  <FormField label="Phone" required error={rgAttempted && !rgForm.phone ? "This field is required" : ""}>
+                    <Input value={rgForm.phone || ""} onChange={(e) => setRgForm({ ...rgForm, phone: e.target.value })} className={cn(rgAttempted && !rgForm.phone && "border-rose-500")} />
+                    {deal?.lead && !deal?.opportunityDetail?.phone && rgForm.phone && (
+                      <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
+                    )}
+                  </FormField>
                   <FormField label="Employee Count"><Input type="number" value={rgForm.employeeCount || ""} onChange={(e) => setRgForm({ ...rgForm, employeeCount: e.target.value })} /></FormField>
                   <FormField label="Approval Process"><Textarea rows={2} value={rgForm.approvalProcess || ""} onChange={(e) => setRgForm({ ...rgForm, approvalProcess: e.target.value })} /></FormField>
                   <FormField label="Buying Authority Notes"><Textarea rows={2} value={rgForm.buyingAuthorityNotes || ""} onChange={(e) => setRgForm({ ...rgForm, buyingAuthorityNotes: e.target.value })} /></FormField>
@@ -1616,7 +1661,6 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               {rgExpanded.business_req && (
                 <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField label="Current Challenges" required error={rgAttempted && !rgForm.currentChallenges ? "This field is required" : ""}><Textarea rows={3} value={rgForm.currentChallenges || ""} onChange={(e) => setRgForm({ ...rgForm, currentChallenges: e.target.value })} className={cn(rgAttempted && !rgForm.currentChallenges && "border-rose-500")} /></FormField>
-                  <FormField label="Pain Points"><Textarea rows={3} value={rgForm.painPoints || ""} onChange={(e) => setRgForm({ ...rgForm, painPoints: e.target.value })} /></FormField>
                   <FormField label="Business Need" required error={rgAttempted && !rgForm.businessNeed ? "This field is required" : ""}><Textarea rows={3} value={rgForm.businessNeed || ""} onChange={(e) => setRgForm({ ...rgForm, businessNeed: e.target.value })} className={cn(rgAttempted && !rgForm.businessNeed && "border-rose-500")} /></FormField>
                   <FormField label="Expected Outcome"><Textarea rows={3} value={rgForm.expectedOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, expectedOutcome: e.target.value })} /></FormField>
                   <FormField label="Required Departments"><Input value={rgForm.requiredDepartments || ""} onChange={(e) => setRgForm({ ...rgForm, requiredDepartments: e.target.value })} /></FormField>
@@ -1630,9 +1674,6 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                       <option value="Critical">Critical</option>
                     </Select>
                   </FormField>
-                  <FormField label="Business Goals"><Textarea rows={2} value={rgForm.businessGoals || ""} onChange={(e) => setRgForm({ ...rgForm, businessGoals: e.target.value })} /></FormField>
-                  <FormField label="Success Criteria"><Textarea rows={2} value={rgForm.successCriteria || ""} onChange={(e) => setRgForm({ ...rgForm, successCriteria: e.target.value })} /></FormField>
-                  <FormField label="Modules Required"><Textarea rows={2} value={rgForm.modulesRequired || ""} onChange={(e) => setRgForm({ ...rgForm, modulesRequired: e.target.value })} /></FormField>
                 </div>
               )}
             </div>
@@ -1654,6 +1695,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     onSaveItem={handleSaveRequirementItem}
                     onDeleteItem={handleDeleteRequirementItem}
                     readOnly={isReviewingCompleted || !canEditOpportunity(user, deal)}
+                    products={products}
                   />
                 </div>
               )}
@@ -2434,21 +2476,13 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             <FormField label="Pricing Model">
               <Select value={rgForm.pricingModel || ""} onChange={(e) => setRgForm({ ...rgForm, pricingModel: e.target.value })}>
                 <option value="">Select...</option>
-                <option value="Subscription">Subscription</option>
-                <option value="One-time">One-time</option>
-                <option value="Usage-based">Usage-based</option>
+                <option value="Per Unit">Per Unit</option>
+                <option value="Fixed Price">Fixed Price</option>
+                <option value="Cost Plus">Cost Plus</option>
+                <option value="Milestone-based">Milestone-based</option>
               </Select>
             </FormField>
-            <FormField label="License Count"><Input type="number" value={rgForm.licenseCount || ""} onChange={(e) => setRgForm({ ...rgForm, licenseCount: e.target.value })} /></FormField>
             <FormField label="Payment Terms"><Input value={rgForm.paymentTerms || ""} onChange={(e) => setRgForm({ ...rgForm, paymentTerms: e.target.value })} /></FormField>
-            <FormField label="Billing Cycle">
-              <Select value={rgForm.billingCycle || ""} onChange={(e) => setRgForm({ ...rgForm, billingCycle: e.target.value })}>
-                <option value="">Select...</option>
-                <option value="Monthly">Monthly</option>
-                <option value="Quarterly">Quarterly</option>
-                <option value="Annual">Annual</option>
-              </Select>
-            </FormField>
             <FormField label="Competitor Info"><Input value={rgForm.competitorInfo || ""} onChange={(e) => setRgForm({ ...rgForm, competitorInfo: e.target.value })} /></FormField>
             <FormField label="Commercial Risks"><Textarea rows={2} value={rgForm.commercialRisks || ""} onChange={(e) => setRgForm({ ...rgForm, commercialRisks: e.target.value })} /></FormField>
             <FormField label="Discount Requested"><Input type="number" value={rgForm.discountRequested || ""} onChange={(e) => setRgForm({ ...rgForm, discountRequested: e.target.value })} /></FormField>
@@ -2714,6 +2748,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 onSaveItem={async () => {}}
                 onDeleteItem={async () => {}}
                 readOnly={true}
+                products={products}
               />
             </div>
           </div>

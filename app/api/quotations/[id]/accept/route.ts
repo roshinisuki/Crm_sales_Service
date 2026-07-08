@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { transitionDealStatus } from "@/lib/dealService";
 
 export async function POST(
   request: NextRequest,
@@ -46,7 +47,7 @@ export async function POST(
         },
       });
 
-      // 3. If opportunity_id: update opportunity status to Won
+      // 3. If opportunity_id: transition deal to Won via centralized state machine
       if (existing.dealId) {
         const deal = await tx.deal.findUnique({
           where: { id: existing.dealId },
@@ -54,25 +55,19 @@ export async function POST(
         });
 
         if (deal && deal.status !== "Won") {
-          await tx.deal.update({
-            where: { id: deal.id },
-            data: { status: "Won" },
-          });
-
-          await tx.dealStageHistory.create({
-            data: {
-              dealId: deal.id,
-              fromStatus: deal.status,
-              toStatus: "Won",
-              changedById: user.id,
-              outcomeNotes: `Won via quotation ${existing.quotationCode} acceptance`,
-            },
-          });
+          // Use transitionDealStatus for proper history, audit, customer sync, notifications
+          await transitionDealStatus(deal.id, "Won", {
+            actorId: user.id,
+            reason: `Won via quotation ${existing.quotationCode} acceptance`,
+            companyId: user.companyId!,
+          }, tx);
         }
       }
 
-      // 4. If account is Prospect: activate it
-      if (existing.customer && existing.customer.status === "Prospect") {
+      // 4. Customer status sync is handled by transitionDealStatus on Won
+      // (sets to ActiveCustomer with AccountStatusHistory)
+      // Only handle Prospect→Active if there's no linked deal (edge case)
+      if (existing.customer && existing.customer.status === "Prospect" && !existing.dealId) {
         await tx.customer.update({
           where: { id: existing.customerId },
           data: { status: "Active", accountType: "Customer" },
