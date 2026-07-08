@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import { logoutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/ui-utils";
@@ -46,6 +46,8 @@ export default function DashboardHeader({
   onMobileMenuClick?: () => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const isServiceWorkspace = pathname?.startsWith("/service");
   const toast = useToast();
   const now = useClock();
 
@@ -133,12 +135,27 @@ export default function DashboardHeader({
 
   useEffect(() => {
     if (searchQuery.trim().length > 0) {
-      setModuleResults(searchModules(searchQuery, activeVariant));
+      let results = searchModules(searchQuery, activeVariant);
+      if (isServiceWorkspace) {
+        results = [
+          { key: "requests", label: "Service Requests", href: "/service/requests", icon: "🛠️" },
+          { key: "complaints", label: "Complaints", href: "/service/complaints", icon: "⚠️" },
+          { key: "defects", label: "Defects", href: "/service/defects", icon: "🔍" },
+          { key: "installations", label: "Installations", href: "/service/installations", icon: "🔨" },
+          { key: "warranty-amc", label: "Warranty & AMC", href: "/service/warranty-amc", icon: "🛡️" },
+          { key: "visits", label: "Service Visits", href: "/service/visits", icon: "📅" },
+          { key: "assets", label: "Customer Assets", href: "/service/assets", icon: "📂" },
+          { key: "settings", label: "Service Settings", href: "/service/settings", icon: "⚙️" },
+        ].filter(m => m.label.toLowerCase().includes(searchQuery.toLowerCase()) || m.key.toLowerCase().includes(searchQuery.toLowerCase())) as any;
+      } else {
+        results = results.filter(m => !m.href.startsWith("/service"));
+      }
+      setModuleResults(results);
     } else {
       setModuleResults([]);
       setHighlightedIndex(-1);
     }
-  }, [searchQuery, activeVariant]);
+  }, [searchQuery, activeVariant, isServiceWorkspace]);
 
   const markAllRead = () => {
     fetch("/api/notifications", { method: "PATCH" }).catch(() => {});
@@ -209,7 +226,7 @@ export default function DashboardHeader({
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setIsSearchOpen(true); }}
             onKeyDown={handleSearchKeyDown}
-            placeholder={SEARCH_PLACEHOLDERS[activeVariant] ?? SEARCH_PLACEHOLDERS[1]}
+            placeholder={isServiceWorkspace ? "Search requests, complaints, defects, assets..." : (SEARCH_PLACEHOLDERS[activeVariant] ?? SEARCH_PLACEHOLDERS[1])}
             className="w-[220px] lg:w-[300px] h-[30px] pl-8 pr-3 rounded-lg bg-[var(--surface-2)] text-xs text-[var(--text-primary)] placeholder:text-slate-400 border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] focus:bg-[var(--surface)] transition-all"
           />
 

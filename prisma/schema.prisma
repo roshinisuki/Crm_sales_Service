@@ -116,6 +116,8 @@ model User {
   ciCreated                   CompetitorInvolvement[]    @relation("CompetitorInvolvementCreator")
   ciUpdated                   CompetitorInvolvement[]    @relation("CompetitorInvolvementUpdater")
   ciDiscountApproved          CompetitorInvolvement[]    @relation("CompetitorInvolvementDiscountApprover")
+  managedTeams                ServiceTeam[]              @relation("TeamManager")
+  serviceEngineers            ServiceEngineer[]          @relation("UserEngineer")
 
   @@index([role])
   @@index([isActive])
@@ -177,6 +179,7 @@ model Customer {
   supportTickets         SupportTicket[]
   territoryAccounts      TerritoryAccount[]
   competitorInvolvements  CompetitorInvolvement[] @relation("CompetitorInvolvementCustomer")
+  assets                  CustomerAsset[]         @relation("CustomerAssets")
 
   @@index([customerCode])
   @@index([status])
@@ -2246,3 +2249,90 @@ model CompetitorInvolvement {
   @@index([companyId])
   @@index([finalResult])
 }
+
+model ServiceCategory {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.NVarChar(Max)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ComplaintType {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.NVarChar(Max)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DefectType {
+  id          String   @id @default(uuid())
+  name        String
+  description String?  @db.NVarChar(Max)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PriorityLevel {
+  id            String   @id @default(uuid())
+  name          String
+  color         String
+  slaLimitHours Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ServiceStatus {
+  id                 String   @id @default(uuid())
+  name               String
+  color              String
+  order              Int
+  allowedTransitions String?  @db.NVarChar(Max) // stored as JSON
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model ServiceTeam {
+  id          String            @id @default(uuid())
+  name        String
+  description String?           @db.NVarChar(Max)
+  managerId   String?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  manager     User?             @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  engineers   ServiceEngineer[]
+}
+
+model ServiceEngineer {
+  id             String      @id @default(uuid())
+  userId         String
+  teamId         String
+  specialization String?
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  user           User        @relation("UserEngineer", fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  team           ServiceTeam @relation(fields: [teamId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model CustomerAsset {
+  id                 String    @id @default(uuid())
+  customerId         String
+  serialNumber       String    @unique
+  productName        String
+  purchaseDate       DateTime?
+  warrantyExpiryDate DateTime?
+  amcExpiryDate      DateTime?
+  status             String    @default("Active")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  customer           Customer  @relation("CustomerAssets", fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+

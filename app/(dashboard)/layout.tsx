@@ -17,7 +17,7 @@ import {
   CheckSquare, Settings, LogOut, Menu, X, TrendingUp, Building,
   ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo,
   Package, FileText, DollarSign, MessageSquare, Clock, Target, Layers, MapPin, Search,
-  Swords, Crown, Globe, Trophy
+  Swords, Crown, Globe, Trophy, Wrench, ShieldAlert, Hammer, LifeBuoy, AlertTriangle, HelpCircle, Calendar
 } from "lucide-react";
 
 // ─── Nav definitions ─────────────────────────────────────────────────────────
@@ -768,6 +768,79 @@ function SidebarContent({
   const isVariant3 = (user?.variant || user?.company?.variant || 1) >= 3;
   const isVariant4 = (user?.variant || user?.company?.variant || 1) >= 4;
   const activeVariant: number = user?.variant || user?.company?.variant || 1;
+  const isServiceWorkspace = pathname.startsWith("/service");
+
+  const serviceRequestSubItems = [
+    { href: "/service/requests", label: "All Requests" },
+    { href: "/service/requests?status=New", label: "New Requests" },
+    { href: "/service/requests?status=Assigned", label: "Assigned Requests" },
+    { href: "/service/requests?status=In Progress", label: "In Progress" },
+    { href: "/service/requests?status=Pending Customer", label: "Pending Requests" },
+    { href: "/service/requests?status=Closed", label: "Closed Requests" },
+  ];
+
+  const serviceComplaintSubItems = [
+    { href: "/service/complaints", label: "All Complaints" },
+    { href: "/service/complaints?status=New", label: "Open Complaints" },
+    { href: "/service/complaints?status=Investigating", label: "Under Investigation" },
+    { href: "/service/complaints?status=Resolved", label: "Resolved Complaints" },
+    { href: "/service/complaints?status=Closed", label: "Closed Complaints" },
+  ];
+
+  const serviceDefectSubItems = [
+    { href: "/service/defects", label: "All Defects" },
+    { href: "/service/defects?status=New", label: "New Defects" },
+    { href: "/service/defects?status=Under Investigation", label: "Under Investigation" },
+    { href: "/service/defects?status=Corrective Action", label: "Corrective Action" },
+    { href: "/service/defects?status=Closed", label: "Closed Defects" },
+  ];
+
+  const serviceInstallationSubItems = [
+    { href: "/service/installations", label: "All Installations" },
+    { href: "/service/installations?status=Scheduled", label: "Scheduled Installations" },
+    { href: "/service/installations?status=In Progress", label: "In Progress" },
+    { href: "/service/installations?status=Completed", label: "Completed Installations" },
+  ];
+
+  const serviceWarrantyAMCSubItems = [
+    { href: "/service/warranty-amc?status=WarrantyActive", label: "Active Warranty" },
+    { href: "/service/warranty-amc?status=Claim", label: "Warranty Claims" },
+    { href: "/service/warranty-amc?status=AMCActive", label: "Active AMC" },
+    { href: "/service/warranty-amc?status=Renewals", label: "AMC Renewals" },
+  ];
+
+  const serviceVisitSubItems = [
+    { href: "/service/visits", label: "All Visits" },
+    { href: "/service/visits?status=Scheduled", label: "Scheduled Visits" },
+    { href: "/service/visits?status=Emergency", label: "Emergency Visits" },
+    { href: "/service/visits?status=Completed", label: "Completed Visits" },
+    { href: "/service/visits?status=Overdue", label: "Overdue Visits" },
+  ];
+
+  const serviceAssetSubItems = [
+    { href: "/service/assets", label: "Installed Products" },
+    { href: "/service/assets?status=Warranty", label: "Under Warranty" },
+    { href: "/service/assets?status=AMC", label: "Under AMC" },
+  ];
+
+  const serviceReportSubItems = [
+    { href: "/service/reports?report=requests", label: "Service Request Report" },
+    { href: "/service/reports?report=complaints", label: "Complaint Report" },
+    { href: "/service/reports?report=defects", label: "Defect Report" },
+    { href: "/service/reports?report=installations", label: "Installation Report" },
+    { href: "/service/reports?report=warranty", label: "Warranty & AMC Report" },
+    { href: "/service/reports?report=engineer", label: "Engineer Performance Report" },
+  ];
+
+  const serviceSettingsSubItems = [
+    { href: "/service/settings?tab=categories", label: "Service Categories" },
+    { href: "/service/settings?tab=complaints", label: "Complaint Types" },
+    { href: "/service/settings?tab=defects", label: "Defect Types" },
+    { href: "/service/settings?tab=teams", label: "Service Teams" },
+    { href: "/service/settings?tab=engineers", label: "Service Engineers" },
+    { href: "/service/settings?tab=priorities", label: "Priority Levels" },
+    { href: "/service/settings?tab=statuses", label: "Service Status" },
+  ];
 
   // Accordion: only one section open at a time
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -1052,24 +1125,66 @@ function SidebarContent({
       {/* ── Logo / Brand ── */}
       <div
         className={cn(
-          "shrink-0 flex items-center justify-center border-b border-white/[0.07]",
-          collapsed ? "px-0 py-4" : "px-4 py-4"
+          "shrink-0 flex flex-col gap-2 border-b border-white/[0.07]",
+          collapsed ? "px-0 py-4 items-center justify-center" : "px-4 py-4"
         )}
       >
-        {collapsed ? (
-          <Logo
-            theme={logoTheme}
-            variant="mark-only"
-            size={38}
-            className="transition-all duration-300 hover:scale-105"
-          />
-        ) : (
-          <Logo
-            theme={logoTheme}
-            variant="full"
-            size={46}
-            className="transition-all duration-300 hover:scale-105"
-          />
+        <div className="flex items-center justify-center">
+          {collapsed ? (
+            <Logo
+              theme={logoTheme}
+              variant="mark-only"
+              size={38}
+              className="transition-all duration-300 hover:scale-105"
+            />
+          ) : (
+            <Logo
+              theme={logoTheme}
+              variant="full"
+              size={46}
+              className="transition-all duration-300 hover:scale-105"
+            />
+          )}
+        </div>
+
+        {/* Workspace Switcher */}
+        {!collapsed && (
+          <div className="relative group/switcher mt-2">
+            <button 
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-[11px] font-bold"
+            >
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  isServiceWorkspace ? "bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" : "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                )} />
+                <span>{isServiceWorkspace ? "Service Workspace" : "Sales CRM"}</span>
+              </div>
+              <ChevronDown size={12} className="opacity-60" />
+            </button>
+            <div className="absolute left-0 right-0 top-full mt-1.5 rounded-xl border border-white/10 bg-[#121214] p-1.5 shadow-2xl opacity-0 invisible group-hover/switcher:opacity-100 group-hover/switcher:visible transition-all z-50 space-y-1">
+              <Link 
+                href="/dashboard"
+                className={cn(
+                  "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold hover:bg-white/5 transition-all text-left",
+                  !isServiceWorkspace ? "text-white bg-white/5" : "text-white/60"
+                )}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                Sales CRM
+              </Link>
+              <Link 
+                href="/service/dashboard/my"
+                className={cn(
+                  "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold hover:bg-white/5 transition-all text-left",
+                  isServiceWorkspace ? "text-white bg-white/5" : "text-white/60"
+                )}
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                Service Workspace
+              </Link>
+            </div>
+          </div>
         )}
       </div>
 
@@ -1089,132 +1204,253 @@ function SidebarContent({
             Variant: {user?.variant || user?.company?.variant || 1}
           </div>
         )}
-        {/* Dashboards - Expandable section */}
-        <ExpandableNavSection
-          label="Dashboards"
-          icon={<LayoutDashboard size={17} />}
-          subItems={[
-            { href: "/dashboard", label: "Overview" },
-            ...(isVariant2 && !loading && (user?.role === "Admin" || user?.role === "SalesManager") ? [{ href: "/dashboard/manager", label: "Sales Dashboard" }] : []),
-          ]}
-          pathname={pathname}
-          onNavClick={onNavClick}
-          collapsed={collapsed}
-          isOpen={openSection === "Dashboards"}
-          onToggle={makeToggle("Dashboards")}
-          onOpen={openSectionLabel("Dashboards")}
-        />
 
-        {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
+        {isServiceWorkspace ? (
           <>
-            {/* ── Lifecycle modules in sales-flow order ── */}
-            <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Leads"} onToggle={makeToggle("Leads")} onOpen={openSectionLabel("Leads")} />
-            <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Accounts"} onToggle={makeToggle("Accounts")} onOpen={openSectionLabel("Accounts")} />
-            <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} onOpen={openSectionLabel("Contacts")} />
-            <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Activities"} onToggle={makeToggle("Activities")} onOpen={openSectionLabel("Activities")} />
-
-            {isVariant2 && (
-              <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Visits"} onToggle={makeToggle("Customer Visits")} onOpen={openSectionLabel("Customer Visits")} />
-            )}
-
-            {isVariant2 && (
-              <ExpandableNavSection label="Product Catalogue" icon={<Package size={17} />} subItems={productCatalogueSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Product Catalogue"} onToggle={makeToggle("Product Catalogue")} onOpen={openSectionLabel("Product Catalogue")} />
-            )}
-
-            {isVariant3 && (
-              <ExpandableNavSection label="Samples" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Samples"} onToggle={makeToggle("Samples")} onOpen={openSectionLabel("Samples")} />
-            )}
-
-            <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} onOpen={openSectionLabel("Sales Pipeline")} />
-
-            {isVariant2 && (
-              <ExpandableNavSection label="RFQ" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ"} onToggle={makeToggle("RFQ")} onOpen={openSectionLabel("RFQ")} />
-            )}
-
-            {isVariant4 && (
-              <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} onOpen={openSectionLabel("Competitors")} />
-            )}
-            <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />
-            {isVariant3 && (
-              <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} onOpen={openSectionLabel("Negotiations")} />
-            )}
-            {isVariant3 && (
-              <ExpandableNavSection label="Purchase Orders" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Orders"} onToggle={makeToggle("Purchase Orders")} onOpen={openSectionLabel("Purchase Orders")} />
-            )}
-
-            {isVariant2 && (
-              <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Deals"} onToggle={makeToggle("Deals")} onOpen={openSectionLabel("Deals")} />
-            )}
-            <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} onOpen={openSectionLabel("Tasks")} />
-            <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} onOpen={openSectionLabel("Follow Ups")} />
-
-            {isVariant3 && (
-              <ExpandableNavSection label="Documents" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Documents"} onToggle={makeToggle("Documents")} onOpen={openSectionLabel("Documents")} />
-            )}
-            {isVariant4 && (
-              <ExpandableNavSection label="Key Accounts" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Accounts"} onToggle={makeToggle("Key Accounts")} onOpen={openSectionLabel("Key Accounts")} />
-            )}
-            {isVariant4 && (
-              <ExpandableNavSection label="Territories" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territories"} onToggle={makeToggle("Territories")} onOpen={openSectionLabel("Territories")} />
-            )}
-            {isVariant4 && (
-              <ExpandableNavSection label="Targets" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Targets"} onToggle={makeToggle("Targets")} onOpen={openSectionLabel("Targets")} />
-            )}
-
-            {isVariant2 && (
-              <ExpandableNavSection label="Forecast" icon={<Target size={17} />} subItems={forecastSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Forecast"} onToggle={makeToggle("Forecast")} onOpen={openSectionLabel("Forecast")} />
-            )}
-
-            <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Reports"} onToggle={makeToggle("Reports")} onOpen={openSectionLabel("Reports")} />
-
-            {isVariant3 && (
-              <ExpandableNavSection label="Approval Center" icon={<ShieldCheck size={17} />} subItems={approvalCenterSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Approval Center"} onToggle={makeToggle("Approval Center")} onOpen={openSectionLabel("Approval Center")} />
-            )}
+            <ExpandableNavSection
+              label="Dashboard"
+              icon={<LayoutDashboard size={17} />}
+              subItems={[
+                { href: "/service/dashboard/my", label: "My Dashboard" },
+                { href: "/service/dashboard/manager", label: "Service Manager Dashboard" },
+              ]}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Dashboard"}
+              onToggle={makeToggle("Dashboard")}
+              onOpen={openSectionLabel("Dashboard")}
+            />
+            <ExpandableNavSection
+              label="Service Requests"
+              icon={<Wrench size={17} />}
+              subItems={serviceRequestSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Service Requests"}
+              onToggle={makeToggle("Service Requests")}
+              onOpen={openSectionLabel("Service Requests")}
+            />
+            <ExpandableNavSection
+              label="Complaints"
+              icon={<AlertTriangle size={17} />}
+              subItems={serviceComplaintSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Complaints"}
+              onToggle={makeToggle("Complaints")}
+              onOpen={openSectionLabel("Complaints")}
+            />
+            <ExpandableNavSection
+              label="Defects"
+              icon={<HelpCircle size={17} />}
+              subItems={serviceDefectSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Defects"}
+              onToggle={makeToggle("Defects")}
+              onOpen={openSectionLabel("Defects")}
+            />
+            <ExpandableNavSection
+              label="Installations"
+              icon={<Hammer size={17} />}
+              subItems={serviceInstallationSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Installations"}
+              onToggle={makeToggle("Installations")}
+              onOpen={openSectionLabel("Installations")}
+            />
+            <ExpandableNavSection
+              label="Warranty & AMC"
+              icon={<LifeBuoy size={17} />}
+              subItems={serviceWarrantyAMCSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Warranty & AMC"}
+              onToggle={makeToggle("Warranty & AMC")}
+              onOpen={openSectionLabel("Warranty & AMC")}
+            />
+            <ExpandableNavSection
+              label="Service Visits"
+              icon={<Calendar size={17} />}
+              subItems={serviceVisitSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Service Visits"}
+              onToggle={makeToggle("Service Visits")}
+              onOpen={openSectionLabel("Service Visits")}
+            />
+            <ExpandableNavSection
+              label="Customer Assets"
+              icon={<Package size={17} />}
+              subItems={serviceAssetSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Customer Assets"}
+              onToggle={makeToggle("Customer Assets")}
+              onOpen={openSectionLabel("Customer Assets")}
+            />
+            <ExpandableNavSection
+              label="Service Reports"
+              icon={<PieChart size={17} />}
+              subItems={serviceReportSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Service Reports"}
+              onToggle={makeToggle("Service Reports")}
+              onOpen={openSectionLabel("Service Reports")}
+            />
+            <ExpandableNavSection
+              label="Service Settings"
+              icon={<Settings size={17} />}
+              subItems={serviceSettingsSubItems}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Service Settings"}
+              onToggle={makeToggle("Service Settings")}
+              onOpen={openSectionLabel("Service Settings")}
+            />
           </>
-        )}
-
-        {!loading && user?.role === "SuperAdmin" && (
+        ) : (
           <>
-            {!collapsed && (
-              <div className="pt-3 pb-1">
-                <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Platform Admin</p>
-              </div>
-            )}
-            <NavLink item={{ href: "/admin/companies", label: "Companies", icon: <Building2 size={17} /> }} active={pathname.startsWith("/admin/companies")} onClick={onNavClick} collapsed={collapsed} />
-            <NavLink item={{ href: "/admin/system-configs", label: "System Configs", icon: <Settings size={17} /> }} active={pathname.startsWith("/admin/system-configs")} onClick={onNavClick} collapsed={collapsed} />
-          </>
-        )}
+            {/* Dashboards - Expandable section */}
+            <ExpandableNavSection
+              label="Dashboards"
+              icon={<LayoutDashboard size={17} />}
+              subItems={[
+                { href: "/dashboard", label: "Overview" },
+                ...(isVariant2 && !loading && (user?.role === "Admin" || user?.role === "SalesManager") ? [{ href: "/dashboard/manager", label: "Sales Dashboard" }] : []),
+              ]}
+              pathname={pathname}
+              onNavClick={onNavClick}
+              collapsed={collapsed}
+              isOpen={openSection === "Dashboards"}
+              onToggle={makeToggle("Dashboards")}
+              onOpen={openSectionLabel("Dashboards")}
+            />
 
-        {!loading && user?.role === "Customer" && (
-          <>
-            {!collapsed && (
-              <div className="pt-4 pb-1.5">
-                <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Portal</p>
-              </div>
-            )}
-            <NavLink item={{ href: "/subscription", label: "My Subscriptions", icon: <Briefcase size={17} /> }} active={pathname.startsWith("/subscription")} onClick={onNavClick} collapsed={collapsed} />
-            <NavLink item={{ href: "/customer/support", label: "Support Tickets", icon: <CheckSquare size={17} /> }} active={pathname.startsWith("/customer/support")} onClick={onNavClick} collapsed={collapsed} />
-          </>
-        )}
-
-        {!loading && user?.role === "Admin" && (
-          <>
-            {!collapsed && (
-              <div className="pt-4 pb-1.5">
-                <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Settings</p>
-              </div>
-            )}
-            {isVariant2 ? (
+            {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
               <>
-                <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "User Management"} onToggle={makeToggle("User Management")} onOpen={openSectionLabel("User Management")} />
-                <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={collapsed} />
-                <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
+                {/* ── Lifecycle modules in sales-flow order ── */}
+                <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Leads"} onToggle={makeToggle("Leads")} onOpen={openSectionLabel("Leads")} />
+                <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Accounts"} onToggle={makeToggle("Accounts")} onOpen={openSectionLabel("Accounts")} />
+                <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} onOpen={openSectionLabel("Contacts")} />
+                <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Activities"} onToggle={makeToggle("Activities")} onOpen={openSectionLabel("Activities")} />
+
+                {isVariant2 && (
+                  <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Visits"} onToggle={makeToggle("Customer Visits")} onOpen={openSectionLabel("Customer Visits")} />
+                )}
+
+                {isVariant2 && (
+                  <ExpandableNavSection label="Product Catalogue" icon={<Package size={17} />} subItems={productCatalogueSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Product Catalogue"} onToggle={makeToggle("Product Catalogue")} onOpen={openSectionLabel("Product Catalogue")} />
+                )}
+
+                {isVariant3 && (
+                  <ExpandableNavSection label="Samples" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Samples"} onToggle={makeToggle("Samples")} onOpen={openSectionLabel("Samples")} />
+                )}
+
+                <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} onOpen={openSectionLabel("Sales Pipeline")} />
+
+                {isVariant2 && (
+                  <ExpandableNavSection label="RFQ" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ"} onToggle={makeToggle("RFQ")} onOpen={openSectionLabel("RFQ")} />
+                )}
+
+                {isVariant4 && (
+                  <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} onOpen={openSectionLabel("Competitors")} />
+                )}
+                <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />
+                {isVariant3 && (
+                  <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} onOpen={openSectionLabel("Negotiations")} />
+                )}
+                {isVariant3 && (
+                  <ExpandableNavSection label="Purchase Orders" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Orders"} onToggle={makeToggle("Purchase Orders")} onOpen={openSectionLabel("Purchase Orders")} />
+                )}
+
+                {isVariant2 && (
+                  <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Deals"} onToggle={makeToggle("Deals")} onOpen={openSectionLabel("Deals")} />
+                )}
+                <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} onOpen={openSectionLabel("Tasks")} />
+                <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} onOpen={openSectionLabel("Follow Ups")} />
+
+                {isVariant3 && (
+                  <ExpandableNavSection label="Documents" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Documents"} onToggle={makeToggle("Documents")} onOpen={openSectionLabel("Documents")} />
+                )}
+                {isVariant4 && (
+                  <ExpandableNavSection label="Key Accounts" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Accounts"} onToggle={makeToggle("Key Accounts")} onOpen={openSectionLabel("Key Accounts")} />
+                )}
+                {isVariant4 && (
+                  <ExpandableNavSection label="Territories" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territories"} onToggle={makeToggle("Territories")} onOpen={openSectionLabel("Territories")} />
+                )}
+                {isVariant4 && (
+                  <ExpandableNavSection label="Targets" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Targets"} onToggle={makeToggle("Targets")} onOpen={openSectionLabel("Targets")} />
+                )}
+
+                {isVariant2 && (
+                  <ExpandableNavSection label="Forecast" icon={<Target size={17} />} subItems={forecastSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Forecast"} onToggle={makeToggle("Forecast")} onOpen={openSectionLabel("Forecast")} />
+                )}
+
+                <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Reports"} onToggle={makeToggle("Reports")} onOpen={openSectionLabel("Reports")} />
+
+                {isVariant3 && (
+                  <ExpandableNavSection label="Approval Center" icon={<ShieldCheck size={17} />} subItems={approvalCenterSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Approval Center"} onToggle={makeToggle("Approval Center")} onOpen={openSectionLabel("Approval Center")} />
+                )}
               </>
-            ) : (
-              <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={[
-                ...userManagementSubItems,
-                ...settingsSubItems,
-              ]} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
+            )}
+
+            {!loading && user?.role === "SuperAdmin" && (
+              <>
+                {!collapsed && (
+                  <div className="pt-3 pb-1">
+                    <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Platform Admin</p>
+                  </div>
+                )}
+                <NavLink item={{ href: "/admin/companies", label: "Companies", icon: <Building2 size={17} /> }} active={pathname.startsWith("/admin/companies")} onClick={onNavClick} collapsed={collapsed} />
+                <NavLink item={{ href: "/admin/system-configs", label: "System Configs", icon: <Settings size={17} /> }} active={pathname.startsWith("/admin/system-configs")} onClick={onNavClick} collapsed={collapsed} />
+              </>
+            )}
+
+            {!loading && user?.role === "Customer" && (
+              <>
+                {!collapsed && (
+                  <div className="pt-4 pb-1.5">
+                    <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Portal</p>
+                  </div>
+                )}
+                <NavLink item={{ href: "/subscription", label: "My Subscriptions", icon: <Briefcase size={17} /> }} active={pathname.startsWith("/subscription")} onClick={onNavClick} collapsed={collapsed} />
+                <NavLink item={{ href: "/customer/support", label: "Support Tickets", icon: <CheckSquare size={17} /> }} active={pathname.startsWith("/customer/support")} onClick={onNavClick} collapsed={collapsed} />
+              </>
+            )}
+
+            {!loading && user?.role === "Admin" && (
+              <>
+                {!collapsed && (
+                  <div className="pt-4 pb-1.5">
+                    <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>Settings</p>
+                  </div>
+                )}
+                {isVariant2 ? (
+                  <>
+                    <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "User Management"} onToggle={makeToggle("User Management")} onOpen={openSectionLabel("User Management")} />
+                    <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={collapsed} />
+                    <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
+                  </>
+                ) : (
+                  <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={[
+                    ...userManagementSubItems,
+                    ...settingsSubItems,
+                  ]} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
+                )}
+              </>
             )}
           </>
         )}

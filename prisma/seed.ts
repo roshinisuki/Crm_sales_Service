@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomUUID as uuidv4 } from "crypto";
+import { seedServiceWorkspace } from "./seeds/serviceWorkspaceSeed";
 
 const prisma = new PrismaClient();
 
@@ -8,6 +9,16 @@ async function main() {
   const now = new Date();
 
   console.log("Cleaning up existing database records...");
+  // Delete Service Workspace records first (due to foreign key dependencies on Customer and User)
+  await prisma.customerAsset.deleteMany({});
+  await prisma.serviceEngineer.deleteMany({});
+  await prisma.serviceTeam.deleteMany({});
+  await prisma.serviceStatus.deleteMany({});
+  await prisma.priorityLevel.deleteMany({});
+  await prisma.defectType.deleteMany({});
+  await prisma.complaintType.deleteMany({});
+  await prisma.serviceCategory.deleteMany({});
+
   // Delete in dependency order (children first, parents last)
   await prisma.callLog.deleteMany({});
   await prisma.communicationLog.deleteMany({});
@@ -705,6 +716,9 @@ async function main() {
     }
   }
   console.log(`${defaultStages.length} pipeline stages seeded for ${companies.length} company/companies.`);
+
+  // ---- Service Workspace Seeding ----
+  await seedServiceWorkspace(prisma);
 
   console.log("\nDatabase seeded successfully! All models populated. ✓");
 }
