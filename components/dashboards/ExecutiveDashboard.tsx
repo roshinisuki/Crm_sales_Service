@@ -136,11 +136,7 @@ export default function ExecutiveDashboard({ dashboardData: data, salesData, use
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
         {/* Left Side: Workspace Overview */}
         <div className="xl:col-span-2">
-          <WorkspaceOverviewLineChart 
-            activeLeads={salesData?.kpis?.totalLeads || 0} 
-            visits={data?.stats?.monthlyVisits || 0} 
-            subscriptions={data?.stats?.activeSubs || 0} 
-          />
+          <RevenueTrendChart revenueTrend={salesData?.revenueTrend || []} />
         </div>
 
         {/* Right Side: Alerts */}

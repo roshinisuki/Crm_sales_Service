@@ -85,21 +85,135 @@ export async function PUT(
     if (body.status === "Revision") updateData.revisionDate = now;
   }
 
-  const sample = await prisma.sampleRequest.update({
-    where: { id },
-    data: updateData,
-    include: {
-      customer: { select: { id: true, name: true, customerCode: true } },
-      contact: { select: { id: true, name: true, email: true, phone: true } },
-      product: { select: { id: true, name: true, productCode: true, unit: true } },
-      rfq: { select: { id: true, rfqCode: true } },
-      assignedUser: { select: { id: true, name: true } },
-      approvedBy: { select: { id: true, name: true } },
-      rejectedBy: { select: { id: true, name: true } },
-    },
-  });
+  let updatedSample;
+  try {
+    updatedSample = await prisma.$transaction(async (tx) => {
+      const sample = await tx.sampleRequest.update({
+        where: { id },
+        data: updateData,
+        include: {
+          customer: { select: { id: true, name: true, customerCode: true } },
+          contact: { select: { id: true, name: true, email: true, phone: true } },
+          product: { select: { id: true, name: true, productCode: true, unit: true } },
+          rfq: { select: { id: true, rfqCode: true } },
+          assignedUser: { select: { id: true, name: true } },
+          approvedBy: { select: { id: true, name: true } },
+          rejectedBy: { select: { id: true, name: true } },
+        },
+      });
 
-  return NextResponse.json({ success: true, data: sample });
+      if (body.status === "Approved" && existing.opportunityId) {
+        // Upsert opportunity detail
+        const oppDetail = await tx.opportunityDetail.findUnique({ where: { dealId: existing.opportunityId } });
+        if (oppDetail) {
+          await tx.opportunityDetail.update({
+            where: { dealId: existing.opportunityId },
+            data: { sampleStatus: "approved" },
+          });
+        } else {
+          await tx.opportunityDetail.create({
+            data: { dealId: existing.opportunityId, sampleStatus: "approved" },
+          });
+        }
+
+        const deal = await tx.deal.findUnique({ where: { id: existing.opportunityId } });
+        if (deal && deal.status !== "RequirementGathering") {
+          await tx.deal.update({
+            where: { id: deal.id },
+            data: { status: "RequirementGathering", probabilityPercent: 35, stageEnteredAt: new Date() },
+          });
+          
+          await tx.dealStageHistory.create({
+            data: {
+              dealId: deal.id,
+              fromStatus: deal.status,
+              toStatus: "RequirementGathering",
+              changedById: user.id,
+              durationInPreviousStage: 0,
+              outcomeNotes: "Sample approved — auto-advanced to Requirement Gathering",
+            },
+          });
+
+          // Create auto-follow-up
+          const followUpDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+          await tx.followUp.create({
+            data: {
+              customerId: deal.customerId,
+              assignedUserId: deal.assignedUserId || user.id,
+              nextMeetingDate: followUpDate,
+              dueDate: followUpDate,
+              remarks: "Schedule discovery call",
+              status: "Pending",
+              priority: "High",
+              sourceType: "STAGE_CHANGE",
+              sourceId: deal.id,
+              autoCreated: true,
+              companyId: user.companyId,
+            }
+          });
+        }
+      }
+
+      if (body.status === "Rejected" && existing.opportunityId) {
+        // Upsert opportunity detail
+        const oppDetail = await tx.opportunityDetail.findUnique({ where: { dealId: existing.opportunityId } });
+        if (oppDetail) {
+          await tx.opportunityDetail.update({
+            where: { dealId: existing.opportunityId },
+            data: { sampleStatus: "rejected" },
+          });
+        } else {
+          await tx.opportunityDetail.create({
+            data: { dealId: existing.opportunityId, sampleStatus: "rejected" },
+          });
+        }
+
+        const deal = await tx.deal.findUnique({ where: { id: existing.opportunityId } });
+        if (deal && deal.status !== "Rejected") {
+          await tx.deal.update({
+            where: { id: deal.id },
+            data: { status: "Rejected", stageEnteredAt: new Date(), rejectedReason: "Sample rejected" },
+          });
+          
+          await tx.dealStageHistory.create({
+            data: {
+              dealId: deal.id,
+              fromStatus: deal.status,
+              toStatus: "Rejected",
+              changedById: user.id,
+              durationInPreviousStage: 0,
+              outcomeNotes: "Sample rejected",
+            },
+          });
+        }
+      }
+
+      return sample;
+    });
+  } catch (error) {
+    console.error("Sample update transaction failed:", error);
+    return NextResponse.json({ success: false, message: "Failed to update sample and linked records" }, { status: 500 });
+  }
+
+  // Audit log
+  if (body.status !== undefined && body.status !== existing.status) {
+    const { logAudit, extractAuditContext } = await import("@/lib/audit");
+    await logAudit(
+      user.id,
+      "SampleRequest",
+      "StatusChange",
+      `Sample ${existing.sampleCode || id} status changed to ${body.status}`,
+      {
+        resourceId: id,
+        previousState: { status: existing.status },
+        newState: { status: body.status },
+        context: extractAuditContext(request),
+        severity: "INFO",
+      }
+    );
+  }
+
+  return NextResponse.json({ success: true, data: updatedSample });
 }
 
 export async function DELETE(

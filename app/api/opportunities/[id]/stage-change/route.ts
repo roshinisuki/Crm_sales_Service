@@ -118,7 +118,7 @@ export async function POST(
   const isTerminalExit = (targetStage === "Rejected" || targetStage === "Lost");
 
   // If backward stage change (non-terminal), require Sales Manager or Admin
-  if (targetOrder < currentOrder && !isTerminalExit) {
+  if (targetOrder < currentOrder && !isTerminalExit && !force) {
     if (!["SalesManager", "Admin"].includes(user.role)) {
       return NextResponse.json(
         { success: false, message: "Stage rollback requires Manager approval" },

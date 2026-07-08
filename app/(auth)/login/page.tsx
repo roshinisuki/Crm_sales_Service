@@ -213,7 +213,7 @@ const ACCENT_HOVER = "var(--brand-primary-hover)";
 type Stage = "email" | "otp" | "setPassword" | "password";
 
 function LoginContent() {
-  const logoTheme = "blue";
+  const logoTheme = useLogoTheme();
   const searchParams = useSearchParams();
   const resetSuccess = searchParams.get("reset") === "success";
   const activated = searchParams.get("activated") === "true";
@@ -414,42 +414,7 @@ function LoginContent() {
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
-        // Force Blue Dark theme variables statically:
-        "--brand-primary": "#2090FF",
-        "--brand-primary-hover": "#1A78D4",
-        "--brand-primary-light": "#1A3B8F",
-        "--brand-primary-border": "#6CD3FE",
-        "--brand-primary-text": "#E8F7FC",
-        "--accent": "#2090FF",
-        "--accent-hover": "#1A78D4",
-        "--accent-soft": "rgba(32,144,255,0.2)",
-        "--accent-text": "#A8D8ED",
-        "--accent-contrast": "#1A1A1A",
-        "--bg": "#000000",
-        "--surface": "#0b121c",
-        "--surface-1": "#111a26",
-        "--surface-2": "#172333",
-        "--surface-offset": "#11213A",
-        "--border": "#172333",
-        "--border-subtle": "#101a26",
-        "--border-default": "#172333",
-        "--text-primary": "#F9FAFB",
-        "--text-secondary": "#9CA3AF",
-        "--text-muted": "#6B7280",
-        "--text-tertiary": "#6B7280",
-        "--text-on-brand": "#1A1A1A",
-        "--success": "#10B981",
-        "--success-bg": "rgba(16,185,129,0.2)",
-        "--success-border": "#BBF7D0",
-        "--warning": "#F59E0B",
-        "--warning-bg": "rgba(245,158,11,0.2)",
-        "--warning-border": "#FDE68A",
-        "--error": "#EF4444",
-        "--error-bg": "rgba(239,68,68,0.2)",
-        "--error-border": "#FECACA",
-        "--info": "#3B82F6",
-        "--info-bg": "rgba(59,130,246,0.2)",
-      } as React.CSSProperties}
+      }}
     >
       {/* Centered card container holding both panels */}
       <div

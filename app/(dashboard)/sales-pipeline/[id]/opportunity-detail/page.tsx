@@ -13,7 +13,8 @@ import { formatDate, cn } from "@/lib/ui-utils";
 import {
   ArrowLeft, CheckCircle, XCircle,
   ChevronRight, Save, AlertTriangle, Calendar, CalendarClock, Clock,
-  Edit3, FileText, MessageSquare, Zap, Swords, FolderOpen, History,
+  Edit3, FileText, MessageSquare, Zap, Swords, FolderOpen, Briefcase, History,
+  Search, TrendingUp, User, Users,
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
@@ -28,6 +29,31 @@ const STAGE_DISPLAY_LABELS: Record<string, string> = {
   Rejected: "Rejected",
   Lost: "Lost",
 };
+
+const STAGE_PILL: Record<string, string> = {
+  Qualified:
+    "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400 dark:border-sky-800/50",
+  RequirementGathering:
+    "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800/50",
+  MeetingScheduled:
+    "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/50",
+  DemoConducted:
+    "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50",
+  Lost: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50",
+  Rejected:
+    "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800/50",
+  Won: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50",
+};
+
+const STAGE_FILTERS = [
+  { label: "All Stages", value: "" },
+  { label: "Qualified", value: "Qualified" },
+  { label: "Req. Gathering", value: "RequirementGathering" },
+  { label: "Meeting Scheduled", value: "MeetingScheduled" },
+  { label: "Demo Conducted", value: "DemoConducted" },
+  { label: "Rejected", value: "Rejected" },
+  { label: "Lost", value: "Lost" },
+];
 
 const PIPELINE_STAGES = PIPELINE_STAGE_VALUES
   .filter((s) => s !== "Lost" && s !== "Rejected")
@@ -454,6 +480,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const toast = useToast();
 
   const [deal, setDeal] = useState<any>(null);
+  const [oppSearch, setOppSearch] = useState("");
+  const [oppStageFilter, setOppStageFilter] = useState("");
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [oppsLoading, setOppsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -499,6 +529,28 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [demoRejectionReason, setDemoRejectionReason] = useState("");
   const [demoRejectionRemarks, setDemoRejectionRemarks] = useState("");
 
+  const fetchOpportunities = useCallback(async () => {
+    setOppsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (oppSearch) params.set("search", oppSearch);
+      if (oppStageFilter) params.set("stage", oppStageFilter);
+      const res = await fetch(`/api/opportunities?${params.toString()}`);
+      if (res.ok) {
+        const json = await res.json();
+        setOpportunities(json.data || []);
+      }
+    } catch {
+      // silent
+    } finally {
+      setOppsLoading(false);
+    }
+  }, [oppSearch, oppStageFilter]);
+
+  useEffect(() => {
+    fetchOpportunities();
+  }, [fetchOpportunities]);
+
   const fetchLinkedQuotations = useCallback(async () => {
     setLinkedQuotationsLoading(true);
     try {
@@ -520,6 +572,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       const json = await res.json();
       if (res.ok && json.success) {
         setDeal(json.data);
+        fetchOpportunities();
       setEditForm({
         dealName: json.data.dealName,
         dealValue: json.data.dealValue,
@@ -641,7 +694,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       toast.error(msg);
     }
     setLoading(false);
-  }, [id]);
+  }, [id, fetchOpportunities]);
 
   // V2: Fetch linked sample for this opportunity
   const fetchLinkedSample = useCallback(async () => {
@@ -2700,195 +2753,264 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     ? (deal.status === "Won" ? 100 : 0)
     : Math.round(((currentStageIndex + 1) / PIPELINE_STAGES.length) * 100);
 
-  return (
-    <div className="space-y-6">
-      {/* ─── Breadcrumb ─── */}
-      <button
-        onClick={() => router.push("/sales-pipeline")}
-        className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors"
-      >
-        <ArrowLeft size={16} /> Back to Pipeline
-      </button>
-
-      {/* ── Invalid Stage Error Banner ─── */}
-      {!isValidStage && (
-        <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-3">
-          <AlertTriangle size={20} className="text-rose-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-rose-800">Invalid Opportunity Stage</p>
-            <p className="text-sm text-rose-700 mt-1">
-              This opportunity has an invalid stage value: <code className="bg-rose-100 px-1.5 py-0.5 rounded">{deal.status}</code>.
-              Valid stages are: Qualified, RequirementGathering, MeetingScheduled, DemoConducted, Rejected, Lost.
-              Please contact support to correct this record.
-            </p>
+  const summaryRows: { label: string; value: React.ReactNode }[] = [
+    {
+      label: "Value",
+      value: (
+        <span className="font-bold text-text-primary tabular-nums">
+          {formatCurrency(deal.dealValue)}
+        </span>
+      ),
+    },
+    {
+      label: "Probability",
+      value: (
+        <div className="flex items-center gap-2 w-28">
+          <div className="flex-1 h-1.5 bg-border-subtle rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[var(--primary)] transition-all"
+              style={{ width: `${deal.probabilityPercent ?? 0}%` }}
+            />
           </div>
+          <span className="text-xs font-semibold text-text-primary tabular-nums w-8 text-right">
+            {deal.probabilityPercent ?? 0}%
+          </span>
         </div>
-      )}
-
-      {/* ─── Hero Summary Card ─── */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-700/50 bg-gradient-to-br from-[var(--primary)]/[0.08] via-transparent to-transparent p-6 shadow-sm">
-        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap mb-2">
-              <span className={cn(
-                "px-2.5 py-1 text-xs font-bold rounded-full border",
-                deal.status === "Won" ? "bg-emerald-100 text-emerald-700 border-emerald-200" :
-                deal.status === "Lost" ? "bg-rose-100 text-rose-700 border-rose-200" :
-                "bg-[var(--primary)]/15 text-[var(--primary)] border-[var(--primary)]/25"
-              )}>
-                {STAGE_LABELS[deal.status] || deal.status}
-              </span>
-              {deal.opportunityCode && (
-                <span className="text-xs font-bold text-slate-500">{deal.opportunityCode}</span>
-              )}
-              {deal.isOverdue && (
-                <span className="px-2 py-0.5 bg-rose-100 text-rose-600 text-xs font-bold rounded-full border border-rose-200 flex items-center gap-1">
-                  <AlertTriangle size={11} /> Overdue
-                </span>
-              )}
-            </div>
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">{deal.dealName}</h1>
-            <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
-              <span className="font-medium truncate">{deal.customer?.name}</span>
-              <span className="text-slate-300">•</span>
-              <span className="font-bold text-[var(--primary)]">{formatCurrency(deal.dealValue)}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col items-start lg:items-end gap-2 min-w-[140px]">
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Progress</span>
-            <span className={cn(
-              "text-3xl font-extrabold tabular-nums",
-              deal.status === "Won" ? "text-emerald-600" : deal.status === "Lost" ? "text-rose-600" : "text-[var(--primary)]"
-            )}>
-              {deal.status === "Lost" ? "0%" : `${progressPercent}%`}
+      ),
+    },
+    {
+      label: "Close Date",
+      value: deal.expectedCloseDate ? (
+        <span
+          className={cn(
+            "text-xs font-medium",
+            deal.isOverdue ? "text-danger-text" : "text-text-secondary"
+          )}
+        >
+          {formatDate(deal.expectedCloseDate)}
+          {deal.isOverdue && (
+            <span className="ml-1 inline-flex items-center gap-0.5 text-danger-text">
+              <AlertTriangle size={10} />
+              Overdue
             </span>
-            <div className="w-full lg:w-32 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                role="progressbar"
-                aria-valuenow={progressPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={`${deal.dealName}, ${progressPercent}% pipeline progress`}
-                className={cn(
-                  "h-full rounded-full transition-all duration-[350ms] ease-out",
-                  deal.status === "Won" ? "bg-emerald-500" : deal.status === "Lost" ? "bg-rose-500" : "bg-[var(--primary)]"
-                )}
-                style={{ width: `${deal.status === "Lost" ? 0 : progressPercent}%` }}
-              />
-            </div>
+          )}
+        </span>
+      ) : (
+        <span className="text-text-muted text-xs italic">Not set</span>
+      ),
+    },
+    {
+      label: "Owner",
+      value: (
+        <div className="flex items-center gap-1.5 max-w-[120px]">
+          <div className="w-5 h-5 rounded-full bg-[var(--primary)]/15 flex items-center justify-center shrink-0">
+            <User size={11} className="text-[var(--primary)]" />
           </div>
+          <span className="text-xs font-medium text-text-secondary truncate">
+            {deal.assignedUser?.name || "Unassigned"}
+          </span>
         </div>
+      ),
+    },
+    {
+      label: "Account",
+      value: (
+        <span className="text-xs font-medium text-text-secondary truncate max-w-[120px]">
+          {deal.customer?.name || "—"}
+        </span>
+      ),
+    },
+  ];
 
-        {/* Primary actions */}
-        <div className="relative flex items-center gap-2 mt-5 pt-4 border-t border-slate-200/60">
-          {canEditOpportunity(user, deal) && (
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="px-4 py-2 bg-[var(--primary)] text-white font-bold text-sm rounded-lg hover:bg-[var(--primary-hover)] transition-colors flex items-center gap-1.5"
-            >
-              <Edit3 size={15} /> Edit Opportunity
-            </button>
-          )}
-          {canAddFollowUp(user, deal) && (
-            <button
-              onClick={() => setShowFollowUpModal(true)}
-              className="px-4 py-2 bg-white text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors flex items-center gap-1.5"
-            >
-              <Calendar size={15} /> Add Follow-Up
-            </button>
-          )}
-          {user?.role !== "Customer" && ["ProposalSent", "Negotiation"].includes(deal.status) && (
-            <button
-              onClick={() => router.push(`/rfq/new?opportunityId=${deal.id}`)}
-              className="px-4 py-2 bg-white text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors flex items-center gap-1.5"
-            >
-              <MessageSquare size={15} /> Create RFQ
-            </button>
-          )}
-          {user?.role !== "Customer" && ["ProposalSent", "Negotiation"].includes(deal.status) && (
-            <button
-              onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
-              className="px-4 py-2 bg-white text-slate-700 font-bold text-sm rounded-lg hover:bg-slate-50 border border-slate-200 transition-colors flex items-center gap-1.5"
-            >
-              <FileText size={15} /> Direct Quotation
-            </button>
-          )}
-        </div>
-      </div>
+  return (
+    <div className="flex h-full w-full overflow-hidden bg-card">
+      {/* ── Column 2: Center — Main Detail ── */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-card h-full">
+        <div className="space-y-6 max-w-4xl mx-auto">
+          {/* Back button */}
+          <button
+            onClick={() => router.push("/sales-pipeline/pipeline-list")}
+            className="flex items-center gap-1.5 text-sm font-medium text-text-secondary hover:text-text-primary transition-colors"
+          >
+            <ArrowLeft size={16} /> Back to Pipeline
+          </button>
 
-      {/* ─── Detailed Pipeline Stage Card ─── */}
-      <CollapsibleSection
-        title="Pipeline Actions"
-        subtitle={`Stage-specific actions for ${STAGE_LABELS[deal.status] || deal.status}`}
-        icon={<Zap size={15} />}
-        defaultOpen={true}
-        bodyClassName="px-0 pb-0 pt-0"
-        actions={
-          deal.status !== "Won" && deal.status !== "Lost" && deal.status !== "Rejected" && canChangeStage(user, deal) ? (
-            <button
-              onClick={() => setShowRejectModal(true)}
-              className="px-3 py-1.5 bg-orange-600 text-white font-bold text-xs rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-1.5"
-            >
-              <XCircle size={13} /> Mark Rejected
-            </button>
-          ) : undefined
-        }
-      >
-        {/* Interactive Stage Stepper */}
-        <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/20">
-          {/* Interactive pipeline stepper — completed and active stages are clickable for review/edit */}
-          {/* Interactive pipeline stepper — completed and active stages are clickable for review/edit */}
-          <div className="flex items-center gap-1 overflow-x-auto">
-            {PIPELINE_STAGES.map((stage, idx) => {
-              const stepState = getStepState(stage.key, deal.status);
-              const isTerminal = deal.status === "Lost" || deal.status === "Rejected";
-              const isClickable = stepState === "completed" || stepState === "active";
-              const tooltip = getStepTooltip(stage.key, stepState, STAGE_LABELS[deal.status] || deal.status);
-              const isViewing = viewingStage === stage.key;
-              return (
-                <div key={stage.key} className="flex items-center shrink-0">
-                  <div
-                    onClick={() => isClickable && handleStepClick(stage.key, stepState)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors",
-                      isClickable ? "cursor-pointer hover:bg-white/80 dark:hover:bg-slate-800/50" : "cursor-default",
-                      stepState === "active" && "bg-white/50 dark:bg-slate-800/30",
-                      isViewing && "bg-[#EFF6FF]/80 dark:bg-blue-950/40 ring-1 ring-[#93C5FD] dark:ring-blue-800/60"
-                    )}
-                    title={tooltip}
-                  >
-                    <div
-                      className={cn(
-                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all",
-                        stepState === "completed" && "bg-[#16A34A] text-white border-[#16A34A]",
-                        stepState === "active" && "bg-[var(--primary)] text-white border-[var(--primary)] ring-4 ring-[var(--primary)]/20",
-                        stepState === "future" && "bg-white dark:bg-slate-800 text-slate-300 dark:text-slate-600 border-slate-200 dark:border-slate-700",
-                        isTerminal && (deal.status === "Rejected" ? "bg-orange-100 dark:bg-orange-950/20 text-orange-400 border-orange-200 dark:border-orange-900/50" : "bg-rose-100 dark:bg-rose-950/20 text-rose-400 border-rose-200 dark:border-rose-900/50")
-                      )}
-                    >
-                      {stepState === "completed" ? <CheckCircle size={14} /> : idx + 1}
-                    </div>
-                    <span
-                      className={cn(
-                        "text-xs font-semibold whitespace-nowrap",
-                        stepState === "active" ? "text-[var(--primary)]" : stepState === "completed" ? "text-[#16A34A] dark:text-green-400" : isTerminal ? (deal.status === "Rejected" ? "text-orange-400" : "text-rose-400") : "text-slate-400 dark:text-slate-500"
-                      )}
-                    >
-                      {stage.label}
+          {/* ── Invalid Stage Error Banner ─── */}
+          {!isValidStage && (
+            <div className="p-4 rounded-lg bg-danger-bg border border-danger-border flex items-start gap-3">
+              <AlertTriangle size={20} className="text-danger-text shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-danger-text">Invalid Opportunity Stage</p>
+                <p className="text-sm text-danger-text mt-1">
+                  This opportunity has an invalid stage value: <code className="bg-danger-bg px-1.5 py-0.5 rounded border border-danger-border">{deal.status}</code>.
+                  Valid stages are: Qualified, RequirementGathering, MeetingScheduled, DemoConducted, Rejected, Lost.
+                  Please contact support to correct this record.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Hero Summary Card ─── */}
+          <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-[var(--primary)]/[0.08] via-transparent to-transparent p-6 shadow-sm">
+            <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-3 flex-wrap mb-2">
+                  <span className={cn(
+                    "px-2.5 py-1 text-xs font-bold rounded-full border",
+                    deal.status === "Won" ? "bg-success-bg text-success border-success-border" :
+                    deal.status === "Lost" ? "bg-danger-bg text-danger-text border-danger-border" :
+                    "bg-[var(--primary)]/15 text-[var(--primary)] border-[var(--primary)]/25"
+                  )}>
+                    {STAGE_LABELS[deal.status] || deal.status}
+                  </span>
+                  {deal.opportunityCode && (
+                    <span className="text-xs font-bold text-text-muted">{deal.opportunityCode}</span>
+                  )}
+                  {deal.isOverdue && (
+                    <span className="px-2 py-0.5 bg-danger-bg text-danger-text text-xs font-bold rounded-full border border-danger-border flex items-center gap-1">
+                      <AlertTriangle size={11} /> Overdue
                     </span>
-                  </div>
-                  {idx < PIPELINE_STAGES.length - 1 && (
-                    <div className={cn("w-8 h-0.5 mx-1", stepState === "completed" ? "bg-[#16A34A]" : "bg-slate-200 dark:bg-slate-700")} />
                   )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
+                <h1 className="text-2xl font-extrabold text-text-primary tracking-tight">{deal.dealName}</h1>
+                <div className="flex items-center gap-4 mt-2 text-sm text-text-secondary">
+                  <span className="font-medium truncate">{deal.customer?.name}</span>
+                  <span className="text-border">•</span>
+                  <span className="font-bold text-[var(--primary)]">{formatCurrency(deal.dealValue)}</span>
+                </div>
+              </div>
 
-        {renderStageForm()}
-      </CollapsibleSection>
+              <div className="flex flex-col items-start lg:items-end gap-2 min-w-[140px]">
+                <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Progress</span>
+                <span className={cn(
+                  "text-3xl font-extrabold tabular-nums",
+                  deal.status === "Won" ? "text-success" : deal.status === "Lost" ? "text-danger-text" : "text-[var(--primary)]"
+                )}>
+                  {deal.status === "Lost" ? "0%" : `${progressPercent}%`}
+                </span>
+                <div className="w-full lg:w-32 h-1.5 bg-border rounded-full overflow-hidden">
+                  <div
+                    role="progressbar"
+                    aria-valuenow={progressPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${deal.dealName}, ${progressPercent}% pipeline progress`}
+                    className={cn(
+                      "h-full rounded-full transition-all duration-[350ms] ease-out",
+                      deal.status === "Won" ? "bg-success" : deal.status === "Lost" ? "bg-danger" : "bg-[var(--primary)]"
+                    )}
+                    style={{ width: `${deal.status === "Lost" ? 0 : progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Primary actions */}
+            <div className="relative flex items-center gap-2 mt-5 pt-4 border-t border-border">
+              {canEditOpportunity(user, deal) && (
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="h-9 flex items-center justify-center px-4 bg-[var(--primary)] text-white text-xs font-bold rounded-lg hover:bg-[var(--primary-hover)] transition-colors gap-1.5"
+                >
+                  <Edit3 size={15} /> Edit Opportunity
+                </button>
+              )}
+              {canAddFollowUp(user, deal) && (
+                <button
+                  onClick={() => setShowFollowUpModal(true)}
+                  className="h-9 flex items-center justify-center px-4 bg-card text-text-secondary border border-border text-xs font-bold rounded-lg hover:bg-card-hover transition-colors gap-1.5"
+                >
+                  <Calendar size={15} /> Add Follow-Up
+                </button>
+              )}
+              {user?.role !== "Customer" && ["ProposalSent", "Negotiation"].includes(deal.status) && (
+                <button
+                  onClick={() => router.push(`/rfq/new?opportunityId=${deal.id}`)}
+                  className="h-9 flex items-center justify-center px-4 bg-card text-text-secondary border border-border text-xs font-bold rounded-lg hover:bg-card-hover transition-colors gap-1.5"
+                >
+                  <MessageSquare size={15} /> Create RFQ
+                </button>
+              )}
+              {user?.role !== "Customer" && ["ProposalSent", "Negotiation"].includes(deal.status) && (
+                <button
+                  onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
+                  className="h-9 flex items-center justify-center px-4 bg-card text-text-secondary border border-border text-xs font-bold rounded-lg hover:bg-card-hover transition-colors gap-1.5"
+                >
+                  <FileText size={15} /> Direct Quotation
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* ─── Active Stage Details Form ─── */}
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Zap size={18} className="text-[var(--primary)]" />
+                <h3 className="text-lg font-bold text-text-primary">Stage Actions</h3>
+              </div>
+              {deal.status !== "Won" && deal.status !== "Lost" && deal.status !== "Rejected" && canChangeStage(user, deal) && (
+                <button
+                  onClick={() => setShowRejectModal(true)}
+                  className="px-3 py-1.5 bg-danger/10 text-danger-text font-bold text-xs rounded-lg hover:bg-danger/20 transition-colors flex items-center gap-1.5 border border-danger/25"
+                >
+                  <XCircle size={13} /> Mark Rejected
+                </button>
+              )}
+            </div>
+
+            {/* Interactive pipeline stepper — completed and active stages are clickable for review/edit */}
+            <div className="mb-6 px-4 py-3 bg-page-bg rounded-xl border border-border">
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {PIPELINE_STAGES.map((stage, idx) => {
+                  const stepState = getStepState(stage.key, deal.status);
+                  const isTerminal = deal.status === "Lost" || deal.status === "Rejected";
+                  const isClickable = stepState === "completed" || stepState === "active";
+                  const tooltip = getStepTooltip(stage.key, stepState, STAGE_LABELS[deal.status] || deal.status);
+                  const isViewing = viewingStage === stage.key;
+                  return (
+                    <div key={stage.key} className="flex items-center shrink-0">
+                      <div
+                        onClick={() => isClickable && handleStepClick(stage.key, stepState)}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg px-2 py-1 transition-colors",
+                          isClickable ? "cursor-pointer hover:bg-card-hover" : "cursor-default",
+                          stepState === "active" && "bg-card shadow-sm border border-border",
+                          isViewing && "bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]/30"
+                        )}
+                        title={tooltip}
+                      >
+                        <div
+                          className={cn(
+                            "w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border-2 transition-all bg-page-bg",
+                            stepState === "completed" && "bg-success text-white border-success",
+                            stepState === "active" && "bg-[var(--primary)] text-white border-[var(--primary)] ring-2 ring-[var(--primary)]/20",
+                            stepState === "future" && "text-text-muted border-border",
+                            isTerminal && (deal.status === "Rejected" ? "bg-warning-bg text-warning-text border-warning-border" : "bg-danger-bg text-danger-text border-danger-border")
+                          )}
+                        >
+                          {stepState === "completed" ? <CheckCircle size={12} /> : idx + 1}
+                        </div>
+                        <span
+                          className={cn(
+                            "text-xs font-semibold whitespace-nowrap",
+                            stepState === "active" ? "text-[var(--primary)]" : stepState === "completed" ? "text-success" : isTerminal ? (deal.status === "Rejected" ? "text-warning-text" : "text-danger-text") : "text-text-muted"
+                          )}
+                        >
+                          {stage.label}
+                        </span>
+                      </div>
+                      {idx < PIPELINE_STAGES.length - 1 && (
+                        <div className={cn("w-8 h-0.5 mx-1", stepState === "completed" ? "bg-success" : "bg-border")} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {renderStageForm()}
+          </div>
 
       {/* ─── Competitor Intelligence ─── */}
       <CollapsibleSection
@@ -3202,6 +3324,201 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           </FormField>
         </div>
       </Modal>
+        </div>
+      </div>
+
+      {/* ── Column 3: Right — Context / Summary Rail ── */}
+      <div className="hidden md:flex w-[280px] xl:w-[320px] shrink-0 border-l border-border flex-col bg-page-bg overflow-y-auto h-full">
+        {/* Deal Summary */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-page-bg shrink-0 h-[50px]">
+          <span className="text-text-muted"><TrendingUp size={14} /></span>
+          <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Deal Summary</span>
+        </div>
+
+        <div className="p-4 space-y-3">
+          {/* Stage badge */}
+          <div className="flex items-center gap-2 mb-1">
+            <span
+              className={cn(
+                "inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold border",
+                STAGE_PILL[deal.status] ||
+                  "bg-border text-text-muted border-border"
+              )}
+            >
+              {STAGE_DISPLAY_LABELS[deal.status] || deal.status}
+            </span>
+            {deal.opportunityCode && (
+              <span className="text-[10px] font-mono text-text-muted">
+                {deal.opportunityCode}
+              </span>
+            )}
+          </div>
+
+          {/* Summary rows */}
+          <div className="crm-card border border-border rounded-xl divide-y divide-border-subtle overflow-hidden bg-card">
+            {summaryRows.map((row) => (
+              <div key={row.label} className="flex items-center justify-between gap-2 px-3 py-2">
+                <span className="text-[11px] text-text-muted shrink-0 w-20">{row.label}</span>
+                <div className="flex-1 min-w-0 flex justify-end">{row.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quotation Status */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-t border-border bg-page-bg shrink-0 h-[50px]">
+          <span className="text-text-muted"><Clock size={14} /></span>
+          <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Quotation Status</span>
+        </div>
+        <div className="p-4">
+          {linkedQuotations.length === 0 ? (
+            <div className="px-3 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-700 dark:text-amber-400">
+              No quotation created yet
+            </div>
+          ) : hasAcceptedQuotation ? (
+            <div className="px-3 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40">
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                ✅ Quotation Accepted
+              </p>
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-0.5">
+                {linkedQuotations[0]?.quotationCode} •{" "}
+                {formatCurrency(linkedQuotations[0]?.finalAmount || linkedQuotations[0]?.totalAmount || 0)}
+              </p>
+            </div>
+          ) : linkedQuotations.some((q: any) => q.status === "Sent") ? (
+            <div className="px-3 py-3 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/40">
+              <p className="text-xs font-bold text-blue-700 dark:text-blue-400">
+                ⏳ Awaiting Customer Response
+              </p>
+              <p className="text-[11px] text-blue-600 dark:text-blue-500 mt-0.5">
+                {linkedQuotations[0]?.quotationCode}
+              </p>
+            </div>
+          ) : (
+            <div className="px-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-border">
+              <p className="text-xs font-bold text-text-secondary">
+                📋 {linkedQuotations.length} quotation{linkedQuotations.length !== 1 ? "s" : ""} — Draft
+              </p>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                {linkedQuotations[0]?.quotationCode}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Stakeholders */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-t border-border bg-page-bg shrink-0 h-[50px]">
+          <span className="text-text-muted"><Users size={14} /></span>
+          <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Stakeholders</span>
+        </div>
+        <div className="p-4 space-y-1.5">
+          {contacts.length === 0 ? (
+            <p className="text-xs text-text-muted italic text-center py-2">
+              No stakeholders linked
+            </p>
+          ) : (
+            contacts.slice(0, 5).map((c: any) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-card-hover transition-colors"
+              >
+                <div className="w-7 h-7 rounded-full bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
+                  <span className="text-[11px] font-bold text-[var(--primary)]">
+                    {(c.contact?.name || c.name || "?")[0].toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-text-primary truncate">
+                    {c.contact?.name || c.name || "—"}
+                  </p>
+                  {c.stakeholderRole && (
+                    <span
+                      className={cn(
+                        "inline-block text-[10px] px-1.5 py-0.5 rounded font-medium mt-0.5",
+                        ROLE_COLORS[c.stakeholderRole] || "bg-border text-text-muted"
+                      )}
+                    >
+                      {c.stakeholderRole}
+                    </span>
+                  )}
+                </div>
+                {c.isPrimary && (
+                  <span className="text-[10px] font-bold text-[var(--primary)] shrink-0">
+                    Primary
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+          {contacts.length > 5 && (
+            <p className="text-[11px] text-text-muted text-center">
+              +{contacts.length - 5} more
+            </p>
+          )}
+        </div>
+
+        {/* Stage History */}
+        {deal.stageHistories && deal.stageHistories.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-t border-border bg-page-bg shrink-0 h-[50px]">
+              <span className="text-text-muted"><History size={14} /></span>
+              <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Stage History</span>
+            </div>
+            <div className="p-4">
+              <div className="relative pl-3 space-y-3">
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-border-subtle rounded-full" />
+                {deal.stageHistories.slice(0, 6).map((h: any) => (
+                  <div key={h.id} className="relative pl-4">
+                    <div className="absolute -left-[3px] top-[5px] w-2 h-2 rounded-full border-2 border-border bg-card z-10" />
+                    <p className="text-[11px] font-bold text-text-primary leading-tight">
+                      {STAGE_DISPLAY_LABELS[h.toStatus] || h.toStatus}
+                    </p>
+                    <p className="text-[10px] text-text-muted mt-0.5">
+                      {formatDate(h.changedAt)}
+                      {h.changedBy?.name ? ` · ${h.changedBy.name}` : ""}
+                    </p>
+                    {h.durationInPreviousStage !== null && (
+                      <p className="text-[10px] text-text-muted">
+                        {h.durationInPreviousStage}d in previous stage
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Next Action Guidance */}
+        {deal.status !== "Won" && deal.status !== "Lost" && deal.status !== "Rejected" && (
+          <>
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-t border-border bg-page-bg shrink-0 h-[50px]">
+              <span className="text-text-muted"><Calendar size={14} /></span>
+              <span className="text-xs font-bold uppercase tracking-wider text-text-muted">Next Action</span>
+            </div>
+            <div className="p-4">
+              <div className="rounded-xl border border-[var(--primary)]/20 bg-[var(--primary)]/5 p-3">
+                <p className="text-[11px] font-semibold text-[var(--primary)] mb-1">
+                  {deal.status === "Qualified" && "📋 Gather requirements to advance"}
+                  {deal.status === "RequirementGathering" && "📅 Schedule a meeting or demo"}
+                  {deal.status === "MeetingScheduled" && "🎯 Conduct the meeting/demo"}
+                  {deal.status === "DemoConducted" && "💼 Create and send a quotation"}
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  {deal.status === "Qualified" &&
+                    "Fill in the Req. Gathering form and save all required fields."}
+                  {deal.status === "RequirementGathering" &&
+                    "Fill meeting details and move to Meeting Scheduled."}
+                  {deal.status === "MeetingScheduled" &&
+                    "Record meeting outcome and advance to Demo Conducted."}
+                  {deal.status === "DemoConducted" &&
+                    "Use the Quotation section to create an offer for the customer."}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

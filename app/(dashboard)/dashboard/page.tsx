@@ -7,8 +7,6 @@ import { getDashboardDataAction } from "@/app/actions/visits";
 import { getSalesAnalyticsAction } from "@/app/actions/analytics";
 
 import AdminDashboard from "@/components/dashboards/AdminDashboard";
-import ExecutiveDashboard from "@/components/dashboards/ExecutiveDashboard";
-import SalesManagerDashboard from "@/components/dashboards/SalesManagerDashboard";
 
 export default function DashboardRouter() {
   const { user, loading: authLoading } = useAuth();
@@ -62,24 +60,5 @@ export default function DashboardRouter() {
     setDateRange,
   };
 
-  if (user?.role === "SalesExecutive") {
-    return <ExecutiveDashboard {...commonProps} />;
-  }
-
-  if (user?.role === "SalesManager") {
-    return <SalesManagerDashboard {...commonProps} />;
-  }
-
-  if (user?.role === "Admin") {
-    return <AdminDashboard {...commonProps} />;
-  }
-
-  return (
-    <div className="flex items-center justify-center h-[50vh]">
-      <div className="text-center space-y-2">
-        <p className="text-xl font-bold text-slate-800">Access Denied</p>
-        <p className="text-sm text-slate-500">Unrecognized role or unauthorized access.</p>
-      </div>
-    </div>
-  );
+  return <AdminDashboard {...commonProps} />;
 }

@@ -29,7 +29,7 @@ export async function GET(
       where: { id, deletedAt: null, companyId: user.companyId },
       include: {
         customer: {
-          select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, status: true },
+          select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, status: true, industryType: true },
         },
         assignedUser: { select: { id: true, name: true, email: true } },
         opportunityDetail: true,

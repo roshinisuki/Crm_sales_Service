@@ -1053,7 +1053,7 @@ function SidebarContent({
       <div
         className={cn(
           "shrink-0 flex items-center justify-center border-b border-white/[0.07]",
-          collapsed ? "px-2 pt-4 pb-3" : "px-4 pt-4 pb-3"
+          collapsed ? "px-0 py-4" : "px-4 py-4"
         )}
       >
         {collapsed ? (
@@ -1307,7 +1307,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           mobileDrawerOpen && "fixed inset-y-0 left-0 md:hidden flex w-[260px] z-50"
         )}
         style={{
-          background: "linear-gradient(170deg, #13182E 0%, #0C1020 50%, #080C18 100%)",
+          background: "#000000",
           boxShadow: "4px 0 32px rgba(0,0,0,0.45), inset -1px 0 0 rgba(255,255,255,0.05)"
         }}
       >

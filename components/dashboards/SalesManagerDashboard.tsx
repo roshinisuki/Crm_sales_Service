@@ -221,11 +221,10 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
 
   // ── Prepare chart data ─────────────────────────────────────────────────────
 
-  // Performance Analytics: Bar (revenue) + Line (leads converted)
+  // Performance Analytics: Bar (revenue)
   const performanceData = revenueTrend.map((t: any) => ({
     month: t.month,
     revenue: t.revenue,
-    leads: Math.round(t.revenue / 50000) + Math.floor(Math.random() * 5),
   }));
 
   // Pipeline Doughnut data
@@ -398,7 +397,6 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
           action={
             <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-blue-500" />Revenue</span>
-              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-purple-500" />Leads Converted</span>
             </div>
           }
         >
@@ -416,14 +414,11 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
               <Tooltip
                 content={
                   <ChartTooltip
-                    formatter={(v: number, name: string) =>
-                      name === "Leads Converted" ? `${v} leads` : formatCurrency(v)
-                    }
+                    formatter={(v: number, name: string) => formatCurrency(v)}
                   />
                 }
               />
               <Bar dataKey="revenue" name="Revenue" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={20} />
-              <Line dataKey="leads" name="Leads Converted" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 3, fill: "#8B5CF6" }} activeDot={{ r: 5 }} />
             </ComposedChart>
           </ResponsiveContainer>
           {hasSparseData && (

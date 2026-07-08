@@ -8,7 +8,7 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
 import { CATALOG_STATUS } from "@/lib/module-status-config";
-import { Plus, Search, X, Eye, Package, Clock, CheckCircle2, XCircle, AlertCircle, Send, RotateCw } from "lucide-react";
+import { Plus, Search, Trash2, Package, Clock, CheckCircle2, XCircle, AlertCircle, Send, RotateCw } from "lucide-react";
 
 const statusConfig: Record<string, { color: string; icon: any; dot: string }> = {
   New:           { color: "bg-blue-50 text-blue-700 border-blue-200",     icon: Package,      dot: "bg-blue-500" },
@@ -163,7 +163,11 @@ function SampleListContent() {
                   const cfg = statusConfig[sample.status] || statusConfig.New;
                   const StatusIcon = cfg.icon;
                   return (
-                    <tr key={sample.id} className="crm-tr hover:bg-slate-50/50 transition-colors">
+                    <tr 
+                      key={sample.id} 
+                      onClick={() => router.push(`/samples/${sample.id}?status=${sample.status}`)}
+                      className="crm-tr hover:bg-slate-50/50 transition-colors cursor-pointer"
+                    >
                       <td className="crm-td">
                         <span className="font-mono text-xs font-bold text-slate-700">{sample.sampleCode}</span>
                       </td>
@@ -178,12 +182,25 @@ function SampleListContent() {
                       <td className="crm-td text-foreground">{sample.assignedUser?.name || "—"}</td>
                       <td className="crm-td text-foreground text-xs">{new Date(sample.requestDate).toLocaleDateString()}</td>
                       <td className="crm-td text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => router.push(`/samples/${sample.id}?status=${sample.status}`)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer transition-colors" title="View Details">
-                            <Eye size={15} />
-                          </button>
-                          <button onClick={() => handleDelete(sample.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 cursor-pointer transition-colors" title="Delete">
-                            <X size={15} />
+                        <div className="flex items-center justify-end gap-2">
+                          {sample.status === "New" && (
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors">Start Review</button>
+                          )}
+                          {sample.status === "UnderReview" && (
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors">Send to Customer</button>
+                          )}
+                          {sample.status === "SentToCustomer" && (
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors">Review Outcome</button>
+                          )}
+                          {sample.status === "Revision" && (
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors">Review Revision</button>
+                          )}
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDelete(sample.id); }} 
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 cursor-pointer transition-colors" 
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </td>

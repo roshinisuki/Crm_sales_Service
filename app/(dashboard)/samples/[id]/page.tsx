@@ -125,54 +125,12 @@ export default function SampleDetailPage() {
         
         // Auto-advance linked opportunity when sample is approved
         if (newStatus === "Approved" && sample.opportunityId) {
-          try {
-            // 1. Update sampleStatus on opportunity detail
-            await fetch(`/api/opportunities/${sample.opportunityId}/details`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sampleStatus: "approved" }),
-            });
-
-            // 2. Advance deal stage to RequirementGathering (force=true bypasses sequential check)
-            const stageRes = await fetch(`/api/opportunities/${sample.opportunityId}/stage-change`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ to_stage: "RequirementGathering", force: true }),
-            });
-            const stageData = await stageRes.json();
-            if (stageData.success) {
-              toast.success("Deal advanced to Requirement Gathering");
-            } else if (stageData.message?.includes("Already at this stage")) {
-              toast.info("Deal is already at Requirement Gathering");
-            } else {
-              toast.error(`Stage change failed: ${stageData.message || "Unknown error"}`);
-            }
-          } catch {
-            console.error("Failed to advance opportunity stage");
-            toast.error("Failed to advance deal stage");
-          }
+          toast.success("Deal advanced to Requirement Gathering");
         }
         
         // Move opportunity to Rejected when sample is rejected
         if (newStatus === "Rejected" && sample.opportunityId) {
-          try {
-            await fetch(`/api/opportunities/${sample.opportunityId}/details`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ sampleStatus: "rejected" }),
-            });
-            const rejRes = await fetch(`/api/opportunities/${sample.opportunityId}/stage-change`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ to_stage: "Rejected", rejectedReason: "Sample rejected" }),
-            });
-            const rejData = await rejRes.json();
-            if (!rejData.success) {
-              toast.error(`Failed to reject deal: ${rejData.message || "Unknown error"}`);
-            }
-          } catch {
-            console.error("Failed to update opportunity stage");
-          }
+          toast.info("Deal moved to Rejected stage");
         }
         
         loadSample();
@@ -330,7 +288,7 @@ export default function SampleDetailPage() {
         </div>
 
         {/* Workflow Action Panel */}
-        <div className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden flex flex-col">
+        <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden flex flex-col shadow-sm">
           {/* Row 1: Status & Helper */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-[var(--page-bg)] border-b border-[var(--border-subtle)] gap-4">
             <div className="flex items-center gap-3">

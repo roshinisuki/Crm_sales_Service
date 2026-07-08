@@ -764,10 +764,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ---- Next Best Action Assistant ---- */}
       {!isConverted && !isLost && (
-        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-5 sm:p-6 mb-2 relative overflow-hidden shadow-sm">
-          {/* Subtle background decoration */}
-          <div className="absolute right-0 top-0 w-64 h-64 bg-indigo-500/5 dark:bg-indigo-400/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
-          
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 sm:p-6 mb-2 relative overflow-hidden shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
             <div className="flex items-start gap-4">
               <div className={cn(
@@ -786,11 +783,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Next Best Action</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-300 dark:bg-indigo-700" />
-                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{wfActions.stage}</span>
+                  <span className="text-xs font-extrabold text-[var(--primary)] uppercase tracking-widest">Next Best Action</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                  <span className="text-xs font-semibold text-[var(--text-muted)]">{wfActions.stage}</span>
                 </div>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 max-w-2xl leading-relaxed">{wfActions.stageDescription}</p>
+                <p className="text-sm font-medium text-[var(--text-primary)] max-w-2xl leading-relaxed">{wfActions.stageDescription}</p>
               </div>
             </div>
 
