@@ -397,14 +397,6 @@ export default function CustomerMasterPage() {
           <table className="crm-table">
             <thead>
               <tr className="crm-tr border-b border-slate-100">
-                <th className="crm-th w-10">
-                  <input 
-                    type="checkbox" 
-                    className="rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
-                    checked={customers.length > 0 && selectedIds.length === customers.length}
-                    onChange={toggleAll}
-                  />
-                </th>
                 <th className="crm-th">Customer Code</th>
                 <th className="crm-th">Customer Name</th>
                 <th className="crm-th">City</th>
@@ -415,13 +407,13 @@ export default function CustomerMasterPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-sm text-slate-400">
+                  <td colSpan={5} className="text-center py-10 text-sm text-slate-400">
                     Loading...
                   </td>
                 </tr>
               ) : customers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-sm text-slate-500">
+                  <td colSpan={5} className="text-center py-8 text-sm text-slate-500">
                     No customers found.
                   </td>
                 </tr>
@@ -429,17 +421,9 @@ export default function CustomerMasterPage() {
                 customers.map(c => (
                   <tr
                     key={c.id}
-                    className={`crm-tr table-row-clickable ${selectedIds.includes(c.id) ? 'bg-red-50/30' : ''}`}
+                    className="crm-tr table-row-clickable"
                     onClick={() => router.push(`/customer-master/${c.id}?status=${c.status}`)}
                   >
-                    <td className="crm-td" onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        className="rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
-                        checked={selectedIds.includes(c.id)}
-                        onChange={() => toggleOne(c.id)}
-                      />
-                    </td>
                     <td className="crm-td text-slate-500 font-medium">{c.customerCode}</td>
                     <td className="crm-td">
                       <div className="flex items-center gap-2">

@@ -226,6 +226,12 @@ function NewActivityPageInner() {
       if (res.success) {
         toast.success(`${activityType.charAt(0).toUpperCase() + activityType.slice(1)} logged successfully!${followUpCompleted ? " Follow-up completed." : ""}`);
 
+        const returnTo = searchParams.get("returnTo");
+        if (returnTo) {
+          router.push(returnTo);
+          return;
+        }
+
         const leadId = urlLeadId;
         const dealId = urlDealId;
 

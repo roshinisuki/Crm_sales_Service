@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ServiceKpiCard, ServiceQueueCard, SLACountdownBadge } from "@/components/shared/ServiceComponents";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { 
@@ -9,35 +9,56 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
 
-import { mockRequests, mockVisits, mockComplaints } from "@/lib/config/serviceSeedMockData";
-
 export default function MyServiceDashboardPage() {
-  const [requests] = useState<any[]>(mockRequests);
-  const [visits] = useState<any[]>(mockVisits);
-  const [complaints] = useState<any[]>(mockComplaints);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [visits, setVisits] = useState<any[]>([]);
+  const [complaints, setComplaints] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [reqsRes, visitsRes, compRes] = await Promise.all([
+          fetch("/api/service/requests"),
+          fetch("/api/service/visits"),
+          fetch("/api/service/complaints")
+        ]);
+
+        if (reqsRes.ok) setRequests(await reqsRes.json());
+        if (visitsRes.ok) setVisits(await visitsRes.json());
+        if (compRes.ok) setComplaints(await compRes.json());
+      } catch (err) {
+        console.error("Dashboard fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   const requestColumns: ColumnDef<any>[] = [
-    { header: "Code", accessorKey: "requestCode" },
+    { header: "Code", accessorKey: "id", cell: (row) => <span className="font-mono text-[10px]">{row.id.split("-")[0]}</span> },
     { header: "Subject", accessorKey: "title" },
-    { header: "Customer", cell: (row) => <span>{row.customer.name}</span> },
+    { header: "Customer", cell: (row) => <span>{row.customer?.name || "Unknown"}</span> },
     { 
       header: "SLA", 
-      cell: (row) => <SLACountdownBadge dueDate={row.dueDate} status={row.status} /> 
+      cell: (row) => <SLACountdownBadge dueDate={row.createdAt} status={row.status?.name || "New"} /> 
     },
     { 
       header: "Status", 
       cell: (row) => (
         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-blue-500/10 text-blue-500 border-blue-500/20">
-          {row.status}
+          {row.status?.name || "Unknown"}
         </span>
       )
     }
   ];
 
   const visitColumns: ColumnDef<any>[] = [
-    { header: "Time", cell: (row) => <span>{new Date(row.visitDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span> },
-    { header: "Customer", cell: (row) => <span>{row.customer.name}</span> },
-    { header: "Notes", accessorKey: "notes" },
+    { header: "Time", cell: (row) => <span>{row.scheduledDate ? new Date(row.scheduledDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : "-"}</span> },
+    { header: "Status", cell: (row) => <span>{row.status?.name || "Planned"}</span> },
+    { header: "Notes", accessorKey: "notes", cell: (row) => <span>{row.notes || "-"}</span> },
   ];
   return (
     <div className="space-y-6">
@@ -48,36 +69,40 @@ export default function MyServiceDashboardPage() {
       </div>
 
       {/* KPI Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <ServiceKpiCard 
-          title="Assigned Requests" 
-          value={requests.length} 
-          change="2 new" 
-          isPositive={false} 
-          icon={<Inbox size={18} />} 
-        />
-        <ServiceKpiCard 
-          title="Today's Visits" 
-          value={visits.length} 
-          change="1 scheduled" 
-          isPositive={true} 
-          icon={<Calendar size={18} />} 
-        />
-        <ServiceKpiCard 
-          title="Open Complaints" 
-          value={complaints.length} 
-          change="0 new" 
-          isPositive={true} 
-          icon={<AlertTriangle size={18} />} 
-        />
-        <ServiceKpiCard 
-          title="SLA Met Rate" 
-          value="98.2%" 
-          change="+1.5%" 
-          isPositive={true} 
-          icon={<TrendingUp size={18} />} 
-        />
-      </div>
+      {loading ? (
+        <div className="p-4 text-center text-sm text-[var(--text-muted)] animate-pulse">Loading KPIs...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <ServiceKpiCard 
+            title="Assigned Requests" 
+            value={requests.length} 
+            change="" 
+            isPositive={true} 
+            icon={<Inbox size={18} />} 
+          />
+          <ServiceKpiCard 
+            title="Today's Visits" 
+            value={visits.length} 
+            change="" 
+            isPositive={true} 
+            icon={<Calendar size={18} />} 
+          />
+          <ServiceKpiCard 
+            title="Open Complaints" 
+            value={complaints.length} 
+            change="" 
+            isPositive={true} 
+            icon={<AlertTriangle size={18} />} 
+          />
+          <ServiceKpiCard 
+            title="SLA Met Rate" 
+            value="N/A" 
+            change="Computed" 
+            isPositive={true} 
+            icon={<TrendingUp size={18} />} 
+          />
+        </div>
+      )}
 
       {/* Dashboard Grid layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -89,35 +114,41 @@ export default function MyServiceDashboardPage() {
               <ClipboardList size={16} className="text-blue-400" /> My Assigned Requests
             </h3>
             <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)]">
-              <DataTable data={requests} columns={requestColumns} />
+              {loading ? (
+                <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">Loading...</div>
+              ) : (
+                <DataTable data={requests.slice(0, 5)} columns={requestColumns} />
+              )}
             </div>
           </div>
 
           {/* Scheduled Visits for Today */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4.5 space-y-3.5 backdrop-blur-md">
             <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-2 flex items-center gap-2">
-              <Calendar size={16} className="text-green-400" /> Today's Field Visits
+              <Calendar size={16} className="text-green-400" /> Recent Field Visits
             </h3>
             <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)]">
-              <DataTable data={visits} columns={visitColumns} />
+              {loading ? (
+                <div className="p-4 text-center text-xs text-[var(--text-muted)] animate-pulse">Loading...</div>
+              ) : (
+                <DataTable data={visits.slice(0, 5)} columns={visitColumns} />
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right timeline / alerts */}
+        {/* Right side: Activity / Queue */}
         <div className="space-y-6">
-          {/* Urgent Alerts panel */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4.5 space-y-3.5 backdrop-blur-md">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-2 flex items-center gap-2">
-              <Activity size={16} className="text-red-400" /> Urgent Alerts
-            </h3>
-            <div className="space-y-3">
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs space-y-1 text-red-500">
-                <span className="font-bold uppercase tracking-wide block">SLA Warning</span>
-                <p className="opacity-90 text-[var(--text-secondary)]">Request REQ-2026-001 is within 2 hours of SLA resolution limit.</p>
-              </div>
-            </div>
-          </div>
+          <ServiceQueueCard 
+            title="Urgent Complaints Queue"
+            count={complaints.filter(c => c.priority?.name === "High").length}
+            icon={<AlertTriangle size={18} />}
+          />
+          <ServiceQueueCard 
+            title="Pending Escalations"
+            count={0}
+            icon={<Activity size={18} />}
+          />
         </div>
       </div>
     </div>

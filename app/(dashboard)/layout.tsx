@@ -316,10 +316,12 @@ function ExpandableNavSection({
 // ─── Sidebar module search ───────────────────────────────────────────────────
 
 function SidebarModuleSearch({
+  user,
   activeVariant,
   collapsed,
   onNavigate,
 }: {
+  user: any;
   activeVariant: number;
   collapsed?: boolean;
   onNavigate?: () => void;
@@ -339,17 +341,28 @@ function SidebarModuleSearch({
   // Recent pages (empty query state)
   const [recentPages, setRecentPages] = useState<any[]>([]);
   
+  const localStorageKey = useMemo(() => {
+    if (!user) return null;
+    return user.id ? `recentPages_${user.id}` : (user.email ? `recentPages_${user.email}` : null);
+  }, [user]);
+
   // Load recent pages from localStorage
   useEffect(() => {
+    if (!localStorageKey) {
+      setRecentPages([]);
+      return;
+    }
     try {
-      const stored = localStorage.getItem('recentPages');
+      const stored = localStorage.getItem(localStorageKey);
       if (stored) {
         setRecentPages(JSON.parse(stored));
+      } else {
+        setRecentPages([]);
       }
     } catch (err) {
       console.error('Failed to load recent pages:', err);
     }
-  }, []);
+  }, [localStorageKey]);
 
   // Track mobile viewport for responsive search
   useEffect(() => {
@@ -361,11 +374,12 @@ function SidebarModuleSearch({
   
   // Save recent pages to localStorage
   const addToRecentPages = (item: any) => {
+    if (!localStorageKey) return;
     setRecentPages(prev => {
       const filtered = prev.filter(p => p.key !== item.key);
       const updated = [item, ...filtered].slice(0, 5);
       try {
-        localStorage.setItem('recentPages', JSON.stringify(updated));
+        localStorage.setItem(localStorageKey, JSON.stringify(updated));
       } catch (err) {
         console.error('Failed to save recent pages:', err);
       }
@@ -379,6 +393,7 @@ function SidebarModuleSearch({
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         inputRef.current?.focus();
+        setOpen(true);
       }
       if (e.key === 'Escape') {
         setOpen(false);
@@ -435,10 +450,7 @@ function SidebarModuleSearch({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Open on query or focus with recent pages
-  useEffect(() => {
-    setOpen(query.trim().length >= 2 || (query.trim().length === 0 && recentPages.length > 0));
-  }, [query, recentPages]);
+
 
   // Scroll selected item into view
   useEffect(() => {
@@ -615,6 +627,8 @@ function SidebarModuleSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
+          onFocus={() => setOpen(true)}
+          onClick={() => setOpen(true)}
           placeholder="Search modules... (⌘K)"
           aria-label="Search modules"
           aria-expanded={open}
@@ -746,6 +760,50 @@ function SidebarModuleSearch({
   );
 }
 
+// ─── CRM Toggle Component ────────────────────────────────────────────────────
+export function CrmToggle({ className }: { className?: string }) {
+  const pathname = usePathname();
+  const isServiceWorkspace = pathname?.startsWith("/service");
+
+  return (
+    <div className={cn("relative flex items-center bg-black/40 dark:bg-white/5 border border-white/10 p-[3px] rounded-full select-none w-[220px]", className)}>
+      {/* Sliding background */}
+      <div
+        className={cn(
+          "absolute top-[3px] bottom-[3px] w-[107px] rounded-full transition-all duration-300 ease-out shadow-sm",
+          isServiceWorkspace 
+            ? "left-[calc(50%+1px)] bg-purple-600 shadow-[0_0_8px_rgba(168,85,247,0.4)]" 
+            : "left-[3px] bg-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+        )}
+      />
+      
+      {/* Sales CRM Link */}
+      <Link
+        href="/dashboard"
+        className={cn(
+          "flex-1 flex items-center justify-center gap-2 py-1 text-[10px] font-bold z-10 transition-colors duration-200",
+          !isServiceWorkspace ? "text-white" : "text-white/40 hover:text-white/70"
+        )}
+      >
+        <TrendingUp size={14} className="shrink-0" />
+        <span>Sales CRM</span>
+      </Link>
+
+      {/* Service CRM Link */}
+      <Link
+        href="/service/dashboard/my"
+        className={cn(
+          "flex-1 flex items-center justify-center gap-2 py-1 text-[10px] font-bold z-10 transition-colors duration-200",
+          isServiceWorkspace ? "text-white" : "text-white/40 hover:text-white/70"
+        )}
+      >
+        <Wrench size={14} className="shrink-0" />
+        <span>Service CRM</span>
+      </Link>
+    </div>
+  );
+}
+
 // ─── Sidebar content ─────────────────────────────────────────────────────────
 
 function SidebarContent({
@@ -769,6 +827,13 @@ function SidebarContent({
   const isVariant4 = (user?.variant || user?.company?.variant || 1) >= 4;
   const activeVariant: number = user?.variant || user?.company?.variant || 1;
   const isServiceWorkspace = pathname.startsWith("/service");
+
+  const hasPerm = (moduleName: string) => {
+    if (user?.permissions === 'ALL') return true;
+    if (!user?.permissions) return true;
+    const p = user?.permissions?.find((x: any) => x.module === moduleName);
+    return p ? p.visible : true;
+  };
 
   const serviceRequestSubItems = [
     { href: "/service/requests", label: "All Requests" },
@@ -848,7 +913,7 @@ function SidebarContent({
   const openSectionLabel = (label: string) => () => setOpenSection(label);
 
   const leadSubItems = isVariant2 ? [
-    { href: "/leads", label: "Leads Overview" },
+    { href: "/leads", label: "Overview" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
     { href: "/leads?status=SQL", label: "SQL" },
@@ -856,34 +921,34 @@ function SidebarContent({
     { href: "/leads?status=Lost", label: "Lost Leads" },
     { href: "/leads?status=Duplicate", label: "Duplicate Leads" },
   ] : [
-    { href: "/leads", label: "Leads Overview" },
+    { href: "/leads", label: "Overview" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
 
   const accountsSubItems = isVariant2 ? [
-    { href: "/customer-master", label: "Accounts Overview" },
+    { href: "/customer-master", label: "Overview" },
     { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
     { href: "/customer-master?status=Prospect", label: "Prospect Accounts" },
     { href: "/customer-master?status=Inactive", label: "Inactive Accounts" },
   ] : [
-    { href: "/customer-master", label: "Accounts Overview" },
+    { href: "/customer-master", label: "Overview" },
     { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
   ];
 
   const contactsSubItems = isVariant2 ? [
-    { href: "/contacts", label: "Contacts Overview" },
+    { href: "/contacts", label: "Overview" },
     { href: "/contacts?type=Technical", label: "Technical Contacts" },
     { href: "/contacts?type=Purchase", label: "Purchase Contacts" },
     { href: "/contacts?type=Finance", label: "Finance Contacts" },
     { href: "/contacts?type=Management", label: "Management Contacts" },
   ] : [
-    { href: "/contacts", label: "Contacts Overview" },
+    { href: "/contacts", label: "Overview" },
   ];
 
   const activitySubItems = isVariant2 ? [
-    { href: "/activities", label: "Activities Overview" },
+    { href: "/activities", label: "Overview" },
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
     { href: "/activities?type=Email", label: "Emails" },
@@ -891,7 +956,7 @@ function SidebarContent({
     { href: "/activities?type=Note", label: "Notes" },
     { href: "/timeline", label: "Timeline" },
   ] : [
-    { href: "/activities", label: "Activities Overview" },
+    { href: "/activities", label: "Overview" },
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
     { href: "/activities?type=Email", label: "Emails" },
@@ -899,33 +964,33 @@ function SidebarContent({
   ];
 
   const taskSubItems = isVariant2 ? [
-    { href: "/tasks", label: "Tasks Overview" },
+    { href: "/tasks", label: "Overview" },
     { href: "/tasks?status=Pending", label: "Pending" },
     { href: "/tasks?status=Completed", label: "Completed" },
     { href: "/tasks?status=Overdue", label: "Overdue" },
     { href: "/tasks?status=Cancelled", label: "Cancelled" },
   ] : [
-    { href: "/tasks", label: "Tasks Overview" },
+    { href: "/tasks", label: "Overview" },
     { href: "/tasks?status=Pending", label: "Pending" },
     { href: "/tasks?status=Completed", label: "Completed" },
     { href: "/tasks?status=Overdue", label: "Overdue" },
   ];
 
   const followUpSubItems = isVariant2 ? [
-    { href: "/follow-up", label: "Follow Ups Overview" },
+    { href: "/follow-up", label: "Overview" },
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
     { href: "/follow-up?status=Cancelled", label: "Cancelled" },
   ] : [
-    { href: "/follow-up", label: "Follow Ups Overview" },
+    { href: "/follow-up", label: "Overview" },
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
   ];
 
   const salesPipelineSubItems = [
-    { href: "/sales-pipeline/pipeline-list", label: "Pipeline Overview" },
+    { href: "/sales-pipeline/pipeline-list", label: "Overview" },
     { href: "/sales-pipeline/pipeline-list?stage=Qualified", label: "Qualified" },
     { href: "/sales-pipeline/pipeline-list?stage=RequirementGathering", label: "Requirement Gathering" },
     { href: "/sales-pipeline/pipeline-list?stage=TechnicalDiscussion", label: "Technical Discussion" },
@@ -937,13 +1002,13 @@ function SidebarContent({
   ];
 
   const dealSubItems = isVariant2 ? [
-    { href: "/deals", label: "Deals Overview" },
+    { href: "/deals", label: "Overview" },
     { href: "/deals?status=Active", label: "Active Deals" },
     { href: "/deals?status=OnHold", label: "On Hold Deals" },
     { href: "/deals?status=Won", label: "Won Deals" },
     { href: "/deals?status=Lost", label: "Lost Deals" },
   ] : [
-    { href: "/deals", label: "Deals Overview" },
+    { href: "/deals", label: "Overview" },
     { href: "/deals?status=Active", label: "Active Deals" },
     { href: "/deals?status=Won", label: "Won Deals" },
     { href: "/deals?status=Lost", label: "Lost Deals" },
@@ -987,7 +1052,7 @@ function SidebarContent({
 
   // Variant 2 navigation items
   const customerVisitsSubItems = [
-    { href: "/visits", label: "Visits Overview" },
+    { href: "/visits", label: "Overview" },
     { href: "/visits?status=PLANNED", label: "Planned Visits" },
     { href: "/visits?status=COMPLETED", label: "Completed Visits" },
     { href: "/visits?status=MISSED", label: "Missed Visits" },
@@ -995,7 +1060,7 @@ function SidebarContent({
   ];
 
   const productCatalogueSubItems = [
-    { href: "/catalogue", label: "Catalogue Overview" },
+    { href: "/catalogue", label: "Overview" },
     { href: "/catalogue/categories", label: "Categories" },
     { href: "/catalogue/products", label: "Products" },
     { href: "/catalogue/specifications", label: "Specifications" },
@@ -1004,7 +1069,7 @@ function SidebarContent({
   ];
 
   const rfqSubItems = [
-    { href: "/rfq", label: "RFQ Overview" },
+    { href: "/rfq", label: "Overview" },
     { href: "/rfq?status=New", label: "New RFQ" },
     { href: "/rfq?status=UnderReview", label: "Under Review" },
     { href: "/rfq?status=CostingPending", label: "Costing Pending" },
@@ -1013,7 +1078,7 @@ function SidebarContent({
   ];
 
   const quotationSubItems = isVariant3 ? [
-    { href: "/quotations", label: "Quotation Overview" },
+    { href: "/quotations", label: "Overview" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=UnderReview", label: "Under Review" },
@@ -1021,7 +1086,7 @@ function SidebarContent({
     { href: "/quotations?status=Rejected", label: "Rejected" },
     { href: "/quotations?status=Expired", label: "Expired" },
   ] : [
-    { href: "/quotations", label: "Quotation Overview" },
+    { href: "/quotations", label: "Overview" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=Accepted", label: "Accepted" },
@@ -1029,7 +1094,7 @@ function SidebarContent({
   ];
 
   const forecastSubItems = [
-    { href: "/forecast", label: "Forecast Overview" },
+    { href: "/forecast", label: "Overview" },
     { href: "/forecast?type=Revenue", label: "Revenue Forecast" },
     { href: "/forecast?type=Opportunity", label: "Opportunity Forecast" },
     { href: "/forecast?type=Sales", label: "Sales Forecast" },
@@ -1038,7 +1103,7 @@ function SidebarContent({
 
   // ─── Variant 3 navigation items ───
   const sampleMgmtSubItems = [
-    { href: "/samples", label: "Sample Overview" },
+    { href: "/samples", label: "Overview" },
     { href: "/samples?status=New", label: "New Sample Request" },
     { href: "/samples?status=UnderReview", label: "Under Review" },
     { href: "/samples?status=SentToCustomer", label: "Sent To Customer" },
@@ -1048,7 +1113,7 @@ function SidebarContent({
   ];
 
   const negotiationMgmtSubItems = [
-    { href: "/negotiations", label: "Negotiation Overview" },
+    { href: "/negotiations", label: "Overview" },
     { href: "/negotiations?status=Active", label: "Active Negotiation" },
     { href: "/negotiations?status=PendingApproval", label: "Pending Approval" },
     { href: "/negotiations?status=PriceRevision", label: "Price Revision" },
@@ -1058,7 +1123,7 @@ function SidebarContent({
   ];
 
   const purchaseOrderMgmtSubItems = [
-    { href: "/purchase-orders", label: "PO Overview" },
+    { href: "/purchase-orders", label: "Overview" },
     { href: "/purchase-orders?status=New", label: "New PO" },
     { href: "/purchase-orders?status=UnderValidation", label: "Under Validation" },
     { href: "/purchase-orders?status=Approved", label: "Approved PO" },
@@ -1067,7 +1132,7 @@ function SidebarContent({
   ];
 
   const documentMgmtSubItems = [
-    { href: "/documents", label: "Documents Overview" },
+    { href: "/documents", label: "Overview" },
     { href: "/documents?type=Drawing", label: "Drawings" },
     { href: "/documents?type=TechnicalSpec", label: "Technical Specifications" },
     { href: "/documents?type=NDA", label: "NDA" },
@@ -1078,7 +1143,7 @@ function SidebarContent({
   ];
 
   const approvalCenterSubItems = [
-    { href: "/approvals", label: "Approvals Overview" },
+    { href: "/approvals", label: "Overview" },
     { href: "/approvals?type=Quotation", label: "Quotation Approvals" },
     { href: "/approvals?type=Discount", label: "Discount Approvals" },
     { href: "/approvals?type=Negotiation", label: "Negotiation Approvals" },
@@ -1087,15 +1152,14 @@ function SidebarContent({
 
   // ─── Variant 4 navigation items ───
   const competitorMgmtSubItems = [
-    { href: "/competitors", label: "Competitor Overview" },
-    { href: "/competitors", label: "Competitors" },
+    { href: "/competitors", label: "Overview" },
     { href: "/competitors/products", label: "Competitor Products" },
     { href: "/competitors/lost-analysis", label: "Lost Deals Analysis" },
     { href: "/competitors/win-loss", label: "Win/Loss Analysis" },
   ];
 
   const keyAccountMgmtSubItems = [
-    { href: "/key-accounts", label: "KAM Overview" },
+    { href: "/key-accounts", label: "Overview" },
     { href: "/key-accounts?importance=Critical", label: "Strategic Accounts" },
     { href: "/key-accounts?view=revenue", label: "Revenue Potential" },
     { href: "/key-accounts/visits", label: "Visit Schedule" },
@@ -1103,15 +1167,14 @@ function SidebarContent({
   ];
 
   const territoryMgmtSubItems = [
-    { href: "/territories", label: "Territory Overview" },
+    { href: "/territories", label: "Overview" },
     { href: "/territories?view=regions", label: "Regions" },
-    { href: "/territories", label: "Sales Territories" },
     { href: "/territories/accounts", label: "Territory Accounts" },
     { href: "/territories/performance", label: "Territory Performance" },
   ];
 
   const targetMgmtSubItems = [
-    { href: "/targets", label: "Target Overview" },
+    { href: "/targets", label: "Overview" },
     { href: "/targets?type=Monthly", label: "Monthly Targets" },
     { href: "/targets?type=Quarterly", label: "Quarterly Targets" },
     { href: "/targets?type=Yearly", label: "Yearly Targets" },
@@ -1147,50 +1210,13 @@ function SidebarContent({
           )}
         </div>
 
-        {/* Workspace Switcher */}
-        {!collapsed && (
-          <div className="relative group/switcher mt-2">
-            <button 
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-all text-[11px] font-bold"
-            >
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  "w-2 h-2 rounded-full",
-                  isServiceWorkspace ? "bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]" : "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-                )} />
-                <span>{isServiceWorkspace ? "Service Workspace" : "Sales CRM"}</span>
-              </div>
-              <ChevronDown size={12} className="opacity-60" />
-            </button>
-            <div className="absolute left-0 right-0 top-full mt-1.5 rounded-xl border border-white/10 bg-[#121214] p-1.5 shadow-2xl opacity-0 invisible group-hover/switcher:opacity-100 group-hover/switcher:visible transition-all z-50 space-y-1">
-              <Link 
-                href="/dashboard"
-                className={cn(
-                  "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold hover:bg-white/5 transition-all text-left",
-                  !isServiceWorkspace ? "text-white bg-white/5" : "text-white/60"
-                )}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                Sales CRM
-              </Link>
-              <Link 
-                href="/service/dashboard/my"
-                className={cn(
-                  "w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-[11px] font-bold hover:bg-white/5 transition-all text-left",
-                  isServiceWorkspace ? "text-white bg-white/5" : "text-white/60"
-                )}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                Service Workspace
-              </Link>
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* ── Module Search ── */}
       {!collapsed && (
         <SidebarModuleSearch
+          user={user}
           activeVariant={activeVariant}
           collapsed={collapsed}
           onNavigate={onNavClick}
@@ -1342,66 +1368,66 @@ function SidebarContent({
             {!loading && user?.role !== "Customer" && user?.role !== "SuperAdmin" && (
               <>
                 {/* ── Lifecycle modules in sales-flow order ── */}
-                <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Leads"} onToggle={makeToggle("Leads")} onOpen={openSectionLabel("Leads")} />
-                <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Accounts"} onToggle={makeToggle("Accounts")} onOpen={openSectionLabel("Accounts")} />
-                <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} onOpen={openSectionLabel("Contacts")} />
-                <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Activities"} onToggle={makeToggle("Activities")} onOpen={openSectionLabel("Activities")} />
+                {hasPerm("Leads") && <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Leads"} onToggle={makeToggle("Leads")} onOpen={openSectionLabel("Leads")} />}
+                {hasPerm("Accounts") && <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Accounts"} onToggle={makeToggle("Accounts")} onOpen={openSectionLabel("Accounts")} />}
+                {hasPerm("Contacts") && <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} onOpen={openSectionLabel("Contacts")} />}
+                {hasPerm("Activities") && <NavLink item={{ href: "/activities", label: "Activities", icon: <Activity size={17} /> }} active={pathname.startsWith("/activities") || pathname === "/timeline"} onClick={onNavClick} collapsed={collapsed} />}
 
-                {isVariant2 && (
+                {isVariant2 && hasPerm("Customer Visits") && (
                   <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Visits"} onToggle={makeToggle("Customer Visits")} onOpen={openSectionLabel("Customer Visits")} />
                 )}
 
-                {isVariant2 && (
+                {isVariant2 && hasPerm("Product Catalogue") && (
                   <ExpandableNavSection label="Product Catalogue" icon={<Package size={17} />} subItems={productCatalogueSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Product Catalogue"} onToggle={makeToggle("Product Catalogue")} onOpen={openSectionLabel("Product Catalogue")} />
                 )}
 
-                {isVariant3 && (
+                {isVariant3 && hasPerm("Samples") && (
                   <ExpandableNavSection label="Samples" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Samples"} onToggle={makeToggle("Samples")} onOpen={openSectionLabel("Samples")} />
                 )}
 
-                <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} onOpen={openSectionLabel("Sales Pipeline")} />
+                {hasPerm("Sales Pipeline") && <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} onOpen={openSectionLabel("Sales Pipeline")} />}
 
-                {isVariant2 && (
+                {isVariant2 && hasPerm("RFQ") && (
                   <ExpandableNavSection label="RFQ" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ"} onToggle={makeToggle("RFQ")} onOpen={openSectionLabel("RFQ")} />
                 )}
 
-                {isVariant4 && (
+                {isVariant4 && hasPerm("Competitors") && (
                   <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} onOpen={openSectionLabel("Competitors")} />
                 )}
-                <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />
-                {isVariant3 && (
+                {hasPerm("Quotations") && <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />}
+                {isVariant3 && hasPerm("Negotiations") && (
                   <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} onOpen={openSectionLabel("Negotiations")} />
                 )}
-                {isVariant3 && (
+                {isVariant3 && hasPerm("Purchase Orders") && (
                   <ExpandableNavSection label="Purchase Orders" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Orders"} onToggle={makeToggle("Purchase Orders")} onOpen={openSectionLabel("Purchase Orders")} />
                 )}
 
-                {isVariant2 && (
+                {isVariant2 && hasPerm("Deals") && (
                   <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Deals"} onToggle={makeToggle("Deals")} onOpen={openSectionLabel("Deals")} />
                 )}
-                <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} onOpen={openSectionLabel("Tasks")} />
-                <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} onOpen={openSectionLabel("Follow Ups")} />
+                {hasPerm("Tasks") && <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} onOpen={openSectionLabel("Tasks")} />}
+                {hasPerm("Follow Ups") && <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} onOpen={openSectionLabel("Follow Ups")} />}
 
-                {isVariant3 && (
+                {isVariant3 && hasPerm("Documents") && (
                   <ExpandableNavSection label="Documents" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Documents"} onToggle={makeToggle("Documents")} onOpen={openSectionLabel("Documents")} />
                 )}
-                {isVariant4 && (
+                {isVariant4 && hasPerm("Key Accounts") && (
                   <ExpandableNavSection label="Key Accounts" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Accounts"} onToggle={makeToggle("Key Accounts")} onOpen={openSectionLabel("Key Accounts")} />
                 )}
-                {isVariant4 && (
+                {isVariant4 && hasPerm("Territories") && (
                   <ExpandableNavSection label="Territories" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territories"} onToggle={makeToggle("Territories")} onOpen={openSectionLabel("Territories")} />
                 )}
-                {isVariant4 && (
+                {isVariant4 && hasPerm("Targets") && (
                   <ExpandableNavSection label="Targets" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Targets"} onToggle={makeToggle("Targets")} onOpen={openSectionLabel("Targets")} />
                 )}
 
-                {isVariant2 && (
+                {isVariant2 && hasPerm("Forecast") && (
                   <ExpandableNavSection label="Forecast" icon={<Target size={17} />} subItems={forecastSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Forecast"} onToggle={makeToggle("Forecast")} onOpen={openSectionLabel("Forecast")} />
                 )}
 
-                <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Reports"} onToggle={makeToggle("Reports")} onOpen={openSectionLabel("Reports")} />
+                {hasPerm("Reports") && <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Reports"} onToggle={makeToggle("Reports")} onOpen={openSectionLabel("Reports")} />}
 
-                {isVariant3 && (
+                {isVariant3 && hasPerm("Approval Center") && (
                   <ExpandableNavSection label="Approval Center" icon={<ShieldCheck size={17} />} subItems={approvalCenterSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Approval Center"} onToggle={makeToggle("Approval Center")} onOpen={openSectionLabel("Approval Center")} />
                 )}
               </>
@@ -1440,15 +1466,17 @@ function SidebarContent({
                 )}
                 {isVariant2 ? (
                   <>
-                    <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "User Management"} onToggle={makeToggle("User Management")} onOpen={openSectionLabel("User Management")} />
-                    <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={collapsed} />
-                    <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
+                    {hasPerm("User Management") && <ExpandableNavSection label="User Management" icon={<Users size={17} />} subItems={userManagementSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "User Management"} onToggle={makeToggle("User Management")} onOpen={openSectionLabel("User Management")} />}
+                    {hasPerm("Audit Logs") && <NavLink item={{ href: "/audit-logs", label: "Audit Logs", icon: <ShieldCheck size={17} /> }} active={pathname.startsWith("/audit-logs")} onClick={onNavClick} collapsed={collapsed} />}
+                    {hasPerm("Settings") && <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={settingsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />}
                   </>
                 ) : (
-                  <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={[
-                    ...userManagementSubItems,
-                    ...settingsSubItems,
-                  ]} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />
+                  <>
+                    {hasPerm("Settings") && <ExpandableNavSection label="Settings" icon={<Settings size={17} />} subItems={[
+                      ...(hasPerm("User Management") ? userManagementSubItems : []),
+                      ...settingsSubItems,
+                    ]} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Settings"} onToggle={makeToggle("Settings")} onOpen={openSectionLabel("Settings")} />}
+                  </>
                 )}
               </>
             )}
@@ -1498,6 +1526,46 @@ function SidebarContent({
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
+const PATH_MODULE_MAP: Record<string, string> = {
+  "/leads": "Leads",
+  "/customer-master": "Accounts",
+  "/contacts": "Contacts",
+  "/activities": "Activities",
+  "/timeline": "Activities",
+  "/visits": "Customer Visits",
+  "/catalogue": "Product Catalogue",
+  "/samples": "Samples",
+  "/sales-pipeline": "Sales Pipeline",
+  "/rfq": "RFQ",
+  "/competitors": "Competitors",
+  "/quotations": "Quotations",
+  "/negotiations": "Negotiations",
+  "/purchase-orders": "Purchase Orders",
+  "/deals": "Deals",
+  "/tasks": "Tasks",
+  "/follow-up": "Follow Ups",
+  "/documents": "Documents",
+  "/key-accounts": "Key Accounts",
+  "/territories": "Territories",
+  "/targets": "Targets",
+  "/forecast": "Forecast",
+  "/reports": "Reports",
+  "/approvals": "Approval Center",
+  "/service/dashboard": "Service Dashboard",
+  "/service/requests": "Service Requests",
+  "/service/complaints": "Complaints",
+  "/service/defects": "Defects",
+  "/service/installations": "Installations",
+  "/service/warranty-amc": "Warranty & AMC",
+  "/service/visits": "Service Visits",
+  "/service/assets": "Customer Assets",
+  "/service/reports": "Service Reports",
+  "/service/settings": "Service Settings",
+  "/user-master": "User Management",
+  "/audit-logs": "Audit Logs",
+  "/settings": "Settings"
+};
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -1506,8 +1574,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) router.push("/login");
-  }, [user, loading, router]);
+    if (!loading && !user) {
+      router.push("/login");
+    } else if (user && user.role !== "Admin" && user.role !== "SuperAdmin") {
+      let currentModule: string | null = null;
+      for (const [pathPrefix, moduleName] of Object.entries(PATH_MODULE_MAP)) {
+        if (pathname === pathPrefix || pathname.startsWith(pathPrefix + "/")) {
+          currentModule = moduleName;
+          break;
+        }
+      }
+      
+      if (currentModule && user.permissions !== "ALL" && Array.isArray(user.permissions)) {
+        const p = user.permissions.find((x: any) => x.module === currentModule);
+        if (p && !p.visible) {
+          router.replace("/dashboard");
+        }
+      }
+    }
+  }, [user, loading, router, pathname]);
 
   const handleLogout = async () => {
     try {

@@ -78,6 +78,7 @@ export default function ServiceModuleListPage({
   const tableColumns: ColumnDef<any>[] = config.listColumns.map(col => ({
     header: col.label,
     accessorKey: col.id,
+    align: "left",
     cell: (row: any) => {
       if (col.type === "relation" && col.relationKey) {
         // e.g. relationKey: 'customer.name'
@@ -104,11 +105,12 @@ export default function ServiceModuleListPage({
       return <span className="text-xs text-[var(--text-primary)]">{row[col.id] || "-"}</span>;
     }
   }));
-
+ 
   // Append actions or custom renderer if needed
   if (onRowClick) {
     tableColumns.push({
       header: "Action",
+      align: "left",
       cell: (row: any) => (
         <button 
           onClick={() => onRowClick(row)}

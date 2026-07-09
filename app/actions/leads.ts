@@ -349,6 +349,24 @@ export async function createLeadAction(data: {
       phone: phone,
     });
 
+    // Auto-assign owner based on territory matching the lead's city
+    let resolvedOwnerId = assignedUserId || userPayload.id;
+    if (city?.trim()) {
+      const matchingTerritory = await prisma.territory.findFirst({
+        where: {
+          companyId: userPayload.companyId,
+          isActive: true,
+          OR: [
+            { name: { contains: city.trim() } },
+            { states: { contains: city.trim() } }
+          ]
+        }
+      });
+      if (matchingTerritory && matchingTerritory.assignedUserId) {
+        resolvedOwnerId = matchingTerritory.assignedUserId;
+      }
+    }
+
     // SLA deadline = 15 minutes from now
     const now = new Date();
     const slaDeadline = new Date(now.getTime() + 15 * 60 * 1000);
@@ -362,7 +380,7 @@ export async function createLeadAction(data: {
         city: city || null,
         leadSource: leadSource || "Website",
         notes: notes || null,
-        assignedUserId: assignedUserId || userPayload.id,
+        assignedUserId: resolvedOwnerId,
         status: "New",
         slaStatus: "Pending",
         slaResponseDeadline: slaDeadline,
@@ -386,9 +404,9 @@ export async function createLeadAction(data: {
       data: {
         leadId: newLead.id,
         fromUserId: null,
-        toUserId: assignedUserId || userPayload.id,
+        toUserId: resolvedOwnerId,
         changedById: userPayload.id,
-        reason: "Manual lead creation — initial assignment",
+        reason: "Manual lead creation — initial assignment (with territory-based routing)",
       }
     });
 
@@ -1477,6 +1495,28 @@ export async function convertLeadV2Action(
       });
       const accountCode = `ACC-${String(accountCount + 1).padStart(5, "0")}`;
 
+      // Auto-assign owner based on territory matching the lead's city
+      let resolvedOwnerId = lead.assignedUserId || userPayload.id;
+      let matchingTerritoryId: string | null = null;
+      if (lead.city?.trim()) {
+        const matchingTerritory = await tx.territory.findFirst({
+          where: {
+            companyId: userPayload.companyId,
+            isActive: true,
+            OR: [
+              { name: { contains: lead.city.trim() } },
+              { states: { contains: lead.city.trim() } }
+            ]
+          }
+        });
+        if (matchingTerritory) {
+          matchingTerritoryId = matchingTerritory.id;
+          if (matchingTerritory.assignedUserId) {
+            resolvedOwnerId = matchingTerritory.assignedUserId;
+          }
+        }
+      }
+
       // 2. Create Account (Customer)
       const account = await tx.customer.create({
         data: {
@@ -1486,7 +1526,7 @@ export async function convertLeadV2Action(
           phone: lead.phone,
           city: lead.city,
           status: "Active",
-          assignedUserId: lead.assignedUserId || userPayload.id,
+          assignedUserId: resolvedOwnerId,
           convertedFromLead: lead.id,
           leadSource: lead.leadSource,
           companyId: userPayload.companyId,
@@ -1497,6 +1537,16 @@ export async function convertLeadV2Action(
           billingAddress: data.account.billingAddress || null,
         },
       });
+
+      // Link Account to Territory if mapped
+      if (matchingTerritoryId) {
+        await tx.territoryAccount.create({
+          data: {
+            territoryId: matchingTerritoryId,
+            customerId: account.id
+          }
+        });
+      }
 
       // 3. Create Contact linked to new account
       const contact = await tx.contact.create({
@@ -1510,7 +1560,7 @@ export async function convertLeadV2Action(
           contactType: data.contact.contactCategory || "Technical",
           isPrimary: true,
           customerId: account.id,
-          ownerId: lead.assignedUserId || userPayload.id,
+          ownerId: resolvedOwnerId,
           companyId: userPayload.companyId,
         },
       });
@@ -1530,7 +1580,7 @@ export async function convertLeadV2Action(
           customerId: account.id,
           dealValue: data.opportunity.estimatedValue || lead.estimatedValue || 0,
           expectedCloseDate: new Date(data.opportunity.expectedCloseDate),
-          assignedUserId: lead.assignedUserId || userPayload.id,
+          assignedUserId: resolvedOwnerId,
           status: "Qualified",
           companyId: userPayload.companyId,
           // V2 fields

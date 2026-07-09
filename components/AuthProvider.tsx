@@ -13,6 +13,7 @@ export interface UserProfile {
   theme?: string;
   themeMode?: string;
   variant?: number;
+  permissions?: any[] | 'ALL';
   company?: {
     id: string;
     name: string;

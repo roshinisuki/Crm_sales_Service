@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthProvider";
-import { CRMSpinner } from "@/components/CRMSpinner";
+import { PageLoader } from "@/components/PageLoader";
 import { getDashboardDataAction } from "@/app/actions/visits";
 import { getSalesAnalyticsAction } from "@/app/actions/analytics";
 import SalesManagerDashboard from "@/components/dashboards/SalesManagerDashboard";
@@ -43,11 +43,7 @@ export default function ManagerDashboardPage() {
   }, [authLoading, user, dateRange]);
 
   if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <CRMSpinner size={48} label="Loading sales dashboard..." />
-      </div>
-    );
+    return <PageLoader label="Loading sales dashboard..." />;
   }
 
   return (

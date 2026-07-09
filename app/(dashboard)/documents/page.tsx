@@ -175,8 +175,8 @@ export default function DocumentsListPage() {
             </svg>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Document Management</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage all your business documents in one place</p>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Document Management</h1>
+            <p className="text-sm text-[var(--text-secondary)] mt-0.5">Manage all your business documents in one place</p>
           </div>
         </div>
         <button
@@ -188,11 +188,11 @@ export default function DocumentsListPage() {
       </div>
 
       {/* View Toggle — segmented control */}
-      <div className="inline-flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl mb-5">
+      <div className="inline-flex items-center gap-1 p-1 bg-[var(--surface-2)] rounded-xl mb-5 w-full">
         <button
           onClick={() => setViewMode("all")}
           className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-            viewMode === "all" ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-500 hover:text-slate-700"
+            viewMode === "all" ? "bg-[var(--surface)] text-[var(--primary)] shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           }`}
         >
           All Documents
@@ -200,7 +200,7 @@ export default function DocumentsListPage() {
         <button
           onClick={() => setViewMode("company")}
           className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
-            viewMode === "company" ? "bg-white text-[var(--primary)] shadow-sm" : "text-slate-500 hover:text-slate-700"
+            viewMode === "company" ? "bg-[var(--surface)] text-[var(--primary)] shadow-sm" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           }`}
         >
           By Company
@@ -216,14 +216,14 @@ export default function DocumentsListPage() {
           { label: "NDAs", value: stats.ndas, icon: "🤝", color: "text-amber-600", bg: "bg-amber-50", ring: "ring-amber-200/60" },
           { label: "Uploaded This Month", value: stats.thisMonth, icon: "📤", color: "text-emerald-600", bg: "bg-emerald-50", ring: "ring-emerald-200/60" },
         ].map((card) => (
-          <div key={card.label} className="bg-white rounded-2xl border border-slate-200/80 p-5 hover:shadow-md hover:border-slate-300 transition-all">
+          <div key={card.label} className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-5 hover:shadow-md hover:border-[var(--primary)] transition-all">
             <div className="flex items-center gap-3 mb-3">
-              <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center text-xl ring-1 ${card.ring}`}>
+              <div className={`w-10 h-10 rounded-xl ${card.bg} flex items-center justify-center text-xl ring-1 ${card.ring} dark:bg-[var(--surface-2)] dark:ring-[var(--border)]`}>
                 {card.icon}
               </div>
-              <span className={`text-3xl font-bold ${card.color} tracking-tight`}>{card.value}</span>
+              <span className={`text-3xl font-bold ${card.color} dark:text-[var(--text-primary)] tracking-tight`}>{card.value}</span>
             </div>
-            <p className="text-xs font-medium text-slate-500 tracking-wide uppercase">{card.label}</p>
+            <p className="text-xs font-medium text-[var(--text-secondary)] tracking-wide uppercase">{card.label}</p>
           </div>
         ))}
       </div>
@@ -238,7 +238,7 @@ export default function DocumentsListPage() {
             className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all ${
               typeFilter === f.value
                 ? "bg-[var(--primary)] text-white shadow-sm"
-                : "bg-white border border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)]"
             }`}
           >
             <span>{f.icon}</span>
@@ -250,7 +250,7 @@ export default function DocumentsListPage() {
       {/* Search — only in flat list view */}
       {viewMode === "all" && (
       <div className="relative mb-4">
-        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
           <Ico d={icons.search} size={16} />
         </div>
         <input
@@ -258,7 +258,7 @@ export default function DocumentsListPage() {
           placeholder="Search by name, code, or description…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]/30 transition-all"
+          className="w-full pl-11 pr-4 py-2.5 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]/30 transition-all"
         />
       </div>
       )}
@@ -267,17 +267,17 @@ export default function DocumentsListPage() {
       {viewMode === "company" ? (
         <CompanyGrid documentType={typeFilter} />
       ) : (
-      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] overflow-hidden shadow-sm">
         {loading ? (
-          <div className="text-center py-16 text-slate-400 text-sm">
-            <div className="inline-block w-8 h-8 border-2 border-slate-200 border-t-[var(--primary)] rounded-full animate-spin mb-3" />
+          <div className="text-center py-16 text-[var(--text-muted)] text-sm">
+            <div className="inline-block w-8 h-8 border-2 border-[var(--border)] border-t-[var(--primary)] rounded-full animate-spin mb-3" />
             <div>Loading documents…</div>
           </div>
         ) : documents.length === 0 ? (
           <div className="text-center py-20 px-4">
-            <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center text-3xl mx-auto mb-4">{currentTabIcon}</div>
-            <div className="font-medium text-sm text-slate-700 mb-1">No {currentTabLabel} found</div>
-            <div className="text-xs text-slate-400 mb-5">
+            <div className="w-16 h-16 rounded-2xl bg-[var(--surface-2)] flex items-center justify-center text-3xl mx-auto mb-4">{currentTabIcon}</div>
+            <div className="font-medium text-sm text-[var(--text-primary)] mb-1">No {currentTabLabel} found</div>
+            <div className="text-xs text-[var(--text-secondary)] mb-5">
               {searchQuery ? `No results for "${searchQuery}"` : "Upload your first document to get started"}
             </div>
             <button
@@ -290,17 +290,17 @@ export default function DocumentsListPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50/80 border-b border-slate-200">
+              <thead className="bg-[var(--surface-2)] border-b border-[var(--border)]">
                 <tr>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Code</th>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Name</th>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Type</th>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Related To</th>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Ver</th>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Size</th>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Uploaded By</th>
-                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Date</th>
-                  <th className="text-right px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-slate-500">Actions</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Code</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Name</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Type</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Related To</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Ver</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Size</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Uploaded By</th>
+                  <th className="text-left px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Date</th>
+                  <th className="text-right px-5 py-3.5 font-medium text-xs uppercase tracking-wider text-[var(--text-secondary)]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">

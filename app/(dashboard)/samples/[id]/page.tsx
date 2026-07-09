@@ -1,7 +1,7 @@
 "use client";
-
+ 
 import { useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
@@ -11,7 +11,7 @@ import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { ArrowLeft, Pencil, Trash2, CheckCircle2, XCircle, ArrowRight, Package, Clock, Send, RotateCw, Calendar, User, Mail, Phone, FileText, Truck, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
-
+ 
 const statusConfig: Record<string, { color: string; bg: string; border: string; icon: any; label: string }> = {
   New:           { color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200",    icon: Package,      label: "New" },
   UnderReview:   { color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-200",   icon: Clock,        label: "Under Review" },
@@ -20,10 +20,10 @@ const statusConfig: Record<string, { color: string; bg: string; border: string; 
   Rejected:      { color: "text-red-700",     bg: "bg-red-50",     border: "border-red-200",     icon: XCircle,      label: "Rejected" },
   Revision:      { color: "text-orange-700",  bg: "bg-orange-50",  border: "border-orange-200",  icon: RotateCw,     label: "Revision" },
 };
-
+ 
 const STAGES = ["New", "UnderReview", "SentToCustomer", "Approved"];
 const statusOptions = ["New", "UnderReview", "SentToCustomer", "Approved", "Rejected", "Revision"];
-
+ 
 const nextStatusOptions: Record<string, string[]> = {
   New: ["UnderReview"],
   UnderReview: ["SentToCustomer", "Revision"],
@@ -32,14 +32,16 @@ const nextStatusOptions: Record<string, string[]> = {
   Rejected: ["Revision"],
   Revision: ["UnderReview"],
 };
-
+ 
 export default function SampleDetailPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const searchParams = useSearchParams();
+  const actionParam = searchParams?.get("action");
   const toast = useToast();
   const { user } = useAuth();
-
+ 
   const [sample, setSample] = useState<any>(null);
   useSyncUrlParam(sample?.status, "status");
   const [loading, setLoading] = useState(true);
@@ -53,13 +55,23 @@ export default function SampleDetailPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [rfqs, setRfqs] = useState<any[]>([]);
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
-  const [feedbackTarget, setFeedbackTarget] = useState<"Approved" | "Rejected" | null>(null);
-  const [feedbackText, setFeedbackText] = useState("");
+  
+  // Modals / Specific Flow States
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewNotesText, setReviewNotesText] = useState("");
+ 
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [dispatchTracking, setDispatchTracking] = useState("");
+ 
+  const [isOutcomeModalOpen, setIsOutcomeModalOpen] = useState(false);
+  const [outcomeDecision, setOutcomeDecision] = useState<"Approved" | "Rejected" | "Revision">("Approved");
+  const [outcomeNotes, setOutcomeNotes] = useState("");
+ 
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [revisionText, setRevisionText] = useState("");
-
+ 
   const [editForm, setEditForm] = useState<any>({});
-
+ 
   const loadSample = async () => {
     setLoading(true);
     try {
@@ -77,7 +89,7 @@ export default function SampleDetailPage() {
           assignedUserId: data.data.assignedUserId || "",
           trackingNumber: data.data.trackingNumber || "",
         });
-        setFeedbackText(data.data.customerFeedback || "");
+        setOutcomeNotes("");
         setRevisionText(data.data.revisionNotes || "");
       }
     } catch {
@@ -86,11 +98,37 @@ export default function SampleDetailPage() {
       setLoading(false);
     }
   };
-
+ 
+  // Trigger actions based on search parameter arrival
+  useEffect(() => {
+    if (sample && actionParam) {
+      if (actionParam === "review" && sample.status === "New") {
+        const extra: any = {};
+        if (!sample.assignedUserId && user?.id) {
+          extra.assignedUserId = user.id;
+        }
+        handleStatusChange("UnderReview", extra).then(() => {
+          setReviewNotesText("");
+          setIsReviewModalOpen(true);
+        });
+      } else if (actionParam === "dispatch" && sample.status === "UnderReview") {
+        setDispatchTracking(sample.trackingNumber || "");
+        setIsDispatchModalOpen(true);
+      } else if (actionParam === "revision" && sample.status === "Revision") {
+        setRevisionText(sample.revisionNotes || "");
+        setShowRevisionModal(true);
+      } else if (actionParam === "outcome" && sample.status === "SentToCustomer") {
+        setOutcomeDecision("Approved");
+        setOutcomeNotes("");
+        setIsOutcomeModalOpen(true);
+      }
+    }
+  }, [sample?.id, actionParam]);
+ 
   useEffect(() => {
     loadSample();
   }, [id]);
-
+ 
   useEffect(() => {
     if (editing) {
       fetch("/api/customer-master").then(res => res.json()).then(data => { if (data.success) setCustomers(data.data || []); });
@@ -99,7 +137,7 @@ export default function SampleDetailPage() {
       fetch("/api/rfq").then(res => res.json()).then(data => { if (data.success) setRfqs(data.data || []); });
     }
   }, [editing]);
-
+ 
   useEffect(() => {
     if (editForm.customerId) {
       fetch(`/api/contacts?customerId=${editForm.customerId}`).then(res => res.json()).then(data => {
@@ -109,7 +147,7 @@ export default function SampleDetailPage() {
       setContacts([]);
     }
   }, [editForm.customerId]);
-
+ 
   const handleStatusChange = async (newStatus: string, extra: Record<string, any> = {}) => {
     setUpdatingStatus(true);
     startLoading("Updating sample status...", "handshake");
@@ -122,18 +160,13 @@ export default function SampleDetailPage() {
       const data = await res.json();
       if (data.success) {
         toast.success(`Status changed to ${newStatus}`);
-        
-        // Auto-advance linked opportunity when sample is approved
         if (newStatus === "Approved" && sample.opportunityId) {
           toast.success("Deal advanced to Requirement Gathering");
         }
-        
-        // Move opportunity to Rejected when sample is rejected
         if (newStatus === "Rejected" && sample.opportunityId) {
           toast.info("Deal moved to Rejected stage");
         }
-        
-        loadSample();
+        await loadSample();
       } else {
         toast.error(data.message || "Failed to update status");
       }
@@ -144,30 +177,65 @@ export default function SampleDetailPage() {
       stopLoading();
     }
   };
-
+ 
   const handleStatusClick = (newStatus: string) => {
     if (newStatus === "Approved" || newStatus === "Rejected") {
-      // Open feedback modal to capture customer feedback
-      setFeedbackTarget(newStatus as "Approved" | "Rejected");
+      setOutcomeDecision(newStatus);
+      setOutcomeNotes("");
+      setIsOutcomeModalOpen(true);
       return;
     }
     if (newStatus === "Revision") {
-      setShowRevisionModal(true);
+      setOutcomeDecision("Revision");
+      setOutcomeNotes("");
+      setIsOutcomeModalOpen(true);
+      return;
+    }
+    if (newStatus === "SentToCustomer") {
+      setDispatchTracking(sample.trackingNumber || "");
+      setIsDispatchModalOpen(true);
+      return;
+    }
+    if (newStatus === "UnderReview") {
+      setReviewNotesText("");
+      setIsReviewModalOpen(true);
       return;
     }
     handleStatusChange(newStatus);
   };
-
-  const submitFeedback = (status: string) => {
-    handleStatusChange(status, { customerFeedback: feedbackText });
-    setFeedbackTarget(null);
+ 
+  const handleConfirmReview = () => {
+    const existingSpecs = sample.specifications || "";
+    const updatedSpecs = `${existingSpecs}\n\n[Review Notes]\n${reviewNotesText}`;
+    handleStatusChange("UnderReview", { specifications: updatedSpecs }).then(() => {
+      setIsReviewModalOpen(false);
+    });
   };
-
+ 
+  const handleConfirmDispatch = () => {
+    handleStatusChange("SentToCustomer", { trackingNumber: dispatchTracking }).then(() => {
+      setIsDispatchModalOpen(false);
+    });
+  };
+ 
+  const handleConfirmOutcome = () => {
+    if (outcomeDecision === "Revision") {
+      handleStatusChange("Revision", { revisionNotes: outcomeNotes }).then(() => {
+        setIsOutcomeModalOpen(false);
+      });
+    } else {
+      handleStatusChange(outcomeDecision, { customerFeedback: outcomeNotes }).then(() => {
+        setIsOutcomeModalOpen(false);
+      });
+    }
+  };
+ 
   const submitRevision = () => {
-    handleStatusChange("Revision", { revisionNotes: revisionText });
-    setShowRevisionModal(false);
+    handleStatusChange("Revision", { revisionNotes: revisionText }).then(() => {
+      setShowRevisionModal(false);
+    });
   };
-
+ 
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -190,7 +258,7 @@ export default function SampleDetailPage() {
       setSaving(false);
     }
   };
-
+ 
   const handleDelete = () => {
     setConfirmState({
       isOpen: true,
@@ -213,15 +281,15 @@ export default function SampleDetailPage() {
       },
     });
   };
-
+ 
   if (loading) return <PageContainer className="p-6"><div className="flex flex-col items-center gap-3 py-20"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /><p className="text-sm text-slate-400">Loading sample...</p></div></PageContainer>;
   if (!sample) return <PageContainer className="p-6"><div className="flex flex-col items-center gap-3 py-20"><Package size={36} className="text-slate-200" /><p className="text-sm text-slate-400">Sample not found</p></div></PageContainer>;
-
+ 
   const allowedNext = nextStatusOptions[sample.status] || [];
   const currentStageIdx = STAGES.indexOf(sample.status);
   const cfg = statusConfig[sample.status] || statusConfig.New;
   const StatusIcon = cfg.icon;
-
+ 
   return (
     <PageContainer className="space-y-4 p-0">
       {/* Header */}
@@ -247,7 +315,7 @@ export default function SampleDetailPage() {
           </button>
         </div>
       </div>
-
+ 
       {/* Status Progress Stepper */}
       <div className="crm-card p-5">
         <div className="flex items-center gap-1.5 sm:gap-2">
@@ -286,7 +354,7 @@ export default function SampleDetailPage() {
             );
           })}
         </div>
-
+ 
         {/* Workflow Action Panel */}
         <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden flex flex-col shadow-sm">
           {/* Row 1: Status & Helper */}
@@ -314,13 +382,13 @@ export default function SampleDetailPage() {
               </select>
             </div>
           </div>
-
+ 
           {/* Row 2: Action Buttons */}
           <div className="p-4 sm:p-5 bg-[var(--card)]">
             <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-3">Available Actions</h4>
-            {allowedNext.length > 0 ? (
-              <div className="flex flex-wrap gap-3">
-                {allowedNext.map((s) => {
+            <div className="flex flex-wrap gap-3">
+              {allowedNext.length > 0 ? (
+                allowedNext.map((s) => {
                   const nextCfg = statusConfig[s];
                   const NextIcon = nextCfg.icon;
                   return (
@@ -336,13 +404,23 @@ export default function SampleDetailPage() {
                       <NextIcon size={16} /> Move to {nextCfg.label}
                     </button>
                   );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-[var(--text-muted)] italic">No further actions available from this stage.</p>
-            )}
+                })
+              ) : sample.status === "Rejected" ? (
+                <button
+                  onClick={() => {
+                    setRevisionText(sample.revisionNotes || "");
+                    setShowRevisionModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer border border-orange-200 bg-orange-50 text-orange-700 hover:shadow-md hover:-translate-y-0.5"
+                >
+                  <RotateCw size={16} /> Reopen for Revision
+                </button>
+              ) : (
+                <p className="text-sm text-[var(--text-muted)] italic">No further actions available from this stage.</p>
+              )}
+            </div>
           </div>
-
+ 
           {/* Row 3: Timeline / Meta */}
           <div className="px-4 py-3 bg-[var(--page-bg)] border-t border-[var(--border-subtle)] flex items-center gap-x-5 gap-y-2 text-xs text-[var(--text-secondary)] flex-wrap">
             <div className="flex items-center gap-1.5">
@@ -384,7 +462,7 @@ export default function SampleDetailPage() {
             )}
           </div>
         </div>
-
+ 
         {/* Approved state — deal auto-advances to Requirement Gathering */}
         {sample.status === "Approved" && (
           <div className="mt-4 flex items-center gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
@@ -413,6 +491,7 @@ export default function SampleDetailPage() {
           </div>
         )}
       </div>
+ 
       {/* Details Card */}
       <div className="crm-card p-6">
         <div className="flex items-center gap-2 mb-5">
@@ -536,7 +615,7 @@ export default function SampleDetailPage() {
               <Field label="Tracking Number" value={sample.trackingNumber || "—"} />
               <Field label="Request Date" value={new Date(sample.requestDate).toLocaleDateString()} />
             </div>
-
+ 
             {sample.specifications && (
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
@@ -546,7 +625,7 @@ export default function SampleDetailPage() {
                 <p className="text-sm text-slate-600 whitespace-pre-wrap p-4">{sample.specifications}</p>
               </div>
             )}
-
+ 
             {sample.customerFeedback && (
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
@@ -556,7 +635,7 @@ export default function SampleDetailPage() {
                 <p className="text-sm text-slate-600 whitespace-pre-wrap p-4">{sample.customerFeedback}</p>
               </div>
             )}
-
+ 
             {sample.revisionNotes && (
               <div className="rounded-xl border border-orange-200 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2.5 bg-orange-50 border-b border-orange-200">
@@ -566,7 +645,7 @@ export default function SampleDetailPage() {
                 <p className="text-sm text-slate-600 whitespace-pre-wrap p-4">{sample.revisionNotes}</p>
               </div>
             )}
-
+ 
             {(sample.approvedBy || sample.rejectedBy) && (
               <div className="flex gap-6 text-sm text-slate-600 pt-4 border-t border-slate-100">
                 {sample.approvedBy && (
@@ -584,12 +663,12 @@ export default function SampleDetailPage() {
           </div>
         )}
       </div>
-
+ 
       {/* Documents Section */}
       <div className="crm-card p-6">
         <EntityDocumentTab entityType="SampleRequest" entityId={sample.id} />
       </div>
-
+ 
       <ConfirmModal
         isOpen={confirmState.isOpen}
         title={confirmState.title}
@@ -597,41 +676,106 @@ export default function SampleDetailPage() {
         onConfirm={confirmState.action}
         onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })}
       />
-
-      {/* Feedback modal for Approved/Rejected */}
-      {feedbackTarget && (
+ 
+      {/* Start Review Notes Modal */}
+      {isReviewModalOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center gap-2">
-              <MessageSquare size={20} className="text-[var(--primary)]" />
-              <h3 className="text-lg font-bold text-slate-800">Customer Feedback</h3>
+              <Clock size={20} className="text-[var(--primary)]" />
+              <h3 className="text-lg font-bold text-slate-800">Start Sample Review</h3>
             </div>
-            <p className="text-sm text-slate-500">Capture the customer&apos;s feedback on this sample.</p>
+            <p className="text-sm text-slate-500">Provide initial inspection notes, parameters, or checklist details to begin the review process.</p>
             <textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
+              value={reviewNotesText}
+              onChange={(e) => setReviewNotesText(e.target.value)}
               rows={4}
-              placeholder="Enter customer feedback..."
+              placeholder="Enter review notes or inspection checklist results..."
               className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setFeedbackTarget(null)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
-              {feedbackTarget === "Rejected" && (
-                <button onClick={() => submitFeedback("Rejected")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer">
-                  <XCircle size={15} /> Mark Rejected
-                </button>
-              )}
-              {feedbackTarget === "Approved" && (
-                <button onClick={() => submitFeedback("Approved")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
-                  <CheckCircle2 size={15} /> Mark Approved
-                </button>
-              )}
+              <button onClick={() => setIsReviewModalOpen(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
+              <button onClick={handleConfirmReview} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
+                Submit Review
+              </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Revision modal */}
+ 
+      {/* Dispatch Tracking Modal */}
+      {isDispatchModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <Send size={20} className="text-[var(--primary)]" />
+              <h3 className="text-lg font-bold text-slate-800">Shipment Details</h3>
+            </div>
+            <p className="text-sm text-slate-500">Enter courier tracking number or dispatch details to send the sample to the customer.</p>
+            <input
+              type="text"
+              value={dispatchTracking}
+              onChange={(e) => setDispatchTracking(e.target.value)}
+              placeholder="Tracking number (e.g. DHL-12345)..."
+              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setIsDispatchModalOpen(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
+              <button onClick={handleConfirmDispatch} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
+                Dispatch Sample
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+ 
+      {/* Review Outcome Modal */}
+      {isOutcomeModalOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={20} className="text-[var(--primary)]" />
+              <h3 className="text-lg font-bold text-slate-800">Record Customer Outcome</h3>
+            </div>
+            <p className="text-sm text-slate-500">Log customer decision outcome and feedback notes.</p>
+            
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Outcome Decision</label>
+                <select
+                  value={outcomeDecision}
+                  onChange={(e) => setOutcomeDecision(e.target.value as any)}
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] cursor-pointer"
+                >
+                  <option value="Approved">Approved</option>
+                  <option value="Rejected">Rejected</option>
+                  <option value="Revision">Needs Revision</option>
+                </select>
+              </div>
+ 
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Outcome Feedback / Notes</label>
+                <textarea
+                  value={outcomeNotes}
+                  onChange={(e) => setOutcomeNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Enter decision rationale or feedback from customer..."
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] resize-none"
+                />
+              </div>
+            </div>
+ 
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setIsOutcomeModalOpen(false)} className="px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
+              <button onClick={handleConfirmOutcome} className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
+                Confirm Outcome
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+ 
+      {/* Revision requirements modal */}
       {showRevisionModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
@@ -659,7 +803,7 @@ export default function SampleDetailPage() {
     </PageContainer>
   );
 }
-
+ 
 function Field({ label, value, link }: { label: string; value: string; link?: string }) {
   return (
     <div>

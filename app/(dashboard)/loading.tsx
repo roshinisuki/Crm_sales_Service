@@ -1,9 +1,6 @@
-﻿import { CRMSpinner } from '@/components/CRMSpinner'
+import { PageLoader } from '@/components/PageLoader'
 
 export default function Loading() {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem 0' }}>
-      <CRMSpinner size={48} label="Loading..." />
-    </div>
-  )
+  return <PageLoader label="Loading your workspace..." />
 }
+

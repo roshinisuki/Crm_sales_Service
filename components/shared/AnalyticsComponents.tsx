@@ -110,10 +110,12 @@ export function AnalyticsPageHeader({
   subtitle: string;
   children?: React.ReactNode;
 }) {
+  const cleanTitle = title.toLowerCase().endsWith("overview") ? "Overview" : title;
+
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
       <div>
-        <h1 className="text-[24px] font-medium text-[var(--text-primary)]">{title}</h1>
+        <h1 className="text-[24px] font-medium text-[var(--text-primary)]">{cleanTitle}</h1>
         <p className="text-[13px] text-[var(--text-secondary)] mt-0.5">{subtitle}</p>
       </div>
       {children}

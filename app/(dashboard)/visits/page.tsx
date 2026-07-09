@@ -4,15 +4,18 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
+import { SummaryCard } from "@/components/ui/SummaryCard";
 import { Modal } from "@/components/ui/Modal";
-import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
+import { FormField, Input, Textarea } from "@/components/ui/FormField";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
 import { ACTIVITY_STATUS } from "@/lib/module-status-config";
 import { formatDate, formatDateTime, cn, getCheckInWindow } from "@/lib/ui-utils";
 import {
   Plus, Eye, MapPin, CheckCircle, Clock, CalendarClock,
-  AlertTriangle, Briefcase, TrendingUp, X, ChevronRight, Users,
+  AlertTriangle, X, Users, MapPinOff, ShieldAlert, ChevronRight,
 } from "lucide-react";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_TABS = [
   { key: "", label: "Visits Overview" },
@@ -28,14 +31,15 @@ const STATUS_TABS = [
 ];
 
 const STATUS_PILLS: Record<string, string> = {
-  PLANNED: "bg-blue-50 text-blue-700 border-blue-200",
-  CHECKED_IN: "bg-amber-50 text-amber-700 border-amber-200",
-  CHECKED_OUT: "bg-teal-50 text-teal-700 border-teal-200",
-  COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  MISSED: "bg-rose-50 text-rose-700 border-rose-200",
-  NEEDS_REVIEW: "bg-orange-50 text-orange-700 border-orange-200",
-  NO_SHOW: "bg-red-50 text-red-700 border-red-200",
-  CUSTOMER_UNAVAILABLE: "bg-slate-100 text-slate-700 border-slate-300",
+  PLANNED: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800/40",
+  CHECKED_IN: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40",
+  CHECKED_OUT: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/30 dark:text-teal-400 dark:border-teal-800/40",
+  COMPLETED: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40",
+  MISSED: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800/40",
+  NEEDS_REVIEW: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800/40",
+  NO_SHOW: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800/40",
+  CUSTOMER_UNAVAILABLE: "bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-600/40",
+  AUTO_CHECKED_OUT: "bg-zinc-100 text-zinc-700 border-zinc-300 dark:bg-zinc-800/60 dark:text-zinc-400 dark:border-zinc-600/40",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -55,6 +59,63 @@ const PURPOSE_OPTIONS = [
   "Relationship Visit", "Complaint Resolution",
 ];
 
+// ─── KPI definitions ──────────────────────────────────────────────────────────
+
+type KpiKey = "PLANNED" | "CHECKED_IN" | "COMPLETED" | "MISSED" | "NEEDS_REVIEW" | "NO_SHOW";
+
+const KPI_DEFS: Array<{
+  key: KpiKey;
+  label: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  variant: "blue" | "amber" | "green" | "red" | "orange" | "slate";
+}> = [
+  {
+    key: "PLANNED",
+    label: "Planned",
+    subtitle: "Upcoming visits",
+    icon: <CalendarClock size={18} />,
+    variant: "blue",
+  },
+  {
+    key: "CHECKED_IN",
+    label: "Checked In",
+    subtitle: "Currently active",
+    icon: <MapPin size={18} />,
+    variant: "amber",
+  },
+  {
+    key: "COMPLETED",
+    label: "Completed",
+    subtitle: "Visits finished",
+    icon: <CheckCircle size={18} />,
+    variant: "green",
+  },
+  {
+    key: "MISSED",
+    label: "Missed",
+    subtitle: "Not conducted",
+    icon: <AlertTriangle size={18} />,
+    variant: "red",
+  },
+  {
+    key: "NEEDS_REVIEW",
+    label: "Needs Review",
+    subtitle: "Pending review",
+    icon: <Clock size={18} />,
+    variant: "orange",
+  },
+  {
+    key: "NO_SHOW",
+    label: "No Show",
+    subtitle: "Customer absent",
+    icon: <X size={18} />,
+    variant: "slate",
+  },
+];
+
+// ─── Main content ─────────────────────────────────────────────────────────────
+
 function VisitsListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -62,24 +123,28 @@ function VisitsListContent() {
 
   const activeTab = useStatusFromUrl("status");
   const visitTypeFilter = searchParams.get("visitType") || "";
+
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeKpi, setActiveKpi] = useState<KpiKey | null>(null);
+
+  // Modals
   const [showCompliance, setShowCompliance] = useState(false);
   const [complianceData, setComplianceData] = useState<any[]>([]);
   const [complianceLoading, setComplianceLoading] = useState(false);
   const [tooLateVisitIds, setTooLateVisitIds] = useState<Set<string>>(new Set());
   const [gpsDeniedVisitId, setGpsDeniedVisitId] = useState<string | null>(null);
   const [manualLocationNote, setManualLocationNote] = useState("");
+  const [checkInModal, setCheckInModal] = useState<{ visitId: string; visitType: string } | null>(null);
+  const [checkInForm, setCheckInForm] = useState({ checkedInBy: "" });
+
+  // ── Data fetching ─────────────────────────────────────────────────────────
 
   const fetchVisits = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (activeTab) {
-      params.set("status", activeTab);
-    }
-    if (visitTypeFilter) {
-      params.set("visitType", visitTypeFilter);
-    }
+    if (activeTab) params.set("status", activeTab);
+    if (visitTypeFilter) params.set("visitType", visitTypeFilter);
     const res = await fetch(`/api/visits?${params.toString()}`);
     if (res.ok) {
       const json = await res.json();
@@ -90,21 +155,19 @@ function VisitsListContent() {
     setLoading(false);
   }, [activeTab, visitTypeFilter]);
 
-  useEffect(() => {
-    fetchVisits();
-  }, [fetchVisits]);
+  useEffect(() => { fetchVisits(); }, [fetchVisits]);
 
-  const [checkInModal, setCheckInModal] = useState<{ visitId: string; visitType: string } | null>(null);
-  const [checkInForm, setCheckInForm] = useState({ checkedInBy: "" });
+  // Reset KPI filter when the status tab (URL) changes
+  useEffect(() => { setActiveKpi(null); }, [activeTab, visitTypeFilter]);
+
+  // ── Check-in handlers ─────────────────────────────────────────────────────
 
   const handleCheckIn = async (id: string, visitType: string = "field_visit") => {
     if (visitType === "office_visit") {
       setCheckInModal({ visitId: id, visitType });
       return;
     }
-
     if (!navigator.geolocation) {
-      // GPS not supported — allow manual location note
       setGpsDeniedVisitId(id);
       setManualLocationNote("");
       return;
@@ -132,8 +195,7 @@ function VisitsListContent() {
           toast.error(json.message || "Check-in failed");
         }
       },
-      (err) => {
-        // GPS denied — allow manual location note instead of blocking
+      () => {
         setGpsDeniedVisitId(id);
         setManualLocationNote("");
       },
@@ -201,22 +263,34 @@ function VisitsListContent() {
     fetchCompliance();
   };
 
-  const kpiPlanned = visits.filter((v) => v.status === "PLANNED").length;
-  const kpiCompleted = visits.filter((v) => v.status === "COMPLETED").length;
-  const kpiMissed = visits.filter((v) => v.status === "MISSED").length;
-  const kpiCheckedIn = visits.filter((v) => v.status === "CHECKED_IN").length;
-  const kpiNeedsReview = visits.filter((v) => v.status === "NEEDS_REVIEW").length;
-  const kpiNoShow = visits.filter((v) => v.status === "NO_SHOW").length;
+  // ── KPI counts ────────────────────────────────────────────────────────────
+
+  const kpiCounts: Record<KpiKey, number> = {
+    PLANNED: visits.filter((v) => v.status === "PLANNED").length,
+    CHECKED_IN: visits.filter((v) => v.status === "CHECKED_IN").length,
+    COMPLETED: visits.filter((v) => v.status === "COMPLETED").length,
+    MISSED: visits.filter((v) => v.status === "MISSED").length,
+    NEEDS_REVIEW: visits.filter((v) => v.status === "NEEDS_REVIEW").length,
+    NO_SHOW: visits.filter((v) => v.status === "NO_SHOW").length,
+  };
+
+  // ── Filtered table rows based on active KPI ────────────────────────────────
+
+  const displayedVisits = activeKpi
+    ? visits.filter((v) => v.status === activeKpi)
+    : visits;
+
+  // ── Misc helpers ──────────────────────────────────────────────────────────
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const getComplianceColor = (days: number | null) => {
-    if (days == null) return "bg-rose-50";
-    if (days > 90) return "bg-rose-50";
-    if (days > 60) return "bg-orange-50";
-    if (days > 30) return "bg-amber-50";
-    return "bg-emerald-50";
+    if (days == null) return "bg-rose-50 dark:bg-rose-950/20";
+    if (days > 90) return "bg-rose-50 dark:bg-rose-950/20";
+    if (days > 60) return "bg-orange-50 dark:bg-orange-950/20";
+    if (days > 30) return "bg-amber-50 dark:bg-amber-950/20";
+    return "bg-emerald-50 dark:bg-emerald-950/20";
   };
 
   const activeTabLabel = activeTab
@@ -226,9 +300,16 @@ function VisitsListContent() {
     : visitTypeFilter === "office_visit"
     ? "Office Visits"
     : undefined;
+
   const breadcrumb = activeTabLabel
     ? [{ label: "Customer Visits", href: "/visits" }, { label: activeTabLabel }]
     : [{ label: "Customer Visits" }];
+
+  const tableTitle = activeKpi
+    ? `${STATUS_LABELS[activeKpi] ?? activeKpi} Visits`
+    : activeTabLabel ?? "All Visits";
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <PageShell
@@ -238,12 +319,6 @@ function VisitsListContent() {
       action={
         <div className="flex items-center gap-2">
           <button
-            onClick={handleOpenCompliance}
-            className="px-3.5 py-2 text-sm font-semibold text-slate-600 border border-slate-200/80 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center gap-1.5"
-          >
-            <AlertTriangle size={15} /> Compliance
-          </button>
-          <button
             onClick={() => router.push("/visits/new")}
             className="px-4 py-2 bg-[var(--primary)] text-white font-semibold text-sm rounded-xl hover:bg-[var(--primary-hover)] transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md"
           >
@@ -252,56 +327,81 @@ function VisitsListContent() {
         </div>
       }
     >
-      <div className="space-y-4">
-        {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[
-            { label: "Planned", value: kpiPlanned, icon: CalendarClock, tint: "bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400" },
-            { label: "Checked In", value: kpiCheckedIn, icon: MapPin, tint: "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400" },
-            { label: "Completed", value: kpiCompleted, icon: CheckCircle, tint: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400" },
-            { label: "Missed", value: kpiMissed, icon: AlertTriangle, tint: "bg-rose-50 text-rose-600 dark:bg-rose-950/30 dark:text-rose-400" },
-            { label: "Needs Review", value: kpiNeedsReview, icon: Clock, tint: "bg-orange-50 text-orange-600 dark:bg-orange-950/30 dark:text-orange-400" },
-            { label: "No Show", value: kpiNoShow, icon: X, tint: "bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400" },
-          ].map((kpi) => {
-            const Icon = kpi.icon;
-            return (
-              <div key={kpi.label} className="crm-card p-4 flex items-center gap-3">
-                <div className={cn("flex items-center justify-center w-10 h-10 rounded-xl shrink-0", kpi.tint)}>
-                  <Icon size={18} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">{kpi.label}</p>
-                  <p className="text-xl font-bold text-slate-800 dark:text-slate-100 tabular-nums leading-tight">{kpi.value}</p>
-                </div>
-              </div>
-            );
-          })}
+      <div className="space-y-5">
+
+        {/* ── KPI Cards ───────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {KPI_DEFS.map((kpi) => (
+            <SummaryCard
+              key={kpi.key}
+              label={kpi.label}
+              value={kpiCounts[kpi.key]}
+              subtitle={kpi.subtitle}
+              icon={kpi.icon}
+              variant={kpi.variant}
+              isActive={activeKpi === kpi.key}
+              onClick={() =>
+                setActiveKpi((prev) => (prev === kpi.key ? null : kpi.key))
+              }
+            />
+          ))}
         </div>
 
-        {/* Status Filter Bar */}
+        {/* Active KPI filter badge */}
+        {activeKpi && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--text-secondary)]">Filtering by:</span>
+            <button
+              onClick={() => setActiveKpi(null)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400 text-[11px] font-bold hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors"
+            >
+              {STATUS_LABELS[activeKpi]}
+              <X size={11} />
+            </button>
+            <span className="text-xs text-[var(--text-muted)]">
+              — {displayedVisits.length} visit{displayedVisits.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        )}
+
+        {/* ── Status Filter Bar ────────────────────────────────────────────── */}
         <StatusFilterBar
           statuses={ACTIVITY_STATUS}
           paramKey="status"
           basePath="/visits"
         />
 
-        {/* Visits Table */}
+        {/* ── Visits Table ─────────────────────────────────────────────────── */}
         <div className="crm-card overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between">
+          {/* Card header */}
+          <div className="px-5 py-3.5 border-b border-[var(--border-subtle)] flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <span className="flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--surface-2)] text-[var(--text-secondary)]">
                 <Users size={15} />
               </span>
               <div>
-                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Visits Overview</h3>
-                <p className="text-[11.5px] text-[var(--text-tertiary)]">{visits.length} visit{visits.length !== 1 ? "s" : ""} in current view</p>
+                <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
+                  {tableTitle}
+                </h3>
+                <p className="text-[11.5px] text-[var(--text-tertiary)]">
+                  {displayedVisits.length} visit{displayedVisits.length !== 1 ? "s" : ""} in current view
+                </p>
               </div>
             </div>
+            {activeKpi && (
+              <button
+                onClick={() => setActiveKpi(null)}
+                className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex items-center gap-1 transition-colors"
+              >
+                Clear filter <X size={12} />
+              </button>
+            )}
           </div>
+
           <div className="overflow-x-auto">
             <table className="crm-table">
               <thead>
-                <tr className="crm-tr border-b border-slate-200/60">
+                <tr className="crm-tr border-b border-[var(--border-subtle)]">
                   <th className="crm-th">Account</th>
                   <th className="crm-th">Plant Location</th>
                   <th className="crm-th">Purpose</th>
@@ -315,80 +415,124 @@ function VisitsListContent() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-12 text-center">
+                    <td colSpan={8} className="px-5 py-16 text-center">
                       <div className="flex flex-col items-center gap-3">
-                        <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" />
-                        <p className="text-sm text-slate-400">Loading visits...</p>
+                        <div className="w-8 h-8 rounded-full border-2 border-[var(--border-subtle)] border-t-[var(--primary)] animate-spin" />
+                        <p className="text-sm text-[var(--text-muted)]">Loading visits…</p>
                       </div>
                     </td>
                   </tr>
-                ) : visits.length === 0 ? (
+                ) : displayedVisits.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-5 py-16 text-center">
-                      <p className="text-sm font-semibold text-slate-500">No visits found</p>
+                    <td colSpan={8} className="px-5 py-20 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-[var(--surface-2)] flex items-center justify-center">
+                          <MapPinOff size={22} className="text-[var(--text-muted)]" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-[var(--text-secondary)]">
+                            No visits found
+                          </p>
+                          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                            {activeKpi
+                              ? `No ${STATUS_LABELS[activeKpi]?.toLowerCase()} visits in the current filter.`
+                              : "Plan a new visit to get started."}
+                          </p>
+                        </div>
+                        {!activeKpi && (
+                          <button
+                            onClick={() => router.push("/visits/new")}
+                            className="mt-1 px-4 py-2 bg-[var(--primary)] text-white text-sm font-semibold rounded-xl hover:bg-[var(--primary-hover)] transition-all flex items-center gap-1.5 shadow-sm"
+                          >
+                            <Plus size={14} /> Plan Visit
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ) : (
-                  visits.map((v) => {
+                  displayedVisits.map((v) => {
                     const isPlannedToday =
                       v.status === "PLANNED" &&
                       v.plannedDate &&
                       new Date(v.plannedDate).toDateString() === today.toDateString();
                     const checkInWindow = isPlannedToday ? getCheckInWindow(v.plannedDate, v.plannedTime) : null;
                     const isCheckInTooLate = checkInWindow?.status === "TOO_LATE" || tooLateVisitIds.has(v.id);
+
                     return (
-                      <tr key={v.id} className="crm-tr hover:bg-slate-50/80 transition-colors">
+                      <tr
+                        key={v.id}
+                        className="crm-tr hover:bg-[var(--surface-2)]/60 transition-colors cursor-pointer"
+                        onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
+                      >
+                        {/* Account */}
                         <td className="crm-td">
-                          <p className="font-bold text-slate-800 text-sm">{v.customer?.name || "—"}</p>
-                          <p className="text-[11px] text-slate-400">{v.customer?.customerCode}</p>
+                          <p className="font-bold text-[var(--text-primary)] text-sm">{v.customer?.name || "—"}</p>
+                          <p className="text-[11px] text-[var(--text-muted)]">{v.customer?.customerCode}</p>
                         </td>
+
+                        {/* Plant Location */}
                         <td className="crm-td">
-                          <p className="text-sm text-slate-600">{v.plantLocation?.locationName || "—"}</p>
-                          <p className="text-[11px] text-slate-400">{v.plantLocation?.city}</p>
+                          <p className="text-sm text-[var(--text-secondary)]">{v.plantLocation?.locationName || "—"}</p>
+                          <p className="text-[11px] text-[var(--text-muted)]">{v.plantLocation?.city}</p>
                         </td>
+
+                        {/* Purpose */}
                         <td className="crm-td">
                           <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-xs font-semibold rounded-full border border-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800/50">
                             {v.purpose}
                           </span>
                         </td>
+
+                        {/* Date & Time */}
                         <td className="crm-td">
                           {v.plannedDate ? (
                             <div>
-                              <p className="text-sm font-medium text-slate-700">{formatDate(v.plannedDate)}</p>
-                              <p className="text-[11px] text-slate-400">{v.plannedTime}</p>
+                              <p className="text-sm font-medium text-[var(--text-primary)]">{formatDate(v.plannedDate)}</p>
+                              <p className="text-[11px] text-[var(--text-muted)]">{v.plannedTime}</p>
                             </div>
                           ) : (
-                            <span className="text-slate-400 text-sm">—</span>
+                            <span className="text-[var(--text-muted)] text-sm">—</span>
                           )}
                         </td>
+
+                        {/* Assigned To */}
                         <td className="crm-td">
-                          <span className="text-sm text-slate-600">{v.host?.name || "—"}</span>
+                          <span className="text-sm text-[var(--text-secondary)]">{v.host?.name || "—"}</span>
                         </td>
+
+                        {/* Status */}
                         <td className="crm-td">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className={cn(
                               "px-2 py-0.5 text-[10px] font-bold rounded-md border",
-                              v.visitType === "field_visit" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-purple-50 text-purple-700 border-purple-200"
+                              v.visitType === "field_visit"
+                                ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800/40"
+                                : "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800/40"
                             )}>
                               {v.visitType === "field_visit" ? "Field" : "Office"}
                             </span>
-                            <span className={cn("px-2.5 py-1 text-xs font-bold rounded-lg border", STATUS_PILLS[v.status] || "bg-slate-50 text-slate-600 border-slate-200")}>
+                            <span className={cn(
+                              "px-2.5 py-1 text-xs font-bold rounded-lg border",
+                              STATUS_PILLS[v.status] || "bg-slate-50 text-slate-600 border-slate-200"
+                            )}>
                               {STATUS_LABELS[v.status] || v.status}
                             </span>
-                            {v.status === "CHECKED_IN" && v.checkInTime && (
-                              (new Date().getTime() - new Date(v.checkInTime).getTime()) / (1000 * 60 * 60) > 2
-                            ) && (
-                              <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-orange-100 text-orange-700 border border-orange-200">
-                                Long Check-in
-                              </span>
-                            )}
+                            {v.status === "CHECKED_IN" && v.checkInTime &&
+                              (new Date().getTime() - new Date(v.checkInTime).getTime()) / (1000 * 60 * 60) > 2 && (
+                                <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-orange-100 text-orange-700 border border-orange-200 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-800/40">
+                                  Long Check-in
+                                </span>
+                              )}
                             {v.autoCheckedOut && (
-                              <span title="This visit was automatically checked out by the system after 9 hours of check-in with no manual checkout." className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-100 text-red-700 border border-red-200 cursor-help">
-                                Auto Checked Out
+                              <span title="Auto checked out by system after 9 hours." className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-red-100 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800/40 cursor-help">
+                                Auto C/O
                               </span>
                             )}
                           </div>
                         </td>
+
+                        {/* GPS */}
                         <td className="crm-td">
                           {v.gpsLat != null ? (
                             <MapPin size={15} className={v.gpsAnomaly ? "text-amber-500" : "text-emerald-500"} />
@@ -397,11 +541,13 @@ function VisitsListContent() {
                               <AlertTriangle size={14} className="inline" />
                             </span>
                           ) : (
-                            <span className="text-slate-300">—</span>
+                            <span className="text-[var(--border-subtle)]">—</span>
                           )}
                         </td>
-                        <td className="crm-td text-right">
-                          <div className="flex items-center justify-end gap-1">
+
+                        {/* Actions */}
+                        <td className="crm-td text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
                             {isPlannedToday && (
                               <div className="relative group">
                                 <button
@@ -417,7 +563,7 @@ function VisitsListContent() {
                                   <MapPin size={12} /> Check In
                                 </button>
                                 {checkInWindow && (
-                                  <span className="absolute bottom-full right-0 mb-1 hidden group-hover:block w-56 px-2 py-1 text-xs text-white bg-slate-800 rounded-lg text-left">
+                                  <span className="absolute bottom-full right-0 mb-1 hidden group-hover:block w-56 px-2 py-1 text-xs text-white bg-slate-800 rounded-lg text-left z-10">
                                     Check-in available from {formatDateTime(checkInWindow.start)} to {formatDateTime(checkInWindow.end)}
                                   </span>
                                 )}
@@ -426,7 +572,7 @@ function VisitsListContent() {
                             {v.status === "CHECKED_IN" && (
                               <button
                                 onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
-                                className="px-2.5 py-1 bg-teal-600 text-white font-semibold text-xs rounded-lg hover:bg-teal-700 transition-all shadow-sm hover:shadow"
+                                className="px-2.5 py-1 bg-teal-600 text-white font-semibold text-xs rounded-lg hover:bg-teal-700 transition-all shadow-sm"
                               >
                                 Check Out
                               </button>
@@ -434,7 +580,7 @@ function VisitsListContent() {
                             {v.status === "CHECKED_OUT" && (
                               <button
                                 onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
-                                className="px-2.5 py-1 bg-[var(--primary)] text-white font-semibold text-xs rounded-lg hover:bg-[var(--primary-hover)] transition-all shadow-sm hover:shadow"
+                                className="px-2.5 py-1 bg-[var(--primary)] text-white font-semibold text-xs rounded-lg hover:bg-[var(--primary-hover)] transition-all shadow-sm"
                               >
                                 Complete
                               </button>
@@ -442,7 +588,7 @@ function VisitsListContent() {
                             {v.status === "NEEDS_REVIEW" && (
                               <button
                                 onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
-                                className="px-2.5 py-1 bg-orange-600 text-white font-semibold text-xs rounded-lg hover:bg-orange-700 transition-all shadow-sm hover:shadow"
+                                className="px-2.5 py-1 bg-orange-600 text-white font-semibold text-xs rounded-lg hover:bg-orange-700 transition-all shadow-sm"
                               >
                                 Review
                               </button>
@@ -450,14 +596,14 @@ function VisitsListContent() {
                             {(v.status === "PLANNED" || v.status === "MISSED") && (
                               <button
                                 onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
-                                className="px-2.5 py-1 bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg hover:bg-slate-100 border border-slate-200 transition-all"
+                                className="px-2.5 py-1 bg-[var(--surface-2)] text-[var(--text-secondary)] font-semibold text-xs rounded-lg hover:bg-[var(--surface-3)] border border-[var(--border-subtle)] transition-all"
                               >
                                 Reschedule
                               </button>
                             )}
                             <button
                               onClick={() => router.push(`/visits/${v.id}?status=${v.status}`)}
-                              className="p-1.5 text-slate-400 hover:text-[var(--primary)] hover:bg-slate-50 rounded-lg transition-all"
+                              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--surface-2)] rounded-lg transition-all"
                               title="View"
                             >
                               <Eye size={15} />
@@ -474,7 +620,7 @@ function VisitsListContent() {
         </div>
       </div>
 
-      {/* Key Account Compliance Modal */}
+      {/* ── Compliance Modal ─────────────────────────────────────────────────── */}
       <Modal
         open={showCompliance}
         onClose={() => setShowCompliance(false)}
@@ -482,32 +628,36 @@ function VisitsListContent() {
         subtitle="Key accounts not visited in 30+ days"
         size="lg"
         footer={
-          <button onClick={() => setShowCompliance(false)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Close</button>
+          <button onClick={() => setShowCompliance(false)} className="px-4 py-2 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Close</button>
         }
       >
         <div className="p-4">
           {complianceLoading ? (
-            <div className="text-center py-8 text-slate-400">Loading compliance data...</div>
+            <div className="flex flex-col items-center gap-3 py-10">
+              <div className="w-7 h-7 rounded-full border-2 border-[var(--border-subtle)] border-t-[var(--primary)] animate-spin" />
+              <p className="text-sm text-[var(--text-muted)]">Loading compliance data…</p>
+            </div>
           ) : complianceData.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">No key accounts found.</div>
+            <div className="text-center py-10 text-[var(--text-muted)] text-sm">No key accounts found.</div>
           ) : (
-            <table className="w-full">
+              <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left px-3 py-2 text-xs font-bold text-slate-600 uppercase">Account</th>
-                  <th className="text-left px-3 py-2 text-xs font-bold text-slate-600 uppercase">City</th>
-                  <th className="text-left px-3 py-2 text-xs font-bold text-slate-600 uppercase">Sales Owner</th>
-                  <th className="text-left px-3 py-2 text-xs font-bold text-slate-600 uppercase">Last Visit</th>
-                  <th className="text-right px-3 py-2 text-xs font-bold text-slate-600 uppercase">Days Since</th>
+                <tr className="border-b border-[var(--border-subtle)]">
+                  <th className="text-left px-3 py-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Account</th>
+                  <th className="text-left px-3 py-2 text-xs font-bold text-[var(--text-secondary)] uppercase">City</th>
+                  <th className="text-left px-3 py-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Sales Owner</th>
+                  <th className="text-left px-3 py-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Last Visit</th>
+                  <th className="text-right px-3 py-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Days Since</th>
+                  <th className="text-right px-3 py-2 text-xs font-bold text-[var(--text-secondary)] uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {complianceData.map((c) => (
-                  <tr key={c.accountId} className={cn("border-b border-slate-100", getComplianceColor(c.daysSinceVisit))}>
-                    <td className="px-3 py-2.5 text-sm font-bold text-slate-800">{c.accountName}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-600">{c.city || "—"}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-600">{c.salesOwner}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-600">{c.lastVisitDate ? formatDate(c.lastVisitDate) : "Never"}</td>
+                  <tr key={c.accountId} className={cn("border-b border-[var(--border-subtle)]", getComplianceColor(c.daysSinceVisit))}>
+                    <td className="px-3 py-2.5 text-sm font-bold text-[var(--text-primary)]">{c.accountName}</td>
+                    <td className="px-3 py-2.5 text-sm text-[var(--text-secondary)]">{c.city || "—"}</td>
+                    <td className="px-3 py-2.5 text-sm text-[var(--text-secondary)]">{c.salesOwner}</td>
+                    <td className="px-3 py-2.5 text-sm text-[var(--text-secondary)]">{c.lastVisitDate ? formatDate(c.lastVisitDate) : "Never"}</td>
                     <td className="px-3 py-2.5 text-right">
                       <span className={cn(
                         "text-sm font-bold",
@@ -520,6 +670,14 @@ function VisitsListContent() {
                         {c.daysSinceVisit == null ? "Never" : `${c.daysSinceVisit}d`}
                       </span>
                     </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <button
+                        onClick={() => router.push(`/visits/new?accountId=${c.accountId}`)}
+                        className="px-3 py-1 bg-[var(--primary)] text-white text-xs font-semibold rounded-lg hover:bg-[var(--primary-hover)] transition-all shadow-sm"
+                      >
+                        Schedule Visit
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -528,7 +686,7 @@ function VisitsListContent() {
         </div>
       </Modal>
 
-      {/* Check In Modal for Office Visits */}
+      {/* ── Office Check-in Modal ─────────────────────────────────────────────── */}
       {checkInModal && (
         <Modal
           open={!!checkInModal}
@@ -537,7 +695,7 @@ function VisitsListContent() {
           subtitle="Enter receptionist/host confirmation"
           footer={
             <>
-              <button onClick={() => setCheckInModal(null)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
+              <button onClick={() => setCheckInModal(null)} className="px-4 py-2 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Cancel</button>
               <button onClick={handleOfficeCheckIn} className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-bold rounded-lg hover:bg-[var(--primary-hover)]">Check In</button>
             </>
           }
@@ -553,7 +711,8 @@ function VisitsListContent() {
           </div>
         </Modal>
       )}
-      {/* GPS Denied — Manual Location Note Modal */}
+
+      {/* ── GPS Denied Modal ──────────────────────────────────────────────────── */}
       {gpsDeniedVisitId && (
         <Modal
           open={!!gpsDeniedVisitId}
@@ -562,15 +721,25 @@ function VisitsListContent() {
           subtitle="GPS location could not be captured. Enter a manual location note to proceed."
           footer={
             <>
-              <button onClick={() => { setGpsDeniedVisitId(null); setManualLocationNote(""); }} className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700">Cancel</button>
-              <button onClick={handleManualCheckIn} className="px-4 py-2 bg-amber-600 text-white text-sm font-bold rounded-lg hover:bg-amber-700">Check In (Unverified)</button>
+              <button
+                onClick={() => { setGpsDeniedVisitId(null); setManualLocationNote(""); }}
+                className="px-4 py-2 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleManualCheckIn}
+                className="px-4 py-2 bg-amber-600 text-white text-sm font-bold rounded-lg hover:bg-amber-700"
+              >
+                Check In (Unverified)
+              </button>
             </>
           }
         >
           <div className="p-6 space-y-4">
-            <div className="px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-lg text-sm text-amber-800 dark:text-amber-400">
               <AlertTriangle size={14} className="inline mr-1.5" />
-              Location will be marked as unverified. This will be flagged in the visit record.
+              Location will be marked as unverified and flagged in the visit record.
             </div>
             <FormField label="Manual Location Note" required>
               <Textarea
@@ -587,9 +756,17 @@ function VisitsListContent() {
   );
 }
 
+// ─── Page export ──────────────────────────────────────────────────────────────
+
 export default function VisitsListPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-[400px]"><div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" /></div>}>
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" />
+        </div>
+      }
+    >
       <VisitsListContent />
     </Suspense>
   );

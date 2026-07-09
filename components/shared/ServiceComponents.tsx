@@ -272,3 +272,43 @@ export function ServiceKpiCard({ title, value, change, isPositive, icon }: Servi
     </div>
   );
 }
+
+// ─── LINKED VISITS PANEL ───────────────────────────────────────────────────
+interface LinkedVisitsPanelProps {
+  visits: any[];
+}
+
+export function LinkedVisitsPanel({ visits }: LinkedVisitsPanelProps) {
+  if (!visits || visits.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3.5 backdrop-blur-md">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
+        <h4 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+          <Calendar size={16} className="text-blue-500" /> Linked Visits
+        </h4>
+        <span className="bg-blue-500/10 text-blue-500 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-500/20">
+          {visits.length}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {visits.map((visit: any, idx: number) => (
+          <div key={idx} className="border border-[var(--border)] rounded-lg p-3 bg-[var(--surface-2)] flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-[var(--text-primary)]">{visit.title}</span>
+              <span className="text-[10px] bg-[var(--surface-3)] px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-primary)]">
+                {visit.status?.name || "Scheduled"}
+              </span>
+            </div>
+            <div className="text-[11px] text-[var(--text-secondary)] flex flex-col gap-1">
+              <span>Date: {visit.scheduledDate ? new Date(visit.scheduledDate).toLocaleString() : "Not scheduled"}</span>
+              <span>Engineer: {visit.engineer?.user?.name || "Unassigned"}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+

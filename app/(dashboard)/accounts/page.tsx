@@ -117,7 +117,7 @@ export default function AccountsPage() {
 
   useEffect(() => {
     loadCustomers();
-  }, [search, statusFilter, cityFilter, leadSourceFilter]);
+  }, [search, cityFilter, leadSourceFilter, statusFilter]);
 
   useEffect(() => {
     loadExecutives();
@@ -207,10 +207,10 @@ export default function AccountsPage() {
   };
 
   const toggleAll = () => {
-    if (selectedIds.length === customers.length) {
+    if (selectedIds.length === filteredCustomers.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(customers.map(c => c.id));
+      setSelectedIds(filteredCustomers.map(c => c.id));
     }
   };
 
@@ -270,14 +270,35 @@ export default function AccountsPage() {
   const churnedCount = customers.filter(c => c.status === "Churned").length;
   const inactiveCount = customers.filter(c => c.status === "Inactive").length;
 
+  const filteredCustomers = customers.filter(c => {
+    if (statusFilter) {
+      if (statusFilter === "ActiveCustomer" && c.status !== "ActiveCustomer" && c.status !== "Renewed") return false;
+      if (statusFilter !== "ActiveCustomer" && c.status !== statusFilter) return false;
+    }
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div>
-              <h1 className="text-xl font-semibold text-slate-900">Accounts</h1>
-              <p className="text-sm text-slate-500">Manage customer accounts and track their lifecycle</p>
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-xl font-semibold text-slate-900">Accounts</h1>
+                <p className="text-sm text-slate-500">Manage customer accounts and track their lifecycle</p>
+              </div>
+              {statusFilter && (
+                <button
+                  onClick={() => setStatusFilter("")}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+                >
+                  Clear Filter
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -308,24 +329,39 @@ export default function AccountsPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-5 border border-slate-200">
-            <div className="text-sm font-medium text-slate-500">Total Accounts</div>
+          <div 
+            onClick={() => setStatusFilter("")}
+            className={`rounded-xl p-5 border cursor-pointer transition-colors ${statusFilter === "" ? "bg-blue-50 border-blue-200 ring-1 ring-blue-500" : "bg-white border-slate-200 hover:bg-slate-50"}`}
+          >
+            <div className={`text-sm font-medium ${statusFilter === "" ? "text-blue-700" : "text-slate-500"}`}>Total Accounts</div>
             <div className="text-2xl font-semibold text-slate-900 mt-1">{customers.length}</div>
           </div>
-          <div className="bg-white rounded-xl p-5 border border-slate-200">
-            <div className="text-sm font-medium text-slate-500">Active</div>
+          <div 
+            onClick={() => setStatusFilter(statusFilter === "ActiveCustomer" ? "" : "ActiveCustomer")}
+            className={`rounded-xl p-5 border cursor-pointer transition-colors ${statusFilter === "ActiveCustomer" ? "bg-emerald-50 border-emerald-200 ring-1 ring-emerald-500" : "bg-white border-slate-200 hover:bg-slate-50"}`}
+          >
+            <div className={`text-sm font-medium ${statusFilter === "ActiveCustomer" ? "text-emerald-700" : "text-slate-500"}`}>Active</div>
             <div className="text-2xl font-semibold text-emerald-600 mt-1">{activeCount}</div>
           </div>
-          <div className="bg-white rounded-xl p-5 border border-slate-200">
-            <div className="text-sm font-medium text-slate-500">Prospects</div>
+          <div 
+            onClick={() => setStatusFilter(statusFilter === "Prospect" ? "" : "Prospect")}
+            className={`rounded-xl p-5 border cursor-pointer transition-colors ${statusFilter === "Prospect" ? "bg-amber-50 border-amber-200 ring-1 ring-amber-500" : "bg-white border-slate-200 hover:bg-slate-50"}`}
+          >
+            <div className={`text-sm font-medium ${statusFilter === "Prospect" ? "text-amber-700" : "text-slate-500"}`}>Prospects</div>
             <div className="text-2xl font-semibold text-amber-600 mt-1">{prospectCount}</div>
           </div>
-          <div className="bg-white rounded-xl p-5 border border-slate-200">
-            <div className="text-sm font-medium text-slate-500">Churned</div>
+          <div 
+            onClick={() => setStatusFilter(statusFilter === "Churned" ? "" : "Churned")}
+            className={`rounded-xl p-5 border cursor-pointer transition-colors ${statusFilter === "Churned" ? "bg-rose-50 border-rose-200 ring-1 ring-rose-500" : "bg-white border-slate-200 hover:bg-slate-50"}`}
+          >
+            <div className={`text-sm font-medium ${statusFilter === "Churned" ? "text-rose-700" : "text-slate-500"}`}>Churned</div>
             <div className="text-2xl font-semibold text-rose-600 mt-1">{churnedCount}</div>
           </div>
-          <div className="bg-white rounded-xl p-5 border border-slate-200">
-            <div className="text-sm font-medium text-slate-500">Inactive</div>
+          <div 
+            onClick={() => setStatusFilter(statusFilter === "Inactive" ? "" : "Inactive")}
+            className={`rounded-xl p-5 border cursor-pointer transition-colors ${statusFilter === "Inactive" ? "bg-slate-100 border-slate-300 ring-1 ring-slate-400" : "bg-white border-slate-200 hover:bg-slate-50"}`}
+          >
+            <div className={`text-sm font-medium ${statusFilter === "Inactive" ? "text-slate-700" : "text-slate-500"}`}>Inactive</div>
             <div className="text-2xl font-semibold text-slate-600 mt-1">{inactiveCount}</div>
           </div>
         </div>
@@ -418,7 +454,7 @@ export default function AccountsPage() {
                 Retry
               </button>
             </div>
-          ) : customers.length === 0 ? (
+          ) : filteredCustomers.length === 0 ? (
             <div className="p-12 text-center text-slate-500">
               <div className="text-4xl mb-4">📋</div>
               <div className="text-lg font-medium text-slate-700 mb-2">No accounts found</div>
@@ -441,14 +477,6 @@ export default function AccountsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                      <input
-                        type="checkbox"
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        checked={customers.length > 0 && selectedIds.length === customers.length}
-                        onChange={toggleAll}
-                      />
-                    </th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Code</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account Name</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">City</th>
@@ -458,20 +486,12 @@ export default function AccountsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {customers.map((c) => (
+                  {filteredCustomers.map((c) => (
                     <tr
                       key={c.id}
                       className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
                       onClick={() => router.push(`/customer-master/${c.id}`)}
                     >
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          checked={selectedIds.includes(c.id)}
-                          onChange={() => toggleOne(c.id)}
-                        />
-                      </td>
                       <td className="px-6 py-4 text-sm font-medium text-slate-900">{c.customerCode}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

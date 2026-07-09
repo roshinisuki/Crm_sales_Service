@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
@@ -16,6 +16,8 @@ const PURPOSE_OPTIONS = [
 
 export default function NewVisitPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const accountId = searchParams.get("accountId");
   const toast = useToast();
 
   const [customers, setCustomers] = useState<any[]>([]);
@@ -48,15 +50,43 @@ export default function NewVisitPage() {
     expenseAmount: "",
   });
 
-  // Fetch customers
-  useEffect(() => {
-    getCustomersAction().then((res) => {
-      if (res.success && res.data) setCustomers(res.data as any[]);
-    });
-    fetch("/api/users").then((res) => res.json()).then((data) => {
-      if (data.success) setUsers(data.data || []);
-    });
-  }, []);
+  const [showOptional, setShowOptional] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+    setGpsLoading(true);
+    toast.info("Capturing your location...");
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          if (res.ok) {
+            const data = await res.json();
+            setForm(prev => ({ ...prev, location: data.display_name || `${latitude}, ${longitude}` }));
+            toast.success("Location auto-filled successfully!");
+          } else {
+            setForm(prev => ({ ...prev, location: `${latitude}, ${longitude}` }));
+            toast.warning("Failed to resolve address. Coordinates filled instead.");
+          }
+        } catch {
+          setForm(prev => ({ ...prev, location: `${latitude}, ${longitude}` }));
+          toast.warning("Network error resolving address. Coordinates filled instead.");
+        } finally {
+          setGpsLoading(false);
+        }
+      },
+      (err) => {
+        setGpsLoading(false);
+        toast.error("Failed to capture GPS location: " + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
 
   // Fetch contacts and opportunities when customer is selected
   const loadCustomerData = useCallback(async (customerId: string) => {
@@ -78,6 +108,22 @@ export default function NewVisitPage() {
       setOpportunities(oppData.data || []);
     }
   }, []);
+
+  // Fetch customers
+  useEffect(() => {
+    getCustomersAction().then((res) => {
+      if (res.success && res.data) {
+        setCustomers(res.data as any[]);
+        if (accountId) {
+          setForm((prev) => ({ ...prev, customerId: accountId }));
+          loadCustomerData(accountId);
+        }
+      }
+    });
+    fetch("/api/users").then((res) => res.json()).then((data) => {
+      if (data.success) setUsers(data.data || []);
+    });
+  }, [accountId, loadCustomerData]);
 
   const handleCustomerSelect = (customerId: string) => {
     setForm((prev) => ({
@@ -249,71 +295,41 @@ export default function NewVisitPage() {
         {/* Visit Details */}
         {form.customerId && (
           <>
-            <div className="crm-card p-6">
+            <div className="crm-card p-6 space-y-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400">
                   <CalendarClock className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">Visit Details</h3>
-                  <p className="text-xs text-[var(--text-tertiary)]">Configure visit type and location</p>
+                  <p className="text-xs text-[var(--text-tertiary)]">Configure visit location and scheduling</p>
                 </div>
               </div>
-              <FormField label="Visit Type" required>
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, visitType: "field_visit" })}
-                    className={`p-5 rounded-xl border-2 transition-all ${
-                      form.visitType === "field_visit"
-                        ? "border-[var(--primary)] bg-[var(--primary-light)]"
-                        : "border-border hover:border-border-subtle bg-transparent hover:bg-card-hover"
-                    }`}
-                  >
-                    <div className="flex flex-col items-center gap-3">
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
-                        form.visitType === "field_visit" ? "bg-[var(--primary)]" : "bg-border-subtle"
-                      }`}>
-                        <MapPin className={`w-7 h-7 ${form.visitType === "field_visit" ? "text-white" : "text-text-muted"}`} />
-                      </div>
-                      <div className="text-center">
-                        <p className={`text-base font-semibold ${form.visitType === "field_visit" ? "text-[var(--primary)]" : "text-text-primary"}`}>Field Visit</p>
-                        <p className="text-xs text-text-muted">We travel to customer</p>
-                      </div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setForm({ ...form, visitType: "office_visit" })}
-                    className={`p-5 rounded-xl border-2 transition-all ${
-                      form.visitType === "office_visit"
-                        ? "border-[var(--primary)] bg-[var(--primary-light)]"
-                        : "border-border hover:border-border-subtle bg-transparent hover:bg-card-hover"
-                    }`}
-                  >
-                    <div className="flex flex-col items-center gap-3">
-                      <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
-                        form.visitType === "office_visit" ? "bg-[var(--primary)]" : "bg-border-subtle"
-                      }`}>
-                        <Building2 className={`w-7 h-7 ${form.visitType === "office_visit" ? "text-white" : "text-text-muted"}`} />
-                      </div>
-                      <div className="text-center">
-                        <p className={`text-base font-semibold ${form.visitType === "office_visit" ? "text-[var(--primary)]" : "text-text-primary"}`}>Office Visit</p>
-                        <p className="text-xs text-text-muted">Customer travels to us</p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </FormField>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* LOCATION / VISITOR NAMES (FIRST) */}
+              <div className="grid grid-cols-1 gap-4">
                 {form.visitType === "field_visit" && (
                   <FormField label="Location" required hint="Enter the customer's address or location">
-                    <Input
-                      type="text"
-                      value={form.location || ""}
-                      onChange={(e) => setForm({ ...form, location: e.target.value })}
-                      placeholder="e.g. 123 Industrial Area, City"
-                    />
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          type="text"
+                          value={form.location || ""}
+                          onChange={(e) => setForm({ ...form, location: e.target.value })}
+                          placeholder="e.g. 123 Industrial Area, City"
+                          className="rounded-xl"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleUseCurrentLocation}
+                        disabled={gpsLoading}
+                        className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        <MapPin size={14} />
+                        {gpsLoading ? "Locating..." : "Use Current Location"}
+                      </button>
+                    </div>
                   </FormField>
                 )}
                 {form.visitType === "office_visit" && (
@@ -323,131 +339,62 @@ export default function NewVisitPage() {
                       value={form.visitorNames}
                       onChange={(e) => setForm({ ...form, visitorNames: e.target.value })}
                       placeholder="Enter visitor names from customer..."
-                    />
-                  </FormField>
-                )}
-                {form.visitType === "office_visit" && (
-                  <FormField label="Meeting Room">
-                    <Input
-                      type="text"
-                      value={form.meetingRoom}
-                      onChange={(e) => setForm({ ...form, meetingRoom: e.target.value })}
-                      placeholder="e.g. Conference Room A"
-                    />
-                  </FormField>
-                )}
-                {form.visitType === "field_visit" && (
-                  <>
-                    <FormField label="Travel Mode">
-                      <Select
-                        value={form.travelMode}
-                        onChange={(e) => setForm({ ...form, travelMode: e.target.value })}
-                        className="rounded-xl"
-                      >
-                        <option value="">Select travel mode...</option>
-                        <option value="Car">Car</option>
-                        <option value="Bike">Bike</option>
-                        <option value="Public Transport">Public Transport</option>
-                        <option value="Flight">Flight</option>
-                        <option value="Other">Other</option>
-                      </Select>
-                    </FormField>
-                    <FormField label="Estimated Distance (km)">
-                      <Input
-                        type="number"
-                        step="0.1"
-                        value={form.distanceTraveledKm}
-                        onChange={(e) => setForm({ ...form, distanceTraveledKm: e.target.value })}
-                        placeholder="e.g. 25.5"
-                        className="rounded-xl"
-                      />
-                    </FormField>
-                    <FormField label="Estimated Expense (₹)">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={form.expenseAmount}
-                        onChange={(e) => setForm({ ...form, expenseAmount: e.target.value })}
-                        placeholder="e.g. 500.00"
-                        className="rounded-xl"
-                      />
-                    </FormField>
-                  </>
-                )}
-                {form.visitType === "office_visit" && (
-                  <FormField label="Documents Exchanged">
-                    <Textarea
-                      rows={2}
-                      value={form.documentsExchanged}
-                      onChange={(e) => setForm({ ...form, documentsExchanged: e.target.value })}
-                      placeholder="e.g., Brochure, Quotation, Technical datasheet..."
                       className="rounded-xl"
                     />
                   </FormField>
                 )}
-                {form.visitType === "office_visit" && (
-                  <FormField label="Host(s) (multi-select)">
-                    <div className="flex flex-wrap gap-2">
-                      {users.filter((u) => u.role !== "Customer").map((u) => {
-                        const isSelected = form.hostedByUserIds.includes(u.id);
-                        return (
-                          <button
-                            key={u.id}
-                            type="button"
-                            onClick={() => setForm((prev) => ({
-                              ...prev,
-                              hostedByUserIds: isSelected
-                                ? prev.hostedByUserIds.filter((id) => id !== u.id)
-                                : [...prev.hostedByUserIds, u.id],
-                            }))}
-                            className={cn(
-                              "px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all",
-                              isSelected
-                                ? "border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]"
-                                : "border-border bg-transparent text-text-secondary hover:border-border-subtle hover:bg-border-subtle"
-                            )}
-                          >
-                            {u.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </FormField>
-                )}
-                <FormField label="Visitor List (optional)">
-                  <div className="space-y-2">
-                    {form.visitors.map((v, idx) => (
-                      <div key={idx} className="flex gap-2">
-                        <Input
-                          value={v.name}
-                          onChange={(e) => updateVisitor(idx, "name", e.target.value)}
-                          placeholder="Visitor name"
-                          className="rounded-xl"
-                        />
-                        <Input
-                          value={v.designation || ""}
-                          onChange={(e) => updateVisitor(idx, "designation", e.target.value)}
-                          placeholder="Designation (optional)"
-                          className="rounded-xl"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeVisitor(idx)}
-                          className="text-rose-500 hover:text-rose-700"
-                        >
-                          <X size={16} />
-                        </button>
+              </div>
+
+              {/* VISIT TYPE TOGGLE (BELOW LOCATION) */}
+              <FormField label="Visit Type" required>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, visitType: "field_visit" })}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      form.visitType === "field_visit"
+                        ? "border-[var(--primary)] bg-[var(--primary-light)]"
+                        : "border-border hover:border-border-subtle bg-transparent hover:bg-card-hover"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        form.visitType === "field_visit" ? "bg-[var(--primary)]" : "bg-border-subtle"
+                      }`}>
+                        <MapPin className={`w-5 h-5 ${form.visitType === "field_visit" ? "text-white" : "text-text-muted"}`} />
                       </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={addVisitor}
-                      className="text-sm text-[var(--primary)] font-medium hover:underline"
-                    >
-                      + Add Visitor
-                    </button>
-                  </div>
-                </FormField>
+                      <div className="text-center">
+                        <p className={`text-sm font-semibold ${form.visitType === "field_visit" ? "text-[var(--primary)]" : "text-text-primary"}`}>Field Visit</p>
+                        <p className="text-[10px] text-text-muted">We travel to customer</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, visitType: "office_visit" })}
+                    className={`p-4 rounded-xl border-2 transition-all ${
+                      form.visitType === "office_visit"
+                        ? "border-[var(--primary)] bg-[var(--primary-light)]"
+                        : "border-border hover:border-border-subtle bg-transparent hover:bg-card-hover"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        form.visitType === "office_visit" ? "bg-[var(--primary)]" : "bg-border-subtle"
+                      }`}>
+                        <Building2 className={`w-5 h-5 ${form.visitType === "office_visit" ? "text-white" : "text-text-muted"}`} />
+                      </div>
+                      <div className="text-center">
+                        <p className={`text-sm font-semibold ${form.visitType === "office_visit" ? "text-[var(--primary)]" : "text-text-primary"}`}>Office Visit</p>
+                        <p className="text-[10px] text-text-muted">Customer travels to us</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </FormField>
+
+              {/* CORE REQUIRED FIELDS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField label="Purpose" required>
                   <Select
                     value={form.purpose}
@@ -460,36 +407,136 @@ export default function NewVisitPage() {
                     ))}
                   </Select>
                 </FormField>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField label="Planned Date" required>
-                    <Input
-                      type="date"
-                      value={form.plannedDate}
-                      onChange={(e) => setForm({ ...form, plannedDate: e.target.value })}
-                      min={new Date().toISOString().split("T")[0]}
-                      className="rounded-xl"
-                    />
-                  </FormField>
-                  <FormField label="Planned Time">
-                    <Input
-                      type="time"
-                      value={form.plannedTime}
-                      onChange={(e) => setForm({ ...form, plannedTime: e.target.value })}
-                      className="rounded-xl"
-                    />
-                  </FormField>
-                  <FormField label="Assigned To">
-                    <Select
-                      value={form.assignedTo}
-                      onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
-                      className="rounded-xl"
-                    >
-                      <option value="">Yourself (default)</option>
-                      {users.filter((u) => u.role !== "Customer").map((u) => (
-                        <option key={u.id} value={u.id}>{u.name}</option>
-                      ))}
-                    </Select>
-                  </FormField>
+                <FormField label="Assigned To">
+                  <Select
+                    value={form.assignedTo}
+                    onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+                    className="rounded-xl"
+                  >
+                    <option value="">Yourself (default)</option>
+                    {users.filter((u) => u.role !== "Customer").map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Planned Date" required>
+                  <Input
+                    type="date"
+                    value={form.plannedDate}
+                    onChange={(e) => setForm({ ...form, plannedDate: e.target.value })}
+                    min={new Date().toISOString().split("T")[0]}
+                    className="rounded-xl"
+                  />
+                </FormField>
+                <FormField label="Planned Time">
+                  <Input
+                    type="time"
+                    value={form.plannedTime}
+                    onChange={(e) => setForm({ ...form, plannedTime: e.target.value })}
+                    className="rounded-xl"
+                  />
+                </FormField>
+              </div>
+
+              {/* EXPANDABLE OPTIONAL SECTION */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowOptional(!showOptional)}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1"
+                >
+                  {showOptional ? "Hide optional details" : "Add more details (Travel, Agenda, Opportunity...)"}
+                </button>
+              </div>
+
+              {showOptional && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-white/5 animate-in fade-in slide-in-from-top-2 duration-200">
+                  {form.visitType === "field_visit" && (
+                    <>
+                      <FormField label="Travel Mode">
+                        <Select
+                          value={form.travelMode}
+                          onChange={(e) => setForm({ ...form, travelMode: e.target.value })}
+                          className="rounded-xl"
+                        >
+                          <option value="">Select travel mode...</option>
+                          <option value="Car">Car</option>
+                          <option value="Bike">Bike</option>
+                          <option value="Public Transport">Public Transport</option>
+                          <option value="Flight">Flight</option>
+                          <option value="Other">Other</option>
+                        </Select>
+                      </FormField>
+                      <FormField label="Estimated Distance (km)">
+                        <Input
+                          type="number"
+                          step="0.1"
+                          value={form.distanceTraveledKm}
+                          onChange={(e) => setForm({ ...form, distanceTraveledKm: e.target.value })}
+                          placeholder="e.g. 25.5"
+                          className="rounded-xl"
+                        />
+                      </FormField>
+                      <FormField label="Estimated Expense (₹)">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.expenseAmount}
+                          onChange={(e) => setForm({ ...form, expenseAmount: e.target.value })}
+                          placeholder="e.g. 500.00"
+                          className="rounded-xl"
+                        />
+                      </FormField>
+                    </>
+                  )}
+                  {form.visitType === "office_visit" && (
+                    <>
+                      <FormField label="Meeting Room">
+                        <Input
+                          type="text"
+                          value={form.meetingRoom}
+                          onChange={(e) => setForm({ ...form, meetingRoom: e.target.value })}
+                          placeholder="e.g. Conference Room A"
+                        />
+                      </FormField>
+                      <FormField label="Documents Exchanged">
+                        <Textarea
+                          rows={2}
+                          value={form.documentsExchanged}
+                          onChange={(e) => setForm({ ...form, documentsExchanged: e.target.value })}
+                          placeholder="e.g., Brochure, Quotation, Technical datasheet..."
+                          className="rounded-xl"
+                        />
+                      </FormField>
+                      <FormField label="Host(s) (multi-select)">
+                        <div className="flex flex-wrap gap-2">
+                          {users.filter((u) => u.role !== "Customer").map((u) => {
+                            const isSelected = form.hostedByUserIds.includes(u.id);
+                            return (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => setForm((prev) => ({
+                                  ...prev,
+                                  hostedByUserIds: isSelected
+                                    ? prev.hostedByUserIds.filter((id) => id !== u.id)
+                                    : [...prev.hostedByUserIds, u.id],
+                                }))}
+                                className={cn(
+                                  "px-3 py-1.5 text-xs font-bold rounded-lg border-2 transition-all",
+                                  isSelected
+                                    ? "border-[var(--primary)] bg-[var(--primary-light)] text-[var(--primary)]"
+                                    : "border-border bg-transparent text-text-secondary hover:border-border-subtle hover:bg-border-subtle"
+                                )}
+                              >
+                                {u.name}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </FormField>
+                    </>
+                  )}
                   <FormField label="Link Opportunity (optional)">
                     <Select
                       value={form.linkedOpportunityId}
@@ -502,17 +549,53 @@ export default function NewVisitPage() {
                       ))}
                     </Select>
                   </FormField>
+                  <FormField label="Visitor List (optional)">
+                    <div className="space-y-2">
+                      {form.visitors.map((v, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <Input
+                            value={v.name}
+                            onChange={(e) => updateVisitor(idx, "name", e.target.value)}
+                            placeholder="Visitor name"
+                            className="rounded-xl"
+                          />
+                          <Input
+                            value={v.designation || ""}
+                            onChange={(e) => updateVisitor(idx, "designation", e.target.value)}
+                            placeholder="Designation (optional)"
+                            className="rounded-xl"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeVisitor(idx)}
+                            className="text-rose-500 hover:text-rose-700"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={addVisitor}
+                        className="text-sm text-[var(--primary)] font-medium hover:underline"
+                      >
+                        + Add Visitor
+                      </button>
+                    </div>
+                  </FormField>
+                  <div className="md:col-span-2">
+                    <FormField label="Agenda">
+                      <Textarea
+                        rows={3}
+                        value={form.agenda}
+                        onChange={(e) => setForm({ ...form, agenda: e.target.value })}
+                        placeholder="Visit agenda and discussion points..."
+                        className="rounded-xl"
+                      />
+                    </FormField>
+                  </div>
                 </div>
-                <FormField label="Agenda">
-                  <Textarea
-                    rows={3}
-                    value={form.agenda}
-                    onChange={(e) => setForm({ ...form, agenda: e.target.value })}
-                    placeholder="Visit agenda and discussion points..."
-                    className="rounded-xl"
-                  />
-                </FormField>
-              </div>
+              )}
             </div>
 
             {/* Attendees Multi-Select */}

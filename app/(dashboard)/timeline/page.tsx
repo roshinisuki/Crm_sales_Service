@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import Link from "next/link";
 import PageContainer from "@/components/PageContainer";
 import { CRMSpinner } from "@/components/CRMSpinner";
+import { cn } from "@/lib/ui-utils";
+import { Phone, Video, StickyNote, MessageSquare, List, Clock } from "lucide-react";
 
 const activityIcons: Record<string, { icon: string; color: string }> = {
   Call: { icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z", color: "text-blue-600 bg-blue-100" },
@@ -37,6 +40,8 @@ const activityTypes = ["Call", "Meeting", "Email", "WhatsApp", "Note", "Visit", 
 export default function TimelinePage() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -87,11 +92,41 @@ export default function TimelinePage() {
     setFilters({ entityType: "", activityType: "", userId: "", startDate: "", endDate: "" });
   };
 
+  const typeParam = searchParams.get("type");
+  const tabs = [
+    { label: "Overview", href: "/activities", active: pathname === "/activities" && !typeParam, icon: <List size={16} /> },
+    { label: "Calls", href: "/activities?type=Call", active: pathname === "/activities" && (typeParam === "Call" || typeParam === "calls"), icon: <Phone size={16} /> },
+    { label: "Meetings", href: "/activities?type=Meeting", active: pathname === "/activities" && (typeParam === "Meeting" || typeParam === "meetings"), icon: <Video size={16} /> },
+    { label: "Emails", href: "/activities?type=Email", active: pathname === "/activities" && (typeParam === "Email" || typeParam === "emails"), icon: <MessageSquare size={16} /> },
+    { label: "WhatsApp", href: "/activities?type=WhatsApp", active: pathname === "/activities" && (typeParam === "WhatsApp" || typeParam === "whatsapp"), icon: <MessageSquare size={16} /> },
+    { label: "Notes", href: "/activities?type=Note", active: pathname === "/activities" && (typeParam === "Note" || typeParam === "notes"), icon: <StickyNote size={16} /> },
+    { label: "Timeline", href: "/timeline", active: pathname === "/timeline", icon: <Clock size={16} /> },
+  ];
+
   return (
     <PageContainer className="p-0">
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-slate-800">Timeline</h1>
         <p className="text-sm text-slate-500 mt-0.5">Unified activity feed across all modules</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-100 mb-5">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.label}
+            href={tab.href}
+            className={cn(
+              "flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors",
+              tab.active
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-slate-400 hover:text-slate-600"
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+          </Link>
+        ))}
       </div>
 
       <div className="flex gap-4">

@@ -43,6 +43,11 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 
   // Generic
   Inactive:    { bg: "var(--surface-2)",         text: "var(--text-secondary)",      border: "var(--border)" },
+
+  // SLA & Lead Statuses
+  Met:         { bg: "var(--status-success-bg)", text: "var(--status-success-text)", border: "var(--status-success-border)" },
+  Breached:    { bg: "var(--status-danger-bg)",  text: "var(--status-danger-text)",  border: "var(--status-danger-border)" },
+  New:         { bg: "var(--status-info-bg)",    text: "var(--status-info-text)",    border: "var(--status-info-border)" },
 };
 
 const fallback = { bg: "var(--surface-2)", text: "var(--text-secondary)", border: "var(--border)" };

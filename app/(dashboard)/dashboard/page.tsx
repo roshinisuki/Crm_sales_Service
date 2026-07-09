@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthProvider";
-import { CRMSpinner } from "@/components/CRMSpinner";
+import { PageLoader } from "@/components/PageLoader";
 import { getDashboardDataAction } from "@/app/actions/visits";
 import { getSalesAnalyticsAction } from "@/app/actions/analytics";
 
@@ -44,11 +44,7 @@ export default function DashboardRouter() {
   }, [authLoading, user, dateRange]);
 
   if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center h-[50vh]">
-        <CRMSpinner size={48} label="Loading your workspace..." />
-      </div>
-    );
+    return <PageLoader label="Loading your workspace..." />;
   }
 
   const commonProps = {

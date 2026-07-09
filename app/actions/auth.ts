@@ -360,8 +360,8 @@ export async function saveNewPassword(token: string, newPassword: string) {
 export async function activateCustomerPortal(customerId: string) {
   try {
     const adminPayload = await verifyAuth();
-    if (!adminPayload || !["Admin", "SalesManager", "SuperAdmin"].includes(adminPayload.role)) {
-      return { success: false, message: "Unauthorized: Admin or Marketing Lead only." };
+    if (!adminPayload || !["Admin", "SuperAdmin"].includes(adminPayload.role)) {
+      return { success: false, message: "Unauthorized: Admin only." };
     }
 
     // Tenant check: SuperAdmin supportMode check
@@ -574,7 +574,14 @@ export async function getMeAction() {
       return { success: false, message: "User not found or inactive" };
     }
 
-    return { success: true, data: { ...user, lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null, variant: user.company?.variant || 1 } };
+    let permissions: any[] | 'ALL' = 'ALL';
+    if (user.role !== 'Admin' && user.role !== 'SuperAdmin') {
+      permissions = await prisma.rolePermission.findMany({
+        where: { role: user.role }
+      });
+    }
+
+    return { success: true, data: { ...user, lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null, variant: user.company?.variant || 1, permissions } };
   } catch (error) {
     console.error("getMeAction error:", error);
     return { success: false, message: "Internal server error" };

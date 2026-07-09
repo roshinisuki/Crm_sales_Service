@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import { prisma } from "@/lib/prisma";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -67,4 +68,24 @@ export function getRoleRedirect(role: string): string {
     case "Customer":        return "/customer/portal";
     default:                return "/login";
   }
+}
+
+/** Checks if the user has delete permission for a specific module */
+export async function requireDeletePermission(moduleName: string): Promise<TokenPayload> {
+  const payload = await verifyAuth();
+  if (!payload) throw new Error("Unauthorized");
+  
+  if (payload.role === "Admin" || payload.role === "SuperAdmin") {
+    return payload;
+  }
+  
+  const perm = await prisma.rolePermission.findUnique({
+    where: { role_module: { role: payload.role, module: moduleName } }
+  });
+  
+  if (!perm || !perm.canDelete) {
+    throw new Error("You do not have permission to delete records in this module.");
+  }
+  
+  return payload;
 }

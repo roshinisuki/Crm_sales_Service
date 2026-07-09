@@ -17,7 +17,8 @@ type SettingKey =
   | "statuses" 
   | "teams" 
   | "engineers" 
-  | "assets";
+  | "assets"
+  | "escalation-rules";
 
 export default function ServiceSettingsPage() {
   const searchParams = useSearchParams();
@@ -25,7 +26,7 @@ export default function ServiceSettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingKey>("categories");
 
   useEffect(() => {
-    if (tabParam && ["categories", "complaints", "defects", "priorities", "statuses", "teams", "engineers", "assets"].includes(tabParam)) {
+    if (tabParam && ["categories", "complaints", "defects", "priorities", "statuses", "teams", "engineers", "assets", "escalation-rules"].includes(tabParam)) {
       setActiveTab(tabParam as SettingKey);
     }
   }, [tabParam]);
@@ -39,6 +40,7 @@ export default function ServiceSettingsPage() {
     { key: "teams", label: "Service Teams", icon: <Users size={15} /> },
     { key: "engineers", label: "Service Engineers", icon: <Wrench size={15} /> },
     { key: "assets", label: "Customer Assets", icon: <HardDrive size={15} /> },
+    { key: "escalation-rules", label: "Escalation Rules", icon: <AlertOctagon size={15} /> },
   ];
 
   return (
@@ -163,6 +165,21 @@ export default function ServiceSettingsPage() {
               { id: "purchaseDate", label: "Purchase Date", type: "date" },
               { id: "warrantyExpiryDate", label: "Warranty Expiry Date", type: "date" },
               { id: "amcExpiryDate", label: "AMC Expiry Date", type: "date" },
+            ]}
+          />
+        )}
+
+        {activeTab === "escalation-rules" && (
+          <ServiceSettingsCRUD
+            modelName="escalationRule"
+            title="Escalation Rule"
+            fields={[
+              { id: "name", label: "Rule Name", type: "text", required: true },
+              { id: "categoryId", label: "Category ID", type: "text", required: true },
+              { id: "priorityId", label: "Priority ID", type: "text", required: true },
+              { id: "thresholdHours", label: "Threshold (Hours)", type: "number", required: true },
+              { id: "triggerCondition", label: "Trigger Condition (e.g., SinceCreation)", type: "text", required: true },
+              { id: "notifyTeamId", label: "Notify Team ID", type: "text" },
             ]}
           />
         )}

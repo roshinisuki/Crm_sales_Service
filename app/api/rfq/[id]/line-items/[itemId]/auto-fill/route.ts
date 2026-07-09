@@ -5,7 +5,7 @@ import { verifyAuth } from "@/lib/auth";
 // GET: Auto-fill costing values from BOM, Routing, and ProductCategory defaults
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string; itemId: string }> }
+  { params }: { params: any }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
@@ -14,14 +14,14 @@ export async function GET(
   const { id, itemId } = await params;
 
   // Validate RFQ exists
-  const rfq = await prisma.RFQ.findFirst({
+  const rfq = await prisma.rFQ.findUnique({
     where: { id, deletedAt: null, companyId: user.companyId },
     select: { id: true },
   });
   if (!rfq) return NextResponse.json({ success: false, message: "RFQ not found" }, { status: 404 });
 
   // Get line item with product and category
-  const lineItem = await prisma.RFQLineItem.findFirst({
+  const lineItem = await prisma.rFQLineItem.findUnique({
     where: { id: itemId, rfqId: id },
     include: {
       product: {
@@ -46,33 +46,35 @@ export async function GET(
 
   if (lineItem.productId && lineItem.product) {
     // Calculate material cost from BOM × MaterialRate
-    const bomItems = await prisma.BOMItem.findMany({
+    const boms = await prisma.bOMItem.findMany({
       where: { productId: lineItem.productId, companyId: user.companyId },
     });
-    if (bomItems.length > 0) {
-      for (const bom of bomItems) {
-        const rate = await prisma.MaterialRate.findFirst({
+    if (boms.length > 0) {
+      for (const bom of boms) {
+        const materials = await prisma.materialRate.findMany({
           where: { materialCode: bom.materialCode, companyId: user.companyId },
         });
+        const rate = materials[0];
         if (rate) {
-          materialCost += bom.quantity * rate.unitRate * (1 + bom.scrapPercent / 100);
+          materialCost += bom.quantity.toNumber() * rate.unitRate.toNumber() * (1 + bom.scrapPercent.toNumber() / 100);
         }
       }
       sources.material_cost = "bom";
     }
 
     // Calculate labor cost from Routing × LaborRate
-    const routingOps = await prisma.RoutingOperation.findMany({
+    const ops = await prisma.routingOperation.findMany({
       where: { productId: lineItem.productId, companyId: user.companyId },
       orderBy: { sequence: "asc" },
     });
-    if (routingOps.length > 0) {
-      for (const op of routingOps) {
-        const rate = await prisma.LaborRate.findFirst({
+    if (ops.length > 0) {
+      for (const op of ops) {
+        const rates = await prisma.laborRate.findMany({
           where: { workCenter: op.workCenter, companyId: user.companyId },
         });
+        const rate = rates[0];
         if (rate) {
-          labourCost += op.cycleTimeMin * rate.hourlyRate / 60 + op.setupTimeMin * rate.setupRate / 60;
+          labourCost += op.cycleTimeMin.toNumber() * rate.hourlyRate.toNumber() / 60 + op.setupTimeMin.toNumber() * rate.setupRate.toNumber() / 60;
         }
       }
       sources.labour_cost = "routing";
@@ -80,8 +82,8 @@ export async function GET(
 
     // Use category defaults for overhead and margin
     if (lineItem.product.category) {
-      overheadPercent = lineItem.product.category.defaultOverheadPercent || 0;
-      marginPercent = lineItem.product.category.defaultMarginPercent || 0;
+      overheadPercent = lineItem.product.category.defaultOverheadPercent?.toNumber() || 0;
+      marginPercent = lineItem.product.category.defaultMarginPercent?.toNumber() || 0;
       sources.overhead_percent = "category";
       sources.margin_percent = "category";
     }
@@ -90,8 +92,8 @@ export async function GET(
   return NextResponse.json({
     success: true,
     data: {
-      material_cost: materialCost,
-      labourCost: labourCost,
+      unitMaterialCost: materialCost,
+      unitLaborCost: labourCost,
       overhead_percent: overheadPercent,
       margin_percent: marginPercent,
       sources,

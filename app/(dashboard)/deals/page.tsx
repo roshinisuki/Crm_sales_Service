@@ -53,12 +53,10 @@ function DealsPageContent() {
 
   const loadDeals = async () => {
     setLoading(true);
-    startLoading("Loading deals...");
     const res = await getDealsAction();
     if (res.success && res.data) setDeals(res.data);
     else toast.error("Failed to load deals.");
     setLoading(false);
-    stopLoading();
   };
 
   const loadDeps = async () => {
@@ -243,15 +241,7 @@ function DealsPageContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="py-12 text-center">
-                    <div className="flex justify-center">
-                      <CRMSpinner size={36} label="Loading deals..." />
-                    </div>
-                  </td>
-                </tr>
-              ) : paged.length === 0 ? (
+              {loading ? null : paged.length === 0 ? (
                 <tr><td colSpan={8} className="crm-td text-center py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center"><Briefcase size={28} className="text-slate-300" /></div>

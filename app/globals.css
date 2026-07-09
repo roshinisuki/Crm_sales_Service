@@ -387,6 +387,28 @@ body {
   }
 }
 
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 14px center !important;
+  background-size: 14px !important;
+  padding-right: 38px !important;
+  min-width: 140px;
+}
+
+/* Exclude tiny inline dashboard/widget selects from the min-width rule */
+select.text-\[10px\],
+select.text-\[11px\],
+select[class*="w-12"],
+select[class*="w-16"],
+select[class*="w-20"],
+select[class*="w-auto"] {
+  min-width: unset !important;
+}
+
 /* ─── Cards ──────────────────────────────────────────────────────────────────── */
 @utility crm-card {
   background: var(--card-bg);
@@ -407,16 +429,16 @@ body {
   width: 100%;
   text-align: left;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
   table-layout: auto;
 }
 
 @utility crm-th {
-  padding: 8px 16px;
-  height: 42px;
+  padding: 12px 20px;
+  height: 48px;
   background: var(--table-header-bg);
   color: var(--table-header-text);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -425,25 +447,52 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 @utility crm-td {
-  padding: 10px 16px;
-  height: 46px;
+  padding: 14px 20px;
+  height: 56px;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: middle;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 @utility crm-tr {
   transition: background-color 100ms ease;
   background-color: var(--surface);
-  &:hover { background-color: var(--table-hover-bg); }
+  &:hover { background-color: var(--table-hover-bg) !important; }
   &:last-child td { border-bottom: none; }
+}
+
+/* Helper alignments for headers and cells */
+.crm-table th.text-center,
+.crm-table td.text-center {
+  text-align: center !important;
+}
+.crm-table th.text-center > div {
+  justify-content: center !important;
+}
+.crm-table th.text-right,
+.crm-table td.text-right {
+  text-align: right !important;
+}
+.crm-table th.text-right > div {
+  justify-content: flex-end !important;
+}
+
+/* Date input calendar picker adaptive colors */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) !important;
 }
 
 /* Clickable table rows */

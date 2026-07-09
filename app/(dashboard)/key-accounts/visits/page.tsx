@@ -42,11 +42,7 @@ export default function KeyAccountVisitsPage() {
         </Link>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-12">
-          <CRMSpinner size={36} label="Loading..." />
-        </div>
-      ) : data.length === 0 ? (
+      {loading ? null : data.length === 0 ? (
         <div className="py-12 text-center text-sm text-slate-500 dark:text-[var(--text-secondary)]">No upcoming visits or reviews found.</div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-[var(--border)] bg-white dark:bg-[var(--surface)]">

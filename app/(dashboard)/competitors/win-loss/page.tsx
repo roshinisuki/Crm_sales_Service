@@ -14,9 +14,11 @@ import {
   PieChart, Pie, LineChart, Line, Legend,
 } from "recharts";
 import { Download, Trophy, Target, MapPin, ThumbsUp } from "lucide-react";
+import { useCurrency } from "@/components/CurrencyProvider";
 
 export default function WinLossPage() {
   const toast = useToast();
+  const { formatCurrency } = useCurrency();
   const [data, setData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [from, setFrom] = useState("");
@@ -247,7 +249,7 @@ export default function WinLossPage() {
                         <td className="crm-td">
                           <StatusPill status={d.status} />
                         </td>
-                        <td className="crm-td">${d.dealValue.toLocaleString()}</td>
+                        <td className="crm-td">{formatCurrency(d.dealValue)}</td>
                         <td className="crm-td">{d.customerName}</td>
                         <td className="crm-td">{d.territory}</td>
                         <td className="crm-td">

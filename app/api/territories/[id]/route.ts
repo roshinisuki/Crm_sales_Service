@@ -44,6 +44,44 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const existing = await prisma.territory.findFirst({ where: { id, companyId: user.companyId } });
   if (!existing) return NextResponse.json({ success: false, message: "Not found" }, { status: 404 });
 
+  // Perform Cascade update if assignedUserId changes
+  if (body.assignedUserId && body.assignedUserId !== existing.assignedUserId) {
+    const newOwnerId = body.assignedUserId;
+    
+    // 1. Update Accounts mapped to this Territory
+    const mappings = await prisma.territoryAccount.findMany({
+      where: { territoryId: id }
+    });
+    const customerIds = mappings.map(m => m.customerId);
+    if (customerIds.length > 0) {
+      await prisma.customer.updateMany({
+        where: { id: { in: customerIds }, companyId: user.companyId },
+        data: { assignedUserId: newOwnerId }
+      });
+    }
+
+    // 2. Update active, non-converted Leads in states/city matching this territory
+    const statesList = body.states ? body.states.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+    const queryConditions: any[] = [];
+    if (body.name) {
+      queryConditions.push({ city: { contains: body.name } });
+    }
+    statesList.forEach((state: string) => {
+      queryConditions.push({ city: { contains: state } });
+    });
+
+    if (queryConditions.length > 0) {
+      await prisma.lead.updateMany({
+        where: {
+          companyId: user.companyId,
+          status: { notIn: ["Converted", "Lost", "Duplicate"] },
+          OR: queryConditions
+        },
+        data: { assignedUserId: newOwnerId }
+      });
+    }
+  }
+
   const territory = await prisma.territory.update({
     where: { id },
     data: {

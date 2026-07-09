@@ -93,14 +93,18 @@ export default function UserMasterPage() {
   };
 
   useEffect(() => {
-    if (!authLoading && loggedIn?.role !== "Admin") router.replace("/dashboard");
+    if (!authLoading && !["Admin", "SalesManager", "SalesExecutive"].includes(loggedIn?.role || "")) {
+      router.replace("/dashboard");
+    }
   }, [loggedIn, authLoading, router]);
 
   useEffect(() => {
-    if (loggedIn?.role === "Admin") loadData();
+    if (loggedIn && ["Admin", "SalesManager", "SalesExecutive"].includes(loggedIn.role)) loadData();
   }, [loggedIn]);
 
-  if (authLoading || loggedIn?.role !== "Admin") return null;
+  if (authLoading || !["Admin", "SalesManager", "SalesExecutive"].includes(loggedIn?.role || "")) return null;
+
+  const isAdmin = loggedIn?.role === "Admin";
 
   // ── Filtered lists ──────────────────────────────────────────
   const internalUsers = users.filter(u =>
@@ -243,24 +247,27 @@ export default function UserMasterPage() {
         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
           {u.isFirstLogin && (
             <button
-              onClick={() => handleResend(u.id)}
-              title="Resend activation link"
-              className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 transition-colors border border-amber-200"
+              onClick={() => isAdmin && handleResend(u.id)}
+              disabled={!isAdmin}
+              title={isAdmin ? "Resend activation link" : "Only admins can resend"}
+              className={`p-1.5 rounded-lg transition-colors border ${isAdmin ? 'bg-amber-50 hover:bg-amber-100 text-amber-600 border-amber-200' : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'}`}
             >
               <Ico d={icons.resend} size={14} />
             </button>
           )}
           <button
-            onClick={() => openEdit(u)}
-            title="Edit user"
-            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+            onClick={() => isAdmin && openEdit(u)}
+            disabled={!isAdmin}
+            title={isAdmin ? "Edit user" : "Only admins can edit"}
+            className={`p-1.5 rounded-lg transition-colors ${isAdmin ? 'bg-slate-100 hover:bg-slate-200 text-slate-600' : 'bg-slate-50 text-slate-300 cursor-not-allowed'}`}
           >
             <Ico d={icons.edit} size={14} />
           </button>
           <button
-            onClick={() => handleDelete(u.id)}
-            title="Delete user"
-            className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors border border-red-100"
+            onClick={() => isAdmin && handleDelete(u.id)}
+            disabled={!isAdmin}
+            title={isAdmin ? "Delete user" : "Only admins can delete"}
+            className={`p-1.5 rounded-lg transition-colors border ${isAdmin ? 'bg-red-50 hover:bg-red-100 text-red-600 border-red-100' : 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'}`}
           >
             <Ico d={icons.trash} size={14} />
           </button>
@@ -279,16 +286,27 @@ export default function UserMasterPage() {
           <p className="text-sm text-slate-500 mt-1">Manage internal team members and customer portal accounts separately.</p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => router.push('/settings/roles')}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200"
+            >
+              <Ico d={icons.shield} size={16} />
+              Manage Permissions
+            </button>
+          )}
           <button
             onClick={openCreateInternal}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-white rounded-xl text-sm font-medium hover:bg-[var(--primary-hover)] transition-colors shadow-sm cursor-pointer"
+            disabled={!isAdmin}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm ${isAdmin ? 'bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)] cursor-pointer' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
           >
             <Ico d={icons.plus} size={16} />
             Add Internal User
           </button>
           <button
             onClick={openCreateCustomer}
-            className="flex items-center gap-2 px-4 py-2 bg-[#151515] text-white rounded-xl text-sm font-medium hover:bg-slate-800 transition-colors shadow-sm cursor-pointer"
+            disabled={!isAdmin}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm ${isAdmin ? 'bg-[#151515] text-white hover:bg-slate-800 cursor-pointer' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
           >
             <Ico d={icons.plus} size={16} />
             Add Customer Portal

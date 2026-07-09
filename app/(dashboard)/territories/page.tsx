@@ -182,7 +182,7 @@ export default function TerritoriesPage() {
 
   return (
     <PageContainer className="space-y-5 p-0">
-      <AnalyticsPageHeader title="Sales Territories" subtitle="Manage sales territories and regional assignments">
+      <AnalyticsPageHeader title="Territories Overview" subtitle="Manage sales territories and regional assignments">
         <div className="flex items-center gap-3">
           <Link href="/territories/performance" className="btn-secondary">
             <BarChart3 size={16} /> Performance

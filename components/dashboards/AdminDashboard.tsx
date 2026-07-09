@@ -102,7 +102,7 @@ function KpiStrip({ dashboardData, salesData, formatCurrency }: any) {
               {k.icon}
             </span>
           </div>
-          <p className="text-3xl font-black text-[var(--text-primary)] m-0 tracking-tight">{k.display}</p>
+          <p className="text-[22px] sm:text-2xl font-black text-[var(--text-primary)] m-0 tracking-tight">{k.display}</p>
           <div className="flex items-center gap-1.5 mt-auto pt-1">
             <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ color: k.up ? "#10b981" : "#ef4444", background: k.up ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)" }}>
               {k.up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}

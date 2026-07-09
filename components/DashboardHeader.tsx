@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { useToast } from "@/components/ToastProvider";
 import { logoutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/ui-utils";
 import { searchModules, type ModuleSearchItem } from "@/lib/config/variantModuleMap";
 import { getInitials } from "@/lib/ui-utils";
-import { Search, Bell, ChevronDown, Menu, Settings, User, LogOut, Check, Trash2 } from "lucide-react";
+import { Search, Bell, ChevronDown, Menu, Settings, User, LogOut, Check, Trash2, TrendingUp, Wrench } from "lucide-react";
 import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { useTheme } from "@/lib/useTheme";
 
@@ -32,6 +33,53 @@ function useClock() {
     return () => clearInterval(t);
   }, []);
   return now;
+}
+
+function CrmToggle({ className }: { className?: string }) {
+  const pathname = usePathname();
+  const isServiceWorkspace = pathname?.startsWith("/service");
+
+  return (
+    <div className={cn("relative flex items-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-1 rounded-full select-none w-[240px] h-[32px]", className)}>
+      {/* Sliding background */}
+      <div
+        className={cn(
+          "absolute top-[3px] bottom-[3px] w-[116px] rounded-full transition-all duration-300 ease-out shadow-sm",
+          isServiceWorkspace 
+            ? "left-[calc(50%+1px)] bg-purple-600 shadow-[0_0_8px_rgba(168,85,247,0.4)]" 
+            : "left-[3px] bg-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+        )}
+      />
+      
+      {/* Sales CRM Link */}
+      <Link
+        href="/dashboard"
+        className={cn(
+          "flex-1 flex items-center justify-center gap-2 py-1 text-[11px] font-bold z-10 transition-colors duration-200",
+          !isServiceWorkspace 
+            ? "text-white" 
+            : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+        )}
+      >
+        <TrendingUp size={14} className="shrink-0" />
+        <span>Sales CRM</span>
+      </Link>
+
+      {/* Service CRM Link */}
+      <Link
+        href="/service/dashboard/my"
+        className={cn(
+          "flex-1 flex items-center justify-center gap-2 py-1 text-[11px] font-bold z-10 transition-colors duration-200",
+          isServiceWorkspace 
+            ? "text-white" 
+            : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
+        )}
+      >
+        <Wrench size={14} className="shrink-0" />
+        <span>Service CRM</span>
+      </Link>
+    </div>
+  );
 }
 
 export default function DashboardHeader({
@@ -361,6 +409,10 @@ export default function DashboardHeader({
 
       {/* ── Right ── */}
       <div className="flex items-center gap-2">
+        {/* CRM Switcher Toggle */}
+        <div className="hidden md:block mr-2 shrink-0">
+          <CrmToggle />
+        </div>
 
         {/* Theme Switcher */}
         <div className="hidden lg:block">

@@ -7,6 +7,7 @@ import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
+import { SectionCardHeader } from "@/components/ui/SectionCardHeader";
 import { formatDate, formatDateTime, cn, getCheckInWindow } from "@/lib/ui-utils";
 import {
   MapPin, CheckCircle, Clock, CalendarClock,
@@ -520,10 +521,14 @@ export default function VisitDetailPage() {
 
         {/* Status Timeline */}
         <div className="crm-card p-6">
-          <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-            <CalendarClock size={15} className="text-[var(--text-secondary)]" /> Visit Timeline
-          </h3>
-          <div className="flex items-center gap-2">
+          <SectionCardHeader
+            title="Visit Timeline"
+            subtitle="Planned → Checked In → Checked Out → Completed"
+            icon={<CalendarClock size={20} />}
+          />
+          
+          {/* Desktop Timeline */}
+          <div className="hidden md:flex items-center gap-2">
             {timelineSteps.map((step, idx) => {
               const Icon = step.icon;
               const isReached = isMissed || isCustomerUnavailable
@@ -557,6 +562,37 @@ export default function VisitDetailPage() {
               );
             })}
           </div>
+
+          {/* Mobile Timeline (Vertical Stack) */}
+          <div className="flex md:hidden flex-col gap-4 relative pl-2">
+            {/* Connector line */}
+            <div className="absolute left-6 top-4 bottom-4 w-0.5 bg-slate-200 dark:bg-slate-800" />
+            {timelineSteps.map((step, idx) => {
+              const Icon = step.icon;
+              const isReached = isMissed || isCustomerUnavailable
+                ? idx <= currentStepIndex
+                : idx <= currentStepIndex;
+              const isCurrent = step.key === visit.status;
+              return (
+                <div key={step.key} className="flex items-center gap-4 relative z-10">
+                  <div className={cn(
+                    "w-9 h-9 rounded-full flex items-center justify-center border-2 bg-white dark:bg-[#111] transition-all shrink-0",
+                    isReached ? "border-[var(--primary)] text-[var(--primary)] bg-indigo-50/50" : "border-slate-200 text-slate-300",
+                    isCurrent && "ring-4 ring-[var(--primary)]/20"
+                  )}>
+                    <Icon size={16} />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className={cn("text-xs font-bold", isReached ? "text-slate-800 dark:text-slate-200" : "text-slate-400")}>
+                      {step.label}
+                    </span>
+                    {isCurrent && <span className="text-[10px] text-[var(--primary)] font-semibold">Current Status</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {visit.autoCheckedOut && visit.autoCheckoutReason && (
             <div className="mt-4 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium flex items-center gap-2">
               <AlertTriangle size={14} /> {visit.autoCheckoutReason}
@@ -585,43 +621,58 @@ export default function VisitDetailPage() {
 
         {/* GPS / Check-In Section */}
         <div className="crm-card p-6">
-          <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-            <Navigation size={15} className="text-[var(--text-secondary)]" /> GPS &amp; Check-In
-          </h3>
+          <SectionCardHeader
+            title="GPS & Check-In"
+            subtitle="Real-time check-in and check-out logs"
+            icon={<Navigation size={20} />}
+          />
           {visit.gpsLat != null ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase">Check-In Time</p>
-                  <p className="text-sm font-bold text-slate-700">{visit.checkInTime ? formatDateTime(visit.checkInTime) : "—"}</p>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Check-In Column */}
+                <div className="space-y-4 p-4 rounded-xl bg-slate-50/50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5">
+                  <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Check-In Details</h4>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Timestamp</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{visit.checkInTime ? formatDateTime(visit.checkInTime) : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">GPS Coordinates</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300 break-all">
+                        {visit.gpsLat.toFixed(6)}, {visit.gpsLng.toFixed(6)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Verification Status</p>
+                      <p className={cn("text-sm font-bold", visit.gpsAnomaly ? "text-amber-600" : "text-emerald-600")}>
+                        {visit.gpsAnomaly ? "Anomaly (Out of bounds)" : "Verified On Site"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase">Check-Out Time</p>
-                  <p className="text-sm font-bold text-slate-700">{visit.checkOutTime ? formatDateTime(visit.checkOutTime) : "—"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase">Check-In GPS</p>
-                  <p className="text-sm font-bold text-slate-700">
-                    {visit.gpsLat.toFixed(6)}, {visit.gpsLng.toFixed(6)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase">Check-In GPS Status</p>
-                  <p className={cn("text-sm font-bold", visit.gpsAnomaly ? "text-amber-600" : "text-emerald-600")}>
-                    {visit.gpsAnomaly ? "Anomaly Detected" : "On Location"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase">Check-Out GPS</p>
-                  <p className="text-sm font-bold text-slate-700">
-                    {visit.checkOutGpsLocation ? visit.checkOutGpsLocation : "—"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-400 font-semibold uppercase">Check-Out GPS Status</p>
-                  <p className={cn("text-sm font-bold", visit.checkOutGpsAnomaly ? "text-amber-600" : "text-emerald-600")}>
-                    {visit.checkOutGpsAnomaly ? "Anomaly Detected" : visit.checkOutGpsLocation ? "On Location" : "Not Captured"}
-                  </p>
+
+                {/* Check-Out Column */}
+                <div className="space-y-4 p-4 rounded-xl bg-slate-50/50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5">
+                  <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Check-Out Details</h4>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Timestamp</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{visit.checkOutTime ? formatDateTime(visit.checkOutTime) : "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">GPS Coordinates</p>
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-300 break-all">
+                        {visit.checkOutGpsLocation ? visit.checkOutGpsLocation : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">Verification Status</p>
+                      <p className={cn("text-sm font-bold", visit.checkOutGpsAnomaly ? "text-amber-600" : visit.checkOutGpsLocation ? "text-emerald-600" : "text-slate-400")}>
+                        {visit.checkOutGpsAnomaly ? "Anomaly (Moved too far)" : visit.checkOutGpsLocation ? "Verified On Site" : "Pending Checkout"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
               {visit.gpsAnomaly && (

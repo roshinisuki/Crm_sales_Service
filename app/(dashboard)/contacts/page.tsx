@@ -39,7 +39,6 @@ function ContactsPageContent() {
 
   const fetchContacts = async () => {
     setLoading(true);
-    startLoading("Loading contacts...");
     try {
       const res = await getContactsAction({
         search,
@@ -56,7 +55,6 @@ function ContactsPageContent() {
       toast.error("An error occurred while loading contacts");
     } finally {
       setLoading(false);
-      stopLoading();
     }
   };
 
@@ -171,15 +169,7 @@ function ContactsPageContent() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={8} className="crm-td text-center py-12">
-                      <div className="flex justify-center">
-                        <CRMSpinner size={36} label="Loading contacts..." />
-                      </div>
-                    </td>
-                  </tr>
-                ) : paginatedContacts.length === 0 ? (
+                {loading ? null : paginatedContacts.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="crm-td text-center py-16">
                       <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-3"><BookUser size={20} className="text-muted-foreground" /></div>

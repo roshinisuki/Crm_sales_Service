@@ -7,45 +7,137 @@ import ServiceModuleDetailPage from "@/components/shared/ServiceModuleDetailPage
 import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { VisitSchedulerPanel } from "@/components/shared/ServiceComponents";
 
-import { mockVisits } from "@/lib/config/serviceSeedMockData";
-
 export default function ServiceVisitsPage() {
   const config = serviceModulesConfig.visits;
-  const [data, setData] = useState<any[]>(mockVisits);
+  const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refData, setRefData] = useState<any>({});
 
-  const handleStatusTransition = (newStatus: string) => {
-    if (selectedRow) {
-      const updatedRow = { ...selectedRow, status: newStatus };
-      setData(prev => prev.map(item => item.id === selectedRow.id ? updatedRow : item));
-      setSelectedRow(updatedRow);
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/service/visits');
+      if (res.ok) {
+        const json = await res.json();
+        const mappedData = json.map((item: any) => {
+          // Identify the parent record for customer display
+          const parent = item.request || item.complaint || item.defect || item.installation;
+          return {
+            ...item,
+            visitCode: `VST-${item.id.substring(0, 8).toUpperCase()}`,
+            visitDate: item.scheduledDate,
+            customer: { name: parent?.customer?.name || "Unknown" },
+            engineer: { user: { name: item.engineer?.user?.name || "Unassigned" } },
+            status: item.status?.name || "Unknown",
+          };
+        });
+        setData(mappedData);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCreateNew = (formData: any) => {
-    const newVisit = {
-      id: `visit-${data.length + 1}`,
-      visitDate: new Date(formData.visitDate).toISOString(),
-      status: "Scheduled",
-      notes: formData.notes,
-      customer: { name: "Apex Engineering Solutions" },
-      engineer: { user: { name: "Ramesh Sharma" } }
-    };
-    setData(prev => [newVisit, ...prev]);
-    setIsFormOpen(false);
+  const fetchRefData = async () => {
+    try {
+      const res = await fetch('/api/service/reference-data?module=visit'); // or standard if no specific statuses
+      if (res.ok) {
+        setRefData(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleSchedulerSchedule = (date: Date, notes: string) => {
-    const newVisit = {
-      id: `visit-${data.length + 1}`,
-      visitDate: date.toISOString(),
-      status: "Scheduled",
-      notes: notes,
-      customer: { name: "Apex Engineering Solutions" },
-      engineer: { user: { name: "Ramesh Sharma" } }
-    };
-    setData(prev => [newVisit, ...prev]);
+  React.useEffect(() => {
+    fetchData();
+    fetchRefData();
+  }, []);
+
+  const handleStatusTransition = async (newStatusName: string) => {
+    if (selectedRow) {
+      const newStatusObj = refData.ServiceStatus?.find((s: any) => s.label === newStatusName);
+      if (!newStatusObj) return;
+
+      try {
+        const res = await fetch(`/api/service/visits/${selectedRow.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ statusId: newStatusObj.value }),
+        });
+        if (res.ok) {
+          await fetchData();
+          setSelectedRow(null);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const handleCreateNew = async (formData: any) => {
+    try {
+      const createdById = "user-1";
+
+      const res = await fetch('/api/service/visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: formData.title || "New Visit",
+          notes: formData.notes,
+          statusId: formData.statusId || refData.ServiceStatus?.[0]?.value,
+          engineerId: formData.engineerId || refData.ServiceEngineer?.[0]?.value,
+          scheduledDate: formData.visitDate || new Date().toISOString(),
+          requestId: formData.requestId,
+          complaintId: formData.complaintId,
+          defectId: formData.defectId,
+          installationId: formData.installationId,
+          createdById,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchData();
+        setIsFormOpen(false);
+      } else {
+        const err = await res.json();
+        alert(`Failed to create: ${err.error || "Unknown error"}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSchedulerSchedule = async (date: Date, notes: string) => {
+    try {
+      const createdById = "user-1";
+
+      const res = await fetch('/api/service/visits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: "Scheduled from Panel",
+          notes: notes,
+          statusId: refData.ServiceStatus?.[0]?.value,
+          engineerId: refData.ServiceEngineer?.[0]?.value,
+          scheduledDate: date.toISOString(),
+          createdById,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchData();
+      } else {
+        const err = await res.json();
+        alert(`Failed to schedule: ${err.error || "Unknown error"}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   if (selectedRow) {
@@ -67,10 +159,7 @@ export default function ServiceVisitsPage() {
           config={config} 
           onCancel={() => setIsFormOpen(false)} 
           onSubmit={handleCreateNew}
-          relationsData={{
-            Customer: [{ value: "cust-1", label: "Vertex Manufacturing Corp" }, { value: "cust-2", label: "Apex Engineering Solutions" }],
-            ServiceEngineer: [{ value: "eng-1", label: "Suresh Patel" }, { value: "eng-2", label: "Ramesh Sharma" }],
-          }}
+          relationsData={refData}
         />
       </div>
     );
@@ -82,8 +171,8 @@ export default function ServiceVisitsPage() {
         <ServiceModuleListPage 
           config={config} 
           data={data} 
-          loading={false}
-          onRefresh={() => {}}
+          loading={loading}
+          onRefresh={fetchData}
           onCreateNew={() => setIsFormOpen(true)}
           onRowClick={(row) => setSelectedRow(row)}
         />

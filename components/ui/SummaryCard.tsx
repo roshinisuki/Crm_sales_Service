@@ -14,6 +14,7 @@ interface SummaryCardProps {
   onClick?: () => void;
   /** When true and value > 0, render with orange accent (for pending follow-ups / overdue) */
   accentWhenPositive?: boolean;
+  isActive?: boolean;
 }
 
 // Neutral card style — all KPI cards use the same background.
@@ -34,11 +35,13 @@ export function SummaryCard({
   className,
   onClick,
   accentWhenPositive = false,
+  isActive = false,
 }: SummaryCardProps) {
   const isNumeric = typeof value === "number" || /^\d/.test(String(value).replace(/[^\d.-]/g, ""));
   const parsed = parseCountValue(value);
   const numericValue = typeof value === "number" ? value : parsed.end;
   const showAccent = accentWhenPositive && numericValue > 0;
+  const showActive = isActive;
 
   // Theme-aware value/icon tint for brand/orange variants
   const brandTint = variant === "brand" || variant === "orange" ? "var(--brand-primary)" : undefined;
@@ -55,13 +58,16 @@ export function SummaryCard({
   return (
     <div
       className={cn(
-        showAccent ? ACCENT_CARD : NEUTRAL_CARD,
+        showActive ? "rounded-[10px] border shadow-sm transition-all duration-200 hover:shadow-md cursor-pointer" : (showAccent ? ACCENT_CARD : NEUTRAL_CARD),
         onClick ? "cursor-pointer" : "",
         className
       )}
-      style={showAccent
-        ? { background: ACCENT_BG, borderColor: ACCENT_BORDER }
-        : { borderColor: "var(--border-subtle)" }
+      style={
+        showActive
+          ? { background: "rgba(59, 130, 246, 0.08)", borderColor: "#3b82f6" }
+          : showAccent
+          ? { background: ACCENT_BG, borderColor: ACCENT_BORDER }
+          : { borderColor: "var(--border-subtle)" }
       }
       onClick={onClick}
     >
@@ -70,12 +76,12 @@ export function SummaryCard({
         <div className="flex items-center justify-between">
           <p
             className="text-[11px] uppercase tracking-[0.04em] font-semibold"
-            style={{ color: showAccent ? "var(--accent-text)" : "var(--text-secondary)" }}
+            style={{ color: showActive ? "#3b82f6" : (showAccent ? "var(--accent-text)" : "var(--text-secondary)") }}
           >
             {label}
           </p>
           {icon && (
-            <span style={{ color: showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-muted)" }}>
+            <span style={{ color: showActive ? "#3b82f6" : (showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-muted)") }}>
               {icon}
             </span>
           )}
@@ -84,7 +90,7 @@ export function SummaryCard({
         {/* Value */}
         <p
           className="text-[22px] font-medium tracking-tight leading-normal"
-          style={{ color: showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-primary)" }}
+          style={{ color: showActive ? "#3b82f6" : brandTint ?? "var(--text-primary)" }}
         >
           {isNumeric ? (
             <CountUp

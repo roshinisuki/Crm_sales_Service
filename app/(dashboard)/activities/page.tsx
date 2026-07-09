@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { getActivitiesAction, deleteActivityAction, getNotesAction, deleteNoteAction } from "@/app/actions/activities";
 import { useToast } from "@/components/ToastProvider";
@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { CRMSpinner } from "@/components/CRMSpinner";
-import { Search, Filter, Plus, Phone, Video, StickyNote, Trash2, Clock, Calendar, User, MessageSquare } from "lucide-react";
+import { Search, Filter, Plus, Phone, Video, StickyNote, Trash2, Clock, Calendar, User, MessageSquare, List } from "lucide-react";
 import { formatDate, cn } from "@/lib/ui-utils";
 
 type TabType = "calls" | "meetings" | "notes" | "emails" | "whatsapp";
@@ -34,6 +34,7 @@ function normalizeTab(val: string | null): TabType {
 export default function ActivitiesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<TabType>(normalizeTab(searchParams.get("type")));
@@ -73,9 +74,11 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     const type = searchParams.get("type");
-    if (type) {
-      const normalized = normalizeTab(type);
-      if (normalized !== activeTab) setActiveTab(normalized);
+    const normalized = normalizeTab(type);
+    if (normalized !== activeTab) {
+      setActiveTab(normalized);
+      setPage(1);
+      setStatusFilter("");
     }
   }, [searchParams]);
 
@@ -111,6 +114,17 @@ export default function ActivitiesPage() {
     });
   };
 
+  const typeParam = searchParams.get("type");
+  const tabs = [
+    { label: "Overview", href: "/activities", active: pathname === "/activities" && !typeParam, icon: <List size={16} /> },
+    { label: "Calls", href: "/activities?type=Call", active: pathname === "/activities" && (typeParam === "Call" || typeParam === "calls"), icon: <Phone size={16} /> },
+    { label: "Meetings", href: "/activities?type=Meeting", active: pathname === "/activities" && (typeParam === "Meeting" || typeParam === "meetings"), icon: <Video size={16} /> },
+    { label: "Emails", href: "/activities?type=Email", active: pathname === "/activities" && (typeParam === "Email" || typeParam === "emails"), icon: <MessageSquare size={16} /> },
+    { label: "WhatsApp", href: "/activities?type=WhatsApp", active: pathname === "/activities" && (typeParam === "WhatsApp" || typeParam === "whatsapp"), icon: <MessageSquare size={16} /> },
+    { label: "Notes", href: "/activities?type=Note", active: pathname === "/activities" && (typeParam === "Note" || typeParam === "notes"), icon: <StickyNote size={16} /> },
+    { label: "Timeline", href: "/timeline", active: pathname === "/timeline", icon: <Clock size={16} /> },
+  ];
+
   return (
     <PageShell
       title="Activities"
@@ -124,20 +138,20 @@ export default function ActivitiesPage() {
       <div className="space-y-4">
         {/* Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-100">
-          {(Object.keys(TAB_CONFIG) as TabType[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => { setActiveTab(tab); setPage(1); setStatusFilter(""); }}
+          {tabs.map((tab) => (
+            <Link
+              key={tab.label}
+              href={tab.href}
               className={cn(
                 "flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors",
-                activeTab === tab
+                tab.active
                   ? "border-[var(--primary)] text-[var(--primary)]"
                   : "border-transparent text-slate-400 hover:text-slate-600"
               )}
             >
-              {TAB_CONFIG[tab].icon}
-              {TAB_CONFIG[tab].label}
-            </button>
+              {tab.icon}
+              {tab.label}
+            </Link>
           ))}
         </div>
 
@@ -172,15 +186,7 @@ export default function ActivitiesPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="crm-td text-center py-12">
-                      <div className="flex justify-center">
-                        <CRMSpinner size={36} label="Loading activities..." />
-                      </div>
-                    </td>
-                  </tr>
-                ) : paginatedItems.length === 0 ? (
+                {loading ? null : paginatedItems.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="crm-td text-center py-16">
                       <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-3"><MessageSquare size={20} className="text-muted-foreground" /></div>

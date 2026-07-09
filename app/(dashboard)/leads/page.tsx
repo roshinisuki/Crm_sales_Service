@@ -105,8 +105,6 @@ export default function LeadsPage() {
   const [dateFrom,       setDateFrom]       = useState("");
   const [dateTo,         setDateTo]         = useState("");
   const [activeTab,      setActiveTab]      = useState<string>("");
-  const [scoreMin,       setScoreMin]       = useState("");
-  const [scoreMax,       setScoreMax]       = useState("");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData,    setFormData]    = useState(emptyForm);
@@ -169,7 +167,6 @@ export default function LeadsPage() {
 
   const loadLeads = async () => {
     setLoading(true);
-    startLoading("Loading leads...");
     try {
       const params: any = {};
       if (search) params.search = search;
@@ -178,7 +175,6 @@ export default function LeadsPage() {
       if (res.success && res.data) setLeads(res.data as any);
     } finally {
       setLoading(false);
-      stopLoading();
     }
   };
 
@@ -242,9 +238,7 @@ export default function LeadsPage() {
         if (l.status !== activeTab) return false;
       }
 
-      // Score range filter
-      if (scoreMin && (l as any).leadScore < parseInt(scoreMin)) return false;
-      if (scoreMax && (l as any).leadScore > parseInt(scoreMax)) return false;
+
 
       if (dateFrom && l.createdAt && new Date(l.createdAt) < new Date(dateFrom)) return false;
       if (dateTo   && l.createdAt && new Date(l.createdAt) > new Date(dateTo + "T23:59:59")) return false;
@@ -276,7 +270,7 @@ export default function LeadsPage() {
 
       return true;
     });
-  }, [leads, dateFrom, dateTo, followUpParam, fuStatusFilter, activeTab, scoreMin, scoreMax]);
+  }, [leads, dateFrom, dateTo, followUpParam, fuStatusFilter, activeTab]);
 
   const sortedAndFiltered = useMemo(() => {
     let result = filtered;
@@ -465,14 +459,28 @@ export default function LeadsPage() {
     toast.success("CSV exported.");
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const handleTabClick = (tabKey: string) => {
+    if (activeTab === tabKey) {
+      router.push("/leads");
+    } else {
+      if (tabKey === "") {
+        router.push("/leads");
+      } else {
+        router.push(`/leads?status=${tabKey}`);
+      }
+    }
+  };
+
+  const clearAllFilters = () => {
+    router.push("/leads");
+  };
 
   return (
     <PageShell
       title="Leads"
       subtitle="Manage and track your sales pipeline"
       action={
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button onClick={exportCSV} className="btn-secondary text-xs flex items-center gap-2">
             <Download size={14} /> Export CSV
           </button>
@@ -495,44 +503,46 @@ export default function LeadsPage() {
           label="Total Leads"
           value={kpiTotal}
           subtitle="All pipeline leads"
-          icon={<Users size={20} className="text-slate-500" />}
+          icon={<Users size={20} />}
           variant="light"
-          onClick={() => { setActiveTab(""); setPage(1); }}
+          isActive={activeTab === ""}
+          onClick={() => handleTabClick("")}
         />
         <SummaryCard
           label="New Leads"
           value={kpiNew}
           subtitle="Awaiting first contact"
-          icon={<PhoneCall size={20} className="text-blue-500" />}
-          variant="blue"
-          onClick={() => { setActiveTab("New"); setPage(1); }}
+          icon={<PhoneCall size={20} />}
+          variant="light"
+          isActive={activeTab === "New"}
+          onClick={() => handleTabClick("New")}
         />
         <SummaryCard
           label="Today's Follow-Up"
           value={kpiTodayFU}
           subtitle="Scheduled for today"
           icon={<CalendarClock size={20} />}
-          variant="indigo"
-          accentWhenPositive={true}
-          onClick={() => { setActiveTab("TodayFollowUp"); setPage(1); }}
+          variant="light"
+          isActive={activeTab === "TodayFollowUp"}
+          onClick={() => handleTabClick("TodayFollowUp")}
         />
         <SummaryCard
           label="SQL"
           value={kpiSQL}
           subtitle="Sales Qualified Leads"
           icon={<TrendingUp size={20} />}
-          variant="amber"
-          accentWhenPositive={true}
-          onClick={() => { setActiveTab("SQL"); setPage(1); }}
+          variant="light"
+          isActive={activeTab === "SQL"}
+          onClick={() => handleTabClick("SQL")}
         />
         <SummaryCard
           label="Overdue"
           value={kpiOverdue}
           subtitle="SLA breached / overdue FU"
           icon={<AlertTriangle size={20} />}
-          variant="red"
-          accentWhenPositive={true}
-          onClick={() => { setActiveTab("Overdue"); setPage(1); }}
+          variant="light"
+          isActive={activeTab === "Overdue"}
+          onClick={() => handleTabClick("Overdue")}
         />
       </div>
 
@@ -548,6 +558,14 @@ export default function LeadsPage() {
             <span className="text-xs font-medium text-theme-muted bg-surface-2 px-2 py-0.5 rounded-full whitespace-nowrap">
               {filtered.length} {filtered.length === 1 ? "lead" : "leads"}
             </span>
+            {(activeTab || search || statusFilter || fuStatusFilter || dateFrom || dateTo) ? (
+              <button
+                onClick={clearAllFilters}
+                className="text-xs font-semibold text-[var(--primary)] hover:text-[var(--primary-hover)] flex items-center gap-1 transition-colors bg-blue-50 px-2 py-1 rounded-md ml-2"
+              >
+                Clear Filters <XCircle size={12} />
+              </button>
+            ) : null}
           </div>
           <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
             {/* Search */}
@@ -589,13 +607,13 @@ export default function LeadsPage() {
               type="date"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
-              className="h-8 px-2 text-xs rounded-lg bg-surface-2 border border-theme text-theme-secondary focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] [color-scheme:dark] shrink-0"
+              className="h-8 px-2 text-xs rounded-lg bg-surface-2 border border-theme text-theme-secondary focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] dark:[color-scheme:dark] shrink-0"
             />
             <input
               type="date"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
-              className="h-8 px-2 text-xs rounded-lg bg-surface-2 border border-theme text-theme-secondary focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] [color-scheme:dark] shrink-0"
+              className="h-8 px-2 text-xs rounded-lg bg-surface-2 border border-theme text-theme-secondary focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] dark:[color-scheme:dark] shrink-0"
             />
 
             {(dateFrom || dateTo) && (
@@ -607,30 +625,14 @@ export default function LeadsPage() {
               </button>
             )}
 
-            {/* Score range filter */}
-            <input
-              type="number"
-              placeholder="Min"
-              value={scoreMin}
-              onChange={e => { setScoreMin(e.target.value); setPage(1); }}
-              className="w-14 h-8 px-2 text-xs rounded-lg bg-surface-2 border border-theme text-theme-secondary focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] shrink-0"
-              min="0" max="100"
-            />
-            <input
-              type="number"
-              placeholder="Max"
-              value={scoreMax}
-              onChange={e => { setScoreMax(e.target.value); setPage(1); }}
-              className="w-14 h-8 px-2 text-xs rounded-lg bg-surface-2 border border-theme text-theme-secondary focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] shrink-0"
-              min="0" max="100"
-            />
+
 
           </div>
         </div>
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="crm-table" style={{ minWidth: "1220px" }}>
+          <table className="crm-table" style={{ minWidth: "1340px" }}>
             <colgroup>
               <col style={{ width: "45px" }} />
               <col style={{ width: "90px" }} />
@@ -645,7 +647,9 @@ export default function LeadsPage() {
               <col style={{ width: "70px" }} />
               <col style={{ width: "110px" }} />
               <col style={{ width: "85px" }} />
-              <col style={{ width: "105px" }} />
+              <col style={{ width: "120px" }} /> {/* Actions */}
+              <col style={{ width: "65px" }} />  {/* Edit */}
+              <col style={{ width: "65px" }} />  {/* Delete */}
             </colgroup>
             <thead>
               <tr>
@@ -657,26 +661,20 @@ export default function LeadsPage() {
                 <th className="crm-th">Phone</th>
                 <th className="crm-th">Next Follow-up</th>
                 <th className="crm-th">Source</th>
-                <th className="crm-th text-center">Score</th>
+                <th className="crm-th">Score</th>
                 <th className="crm-th">Status</th>
                 <th className="crm-th">SLA</th>
                 <th className="crm-th">Assigned To</th>
                 <th className="crm-th">Created</th>
-                <th className="crm-th text-right">Actions</th>
+                <th className="crm-th">Actions</th>
+                <th className="crm-th">Edit</th>
+                <th className="crm-th">Delete</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading ? null : paged.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="crm-td text-center py-12">
-                    <div className="flex justify-center">
-                      <CRMSpinner size={36} label="Loading leads..." />
-                    </div>
-                  </td>
-                </tr>
-              ) : paged.length === 0 ? (
-                <tr>
-                  <td colSpan={13} className="crm-td text-center py-16">
+                  <td colSpan={16} className="crm-td text-center py-16">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                         {activeTab === "Lost" ? <XCircle size={28} className="text-slate-300 dark:text-slate-600" /> :
@@ -762,7 +760,7 @@ export default function LeadsPage() {
                       })()}
                     </td>
                     <td className="crm-td text-theme-muted text-xs truncate">{(l as any).leadSource || "—"}</td>
-                    <td className="crm-td text-center">
+                    <td className="crm-td">
                       {(() => {
                         const score = (l as any).leadScore ?? 0;
                         const cls = score <= 40
@@ -793,48 +791,67 @@ export default function LeadsPage() {
                     </td>
                     <td className="crm-td text-theme-secondary text-xs truncate">{l.assignedUser?.name || "Unassigned"}</td>
                     <td className="crm-td text-theme-muted text-[11px]">{formatDate(l.createdAt)}</td>
-                    <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
-                        <div className="relative">
-                          {(() => {
-                            const wfState = computeWorkflowState(l, (l as any).followUps || []);
-                            const wfActions = getLeadWorkflowActions(wfState);
-                            if (wfActions.primary) {
-                              return (
-                                <button
-                                  onClick={(e) => { 
-                                    e.stopPropagation();
-                                    // Navigate to detail page where the full workflow assistant is available
-                                    router.push(`/leads/${l.id}`); 
-                                  }}
-                                  className="text-[10px] font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 px-2.5 py-1.5 rounded-lg border border-indigo-100 dark:border-indigo-800 transition-colors whitespace-nowrap"
-                                  title={wfActions.stageDescription}
-                                >
-                                  {wfActions.primary.label}
-                                </button>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                        <button
-                          onClick={() => openEdit(l)}
-                          className="row-action-btn"
-                          title="Edit"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        {(user?.role === "Admin" || user?.role === "SalesManager") && (
-                          <button
-                            onClick={() => handleDelete(l)}
-                            disabled={isDeleting}
-                            className="row-action-btn row-action-btn-danger"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        )}
+                    <td className="crm-td" onClick={e => e.stopPropagation()}>
+                      <div className="relative">
+                        {(() => {
+                          const wfState = computeWorkflowState(l, (l as any).followUps || []);
+                          const wfActions = getLeadWorkflowActions(wfState);
+                          if (wfActions.primary) {
+                            const handleActionClick = (e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              if (wfActions.primary?.id === "log-first-call") {
+                                router.push(`/activities/new?type=call&leadId=${l.id}&returnTo=/leads`);
+                              } else if (wfActions.primary?.id === "log-followup-activity") {
+                                const pendingFu = (l as any).followUps?.find((f: any) => f.status === "Pending" || f.status === "Overdue");
+                                router.push(`/activities/new?type=call&leadId=${l.id}${pendingFu ? `&followUpId=${pendingFu.id}` : ""}&returnTo=/leads`);
+                              } else if (wfActions.primary?.id === "create-followup" || wfActions.primary?.id === "add-followup") {
+                                router.push(`/leads/${l.id}?tab=followups&action=add`);
+                              } else if (wfActions.primary?.id === "reschedule-followup") {
+                                router.push(`/leads/${l.id}?tab=followups`);
+                              } else if (wfActions.primary?.id === "mark-sql" || wfActions.primary?.id === "start-qualification") {
+                                router.push(`/leads/${l.id}?tab=bant`);
+                              } else if (wfActions.primary?.id === "convert-lead") {
+                                router.push(`/leads/${l.id}?action=convert`);
+                              } else {
+                                router.push(`/leads/${l.id}`);
+                              }
+                            };
+                            return (
+                              <button
+                                onClick={handleActionClick}
+                                className="text-[10px] font-bold btn-primary px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                                title={wfActions.stageDescription}
+                              >
+                                {wfActions.primary.label}
+                              </button>
+                            );
+                          }
+                          return <span className="text-slate-400 text-xs">—</span>;
+                        })()}
                       </div>
+                    </td>
+                    <td className="crm-td" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => openEdit(l)}
+                        className="row-action-btn"
+                        title="Edit"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    </td>
+                    <td className="crm-td" onClick={e => e.stopPropagation()}>
+                      {(user?.role === "Admin" || user?.role === "SalesManager") ? (
+                        <button
+                          onClick={() => handleDelete(l)}
+                          disabled={isDeleting}
+                          className="row-action-btn row-action-btn-danger"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 ))

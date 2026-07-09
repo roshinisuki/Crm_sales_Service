@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
+import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
 import {
   KPICard, ChartCard, CompetitorPageHeader, FilterSelect,
@@ -13,11 +14,12 @@ import {
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-import { Plus, Pencil, Trash2, TrendingDown, DollarSign, Percent, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, TrendingDown, IndianRupee, Percent, AlertCircle } from "lucide-react";
 
 export default function LostAnalysisPage() {
   const { user } = useAuth();
   const toast = useToast();
+  const { formatCurrency } = useCurrency();
   const [analyses, setAnalyses] = useState<any[]>([]);
   const [competitors, setCompetitors] = useState<any[]>([]);
   const [lossReasons, setLossReasons] = useState<any[]>([]);
@@ -189,7 +191,7 @@ export default function LostAnalysisPage() {
     const pct = a.ourFinalPrice > 0 ? Math.round((Math.abs(diff) / a.ourFinalPrice) * 1000) / 10 : 0;
     const isOverpriced = diff > 0;
     return {
-      text: `Lost by ${pct}% ($${Math.abs(diff).toLocaleString()})`,
+      text: `Lost by ${pct}% (${formatCurrency(Math.abs(diff))})`,
       isOverpriced,
     };
   };
@@ -229,7 +231,7 @@ export default function LostAnalysisPage() {
           {/* Summary KPI row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <KPICard label="Total Lost Deals" value={summary.totalLost} icon={<TrendingDown size={20} />} />
-            <KPICard label="Total Value Lost" value={`$${summary.totalValueLost.toLocaleString()}`} icon={<DollarSign size={20} />} iconColor="var(--status-danger-text)" />
+            <KPICard label="Total Value Lost" value={formatCurrency(summary.totalValueLost)} icon={<IndianRupee size={20} />} iconColor="var(--status-danger-text)" />
             <KPICard label="Avg Loss Margin" value={`${summary.avgLossMargin}%`} icon={<Percent size={20} />} />
             <KPICard label="Top Loss Reason" value={summary.topLossReason} icon={<AlertCircle size={20} />} />
           </div>
@@ -269,7 +271,7 @@ export default function LostAnalysisPage() {
                     <Tooltip
                       contentStyle={{ borderRadius: 8, border: "1px solid var(--border)", fontSize: 13, background: "var(--surface)" }}
                       cursor={{ fill: "var(--surface-2)" }}
-                      formatter={(v: any) => [`$${Number(v).toLocaleString()}`, "Value Lost"]}
+                      formatter={(v: any) => [formatCurrency(Number(v)), "Value Lost"]}
                     />
                     <Bar dataKey="value" radius={[6, 6, 0, 0]} name="Value Lost">
                       {valueByCompetitor.map((entry, idx) => (
@@ -338,14 +340,14 @@ export default function LostAnalysisPage() {
                           <div className="flex-1 price-range-track">
                             <div className="bg-[var(--status-warning)] rounded-full h-full" style={{ width: `${maxPrice > 0 ? (a.competitorWonPrice / maxPrice) * 100 : 0}%` }} />
                           </div>
-                          <span className="text-[12px] text-[var(--text-secondary)] w-24 text-right">${a.competitorWonPrice.toLocaleString()}</span>
+                          <span className="text-[12px] text-[var(--text-secondary)] w-24 text-right">{formatCurrency(a.competitorWonPrice)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-[var(--text-muted)] w-20">Our price</span>
                           <div className="flex-1 price-range-track">
                             <div className="bg-[var(--accent)] rounded-full h-full" style={{ width: `${maxPrice > 0 ? (a.ourFinalPrice / maxPrice) * 100 : 0}%` }} />
                           </div>
-                          <span className="text-[12px] text-[var(--text-secondary)] w-24 text-right">${a.ourFinalPrice.toLocaleString()}</span>
+                          <span className="text-[12px] text-[var(--text-secondary)] w-24 text-right">{formatCurrency(a.ourFinalPrice)}</span>
                         </div>
                       </div>
                     </div>

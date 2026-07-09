@@ -17,58 +17,99 @@ type ReportType =
   | "warranty" 
   | "engineer";
 
-import { mockRequests, mockComplaints, mockDefects, mockInstallations } from "@/lib/config/serviceSeedMockData";
-
-const mockReportsData: Record<ReportType, any[]> = {
-  requests: mockRequests.map(r => ({
-    code: r.requestCode,
-    subject: r.title,
-    customer: r.customer.name,
-    status: r.status,
-    date: r.createdAt.substring(0, 10),
-    priority: r.priority
-  })),
-  complaints: mockComplaints.map(c => ({
-    code: c.complaintCode,
-    type: c.complaintType.name,
-    customer: c.customer.name,
-    status: c.status,
-    date: c.createdAt.substring(0, 10),
-    severity: c.severity
-  })),
-  defects: mockDefects.map(d => ({
-    code: d.defectCode,
-    defect: d.description,
-    asset: d.asset.productName,
-    status: d.status,
-    date: d.createdAt.substring(0, 10)
-  })),
-  installations: mockInstallations.map(i => ({
-    code: i.installationCode,
-    customer: i.customer.name,
-    asset: i.asset.productName,
-    status: i.status,
-    date: i.createdAt.substring(0, 10)
-  })),
-  warranty: [
-    { serial: "SN-2026001", product: "Air Compressor AC-400", customer: "Apex Engineering Solutions", status: "Active", warrantyEnd: "2027-01-15", amcEnd: "2028-01-15" },
-    { serial: "SN-2026002", product: "Hydraulic Press Pump H-200", customer: "Vertex Manufacturing Corp", status: "Active", warrantyEnd: "2027-02-18", amcEnd: "N/A" },
-    { serial: "SN-2026003", product: "Electronic Control Panel CP-80", customer: "Tata Motors Ltd.", status: "Expired", warrantyEnd: "2025-06-10", amcEnd: "2026-06-10" }
-  ],
-  engineer: [
-    { name: "System Admin", team: "Field Service Team North", assigned: 5, resolved: 4, slaMet: "100%" },
-    { name: "Vikram Iyer", team: "Field Service Team South", assigned: 3, resolved: 2, slaMet: "95%" },
-    { name: "Arjun Mehta", team: "Installation Team", assigned: 6, resolved: 5, slaMet: "98%" },
-    { name: "Priya Nair", team: "AMC Support Team", assigned: 4, resolved: 4, slaMet: "100%" }
-  ]
-};
-
 export default function ServiceReportsPage() {
   const searchParams = useSearchParams();
   const reportParam = searchParams?.get("report");
+  
   const [reportType, setReportType] = useState<ReportType>("requests");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("All");
+
+  const [data, setData] = useState<Record<ReportType, any[]>>({
+    requests: [],
+    complaints: [],
+    defects: [],
+    installations: [],
+    warranty: [],
+    engineer: [] // Keep empty or mock if backend isn't ready for engineer aggregation
+  });
+  const [loading, setLoading] = useState(false);
+
+  const fetchReports = async () => {
+    setLoading(true);
+    try {
+      const [reqs, comps, defs, insts, wars, amcs] = await Promise.all([
+        fetch("/api/service/requests").then(r => r.ok ? r.json() : []),
+        fetch("/api/service/complaints").then(r => r.ok ? r.json() : []),
+        fetch("/api/service/defects").then(r => r.ok ? r.json() : []),
+        fetch("/api/service/installations").then(r => r.ok ? r.json() : []),
+        fetch("/api/service/warranty-claims").then(r => r.ok ? r.json() : []),
+        fetch("/api/service/amc-contracts").then(r => r.ok ? r.json() : []),
+      ]);
+
+      const mappedWarranty = [
+        ...wars.map((w: any) => ({
+          type: "Warranty",
+          serial: w.customerAsset?.serialNumber || "-",
+          product: w.customerAsset?.productName || "-",
+          customer: w.customer?.name || "-",
+          status: w.status?.name || "-",
+          endDate: w.customerAsset?.warrantyExpiryDate
+        })),
+        ...amcs.map((a: any) => ({
+          type: "AMC",
+          serial: a.customerAsset?.serialNumber || "-",
+          product: a.customerAsset?.productName || "-",
+          customer: a.customer?.name || "-",
+          status: a.status?.name || "-",
+          endDate: a.endDate
+        }))
+      ];
+
+      setData({
+        requests: reqs.map((r: any) => ({
+          code: r.id.split("-")[0],
+          subject: r.title,
+          customer: r.customer?.name,
+          status: r.status?.name,
+          date: r.createdAt?.substring(0, 10),
+          priority: r.priority?.name || "Medium"
+        })),
+        complaints: comps.map((c: any) => ({
+          code: c.id.split("-")[0],
+          type: c.complaintType?.name || "-",
+          customer: c.customer?.name,
+          status: c.status?.name,
+          date: c.createdAt?.substring(0, 10),
+          severity: c.priority?.name || "Medium"
+        })),
+        defects: defs.map((d: any) => ({
+          code: d.id.split("-")[0],
+          defect: d.title,
+          asset: d.customerAsset?.productName || "-",
+          status: d.status?.name,
+          date: d.createdAt?.substring(0, 10)
+        })),
+        installations: insts.map((i: any) => ({
+          code: i.id.split("-")[0],
+          customer: i.customer?.name,
+          asset: i.customerAsset?.productName || "-",
+          status: i.status?.name,
+          date: i.createdAt?.substring(0, 10)
+        })),
+        warranty: mappedWarranty,
+        engineer: []
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
 
   useEffect(() => {
     if (reportParam && ["requests", "complaints", "defects", "installations", "warranty", "engineer"].includes(reportParam)) {
@@ -84,7 +125,7 @@ export default function ServiceReportsPage() {
     switch (reportType) {
       case "requests":
         return [
-          { header: "Request Code", accessorKey: "code" },
+          { header: "Request Code", accessorKey: "code", cell: (r) => <span className="font-mono text-[10px]">{r.code}</span> },
           { header: "Subject", accessorKey: "subject" },
           { header: "Customer", accessorKey: "customer" },
           { header: "Date", accessorKey: "date" },
@@ -93,7 +134,7 @@ export default function ServiceReportsPage() {
         ];
       case "complaints":
         return [
-          { header: "Complaint Code", accessorKey: "code" },
+          { header: "Complaint Code", accessorKey: "code", cell: (r) => <span className="font-mono text-[10px]">{r.code}</span> },
           { header: "Type", accessorKey: "type" },
           { header: "Customer", accessorKey: "customer" },
           { header: "Severity", accessorKey: "severity" },
@@ -102,113 +143,157 @@ export default function ServiceReportsPage() {
         ];
       case "defects":
         return [
-          { header: "Defect Code", accessorKey: "code" },
-          { header: "Defect details", accessorKey: "defect" },
-          { header: "Asset Context", accessorKey: "asset" },
-          { header: "Reported Date", accessorKey: "date" },
+          { header: "Defect Code", accessorKey: "code", cell: (r) => <span className="font-mono text-[10px]">{r.code}</span> },
+          { header: "Defect", accessorKey: "defect" },
+          { header: "Asset", accessorKey: "asset" },
+          { header: "Date", accessorKey: "date" },
           { header: "Status", accessorKey: "status" }
         ];
       case "installations":
         return [
-          { header: "Commission Code", accessorKey: "code" },
+          { header: "Installation Code", accessorKey: "code", cell: (r) => <span className="font-mono text-[10px]">{r.code}</span> },
           { header: "Customer", accessorKey: "customer" },
-          { header: "Equipment", accessorKey: "asset" },
-          { header: "Scheduled Date", accessorKey: "date" },
+          { header: "Asset", accessorKey: "asset" },
+          { header: "Date", accessorKey: "date" },
           { header: "Status", accessorKey: "status" }
         ];
       case "warranty":
         return [
-          { header: "Serial Number", accessorKey: "serial" },
-          { header: "Equipment Model", accessorKey: "product" },
-          { header: "Customer Name", accessorKey: "customer" },
-          { header: "Coverage Status", accessorKey: "status" },
-          { header: "Warranty Expiry", accessorKey: "warrantyEnd" },
-          { header: "AMC Expiry", accessorKey: "amcEnd" }
+          { header: "Type", accessorKey: "type" },
+          { header: "Serial Number", accessorKey: "serial", cell: (r) => <span className="font-mono text-[10px]">{r.serial}</span> },
+          { header: "Product", accessorKey: "product" },
+          { header: "Customer", accessorKey: "customer" },
+          { header: "End Date", accessorKey: "endDate", cell: (r) => <span>{r.endDate ? new Date(r.endDate).toLocaleDateString() : "-"}</span> },
+          { header: "Status", accessorKey: "status" }
         ];
       case "engineer":
         return [
-          { header: "Field Engineer", accessorKey: "name" },
-          { header: "Assigned Team", accessorKey: "team" },
-          { header: "Total Tasks Assigned", accessorKey: "assigned" },
-          { header: "Completed/Resolved", accessorKey: "resolved" },
+          { header: "Engineer Name", accessorKey: "name" },
+          { header: "Team", accessorKey: "team" },
+          { header: "Assigned Tickets", accessorKey: "assigned" },
+          { header: "Resolved Tickets", accessorKey: "resolved" },
           { header: "SLA Met Rate", accessorKey: "slaMet" }
         ];
     }
   };
 
-  const reportOptions: { value: ReportType; label: string }[] = [
-    { value: "requests", label: "Service Request Report" },
-    { value: "complaints", label: "Customer Complaint Report" },
-    { value: "defects", label: "Product Defect Report" },
-    { value: "installations", label: "Installation & Commissioning Report" },
-    { value: "warranty", label: "Warranty & AMC Coverage Report" },
-    { value: "engineer", label: "Engineer Performance Report" }
-  ];
+  const currentData = data[reportType] || [];
+  
+  const filteredData = currentData.filter(item => {
+    let matchesSearch = true;
+    let matchesStatus = true;
 
-  const currentData = mockReportsData[reportType] || [];
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      matchesSearch = Object.values(item).some(val => 
+        String(val).toLowerCase().includes(q)
+      );
+    }
+
+    if (selectedStatus !== "All") {
+      matchesStatus = item.status === selectedStatus;
+    }
+
+    return matchesSearch && matchesStatus;
+  });
+
   return (
-    <div className="space-y-4">
-      {/* Title */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-black text-[var(--text-primary)]">Service Workspace Analytics & Reports</h1>
-          <p className="text-xs text-[var(--text-muted)]">Analyze operational workloads, response compliance, and equipment failure metrics.</p>
+          <h1 className="text-xl font-black text-[var(--text-primary)]">Service Reports & Analytics</h1>
+          <p className="text-xs text-[var(--text-muted)]">Generate cross-module insights, SLA tracking, and engineer performance metrics.</p>
         </div>
-
         <button 
           onClick={handleExport}
-          className="flex items-center gap-1.5 px-4 py-2 bg-brand hover:bg-brand-hover text-white font-bold rounded-lg text-xs transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold transition-colors shadow-sm"
         >
           <Download size={14} /> Export Report
         </button>
       </div>
 
-      {/* Filter / Query Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-[var(--surface)] border border-[var(--border)] p-3 rounded-xl backdrop-blur-md">
-        <div>
-          <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block mb-1">Select Report Type</label>
-          <select
-            value={reportType}
-            onChange={(e) => setReportType(e.target.value as ReportType)}
-            className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors"
-          >
-            {reportOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="w-full lg:w-64 shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 space-y-1 backdrop-blur-md">
+          <h3 className="px-3.5 pb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] border-b border-[var(--border)] mb-2">
+            Report Types
+          </h3>
+          {[
+            { id: "requests", label: "Service Requests", icon: <FileSpreadsheet size={15} /> },
+            { id: "complaints", label: "Complaints", icon: <BarChart size={15} /> },
+            { id: "defects", label: "Product Defects", icon: <PieChart size={15} /> },
+            { id: "installations", label: "Installations", icon: <Wrench size={15} /> },
+            { id: "warranty", label: "Warranty & AMC", icon: <HardDrive size={15} /> },
+            { id: "engineer", label: "Engineer Performance", icon: <Users size={15} /> }
+          ].map(rt => (
+            <button
+              key={rt.id}
+              onClick={() => setReportType(rt.id as ReportType)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-xs font-semibold transition-all text-left",
+                reportType === rt.id 
+                  ? "bg-[var(--surface-2)] text-[var(--text-primary)] border border-[var(--border)] shadow-sm" 
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-2)] border border-transparent"
+              )}
+            >
+              {rt.icon}
+              {rt.label}
+            </button>
+          ))}
         </div>
 
-        <div>
-          <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block mb-1 font-semibold">Status Filter</label>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors"
-          >
-            <option value="All">All Statuses</option>
-            <option value="Active">Active / Open</option>
-            <option value="Closed">Closed / Completed</option>
-          </select>
-        </div>
+        <div className="flex-1 min-w-0 space-y-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 backdrop-blur-md flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="flex items-center gap-4 w-full md:w-auto">
+              <div className="relative flex-1 md:w-64">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+                <input 
+                  type="text" 
+                  placeholder="Search in report..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors placeholder-[var(--text-muted)]"
+                />
+              </div>
+              <div className="relative">
+                <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="pl-9 pr-8 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors appearance-none cursor-pointer"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="New">New</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Resolved">Resolved</option>
+                  <option value="Active">Active</option>
+                  <option value="Expired">Expired</option>
+                </select>
+              </div>
+            </div>
+            
+            <button 
+              onClick={fetchReports}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--surface-2)] hover:bg-[var(--surface)] border border-[var(--border)] text-xs font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors whitespace-nowrap"
+            >
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh Data
+            </button>
+          </div>
 
-        <div className="md:col-span-2">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block mb-1 font-semibold">Refine Search</label>
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <input 
-              type="text" 
-              placeholder="Search reports by customer, code, product..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors placeholder-[var(--text-muted)]"
-            />
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden backdrop-blur-md">
+            {loading ? (
+              <div className="p-12 flex flex-col items-center justify-center text-[var(--text-muted)] gap-3">
+                <RefreshCw size={24} className="animate-spin text-blue-500" />
+                <span className="text-sm font-semibold">Generating Report...</span>
+              </div>
+            ) : filteredData.length > 0 ? (
+              <DataTable data={filteredData} columns={getColumns()} />
+            ) : (
+              <div className="p-12 text-center text-sm font-semibold text-[var(--text-muted)] border-t border-[var(--border)]">
+                No data found for this report with current filters.
+              </div>
+            )}
           </div>
         </div>
-      </div>
-
-      {/* Report Data Table */}
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden backdrop-blur-md">
-        <DataTable data={currentData} columns={getColumns()} />
       </div>
     </div>
   );

@@ -119,7 +119,7 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     allowedActions: [
       { id: "assign", label: "Assign Engineer", variant: "primary", requiredStatus: ["New", "Assigned"] },
       { id: "resolve", label: "Mark Resolved", variant: "success", requiredStatus: ["In Progress", "Assigned"] },
-      { id: "close", label: "Close Request", variant: "secondary", requiredStatus: ["Resolved", "New", "Assigned", "In Progress"] },
+      { id: "close", label: "Close Request", variant: "secondary", requiredStatus: ["Assigned", "In Progress", "Resolved"] },
     ],
     badgeColorRules: {
       New: "bg-orange-500/10 text-orange-500 border-orange-500/20",
@@ -148,8 +148,8 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     ],
     statusOrder: ["New", "Investigating", "Resolved", "Closed"],
     allowedTransitions: {
-      New: ["Investigating", "Closed"],
-      Investigating: ["Resolved", "Closed"],
+      New: ["Investigating"],
+      Investigating: ["Resolved"],
       Resolved: ["Closed", "Investigating"],
       Closed: ["New"],
     },
@@ -182,9 +182,11 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     allowedActions: [
       { id: "investigate", label: "Start Investigation", variant: "primary", requiredStatus: ["New"] },
       { id: "resolve", label: "Resolve Complaint", variant: "success", requiredStatus: ["Investigating"] },
+      { id: "close", label: "Close Complaint", variant: "secondary", requiredStatus: ["Resolved"] },
+      { id: "reopen", label: "Not Resolved / Reopen", variant: "danger", requiredStatus: ["Resolved"] },
     ],
     badgeColorRules: {
-      New: "bg-red-500/10 text-red-500 border-red-500/20",
+      New: "bg-blue-500/10 text-blue-500 border-blue-500/20",
       Investigating: "bg-amber-500/10 text-amber-500 border-amber-500/20",
       Resolved: "bg-green-500/10 text-green-500 border-green-500/20",
       Closed: "bg-gray-500/10 text-gray-500 border-gray-500/20",
@@ -201,17 +203,17 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     entityLabel: "Defect",
     iconName: "HelpCircle",
     statuses: [
-      { id: "New", label: "New", color: "#F59E0B" },
-      { id: "Under Investigation", label: "Under Investigation", color: "#3B82F6" },
+      { id: "New", label: "New", color: "#2090FF" },
+      { id: "Under Investigation", label: "Under Investigation", color: "#F59E0B" },
       { id: "Corrective Action", label: "Corrective Action", color: "#10B981" },
       { id: "Closed", label: "Closed", color: "#6B7280" },
     ],
     statusOrder: ["New", "Under Investigation", "Corrective Action", "Closed"],
     allowedTransitions: {
-      New: ["Under Investigation", "Closed"],
-      "Under Investigation": ["Corrective Action", "Closed"],
-      "Corrective Action": ["Closed", "Under Investigation"],
-      Closed: ["New"],
+      New: ["Under Investigation"],
+      "Under Investigation": ["Corrective Action"],
+      "Corrective Action": ["Closed"],
+      Closed: ["Under Investigation"],
     },
     listColumns: [
       { id: "defectCode", label: "Defect Code", type: "text" },
@@ -239,11 +241,13 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     ],
     allowedActions: [
       { id: "investigate", label: "Start Investigation", variant: "primary", requiredStatus: ["New"] },
-      { id: "corrective", label: "Set Corrective Action", variant: "success", requiredStatus: ["Under Investigation"] },
+      { id: "corrective", label: "Log Corrective Action", variant: "success", requiredStatus: ["Under Investigation"] },
+      { id: "close", label: "Close Defect", variant: "secondary", requiredStatus: ["Corrective Action"] },
+      { id: "reopen", label: "Reopen Defect", variant: "danger", requiredStatus: ["Closed"] },
     ],
     badgeColorRules: {
-      New: "bg-amber-500/10 text-amber-500 border-amber-500/20",
-      "Under Investigation": "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      New: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+      "Under Investigation": "bg-amber-500/10 text-amber-500 border-amber-500/20",
       "Corrective Action": "bg-green-500/10 text-green-500 border-green-500/20",
       Closed: "bg-gray-500/10 text-gray-500 border-gray-500/20",
     },
@@ -267,7 +271,7 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     allowedTransitions: {
       Scheduled: ["In Progress"],
       "In Progress": ["Completed", "Scheduled"],
-      Completed: ["Scheduled"],
+      Completed: [],
     },
     listColumns: [
       { id: "installationCode", label: "Commission Code", type: "text" },
@@ -296,8 +300,10 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
       { id: "customer_details", title: "Customer & Asset", fields: ["customerId", "assetId"] }
     ],
     allowedActions: [
-      { id: "start", label: "Start Commissioning", variant: "primary", requiredStatus: ["Scheduled"] },
+      { id: "start", label: "Start Installation", variant: "primary", requiredStatus: ["Scheduled"] },
+      { id: "reschedule", label: "Reschedule", variant: "secondary", requiredStatus: ["Scheduled"] },
       { id: "complete", label: "Mark Completed", variant: "success", requiredStatus: ["In Progress"] },
+      { id: "fail", label: "Mark Failed / Needs Follow-up", variant: "danger", requiredStatus: ["In Progress"] },
     ],
     badgeColorRules: {
       Scheduled: "bg-blue-500/10 text-blue-500 border-blue-500/20",

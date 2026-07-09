@@ -24,7 +24,7 @@ import { getLeadWorkflowActions, computeWorkflowState } from "@/lib/workflow-act
 import {
   ArrowLeft, Briefcase, Phone, Mail, MapPin, Building2,
   CalendarClock, User, Plus, CheckCircle2, PhoneCall,
-  MessageSquare, FileText, XCircle, Zap, Clock,
+  MessageSquare, FileText, XCircle, Zap, Clock, Calendar,
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
@@ -542,6 +542,30 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, lead]);
 
+  // Handle tab and action deep-links from URL search params
+  useEffect(() => {
+    if (!lead) return;
+    
+    const tabParam = searchParams?.get("tab");
+    if (tabParam && ["overview", "followups", "activities", "bant", "competitor", "documents"].includes(tabParam)) {
+      setTab(tabParam as Tab);
+    }
+    
+    const actionParam = searchParams?.get("action");
+    if (actionParam === "add" || actionParam === "add-followup") {
+      setFuDate("");
+      setFuType("Call");
+      setFuNotes("");
+      setFuPriority("Medium");
+      setFuAssignedTo(lead.assignedUserId || "");
+      setFuSaving(false);
+      setFuFromCallLog(false);
+      setFuModal(true);
+    } else if (actionParam === "convert") {
+      openConvertV2();
+    }
+  }, [searchParams, lead]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64"><CRMSpinner size={40} label="Loading lead details..." /></div>
@@ -648,7 +672,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     <div className="page-shell flex flex-col gap-6">
 
       {/* ---- Header ---- */}
-      <div className="crm-card p-4 flex items-center justify-between gap-3">
+      <div className="crm-card p-6 flex items-center justify-between gap-3">
         <button
           onClick={() => router.push("/leads")}
           className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-[var(--primary)] font-medium transition-colors shrink-0"
@@ -732,7 +756,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         
         return (
           <div className={cn(
-            "crm-card p-4 flex items-center gap-3 border-l-4 transition-all",
+            "crm-card p-6 flex items-center gap-3 border-l-4 transition-all",
             isOverdue 
               ? "border-red-500 bg-red-50/60 border-y border-r border-red-200 dark:bg-red-950/20 dark:border-red-900/50" 
               : "border-blue-500 bg-blue-50/50 border-y border-r border-blue-100 dark:bg-blue-950/20 dark:border-blue-900/50"
@@ -764,7 +788,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ---- Next Best Action Assistant ---- */}
       {!isConverted && !isLost && (
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 sm:p-6 mb-2 relative overflow-hidden shadow-sm">
+        <div className="crm-card p-6 relative overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 relative z-10">
             <div className="flex items-start gap-4">
               <div className={cn(
@@ -828,37 +852,40 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         const currentIdx = STAGES.indexOf(lead.status);
         const activeIdx = currentIdx === -1 ? (lead.status === "Lost" ? -2 : 0) : currentIdx;
         return (
-          <div className="crm-card p-4">
-            <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="crm-card p-6">
+            <div className="relative flex items-center justify-between w-full">
               {STAGES.map((stage, idx) => {
                 const isDone = idx < activeIdx;
                 const isActive = idx === activeIdx;
                 const isLost = lead.status === "Lost";
                 return (
-                  <div key={stage} className="flex items-center flex-1 last:flex-none">
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className={cn(
-                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all",
-                        isDone ? "bg-emerald-500 text-white" :
-                        isActive && !isLost ? "bg-[var(--primary)] text-white" :
-                        isActive && isLost ? "bg-red-500 text-white" :
-                        "bg-slate-200 text-slate-400"
-                      )}>
-                        {isDone ? <CheckCircle2 size={14} /> : idx + 1}
-                      </div>
-                      <span className={cn(
-                        "text-xs font-semibold hidden sm:inline whitespace-nowrap",
-                        isActive ? "text-[var(--primary)]" : isDone ? "text-emerald-600" : "text-slate-400"
-                      )}>
-                        {stage}
-                      </span>
-                    </div>
+                  <div key={stage} className="relative flex flex-col items-center flex-1">
+                    {/* Connecting line to the next step */}
                     {idx < STAGES.length - 1 && (
                       <div className={cn(
-                        "flex-1 h-0.5 mx-1.5 sm:mx-2 rounded-full transition-all",
-                        isDone ? "bg-emerald-400" : "bg-slate-200"
+                        "absolute top-4 left-[50%] right-[-50%] h-0.5 -translate-y-1/2 z-0 transition-all",
+                        idx < activeIdx ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"
                       )} />
                     )}
+                    
+                    {/* Circle */}
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all relative z-10",
+                      isDone ? "bg-emerald-500 text-white shadow-sm" :
+                      isActive && !isLost ? "bg-[var(--primary)] text-white shadow-sm ring-4 ring-blue-50 dark:ring-blue-950/40" :
+                      isActive && isLost ? "bg-red-500 text-white shadow-sm ring-4 ring-red-50 dark:ring-red-950/40" :
+                      "bg-white dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
+                    )}>
+                      {isDone ? <CheckCircle2 size={16} /> : idx + 1}
+                    </div>
+                    
+                    {/* Label */}
+                    <span className={cn(
+                      "text-[12px] font-semibold mt-2 text-center select-none whitespace-nowrap",
+                      isActive ? "text-[var(--primary)] font-bold" : isDone ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"
+                    )}>
+                      {stage}
+                    </span>
                   </div>
                 );
               })}
@@ -868,8 +895,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       })()}
 
       {/* ---- Lead Summary Card ---- */}
-      <div className="crm-card p-4">
-        <div className="flex items-start gap-4">
+      <div className="crm-card p-6">
+        <div className="flex items-center gap-4">
           <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center text-base font-black shrink-0", avatarColor)}>
             {initials}
           </div>
@@ -879,41 +906,42 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded">{lead.leadCode}</span>
               <StatusBadge status={lead.status} showDot size="md" />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-6 gap-y-2 mt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-6 gap-y-3 mt-3">
               {lead.email && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Mail size={13} className="text-slate-400 shrink-0" />
-                  <span className="truncate">{lead.email}</span>
+                <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
+                  <Mail size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
+                  <span className="truncate" title={lead.email}>{lead.email}</span>
                 </div>
               )}
-              {lead.leadSource && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Building2 size={13} className="text-slate-400 shrink-0" />
-                  {lead.leadSource}
-                </div>
-              )}
+              <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
+                <Building2 size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
+                <span className="truncate" title={lead.companyName || lead.leadSource || "-"}>
+                  {lead.companyName || lead.leadSource || "-"}
+                </span>
+              </div>
               {lead.city && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <MapPin size={13} className="text-slate-400 shrink-0" />
-                  {lead.city}
+                <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
+                  <MapPin size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
+                  <span className="truncate" title={lead.city}>{lead.city}</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <User size={13} className="text-slate-400 shrink-0" />
-                Assigned to{" "}
-                <span className="font-semibold">{lead.assignedUser?.name || "Unassigned"}</span>
+              <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
+                <User size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
+                <span className="truncate">
+                  Assigned to <span className="font-semibold text-slate-800 dark:text-slate-200">{lead.assignedUser?.name || "Unassigned"}</span>
+                </span>
                 {(user?.role === "Admin" || user?.role === "SalesManager") && !isConverted && !isLost && (
                   <button
                     onClick={() => { setReassignTo(""); setReassignReason(""); setReassignModal(true); }}
-                    className="text-xs text-[var(--primary)] hover:underline font-semibold ml-1"
+                    className="text-xs text-[var(--primary)] hover:underline font-semibold ml-1.5 shrink-0"
                   >
                     Reassign
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-sm text-slate-600">
-                <CalendarClock size={13} className="text-slate-400 shrink-0" />
-                Created {formatDate(lead.createdAt)}
+              <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
+                <Calendar size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
+                <span className="truncate">Created {formatDate(lead.createdAt)}</span>
               </div>
             </div>
           </div>
@@ -921,27 +949,29 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* ---- Tabs Navigation ---- */}
-      <div className="crm-card p-4 flex items-center gap-6">
-        {TABS.map(({ key, label, title }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            title={title}
-            className={cn(
-              "text-sm font-semibold pb-2 border-b-2 transition-colors whitespace-nowrap",
-              tab === key
-                ? "border-[var(--primary)] text-[var(--primary)]"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="crm-card p-6">
+        <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto scrollbar-none">
+          {TABS.map(({ key, label, title }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              title={title}
+              className={cn(
+                "text-sm font-semibold px-4 pb-3 -mb-px border-b-2 transition-all duration-200 whitespace-nowrap",
+                tab === key
+                  ? "border-[var(--primary)] text-[var(--primary)] font-bold"
+                  : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-250"
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ---- Overview Tab ---- */}
       {tab === "overview" && (
-        <div className="crm-card p-5">
+        <div className="crm-card p-6">
           <h3 className="text-sm font-bold text-slate-700 mb-4">Lead Information</h3>
           <FieldGrid
             fields={[
@@ -964,11 +994,11 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               { label: "Created", value: formatDate(lead.createdAt) },
               { label: "SLA Status", value: (() => {
                 const sla = lead.slaStatus;
-                if (sla === "Met") return <StatusPill status="Met" />;
-                if (sla === "Breached") return <StatusPill status="Breached" />;
+                if (sla === "Met") return <StatusPill status="Met" size="md" />;
+                if (sla === "Breached") return <StatusPill status="Breached" size="md" />;
                 if (sla === "Pending" && lead.slaResponseDeadline) {
                   const minsLeft = Math.floor((new Date(lead.slaResponseDeadline).getTime() - Date.now()) / 60000);
-                  if (minsLeft <= 0) return <StatusPill status="Breached" />;
+                  if (minsLeft <= 0) return <StatusPill status="Breached" size="md" />;
                   return <span className="text-amber-600 font-bold">{minsLeft} min remaining</span>;
                 }
                 return "-";
@@ -989,7 +1019,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ---- Follow Ups Tab ---- */}
       {tab === "followups" && (
-        <div className="crm-card p-5">
+        <div className="crm-card p-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-sm font-bold text-slate-700">Follow Ups</h3>
             <button
@@ -1059,7 +1089,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ---- Activities Tab ---- */}
       {tab === "activities" && (
-        <div className="crm-card p-5">
+        <div className="crm-card p-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-sm font-bold text-slate-700">Activities &amp; Notes</h3>
             <div className="flex items-center gap-2">
@@ -1174,7 +1204,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ---- BANT Checklist Tab ---- */}
       {tab === "bant" && (
-        <div className="crm-card p-5">
+        <div className="crm-card p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h3 className="text-sm font-bold text-slate-700">BANT Qualification Checklist</h3>
@@ -1286,14 +1316,14 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
 
       {/* ---- Competitor Intelligence Tab ---- */}
       {tab === "competitor" && (
-        <div className="crm-card p-5">
+        <div className="crm-card p-6">
           <CompetitorIntelligenceTab entity={{ leadId: lead.id, currentStage: lead.status }} />
         </div>
       )}
 
       {/* ---- Documents Tab ---- */}
       {tab === "documents" && (
-        <div className="crm-card p-5">
+        <div className="crm-card p-6">
           <EntityDocumentTab entityType="Customer" entityId={lead.customerId || lead.id} />
         </div>
       )}

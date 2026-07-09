@@ -137,11 +137,11 @@ function SampleListContent() {
                 <th className="crm-th">Sample Code</th>
                 <th className="crm-th">Customer</th>
                 <th className="crm-th">Product</th>
-                <th className="crm-th">Qty</th>
-                <th className="crm-th">Status</th>
+                <th className="crm-th text-left">Qty</th>
+                <th className="crm-th text-left">Status</th>
                 <th className="crm-th">Assigned To</th>
-                <th className="crm-th">Request Date</th>
-                <th className="crm-th text-right">Actions</th>
+                <th className="crm-th text-left">Request Date</th>
+                <th className="crm-th text-left">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -173,27 +173,27 @@ function SampleListContent() {
                       </td>
                       <td className="crm-td text-foreground font-medium">{sample.customer?.name || "—"}</td>
                       <td className="crm-td text-foreground">{sample.product ? `${sample.product.productCode} - ${sample.product.name}` : "—"}</td>
-                      <td className="crm-td text-foreground">{sample.quantity}</td>
-                      <td className="crm-td">
+                      <td className="crm-td text-left">{sample.quantity}</td>
+                      <td className="crm-td text-left">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border ${cfg.color}`}>
                           <StatusIcon size={12} /> {sample.status}
                         </span>
                       </td>
                       <td className="crm-td text-foreground">{sample.assignedUser?.name || "—"}</td>
-                      <td className="crm-td text-foreground text-xs">{new Date(sample.requestDate).toLocaleDateString()}</td>
-                      <td className="crm-td text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="crm-td text-left text-xs">{new Date(sample.requestDate).toLocaleDateString()}</td>
+                      <td className="crm-td text-left">
+                        <div className="flex items-center justify-start gap-2">
                           {sample.status === "New" && (
-                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors">Start Review</button>
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}&action=review`); }} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors border border-transparent shadow-sm whitespace-nowrap cursor-pointer">Start Review</button>
                           )}
                           {sample.status === "UnderReview" && (
-                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors">Send to Customer</button>
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}&action=dispatch`); }} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors border border-transparent shadow-sm whitespace-nowrap cursor-pointer">Send to Customer</button>
                           )}
                           {sample.status === "SentToCustomer" && (
-                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors">Review Outcome</button>
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}&action=outcome`); }} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors border border-transparent shadow-sm whitespace-nowrap cursor-pointer">Review Outcome</button>
                           )}
                           {sample.status === "Revision" && (
-                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}`); }} className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200 hover:bg-orange-100 transition-colors">Review Revision</button>
+                            <button onClick={(e) => { e.stopPropagation(); router.push(`/samples/${sample.id}?status=${sample.status}&action=revision`); }} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors border border-transparent shadow-sm whitespace-nowrap cursor-pointer">Review Revision</button>
                           )}
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleDelete(sample.id); }} 
