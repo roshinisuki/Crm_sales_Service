@@ -64,7 +64,7 @@ export function SummaryCard({
       )}
       style={
         showActive
-          ? { background: "rgba(59, 130, 246, 0.08)", borderColor: "#3b82f6" }
+          ? { background: "var(--primary-light)", borderColor: "var(--primary)" }
           : showAccent
           ? { background: ACCENT_BG, borderColor: ACCENT_BORDER }
           : { borderColor: "var(--border-subtle)" }
@@ -76,21 +76,21 @@ export function SummaryCard({
         <div className="flex items-center justify-between">
           <p
             className="text-[11px] uppercase tracking-[0.04em] font-semibold"
-            style={{ color: showActive ? "#3b82f6" : (showAccent ? "var(--accent-text)" : "var(--text-secondary)") }}
+            style={{ color: showActive ? "var(--primary)" : (showAccent ? "var(--accent-text)" : "var(--text-secondary)") }}
           >
             {label}
           </p>
           {icon && (
-            <span style={{ color: showActive ? "#3b82f6" : (showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-muted)") }}>
+            <span style={{ color: showActive ? "var(--primary)" : (showAccent ? "var(--accent-text)" : brandTint ?? "var(--text-muted)") }}>
               {icon}
             </span>
           )}
         </div>
-
+ 
         {/* Value */}
         <p
           className="text-[22px] font-medium tracking-tight leading-normal"
-          style={{ color: showActive ? "#3b82f6" : brandTint ?? "var(--text-primary)" }}
+          style={{ color: showActive ? "var(--primary)" : brandTint ?? "var(--text-primary)" }}
         >
           {isNumeric ? (
             <CountUp
