@@ -376,7 +376,10 @@ export default function QuotationDetailPage() {
       const res = await fetch(`/api/quotations/${id}/create-po`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          // Pass quotation leadTimeDays so API can compute expectedDelivery
+          leadTimeDays: quotation?.leadTimeDays || undefined,
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -508,6 +511,110 @@ export default function QuotationDetailPage() {
 
   return (
     <PageContainer className="space-y-4 p-0">
+      {/* Breadcrumbs — RFQ → Quotation → Negotiation */}
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        {quotation.rfq && (
+          <>
+            <button onClick={() => router.push(`/rfq/${quotation.rfq.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
+              {quotation.rfq.rfqCode}
+            </button>
+            <span>›</span>
+          </>
+        )}
+        <span className="font-medium text-slate-700">{quotation.quotationCode}</span>
+        {quotation.negotiationId && (
+          <>
+            <span>›</span>
+            <button onClick={() => router.push(`/negotiations/${quotation.negotiationId}`)} className="hover:text-[var(--primary)] cursor-pointer">
+              Negotiation
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Lifecycle Stepper */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {[
+            { label: "RFQ", key: "rfq", id: quotation.rfq?.id, reached: !!quotation.rfq },
+            { label: "Quotation", key: "quotation", id: id, reached: true, current: true },
+            { label: "Negotiation", key: "negotiation", id: quotation.negotiationId, reached: !!quotation.negotiationId },
+            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(quotation.status) },
+          ].map((step, i, arr) => (
+            <div key={step.key} className="flex items-center shrink-0">
+              <div
+                onClick={() => {
+                  if (step.id && !step.current) {
+                    if (step.key === "rfq") router.push(`/rfq/${step.id}`);
+                    else if (step.key === "negotiation") router.push(`/negotiations/${step.id}`);
+                  }
+                }}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  step.current
+                    ? "bg-[var(--primary)] text-white"
+                    : step.reached
+                    ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100"
+                    : "bg-slate-50 text-slate-400"
+                }`}
+              >
+                {step.reached && !step.current && <Ico d={icons.check} size={12} />}
+                {step.label}
+              </div>
+              {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Next Step — single prominent primary action */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Step</p>
+          <p className="text-sm text-slate-600 mt-0.5">
+            {quotation.status === "Draft" && (needsApproval ? "Request approval before sending to customer" : "Send quotation to customer")}
+            {quotation.status === "PendingApproval" && "Waiting for approval — check Approval Center"}
+            {quotation.status === "Approved" && "Send approved quotation to customer"}
+            {quotation.status === "Sent" && "Awaiting customer response — or start negotiation"}
+            {quotation.status === "UnderReview" && "Negotiation in progress — propose revisions"}
+            {quotation.status === "Accepted" && "Create purchase order from this quotation"}
+            {quotation.status === "Rejected" && "Quotation rejected — clone & revise if needed"}
+            {quotation.status === "Expired" && "Quotation expired — clone & revise to renew"}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {quotation.status === "Draft" && !editMode && !needsApproval && (
+            <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
+              <Ico d={icons.send} size={16} /> Send to Customer →
+            </button>
+          )}
+          {quotation.status === "Draft" && needsApproval && (
+            <button onClick={handleRequestApproval} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer">
+              <Ico d={icons.alert} size={16} /> Request Approval →
+            </button>
+          )}
+          {quotation.status === "Approved" && (
+            <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
+              <Ico d={icons.send} size={16} /> Send to Customer →
+            </button>
+          )}
+          {quotation.status === "Sent" && (
+            <button onClick={handleNegotiate} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer">
+              <Ico d={icons.alert} size={16} /> Start Negotiation →
+            </button>
+          )}
+          {quotation.status === "UnderReview" && quotation.negotiationId && (
+            <button onClick={() => router.push(`/negotiations/${quotation.negotiationId}`)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer">
+              <Ico d={icons.alert} size={16} /> Go to Negotiation →
+            </button>
+          )}
+          {quotation.status === "Accepted" && (
+            <button onClick={handleCreatePo} disabled={creatingPo} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50">
+              <Ico d={icons.po} size={16} /> {creatingPo ? "Creating..." : "Create Purchase Order →"}
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -526,58 +633,134 @@ export default function QuotationDetailPage() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {/* Draft actions */}
-          {quotation.status === "Draft" && !editMode && (
-            <>
-              <button onClick={startEdit} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.edit} size={15} /> Edit Line Items</button>
-              {needsApproval && <button onClick={handleRequestApproval} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={15} /> Request Approval</button>}
-              <button onClick={handleSend} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.send} size={15} /> Send</button>
-              <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 cursor-pointer"><Ico d={icons.x} size={15} /> Delete</button>
-            </>
-          )}
-          {quotation.status === "Draft" && editMode && (
+          {/* Edit Mode: show Save/Cancel only */}
+          {editMode ? (
             <>
               <button onClick={handleSaveItems} disabled={savingItems} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-50"><Ico d={icons.check} size={15} /> {savingItems ? "Saving..." : "Save Changes"}</button>
               <button onClick={() => setEditMode(false)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
             </>
+          ) : (
+            <>
+              {/* Edit Line Items — only in Draft */}
+              <button onClick={startEdit} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be edited" : "Edit line items, prices, and discounts"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-slate-700 bg-slate-100 hover:bg-slate-200" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.edit} size={15} /> Edit</button>
+              {/* Request Approval — only in Draft when approval needed */}
+              <button onClick={handleRequestApproval} disabled={quotation.status !== "Draft" || !needsApproval} title={quotation.status !== "Draft" ? "Quotation must be in Draft" : !needsApproval ? "No approval triggers — discount/margin within limits" : "Request manager approval for discount/margin override"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" && needsApproval ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.alert} size={15} /> Request Approval</button>
+              {/* Send — available in Draft and Approved */}
+              <button onClick={handleSend} disabled={!["Draft", "Approved"].includes(quotation.status)} title={!["Draft", "Approved"].includes(quotation.status) ? "Quotation must be Draft or Approved to send" : "Send quotation to customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Draft", "Approved"].includes(quotation.status) ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.send} size={15} /> Send</button>
+              {/* Negotiate — available in Sent and UnderReview */}
+              <button onClick={handleNegotiate} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent to customer first" : "Move quotation to negotiation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.alert} size={15} /> Negotiate</button>
+              {/* Mark Accepted — available in Sent and UnderReview */}
+              <button onClick={handleAccept} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as accepted by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.check} size={15} /> Accept</button>
+              {/* Mark Rejected — available in Sent and UnderReview */}
+              <button onClick={handleReject} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as rejected by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-red-600 hover:bg-red-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.x} size={15} /> Reject</button>
+              {/* Create Deal — only in Accepted without existing deal */}
+              <button onClick={handleCreateDeal} disabled={quotation.status !== "Accepted" || !!quotation.dealId || creatingDeal} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : quotation.dealId ? "Deal already created" : "Create a deal from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" && !quotation.dealId ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.deal} size={15} /> {creatingDeal ? "Creating..." : "Create Deal"}</button>
+              {/* Create PO — only in Accepted */}
+              <button onClick={handleCreatePo} disabled={quotation.status !== "Accepted" || creatingPo} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : "Create purchase order from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" ? "text-white bg-blue-600 hover:bg-blue-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.po} size={15} /> Create PO</button>
+              {/* Clone & Revise — always available */}
+              <button onClick={handleClone} title="Create a new revision of this quotation" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Clone & Revise</button>
+              {/* PDF — always available */}
+              <button onClick={handleDownloadPdf} title="Download quotation as PDF" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> PDF</button>
+              {/* Delete — only in Draft */}
+              <button onClick={handleDelete} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be deleted" : "Delete this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-red-600 bg-red-50 hover:bg-red-100" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.x} size={15} /> Delete</button>
+            </>
           )}
-          {/* Sent actions */}
+        </div>
+      </div>
+
+      {/* Breadcrumbs — full lineage: RFQ → Quotation → Negotiation */}
+      <div className="flex items-center gap-2 text-xs text-slate-500">
+        {quotation.rfq && (
+          <>
+            <button onClick={() => router.push(`/rfq/${quotation.rfq.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
+              {quotation.rfq.rfqCode}
+            </button>
+            <span>›</span>
+          </>
+        )}
+        <span className="font-medium text-slate-700">{quotation.quotationCode}</span>
+        {quotation.negotiation && (
+          <>
+            <span>›</span>
+            <button onClick={() => router.push(`/negotiations/${quotation.negotiation.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
+              {quotation.negotiation.negotiationCode}
+            </button>
+          </>
+        )}
+        {quotation.revisionNumber > 1 && (
+          <span className="text-slate-400">(R{quotation.revisionNumber})</span>
+        )}
+      </div>
+
+      {/* Lifecycle Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {[
+            { label: "RFQ", key: "rfq", id: quotation.rfq?.id, reached: !!quotation.rfq },
+            { label: "Quotation", key: "quotation", id: id, reached: true, current: true },
+            { label: "Negotiation", key: "negotiation", id: quotation.negotiation?.id, reached: !!quotation.negotiation },
+            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(quotation.status) },
+          ].map((step, i, arr) => (
+            <div key={step.key} className="flex items-center shrink-0">
+              <div
+                onClick={() => {
+                  if (step.id && !step.current) {
+                    if (step.key === "rfq") router.push(`/rfq/${step.id}`);
+                    else if (step.key === "negotiation") router.push(`/negotiations/${step.id}`);
+                  }
+                }}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  step.current
+                    ? "bg-[var(--primary)] text-white"
+                    : step.reached
+                    ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100"
+                    : "bg-slate-50 text-slate-400"
+                }`}
+              >
+                {step.reached && !step.current && <Ico d={icons.check} size={12} />}
+                {step.label}
+              </div>
+              {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Next Step — single prominent action driven by status */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Step</p>
+          <p className="text-sm text-slate-600 mt-0.5">
+            {quotation.status === "Draft" && (needsApproval ? "Manager approval required before sending to customer" : "Review line items and send to customer") }
+            {quotation.status === "PendingApproval" && "Awaiting approval from manager — check Approval Center"}
+            {quotation.status === "Approved" && "Quotation approved — ready to send to customer"}
+            {quotation.status === "Sent" && "Customer reviewing — start negotiation if they request changes"}
+            {quotation.status === "UnderReview" && "In negotiation — propose revisions or mark accepted/rejected"}
+            {quotation.status === "Accepted" && "Customer accepted — create a Deal or Purchase Order"}
+            {quotation.status === "Rejected" && "Quotation rejected — clone & revise to create a new version"}
+            {quotation.status === "Expired" && "Quotation expired — clone & revise with updated validity"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {quotation.status === "Draft" && !editMode && (
+            needsApproval
+              ? <button onClick={handleRequestApproval} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Request Approval →</button>
+              : <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.send} size={16} /> Send to Customer →</button>
+          )}
+          {quotation.status === "Approved" && (
+            <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.send} size={16} /> Send to Customer →</button>
+          )}
           {quotation.status === "Sent" && (
-            <>
-              <button onClick={handleAccept} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer"><Ico d={icons.check} size={15} /> Mark Accepted</button>
-              <button onClick={handleNegotiate} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={15} /> Negotiate Changes</button>
-              <button onClick={handleReject} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer"><Ico d={icons.x} size={15} /> Mark Rejected</button>
-              <button onClick={handleClone} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Clone & Revise</button>
-              <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> PDF</button>
-            </>
+            <button onClick={handleNegotiate} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Start Negotiation →</button>
           )}
-          {/* UnderReview / Negotiation actions */}
-          {quotation.status === "UnderReview" && (
-            <>
-              <button onClick={handleAccept} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer"><Ico d={icons.check} size={15} /> Mark Accepted</button>
-              <button onClick={handleReject} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-red-600 hover:bg-red-700 cursor-pointer"><Ico d={icons.x} size={15} /> Mark Rejected</button>
-              <button onClick={handleClone} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Clone & Revise</button>
-              <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> PDF</button>
-            </>
+          {quotation.status === "UnderReview" && quotation.negotiationId && (
+            <button onClick={() => router.push(`/negotiations/${quotation.negotiationId}`)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.alert} size={16} /> Open Negotiation →</button>
           )}
-          {/* Accepted/Expired/Rejected actions */}
-          {["Accepted", "Expired"].includes(quotation.status) && (
-            <>
-              {quotation.status === "Accepted" && !quotation.dealId && (
-                <button onClick={handleCreateDeal} disabled={creatingDeal} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-50"><Ico d={icons.deal} size={15} /> {creatingDeal ? "Creating..." : "Create Deal"}</button>
-              )}
-              {quotation.status === "Accepted" && (
-                <button onClick={handleCreatePo} disabled={creatingPo} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50"><Ico d={icons.po} size={15} /> {creatingPo ? "Creating..." : "Create Purchase Order"}</button>
-              )}
-              <button onClick={handleClone} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Clone & Revise</button>
-              <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> PDF</button>
-            </>
+          {quotation.status === "Accepted" && !quotation.dealId && (
+            <button onClick={handleCreateDeal} disabled={creatingDeal} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-50"><Ico d={icons.deal} size={16} /> {creatingDeal ? "Creating..." : "Create Deal →"}</button>
           )}
-          {quotation.status === "Rejected" && (
-            <>
-              <button onClick={handleClone} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Clone & Revise</button>
-              <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> PDF</button>
-            </>
+          {(quotation.status === "Rejected" || quotation.status === "Expired") && (
+            <button onClick={handleClone} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={16} /> Clone & Revise →</button>
           )}
         </div>
       </div>
@@ -592,13 +775,19 @@ export default function QuotationDetailPage() {
               <ul className="list-disc list-inside text-amber-700 mt-1 pl-1 space-y-0.5">
                 {triggerReasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
               </ul>
+              {user?.role === "Admin" && <p className="text-[10px] text-amber-600 italic mt-1">As Admin, you can approve this directly or send without approval.</p>}
             </div>
           </div>
-          {!latestApproval || latestApproval.status !== "Pending" ? (
-            <button onClick={handleRequestApproval} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer transition-colors shadow-sm whitespace-nowrap">Request Approval</button>
-          ) : (
-            <span className="text-xs font-bold text-amber-700 uppercase bg-amber-100 px-2.5 py-1 rounded">Approval Pending</span>
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {!latestApproval || latestApproval.status !== "Pending" ? (
+              <button onClick={handleRequestApproval} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer transition-colors shadow-sm whitespace-nowrap">Request Approval</button>
+            ) : (
+              <span className="text-xs font-bold text-amber-700 uppercase bg-amber-100 px-2.5 py-1 rounded">Approval Pending</span>
+            )}
+            {user?.role === "Admin" && latestApproval?.status === "Pending" && (
+              <button onClick={() => handleApprovalDecision("Approved")} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-green-600 hover:bg-green-700 cursor-pointer transition-colors shadow-sm whitespace-nowrap">Approve Now</button>
+            )}
+          </div>
         </div>
       )}
 
@@ -609,7 +798,7 @@ export default function QuotationDetailPage() {
             <div className="text-xs">
               <p className="font-bold text-blue-800 uppercase tracking-wide">Awaiting approval from {latestApproval.approver?.name || "Sales Manager"}{latestApproval.requiredApproverRole ? ` (${latestApproval.requiredApproverRole})` : ""}</p>
               <p className="text-blue-600 mt-1">{latestApproval.notes}</p>
-              {latestApproval.revisionAuthorId === user?.id && <p className="text-[10px] text-blue-500 italic mt-0.5">Note: You authored this revision and cannot approve it yourself.</p>}
+              {latestApproval.revisionAuthorId === user?.id && user?.role !== "Admin" && <p className="text-[10px] text-blue-500 italic mt-0.5">Note: You authored this revision and cannot approve it yourself.</p>}
             </div>
           </div>
           {isApprover && (
@@ -621,6 +810,51 @@ export default function QuotationDetailPage() {
           )}
         </div>
       )}
+
+      {/* Workflow Stepper */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
+          {[
+            { key: "Draft", label: "Draft", icon: icons.edit },
+            { key: "Approved", label: "Approved", icon: icons.check },
+            { key: "Sent", label: "Sent", icon: icons.send },
+            { key: "UnderReview", label: "Negotiation", icon: icons.alert },
+            { key: "Accepted", label: "Accepted", icon: icons.check },
+            { key: "Deal/PO", label: "Deal / PO", icon: icons.deal },
+          ].map((stage, idx, arr) => {
+            const order = ["Draft", "Approved", "Sent", "UnderReview", "Accepted", "Deal/PO"];
+            const currentIdx = order.indexOf(quotation.status === "Rejected" || quotation.status === "Expired" ? "Accepted" : quotation.status);
+            const stageIdx = order.indexOf(stage.key);
+            const isDone = stageIdx < currentIdx;
+            const isCurrent = stage.key === quotation.status || (stage.key === "Deal/PO" && quotation.status === "Accepted" && quotation.dealId);
+            const isRejected = quotation.status === "Rejected";
+
+            return (
+              <div key={stage.key} className="flex items-center flex-shrink-0">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                  isCurrent ? "bg-[var(--primary)] text-white shadow-md scale-105" :
+                  isDone ? "bg-green-50 text-green-700 border border-green-200" :
+                  isRejected && stageIdx >= currentIdx ? "bg-red-50 text-red-400 border border-red-100" :
+                  "bg-slate-50 text-slate-400 border border-slate-100"
+                }`}>
+                  <Ico d={stage.icon} size={14} />
+                  <span className="whitespace-nowrap">{stage.label}</span>
+                  {isCurrent && <span className="w-2 h-2 rounded-full bg-white animate-pulse" />}
+                </div>
+                {idx < arr.length - 1 && (
+                  <div className={`w-4 sm:w-8 h-0.5 mx-0.5 ${isDone ? "bg-green-300" : "bg-slate-200"}`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {quotation.status === "Rejected" && (
+          <p className="text-xs text-red-600 font-medium mt-2 flex items-center gap-1"><Ico d={icons.x} size={12} /> Quotation rejected — use Clone &amp; Revise to create a new revision</p>
+        )}
+        {quotation.status === "Expired" && (
+          <p className="text-xs text-gray-500 font-medium mt-2 flex items-center gap-1"><Ico d={icons.clock} size={12} /> Quotation expired — use Clone &amp; Revise to create a new revision with updated validity</p>
+        )}
+      </div>
 
       {/* Summary Card */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-4">

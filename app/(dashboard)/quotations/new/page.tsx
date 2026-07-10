@@ -171,6 +171,21 @@ export default function NewQuotationPage() {
     setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
   };
 
+  const selectProduct = (idx: number, productId: string) => {
+    const product = products.find((p) => p.id === productId);
+    if (product) {
+      setItems(items.map((item, i) => (i === idx ? {
+        ...item,
+        productId,
+        description: item.description || product.name,
+        hsn: product.hsnCode || product.productCode || item.hsn,
+        unit: product.unit || item.unit || "Nos",
+      } : item)));
+    } else {
+      updateItem(idx, "productId", productId);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.customerId) { toast.error("Please select a customer"); return; }
@@ -312,7 +327,7 @@ export default function NewQuotationPage() {
                 <div className="grid grid-cols-12 gap-2 items-start">
                   <div className="col-span-3">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">Product</label>
-                    <Select value={item.productId} onChange={(e) => updateItem(idx, "productId", e.target.value)} className="text-xs py-1.5">
+                    <Select value={item.productId} onChange={(e) => selectProduct(idx, e.target.value)} className="text-xs py-1.5">
                       <option value="">-- Product --</option>
                       {products.map((p: any) => <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>)}
                     </Select>

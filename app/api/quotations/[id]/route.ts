@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { computeItemMarginPercent, computeOverallMarginPercent } from "@/lib/quotation-margins";
 
 export async function GET(
   request: NextRequest,
@@ -15,7 +16,7 @@ export async function GET(
   const quotation = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
-      customer: { select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, billingAddress: true, gstNumber: true, accountType: true } },
+      customer: { select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true, billingAddress: true, shippingAddress: true, gstNumber: true, accountType: true } },
       contact: { select: { id: true, name: true, email: true, phone: true } },
       rfq: {
         include: {
@@ -34,6 +35,7 @@ export async function GET(
         },
       },
       deal: { select: { id: true, dealName: true, status: true, opportunityCode: true } },
+      negotiation: { select: { id: true, negotiationCode: true, status: true } },
       items: {
         include: {
           product: { select: { id: true, name: true, productCode: true, unit: true, basePrice: true, hsnCode: true } },
@@ -134,7 +136,7 @@ export async function PUT(
     // Live margin calculations
     let marginVal: number | null = null;
     if (costBasis != null && costBasis > 0) {
-      marginVal = unitPrice > 0 ? ((unitPrice - costBasis) / unitPrice) * 100 : 0;
+      marginVal = computeItemMarginPercent(unitPrice, costBasis) ?? 0;
       if (unitPrice !== costBasis) {
         priceSource = "ManualOverride";
       }
@@ -212,8 +214,14 @@ export async function PUT(
       const netTotal = subtotal - discountAmount;
       const grandTotal = netTotal + totalTax;
 
-      // Compute overall weighted margin percent
-      const overallMarginPercent = totalRevenueForMargin > 0 ? (totalMarginRevenue / totalRevenueForMargin) * 100 : null;
+      // Compute overall weighted margin percent (shared helper)
+      const overallMarginPercent = computeOverallMarginPercent(
+        processedItems.map((pi) => ({
+          quantity: pi.quantity,
+          unitPrice: pi.unitPrice,
+          costBasisUnitPrice: pi.costBasisUnitPrice,
+        }))
+      );
 
       // Build update data
       const updateData: any = {

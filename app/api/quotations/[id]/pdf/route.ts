@@ -23,10 +23,20 @@ export async function GET(
 
   if (!quotation) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
+  // Fetch company info from SystemConfig
+  const [addrConfig, gstinConfig, phoneConfig, emailConfig] = await Promise.all([
+    prisma.systemConfig.findUnique({ where: { key: "company_address" } }),
+    prisma.systemConfig.findUnique({ where: { key: "company_gstin" } }),
+    prisma.systemConfig.findUnique({ where: { key: "company_phone" } }),
+    prisma.systemConfig.findUnique({ where: { key: "company_email" } }),
+  ]);
+
   // Build printable HTML
   const companyName = quotation.company?.name || "SUKI CRM";
-  const companyAddress = "";
-  const companyGstin = "";
+  const companyAddress = addrConfig?.value || "";
+  const companyGstin = gstinConfig?.value || "";
+  const companyPhone = phoneConfig?.value || "";
+  const companyEmail = emailConfig?.value || "";
 
   const formatDate = (d: Date) => d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
@@ -124,6 +134,7 @@ export async function GET(
         <div class="company-name">${companyName}</div>
         <div class="company-info">${companyAddress || "Industrial Solutions Provider"}</div>
         ${companyGstin ? `<div class="company-info">GSTIN: ${companyGstin}</div>` : ""}
+        ${companyPhone || companyEmail ? `<div class="company-info">${[companyPhone, companyEmail].filter(Boolean).join(" | ")}</div>` : ""}
       </div>
     </div>
     <div style="text-align:right;">

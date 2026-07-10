@@ -59,37 +59,74 @@ export async function POST(request: NextRequest) {
 
   const discountPercent = parseFloat(body.discountPercent) || 0;
 
-  // If rfq_id provided, copy line items from RFQ
+  // If rfq_id provided, copy line items from RFQ with per-line-item costing
   let rfqLineItems: any[] = [];
-  let rfqUnitPrice = 0;
   if (body.rfqId) {
     const rfq = await prisma.rFQ.findFirst({
       where: { id: body.rfqId, deletedAt: null, companyId: user.companyId },
       include: {
-        lineItems: { include: { product: { select: { id: true, productCode: true, unit: true } } }, orderBy: { displayOrder: "asc" } },
-        costingSheets: { orderBy: { createdAt: "desc" }, take: 1 },
+        lineItems: {
+          include: {
+            product: { select: { id: true, productCode: true, unit: true, hsnCode: true } },
+            quantityBreaks: {
+              include: {
+                costingSheets: { orderBy: { createdAt: "desc" }, take: 1 },
+              },
+            },
+          },
+          orderBy: { displayOrder: "asc" },
+        },
       },
     });
     if (!rfq) {
       return NextResponse.json({ success: false, message: "RFQ not found" }, { status: 404 });
     }
     rfqLineItems = rfq.lineItems;
-    rfqUnitPrice = rfq.costingSheets[0]?.computedUnitPrice || 0;
   }
 
   // Build items list: from body or from RFQ
   let items: any[];
   if (rfqLineItems.length > 0 && (!body.items || body.items.length === 0)) {
-    items = rfqLineItems.map((li: any) => ({
-      productId: li.productId || null,
-      description: li.itemDescription,
-      quantity: li.quantity,
-      unitPrice: rfqUnitPrice,
-      discountPercent: 0,
-      taxPercent: 18,
-      hsn: null,
-      unit: li.unit || null,
-    }));
+    // Build from RFQ line items — use per-quantity-break costing sheets
+    items = [];
+    for (const li of rfqLineItems) {
+      if (li.quantityBreaks && li.quantityBreaks.length > 0) {
+        for (const qb of li.quantityBreaks) {
+          const costing = qb.costingSheets?.[0];
+          if (costing) {
+            const costBasis = costing.marginPercent > 0
+              ? costing.computedUnitPrice / (1 + costing.marginPercent / 100)
+              : costing.computedUnitPrice;
+            items.push({
+              productId: li.productId || null,
+              description: `${li.itemDescription} (Tier: ${qb.quantity} qty)`,
+              quantity: qb.quantity,
+              unitPrice: costing.computedUnitPrice,
+              discountPercent: 0,
+              taxPercent: 18,
+              hsn: li.product?.hsnCode || li.product?.productCode || null,
+              unit: li.unit || "Pcs",
+              costBasisUnitPrice: costBasis,
+              marginPercent: costing.marginPercent,
+              priceSource: "RFQCosting",
+              quantityBreakId: qb.id,
+            });
+          }
+        }
+      } else {
+        // No quantity breaks — use line item primary quantity with zero price
+        items.push({
+          productId: li.productId || null,
+          description: li.itemDescription,
+          quantity: li.quantity,
+          unitPrice: 0,
+          discountPercent: 0,
+          taxPercent: 18,
+          hsn: li.product?.hsnCode || li.product?.productCode || null,
+          unit: li.unit || "Pcs",
+        });
+      }
+    }
   } else {
     items = body.items || [];
   }
@@ -114,6 +151,13 @@ export async function POST(request: NextRequest) {
     subtotal += lineTotal;
     taxAmount += lineTax;
 
+    // Preserve cost basis fields if provided (from RFQ costing)
+    const costBasisUnitPrice = item.costBasisUnitPrice != null ? parseFloat(item.costBasisUnitPrice) : null;
+    const marginPercent = costBasisUnitPrice != null && costBasisUnitPrice > 0 && unitPrice > 0
+      ? ((unitPrice - costBasisUnitPrice) / unitPrice) * 100
+      : null;
+    const priceSource = item.priceSource || (costBasisUnitPrice != null ? "RFQCosting" : "StandaloneManual");
+
     return {
       productId: item.productId || null,
       description: item.description,
@@ -126,6 +170,10 @@ export async function POST(request: NextRequest) {
       hsn: item.hsn || null,
       unit: item.unit || null,
       notes: item.notes || null,
+      costBasisUnitPrice,
+      marginPercent,
+      priceSource,
+      quantityBreakId: item.quantityBreakId || null,
     };
   });
 
@@ -144,6 +192,40 @@ export async function POST(request: NextRequest) {
 
   try {
     const quotation = await prisma.$transaction(async (tx) => {
+      // 1. Resolve HSN and tax from product master for each item
+      let totalTax = 0;
+      for (const pi of computedItems) {
+        let taxPercent = 18;
+        let hsn = pi.hsn;
+
+        if (pi.productId) {
+          const prod = await tx.product.findUnique({
+            where: { id: pi.productId },
+            select: { hsnCode: true, productCode: true },
+          });
+          if (prod) {
+            hsn = prod.hsnCode || hsn || prod.productCode;
+          }
+        }
+
+        if (hsn) {
+          const taxEntry = await tx.taxMaster.findFirst({
+            where: { hsnCode: hsn, isActive: true },
+          });
+          if (taxEntry) taxPercent = taxEntry.taxPercent;
+        }
+
+        pi.hsn = hsn;
+        pi.taxPercent = taxPercent;
+        const lineTax = pi.lineTotal * (taxPercent / 100);
+        totalTax += lineTax;
+      }
+
+      // Recalculate grand total with resolved tax
+      taxAmount = totalTax;
+      const discountAmount = subtotal * (discountPercent / 100);
+      const grandTotal = subtotal - discountAmount + taxAmount;
+
       // 1. Create quotation
       const q = await tx.quotation.create({
         data: {

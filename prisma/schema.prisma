@@ -1544,6 +1544,7 @@ model Negotiation {
   discountApproved       Float?
   customerDemands        String?                 @db.NVarChar(Max)
   internalNotes          String?                 @db.NVarChar(Max)
+  discussionNotes        String?                 @db.NVarChar(Max)
   outcome                String?
   closedAt               DateTime?
   assignedUserId         String?

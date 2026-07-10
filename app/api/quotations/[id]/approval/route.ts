@@ -34,10 +34,11 @@ export async function PUT(
     return NextResponse.json({ success: false, message: "No pending approval found" }, { status: 404 });
   }
 
-  // Self-approval prevention: the user who authored the price revision in negotiation cannot approve it
-  if (approval.revisionAuthorId && approval.revisionAuthorId === user.id) {
+  // Self-approval prevention: the user who authored the price revision cannot approve it
+  // Exception: Admin can self-approve to bypass the approval workflow
+  if (approval.revisionAuthorId && approval.revisionAuthorId === user.id && user.role !== "Admin") {
     return NextResponse.json(
-      { success: false, message: "You cannot approve a quotation revision that you authored yourself in negotiation. This must be approved by a different approver." },
+      { success: false, message: "You cannot approve a quotation revision that you authored yourself. This must be approved by a different approver." },
       { status: 403 }
     );
   }

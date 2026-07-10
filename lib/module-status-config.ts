@@ -44,6 +44,8 @@ export const PIPELINE_STAGE_VALUES = [
   "TechnicalDiscussion",   // Promoted from RG checkbox to its own real stage
   "MeetingScheduled",
   "DemoConducted",
+  "ProposalSent",          // Quotation sent to customer
+  "Negotiation",           // Customer negotiating / UnderReview quotation
   "Won",
   "Rejected",
   "Lost", // terminal — kept for legacy compatibility
@@ -58,7 +60,9 @@ export const PIPELINE_STAGE_ORDER: Record<string, number> = {
   TechnicalDiscussion:    3,
   MeetingScheduled:       4,
   DemoConducted:          5,
-  Won:                    6,
+  ProposalSent:           6,
+  Negotiation:            7,
+  Won:                    8,
   Rejected:               0,
   Lost:                   0,
 };
@@ -70,6 +74,8 @@ export const PIPELINE_STAGE_PROBABILITY: Record<string, number> = {
   TechnicalDiscussion:    50,
   MeetingScheduled:       60,
   DemoConducted:          75,
+  ProposalSent:           80,
+  Negotiation:            85,
   Won:                    100,
   Rejected:                0,
   Lost:                    0,

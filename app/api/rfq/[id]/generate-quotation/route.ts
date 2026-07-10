@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
+import { computeOverallMarginPercent } from "@/lib/quotation-margins";
 
 export async function POST(
   request: NextRequest,
@@ -135,6 +136,10 @@ export async function POST(
       for (const entry of activeCostingSheets) {
         const { item, qb, costing } = entry;
         const unitPrice = costing.computedUnitPrice;
+        // Cost basis = total cost BEFORE margin (reverse out the margin markup)
+        const costBasisUnitPrice = costing.marginPercent > 0
+          ? costing.computedUnitPrice / (1 + costing.marginPercent / 100)
+          : costing.computedUnitPrice;
 
         // Lookup tax_percent from tax_master by product code, default 18%
         let taxPercent = 18;
@@ -163,11 +168,29 @@ export async function POST(
             taxPercent,
             lineTotal,
             unit: item.unit || "Pcs",
+            costBasisUnitPrice,
+            marginPercent: costing.marginPercent,
+            priceSource: "RFQCosting",
+            quantityBreakId: qb.id,
           },
         });
       }
 
       const grandTotal = subtotal + taxAmount;
+
+      // Compute overall weighted margin from the items we just created
+      const overallMarginPercent = computeOverallMarginPercent(
+        activeCostingSheets.map((e) => {
+          const costBasis = e.costing.marginPercent > 0
+            ? e.costing.computedUnitPrice / (1 + e.costing.marginPercent / 100)
+            : e.costing.computedUnitPrice;
+          return {
+            quantity: e.qb.quantity,
+            unitPrice: e.costing.computedUnitPrice,
+            costBasisUnitPrice: costBasis,
+          };
+        })
+      );
 
       // Update quotation with computed totals
       await tx.quotation.update({
@@ -177,6 +200,7 @@ export async function POST(
           subtotal,
           taxAmount,
           finalAmount: grandTotal,
+          overallMarginPercent,
         },
       });
 

@@ -78,6 +78,8 @@ export default function RFQDetailPage() {
   const [savingEdit, setSavingEdit] = useState(false);
 
   const canSeeFullCosting = ["CostingEngineer", "Admin", "SalesManager"].includes(user?.role || "");
+  const isCostingOwner = rfq?.costingOwnerId === user?.id;
+  const canOpenCosting = canSeeFullCosting || isCostingOwner || rfq?.status === "CostingPending";
 
   const loadRFQ = async () => {
     setLoading(true);
@@ -420,6 +422,82 @@ export default function RFQDetailPage() {
           </div>
         )}
 
+        {/* Lifecycle Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
+        <div className="crm-card p-4">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {[
+              { label: "RFQ", key: "rfq", id: id, reached: true, current: true },
+              { label: "Quotation", key: "quotation", id: rfq.quotations?.[0]?.id, reached: rfq.quotations?.length > 0 },
+              { label: "Negotiation", key: "negotiation", id: rfq.quotations?.[0]?.negotiationId, reached: !!rfq.quotations?.[0]?.negotiationId },
+              { label: "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(rfq.quotations?.[0]?.status) },
+            ].map((step, i, arr) => (
+              <div key={step.key} className="flex items-center shrink-0">
+                <div
+                  onClick={() => {
+                    if (step.id && !step.current) {
+                      if (step.key === "quotation") router.push(`/quotations/${step.id}`);
+                      else if (step.key === "negotiation") router.push(`/negotiations/${step.id}`);
+                    }
+                  }}
+                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    step.current
+                      ? "bg-[var(--primary)] text-white"
+                      : step.reached
+                      ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100 dark:bg-green-950/30 dark:text-green-300"
+                      : "bg-slate-50 text-slate-400 dark:bg-slate-800/50"
+                  }`}
+                >
+                  {step.reached && !step.current && <CheckCircle size={12} />}
+                  {step.label}
+                </div>
+                {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Next Step Button — single prominent action driven by status */}
+        <div className="crm-card p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Step</p>
+            {rfq.status === "QuotationCreated" || rfq.status === "Closed" ? (
+              <p className="text-sm text-slate-600 mt-0.5">RFQ workflow complete — view the linked quotation below</p>
+            ) : pendingItemsCount > 0 ? (
+              <p className="text-sm text-slate-600 mt-0.5">Cost all {pendingItemsCount} pending line item(s) to enable quotation generation</p>
+            ) : rfq.lineItems?.length === 0 ? (
+              <p className="text-sm text-slate-600 mt-0.5">Add at least one line item to proceed</p>
+            ) : (
+              <p className="text-sm text-slate-600 mt-0.5">All items costed — ready to generate quotation</p>
+            )}
+          </div>
+          {rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
+            <button
+              onClick={() => {
+                if (rfq.lineItems?.length === 0) {
+                  toast.error("Add at least one line item first");
+                } else if (pendingItemsCount > 0) {
+                  toast.error(`${pendingItemsCount} item(s) still need costing`);
+                } else {
+                  setShowGenQuoteModal(true);
+                }
+              }}
+              disabled={rfq.lineItems?.length === 0 || pendingItemsCount > 0}
+              title={rfq.lineItems?.length === 0 ? "Add line items first" : pendingItemsCount > 0 ? `${pendingItemsCount} item(s) need costing` : "Generate quotation from costing"}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <ArrowRight size={16} /> Generate Quotation →
+            </button>
+          )}
+          {rfq.quotations?.length > 0 && (
+            <button
+              onClick={() => router.push(`/quotations/${rfq.quotations[0].id}`)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer transition-all"
+            >
+              <ArrowRight size={16} /> View Quotation →
+            </button>
+          )}
+        </div>
+
         {/* Header Card */}
         <div className="crm-card p-6">
           <div className="flex items-start justify-between mb-4">
@@ -531,7 +609,7 @@ export default function RFQDetailPage() {
               );
             })}
           </div>
-          {/* Quick status change */}
+          {/* Quick status change — sequential enforcement */}
           <div className="mt-4 flex items-center gap-2">
             <span className="text-xs text-slate-500">Change status:</span>
             <select
@@ -539,10 +617,20 @@ export default function RFQDetailPage() {
               onChange={(e) => handleStatusChange(e.target.value)}
               className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-sm cursor-pointer"
             >
-              {STATUS_STEPS.map((s) => (
-                <option key={s.key} value={s.key}>{s.label}</option>
-              ))}
+              {STATUS_STEPS.map((s, idx) => {
+                const currentIdx = STATUS_STEPS.findIndex((st) => st.key === rfq.status);
+                const isCurrent = s.key === rfq.status;
+                const isNext = idx === currentIdx + 1;
+                const isPast = idx <= currentIdx;
+                const label = isCurrent ? `${s.label} (current)` : isNext ? `${s.label} →` : isPast ? s.label : s.label;
+                return (
+                  <option key={s.key} value={s.key} disabled={!isCurrent && !isNext && !isPast}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
+            <span className="text-xs text-slate-400">Only the next status in sequence is selectable. Closed RFQs can be reopened via the Reopen button.</span>
           </div>
         </div>
 
@@ -570,6 +658,9 @@ export default function RFQDetailPage() {
                     <th className="crm-th">Quantity Breaks / Tiers</th>
                     <th className="crm-th">Target Price</th>
                     <th className="crm-th">Requested Delivery Date</th>
+                    {rfq.status === "CostingPending" && canOpenCosting && (
+                      <th className="crm-th text-right">Costing</th>
+                    )}
                     {rfq.status !== "CostingPending" && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
                       <th className="crm-th text-right">Actions</th>
                     )}
@@ -581,7 +672,7 @@ export default function RFQDetailPage() {
                       <tr
                         key={item.id}
                         onClick={() => {
-                          if (canSeeFullCosting) {
+                          if (canOpenCosting) {
                             setSelectedLineItem(item);
                             setIsCostingPanelOpen(true);
                           }
@@ -620,6 +711,25 @@ export default function RFQDetailPage() {
                         </td>
                         <td className="crm-td text-foreground">{item.targetPrice ? `₹${item.targetPrice.toFixed(2)}` : "—"}</td>
                         <td className="crm-td text-foreground">{item.requestedDeliveryDate ? formatDate(item.requestedDeliveryDate) : "—"}</td>
+                        {rfq.status === "CostingPending" && canOpenCosting && (
+                          <td className="crm-td text-right" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => {
+                                setSelectedLineItem(item);
+                                setIsCostingPanelOpen(true);
+                              }}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer ${
+                                item.costingStatus === "Done"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]"
+                              }`
+                              }
+                            >
+                              <Calculator size={14} />
+                              {item.costingStatus === "Done" ? "Edit Costing" : "Start Costing"}
+                            </button>
+                          </td>
+                        )}
                         {rfq.status !== "CostingPending" && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
                           <td className="crm-td text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1.5">

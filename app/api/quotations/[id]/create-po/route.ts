@@ -28,10 +28,11 @@ export async function POST(
   const existing = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
-      customer: { select: { id: true, name: true, customerCode: true, billingAddress: true, city: true } },
+      customer: { select: { id: true, name: true, customerCode: true, billingAddress: true, shippingAddress: true, city: true, gstNumber: true } },
       contact: { select: { id: true, name: true, email: true, phone: true } },
       deal: { select: { id: true, dealName: true, status: true } },
       items: true,
+      rfq: { select: { id: true, expectedDeliveryDate: true, lineItems: { select: { requestedDeliveryDate: true } } } },
     },
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
@@ -58,11 +59,38 @@ export async function POST(
     select: { id: true, negotiationCode: true, finalAmount: true, revisedAmount: true },
   });
 
+  // Auto-compute expectedDelivery if not explicitly provided
+  let computedExpectedDelivery = expectedDelivery;
+  if (!computedExpectedDelivery) {
+    // Priority 1: Quotation leadTimeDays (poDate + leadTimeDays)
+    if (existing.leadTimeDays && existing.leadTimeDays > 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + existing.leadTimeDays);
+      computedExpectedDelivery = d;
+    }
+    // Priority 2: Earliest RFQ line item requestedDeliveryDate
+    else if (existing.rfq?.lineItems?.length) {
+      const deliveryDates = existing.rfq.lineItems
+        .map((li) => li.requestedDeliveryDate)
+        .filter(Boolean) as Date[];
+      if (deliveryDates.length > 0) {
+        computedExpectedDelivery = new Date(Math.min(...deliveryDates.map((d) => d.getTime())));
+      }
+    }
+    // Priority 3: RFQ-level expectedDeliveryDate
+    else if (existing.rfq?.expectedDeliveryDate) {
+      computedExpectedDelivery = existing.rfq.expectedDeliveryDate;
+    }
+  }
+
+  // Auto-fetch shipping address from customer if not in quotation
+  const shippingAddress = existing.customer?.shippingAddress || existing.customer?.billingAddress || null;
+
   // Auto-generate poCode
   const count = await prisma.purchaseOrder.count({ where: { companyId: user.companyId } });
   const poCode = `PO-${String(count + 1).padStart(4, "0")}`;
 
-  // Map quotation items → PO items
+  // Map quotation items → PO items (only fields that exist in PurchaseOrderItem schema)
   const items = existing.items.map((it) => ({
     productId: it.productId || null,
     description: it.description || "",
@@ -72,10 +100,15 @@ export async function POST(
     notes: it.notes || null,
   }));
 
+  // Compute totals including tax (tax stored at PO header level via taxAmount)
   const totalAmount = items.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
   const discountPercent = existing.discountPercent || 0;
   const discountAmount = totalAmount * (discountPercent / 100);
-  const finalAmount = totalAmount - discountAmount;
+  const taxAmount = existing.items.reduce((sum, it) => {
+    const lineNet = (it.totalPrice || 0) * (1 - (it.discountPercent || 0) / 100);
+    return sum + lineNet * ((it.taxPercent || 18) / 100);
+  }, 0);
+  const finalAmount = totalAmount - discountAmount + taxAmount;
 
   const result = await prisma.$transaction(async (tx) => {
     // 1. Create the Purchase Order
@@ -89,12 +122,13 @@ export async function POST(
         dealId: existing.dealId || null,
         status: "New",
         poDate: new Date(),
-        expectedDelivery,
+        expectedDelivery: computedExpectedDelivery,
         totalAmount,
         discountPercent,
         finalAmount,
         paymentTerms: existing.paymentTerms || null,
         deliveryTerms: existing.deliveryTerms || null,
+        shippingAddress,
         billingAddress: existing.customer?.billingAddress || null,
         notes: `Created from Quotation ${existing.quotationCode}. ${notes || ""}`.trim(),
         assignedUserId,

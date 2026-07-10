@@ -40,6 +40,7 @@ export async function GET(
       finalAmount: true,
       totalAmount: true,
       discountPercent: true,
+      overallMarginPercent: true,
       validUntil: true,
       sentAt: true,
       createdAt: true,

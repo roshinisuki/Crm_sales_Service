@@ -102,6 +102,44 @@ export default function NewPurchaseOrderPage() {
     }
   }, [form.negotiationId, negotiations]);
 
+  // Auto-fill from selected quotation
+  useEffect(() => {
+    if (form.quotationId) {
+      fetch(`/api/quotations/${form.quotationId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            const q = data.data;
+            setForm((f) => ({
+              ...f,
+              customerId: q.customerId || f.customerId,
+              contactId: q.contactId || f.contactId,
+              dealId: q.dealId || f.dealId,
+              paymentTerms: q.paymentTerms || f.paymentTerms,
+              deliveryTerms: q.deliveryTerms || f.deliveryTerms,
+              discountPercent: String(q.discountPercent || 0),
+              expectedDelivery: q.leadTimeDays
+                ? new Date(Date.now() + q.leadTimeDays * 86400000).toISOString().split("T")[0]
+                : f.expectedDelivery,
+              billingAddress: q.customer?.billingAddress || f.billingAddress,
+              shippingAddress: q.customer?.shippingAddress || q.customer?.billingAddress || f.shippingAddress,
+            }));
+            // Auto-fill line items from quotation items
+            if (q.items && q.items.length > 0) {
+              setItems(q.items.map((it: any) => ({
+                productId: it.productId || "",
+                description: it.description || "",
+                quantity: String(it.quantity || 1),
+                unitPrice: String(it.unitPrice || 0),
+                totalPrice: it.totalPrice || (it.quantity || 1) * (it.unitPrice || 0),
+              })));
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, [form.quotationId]);
+
   const updateItem = (index: number, field: string, value: string) => {
     setItems(prev => {
       const next = [...prev];

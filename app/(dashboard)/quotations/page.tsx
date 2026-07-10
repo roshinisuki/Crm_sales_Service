@@ -147,6 +147,7 @@ function QuotationListContent() {
                 <th className="crm-th text-right">Total</th>
                 <th className="crm-th text-right">Discount %</th>
                 <th className="crm-th text-right">Final Amount</th>
+                <th className="crm-th text-center">Margin</th>
                 <th className="crm-th">Status</th>
                 <th className="crm-th">Valid Until</th>
                 <th className="crm-th text-right">Actions</th>
@@ -155,16 +156,16 @@ function QuotationListContent() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="crm-td text-center py-12">
+                  <td colSpan={9} className="crm-td text-center py-12">
                     <div className="flex justify-center">
                       <CRMSpinner size={36} label="Loading quotations..." />
                     </div>
                   </td>
                 </tr>
               ) : error ? (
-                <tr><td colSpan={8} className="crm-td text-center py-8 text-red-500">{error}</td></tr>
+                <tr><td colSpan={9} className="crm-td text-center py-8 text-red-500">{error}</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="crm-td text-center py-12 text-muted-foreground">
+                <tr><td colSpan={9} className="crm-td text-center py-12 text-muted-foreground">
                   <div className="text-3xl mb-3">📄</div>
                   <p className="font-medium mb-1">No quotations found</p>
                   <p className="text-xs mb-4">
@@ -203,6 +204,7 @@ function QuotationListContent() {
                     <td className="crm-td text-right text-foreground">{formatCurrency(q.totalAmount)}</td>
                     <td className="crm-td text-right text-foreground">{q.discountPercent}%</td>
                     <td className="crm-td text-right font-medium text-foreground">{formatCurrency(q.finalAmount)}</td>
+                    <td className="crm-td text-center">{q.overallMarginPercent != null ? <span className={`text-xs font-semibold ${Number(q.overallMarginPercent) >= 20 ? "text-emerald-600" : Number(q.overallMarginPercent) >= 15 ? "text-amber-600" : "text-rose-600"}`}>{Number(q.overallMarginPercent).toFixed(1)}%</span> : <span className="text-xs text-slate-400">—</span>}</td>
                     <td className="crm-td"><span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${(statusStyles[q.status] || statusStyles.Draft).badge}`}><span className={`w-1.5 h-1.5 rounded-full ${(statusStyles[q.status] || statusStyles.Draft).dot}`} />{q.status}</span></td>
                     <td className="crm-td text-foreground">{new Date(q.validUntil).toLocaleDateString()}</td>
                     <td className="crm-td text-right" onClick={e => e.stopPropagation()}>

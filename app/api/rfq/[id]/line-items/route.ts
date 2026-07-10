@@ -58,8 +58,17 @@ export async function POST(
       specifications: body.specifications || null,
       notes: body.notes || null,
       displayOrder: nextOrder,
+      quantityBreaks: {
+        create: (body.quantity_breaks && Array.isArray(body.quantity_breaks) && body.quantity_breaks.length > 0
+          ? body.quantity_breaks
+          : [parseFloat(body.quantity) || 1]
+        ).map((qty: number) => ({ quantity: qty })),
+      },
     },
-    include: { product: { select: { id: true, name: true, productCode: true, unit: true } } },
+    include: {
+      product: { select: { id: true, name: true, productCode: true, unit: true } },
+      quantityBreaks: true,
+    },
   });
 
   await logAudit(user.id, "RFQ", "AddLineItem", `Added line item to RFQ ${rfq.rfqCode}`, {

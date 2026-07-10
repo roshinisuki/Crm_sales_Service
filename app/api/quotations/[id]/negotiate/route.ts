@@ -111,6 +111,11 @@ export async function POST(
             overallMarginPercent: existing.overallMarginPercent,
           },
         });
+        // Set negotiationId on the root quotation so the negotiation badge shows on R1's page
+        await tx.quotation.update({
+          where: { id },
+          data: { negotiationId: negotiationRecord.id },
+        });
       } else {
         await tx.negotiation.update({
           where: { id: existingNeg.id },

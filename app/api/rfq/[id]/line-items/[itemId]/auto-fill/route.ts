@@ -92,8 +92,8 @@ export async function GET(
   return NextResponse.json({
     success: true,
     data: {
-      unitMaterialCost: materialCost,
-      unitLaborCost: labourCost,
+      material_cost: materialCost,
+      labour_cost: labourCost,
       overhead_percent: overheadPercent,
       margin_percent: marginPercent,
       sources,

@@ -53,8 +53,23 @@ export async function PUT(
 
   const updated = await prisma.rFQLineItem.update({
     where: { id: itemId },
-    data: updateData,
-    include: { product: { select: { id: true, name: true, productCode: true, unit: true } } },
+    data: {
+      ...updateData,
+      // Sync quantity breaks if provided in the payload
+      ...(body.quantity_breaks !== undefined && Array.isArray(body.quantity_breaks) ? {
+        quantityBreaks: {
+          deleteMany: {},
+          create: (body.quantity_breaks.length > 0
+            ? body.quantity_breaks
+            : [parseFloat(body.quantity) || 1]
+          ).map((qty: number) => ({ quantity: qty })),
+        },
+      } : {}),
+    },
+    include: {
+      product: { select: { id: true, name: true, productCode: true, unit: true } },
+      quantityBreaks: true,
+    },
   });
 
   await logAudit(user.id, "RFQ", "EditLineItem", `Edited line item in RFQ ${rfq.rfqCode}`, {

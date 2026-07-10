@@ -40,6 +40,18 @@ const revisionStatusColors: Record<string, string> = {
 
 const tabs = ["Overview", "Revisions", "Discussion"];
 
+// Sequential status flow: each status can only transition to the next one(s)
+const STATUS_FLOW: Record<string, string[]> = {
+  Active: ["PriceRevision", "Won", "Lost"],
+  PriceRevision: ["CommercialDiscussion", "Won", "Lost"],
+  CommercialDiscussion: ["PendingApproval", "Won", "Lost"],
+  PendingApproval: ["Won", "Lost"],
+  Won: [],
+  Lost: [],
+};
+
+const ALL_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Won", "Lost"];
+
 export default function NegotiationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -66,6 +78,8 @@ export default function NegotiationDetailPage() {
 
   // Discussion note
   const [discussionNote, setDiscussionNote] = useState("");
+  const [discussionNotes, setDiscussionNotes] = useState<any[]>([]);
+  const [savingNote, setSavingNote] = useState(false);
 
   const loadNegotiation = async () => {
     try {
@@ -89,13 +103,32 @@ export default function NegotiationDetailPage() {
     }
   };
 
+  const loadDiscussionNotes = async () => {
+    try {
+      const res = await fetch(`/api/negotiations/${id}/notes`);
+      const data = await res.json();
+      if (data.success) {
+        setDiscussionNotes(data.data || []);
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
   useEffect(() => {
     loadNegotiation();
+    loadDiscussionNotes();
   }, [id]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (!negotiation) return;
     if (newStatus === negotiation.status) return;
+    // Enforce sequential transitions
+    const allowed = STATUS_FLOW[negotiation.status] || [];
+    if (!allowed.includes(newStatus)) {
+      toast.error(`Cannot move from ${negotiation.status} to ${newStatus}. Allowed: ${allowed.join(", ") || "none"}`);
+      return;
+    }
     if (newStatus === "Won") startLoading("Closing the deal...", "handshake");
     setSaving(true);
     try {
@@ -120,6 +153,30 @@ export default function NegotiationDetailPage() {
     } finally {
       setSaving(false);
       stopLoading();
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!discussionNote.trim()) return;
+    setSavingNote(true);
+    try {
+      const res = await fetch(`/api/negotiations/${id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: discussionNote }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDiscussionNotes(data.data || []);
+        setDiscussionNote("");
+        toast.success("Note added");
+      } else {
+        toast.error(data.message || "Failed to add note");
+      }
+    } catch {
+      toast.error("Failed to add note");
+    } finally {
+      setSavingNote(false);
     }
   };
 
@@ -200,25 +257,84 @@ export default function NegotiationDetailPage() {
         )}
       </div>
 
-      {/* Status flow bar */}
+      {/* Breadcrumbs */}
+      {negotiation.quotation && (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          {negotiation.quotation?.rfq && (
+            <>
+              <button onClick={() => router.push(`/rfq/${negotiation.quotation.rfq.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
+                {negotiation.quotation.rfq.rfqCode}
+              </button>
+              <span>›</span>
+            </>
+          )}
+          <button onClick={() => router.push(`/quotations/${negotiation.quotation.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
+            {negotiation.quotation.quotationCode}
+          </button>
+          <span>›</span>
+          <span className="font-medium text-slate-700">{negotiation.negotiationCode}</span>
+        </div>
+      )}
+
+      {/* Stage Stepper */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
-        <div className="flex flex-wrap gap-2">
-          {["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Won", "Lost"].map((s) => (
-            <button
-              key={s}
-              disabled={saving || isClosed}
-              onClick={() => handleStatusChange(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                negotiation.status === s
-                  ? "bg-[var(--primary)] text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              {s}
-            </button>
+        <div className="flex items-center gap-1 overflow-x-auto">
+          {[
+            { label: "RFQ", key: "rfq", id: negotiation.quotation?.rfq?.id, reached: !!negotiation.quotation?.rfq },
+            { label: "Quotation", key: "quotation", id: negotiation.quotation?.id, reached: !!negotiation.quotation },
+            { label: "Negotiation", key: "negotiation", id: id, reached: true, current: true },
+            { label: "Revision", key: "revision", id: null, reached: (negotiation.revisions?.length || 0) > 0 },
+            { label: negotiation.status === "Won" ? "Won" : negotiation.status === "Lost" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Won", "Lost"].includes(negotiation.status) },
+          ].map((step, i, arr) => (
+            <div key={step.key} className="flex items-center shrink-0">
+              <div
+                onClick={() => step.id && step.key !== "negotiation" && router.push(`/${step.key === "rfq" ? "rfq" : step.key === "quotation" ? "quotations" : "negotiations"}/${step.id}`)}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  step.current
+                    ? "bg-[var(--primary)] text-white"
+                    : step.reached
+                    ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100"
+                    : "bg-slate-50 text-slate-400"
+                }`}
+              >
+                {step.reached && !step.current && <Ico d={icons.check} size={12} />}
+                {step.label}
+              </div>
+              {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
+            </div>
           ))}
         </div>
-        <p className="text-xs text-slate-400 mt-2">Click a status to move the negotiation through its lifecycle. Won/Lost are terminal.</p>
+      </div>
+
+      {/* Status flow bar — sequential enforcement */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
+        <div className="flex flex-wrap gap-2">
+          {ALL_STATUSES.map((s) => {
+            const isCurrent = negotiation.status === s;
+            const allowed = STATUS_FLOW[negotiation.status] || [];
+            const isAllowed = allowed.includes(s);
+            const isClosed = ["Won", "Lost"].includes(negotiation.status);
+            const tooltip = isCurrent ? "Current status" : isClosed ? "Negotiation is closed" : !isAllowed ? `Must go through ${allowed.join(" → ")} first` : `Click to transition to ${s}`;
+            return (
+              <button
+                key={s}
+                disabled={saving || isClosed || (!isCurrent && !isAllowed)}
+                onClick={() => handleStatusChange(s)}
+                title={tooltip}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isCurrent
+                    ? "bg-[var(--primary)] text-white"
+                    : isAllowed
+                    ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    : "bg-slate-50 text-slate-400"
+                }`}
+              >
+                {s}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-slate-400 mt-2">Status transitions are sequential. Only reachable statuses are clickable; others are disabled with a tooltip.</p>
       </div>
 
       {/* Tabs */}
@@ -251,6 +367,7 @@ export default function NegotiationDetailPage() {
               <Field label="Final Amount" value={negotiation.finalAmount ? formatCurrency(negotiation.finalAmount) : "—"} />
               <Field label="Discount Requested" value={negotiation.discountRequested ? `${negotiation.discountRequested}%` : "—"} />
               <Field label="Quotation" value={negotiation.quotation ? negotiation.quotation.quotationCode : "—"} />
+              <Field label="RFQ" value={negotiation.quotation?.rfq ? negotiation.quotation.rfq.rfqCode : "—"} />
               <Field label="Deal" value={negotiation.deal ? negotiation.deal.dealName : "—"} />
               <Field label="Assigned To" value={negotiation.assignedUser?.name || "—"} />
               <Field label="Approved By" value={negotiation.approvedBy?.name || "—"} />
@@ -313,6 +430,7 @@ export default function NegotiationDetailPage() {
       )}
 
       {activeTab === "Revisions" && (
+        <div className="space-y-4">
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Price Revisions</h2>
@@ -332,8 +450,11 @@ export default function NegotiationDetailPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">#</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Proposed Amount</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Proposed</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Δ Amount</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Discount %</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Margin %</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Δ Margin</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Reason</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">By</th>
@@ -341,22 +462,81 @@ export default function NegotiationDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {negotiation.revisions?.map((r: any) => (
-                  <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                    <td className="px-4 py-3 text-sm font-medium text-slate-800">#{r.revisionNumber}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{formatCurrency(r.proposedAmount)}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{r.discountPercent ? `${r.discountPercent}%` : "—"}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700 max-w-xs truncate">{r.reason || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${revisionStatusColors[r.status] || "bg-gray-100 text-gray-600"}`}>{r.status}</span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-700">{r.createdBy?.name || "—"}</td>
-                    <td className="px-4 py-3 text-sm text-slate-500">{new Date(r.createdAt).toLocaleDateString()}</td>
-                  </tr>
-                ))}
+                {negotiation.revisions?.map((r: any, idx: number) => {
+                  const prevAmount = idx === 0 ? negotiation.initialAmount : negotiation.revisions[idx - 1].proposedAmount;
+                  const amountDelta = r.proposedAmount - prevAmount;
+                  // Margin: use negotiation's overallMarginPercent as baseline, compute revised margin if available
+                  const baseMargin = Number(negotiation.overallMarginPercent) || 0;
+                  const revisedMargin = baseMargin > 0 && negotiation.initialAmount > 0
+                    ? baseMargin * (r.proposedAmount / negotiation.initialAmount)
+                    : null;
+                  const prevMargin = idx === 0 ? baseMargin : (baseMargin * (negotiation.revisions[idx - 1].proposedAmount / negotiation.initialAmount));
+                  const marginDelta = revisedMargin != null ? revisedMargin - prevMargin : null;
+                  return (
+                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                      <td className="px-4 py-3 text-sm font-medium text-slate-800">R{r.revisionNumber + 1} <span className="text-xs text-slate-400">(#{r.revisionNumber})</span></td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{formatCurrency(r.proposedAmount)}</td>
+                      <td className={`px-4 py-3 text-sm ${amountDelta < 0 ? "text-red-600" : "text-green-600"}`}>{amountDelta < 0 ? "" : "+"}{formatCurrency(Math.abs(amountDelta))}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{r.discountPercent ? `${r.discountPercent}%` : "—"}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{revisedMargin != null ? `${revisedMargin.toFixed(1)}%` : "—"}</td>
+                      <td className={`px-4 py-3 text-sm ${marginDelta != null && marginDelta < 0 ? "text-red-600" : "text-green-600"}`}>{marginDelta != null ? `${marginDelta < 0 ? "" : "+"}${marginDelta.toFixed(1)}%` : "—"}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 max-w-xs truncate">{r.reason || "—"}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${revisionStatusColors[r.status] || "bg-gray-100 text-gray-600"}`}>{r.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">{r.createdBy?.name || "—"}</td>
+                      <td className="px-4 py-3 text-sm text-slate-500">{new Date(r.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
+        </div>
+
+        {/* Discount / Margin Trend Panel */}
+        {negotiation.revisions?.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4">Negotiation Trajectory</h2>
+            <div className="space-y-3">
+              {/* R1 baseline */}
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-medium text-slate-500 w-12">R1</span>
+                <div className="flex-1 flex items-center gap-3">
+                  <span className="text-sm text-slate-700">{formatCurrency(negotiation.initialAmount)}</span>
+                  <span className="text-xs text-slate-400">Discount: 0%</span>
+                  <span className="text-xs text-slate-400">Margin: {Number(negotiation.overallMarginPercent).toFixed(1)}%</span>
+                </div>
+              </div>
+              {negotiation.revisions?.map((r: any, idx: number) => {
+                const revisedMargin = Number(negotiation.overallMarginPercent) > 0 && negotiation.initialAmount > 0
+                  ? Number(negotiation.overallMarginPercent) * (r.proposedAmount / negotiation.initialAmount)
+                  : null;
+                const barWidth = Math.max(10, Math.min(100, (r.proposedAmount / negotiation.initialAmount) * 100));
+                return (
+                  <div key={r.id} className="flex items-center gap-4">
+                    <span className="text-xs font-medium text-slate-500 w-12">R{r.revisionNumber + 1}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-1">
+                        <span className="text-sm text-slate-700">{formatCurrency(r.proposedAmount)}</span>
+                        <span className="text-xs text-slate-400">Discount: {r.discountPercent || 0}%</span>
+                        <span className={`text-xs ${revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "text-red-500" : "text-green-500"}`}>
+                          Margin: {revisedMargin != null ? `${revisedMargin.toFixed(1)}%` : "—"}
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "bg-amber-400" : "bg-green-400"}`}
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         </div>
       )}
 
@@ -372,19 +552,28 @@ export default function NegotiationDetailPage() {
           />
           <div className="flex justify-end">
             <button
-              onClick={() => {
-                if (discussionNote.trim()) {
-                  toast.success("Discussion note saved (demo)");
-                  setDiscussionNote("");
-                }
-              }}
-              className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+              onClick={handleAddNote}
+              disabled={savingNote || !discussionNote.trim()}
+              className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60"
             >
-              Add Note
+              {savingNote ? "Saving..." : "Add Note"}
             </button>
           </div>
-          <div className="pt-4 border-t border-slate-100">
-            <p className="text-sm text-slate-400 text-center py-8">Discussion notes will appear here once saved.</p>
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            {discussionNotes.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8">No discussion notes yet. Add one above.</p>
+            ) : (
+              discussionNotes.map((note: any) => (
+                <div key={note.id} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-sm text-slate-700">{note.text}</p>
+                  <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
+                    <span>{note.createdByName || "Unknown"}</span>
+                    <span>•</span>
+                    <span>{new Date(note.createdAt).toLocaleString()}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

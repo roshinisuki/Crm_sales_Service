@@ -20,7 +20,7 @@ export async function GET(
     include: {
       customer: { select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true } },
       contact: { select: { id: true, name: true, email: true, phone: true, title: true } },
-      quotation: { select: { id: true, quotationCode: true, finalAmount: true, status: true } },
+      quotation: { select: { id: true, quotationCode: true, finalAmount: true, status: true, rfqId: true, rfq: { select: { id: true, rfqCode: true } } } },
       deal: { select: { id: true, dealName: true, status: true } },
       assignedUser: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true } },
@@ -68,6 +68,19 @@ export async function PUT(
     if (existing.status === "PendingApproval" && ["Won", "Lost", "Active", "PriceRevision", "CommercialDiscussion"].includes(body.status)) {
       return NextResponse.json({ success: false, message: "Cannot change status while approval is pending. Resolve the approval in the Approval Center first." }, { status: 400 });
     }
+    // Enforce sequential status transitions server-side (mirrors UI STATUS_FLOW)
+    const SERVER_STATUS_FLOW: Record<string, string[]> = {
+      Active: ["PriceRevision", "Won", "Lost"],
+      PriceRevision: ["CommercialDiscussion", "Won", "Lost"],
+      CommercialDiscussion: ["PendingApproval", "Won", "Lost"],
+      PendingApproval: ["Won", "Lost"],
+      Won: [],
+      Lost: [],
+    };
+    const allowed = SERVER_STATUS_FLOW[existing.status] || [];
+    if (!allowed.includes(body.status)) {
+      return NextResponse.json({ success: false, message: `Cannot transition from ${existing.status} to ${body.status}. Allowed: ${allowed.join(", ") || "none"}` }, { status: 400 });
+    }
   }
 
   const updateData: any = {};
@@ -102,11 +115,11 @@ export async function PUT(
     where: { id },
     data: updateData,
     include: {
-      customer: { select: { id: true, name: true, customerCode: true } },
-      contact: { select: { id: true, name: true, email: true, phone: true } },
-      quotation: { select: { id: true, quotationCode: true, finalAmount: true } },
-      deal: { select: { id: true, dealName: true } },
-      assignedUser: { select: { id: true, name: true } },
+      customer: { select: { id: true, name: true, customerCode: true, phone: true, email: true, city: true } },
+      contact: { select: { id: true, name: true, email: true, phone: true, title: true } },
+      quotation: { select: { id: true, quotationCode: true, finalAmount: true, status: true, rfqId: true, rfq: { select: { id: true, rfqCode: true } } } },
+      deal: { select: { id: true, dealName: true, status: true } },
+      assignedUser: { select: { id: true, name: true, email: true } },
       approvedBy: { select: { id: true, name: true } },
       revisions: {
         include: { createdBy: { select: { id: true, name: true } } },
@@ -125,32 +138,41 @@ export async function PUT(
 
     // Cascade Won/Lost to linked Deal and Quotation
     if (body.status === "Won" || body.status === "Lost") {
-      // Update linked Quotation
-      if (existing.quotationId) {
-        const quotation = await prisma.quotation.findUnique({
+      // Find the LATEST revision quotation linked to this negotiation (not root R1)
+      // The customer agreed to the latest revision, so that's the one to mark Accepted/Rejected
+      const latestRevisionQuote = await prisma.quotation.findFirst({
+        where: { negotiationId: id, deletedAt: null },
+        orderBy: { revisionNumber: "desc" },
+        select: { id: true, status: true, quotationCode: true, negotiationId: true },
+      });
+      // Fallback to the negotiation's root quotationId if no revision exists
+      const targetQuote = latestRevisionQuote ||
+        (existing.quotationId ? await prisma.quotation.findUnique({
           where: { id: existing.quotationId },
-          select: { id: true, status: true, quotationCode: true },
+          select: { id: true, status: true, quotationCode: true, negotiationId: true },
+        }) : null);
+
+      if (targetQuote && !["Accepted", "Rejected", "Expired"].includes(targetQuote.status)) {
+        const newQuoteStatus = body.status === "Won" ? "Accepted" : "Rejected";
+        await prisma.quotation.update({
+          where: { id: targetQuote.id },
+          data: {
+            status: newQuoteStatus,
+            // Ensure negotiationId is set so the negotiation badge shows on the quotation page
+            negotiationId: targetQuote.negotiationId || id,
+            ...(body.status === "Won" ? { acceptedAt: new Date() } : {}),
+            ...(body.status === "Lost" ? { rejectedAt: new Date(), rejectionReasonId: body.lossReasonId || null } : {}),
+          },
         });
-        if (quotation && !["Accepted", "Rejected", "Expired"].includes(quotation.status)) {
-          const newQuoteStatus = body.status === "Won" ? "Accepted" : "Rejected";
-          await prisma.quotation.update({
-            where: { id: quotation.id },
-            data: {
-              status: newQuoteStatus,
-              ...(body.status === "Won" ? { acceptedAt: new Date() } : {}),
-              ...(body.status === "Lost" ? { rejectedAt: new Date(), rejectionReasonId: body.lossReasonId || null } : {}),
-            },
-          });
-          await prisma.quotationStatusHistory.create({
-            data: {
-              quotationId: quotation.id,
-              fromStatus: quotation.status,
-              toStatus: newQuoteStatus,
-              changedById: user.id,
-              notes: `Auto-cascaded from negotiation ${existing.negotiationCode} (${body.status})`,
-            },
-          });
-        }
+        await prisma.quotationStatusHistory.create({
+          data: {
+            quotationId: targetQuote.id,
+            fromStatus: targetQuote.status,
+            toStatus: newQuoteStatus,
+            changedById: user.id,
+            notes: `Auto-cascaded from negotiation ${existing.negotiationCode} (${body.status}) — ${targetQuote.quotationCode} was the latest revision`,
+          },
+        });
       }
 
       // Update linked Deal via transitionDealStatus

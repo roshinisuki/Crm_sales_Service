@@ -25,10 +25,16 @@ export async function GET(
       assignedUser: { select: { id: true, name: true, email: true } },
       costingOwner: { select: { id: true, name: true, email: true } },
       opportunity: { select: { id: true, dealName: true, opportunityCode: true, status: true } },
-      lineItems: { include: { product: { select: { id: true, name: true, productCode: true, unit: true } } }, orderBy: { displayOrder: "asc" } },
+      lineItems: {
+        include: {
+          product: { select: { id: true, name: true, productCode: true, unit: true } },
+          quantityBreaks: { include: { costingSheets: { orderBy: { createdAt: "desc" }, take: 1 } } },
+        },
+        orderBy: { displayOrder: "asc" },
+      },
       costingSheets: { include: { submittedBy: { select: { id: true, name: true } } }, orderBy: { createdAt: "desc" } },
       rfqStatusHistories: { include: { changedBy: { select: { id: true, name: true } } }, orderBy: { changedAt: "desc" } },
-      quotations: { select: { id: true, quotationCode: true, status: true, finalAmount: true } },
+      quotations: { select: { id: true, quotationCode: true, status: true, finalAmount: true, negotiationId: true } },
     },
   });
 

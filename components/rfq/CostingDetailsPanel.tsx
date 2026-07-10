@@ -69,7 +69,7 @@ export function CostingDetailsPanel({
   // Overridden tracking per quantity break ID and field
   const [overrides, setOverrides] = useState<Record<string, Record<string, boolean>>>({});
 
-  const activeBreak = lineItem?.quantityBreaks[activeBreakIdx] || null;
+  const activeBreak = lineItem?.quantityBreaks?.[activeBreakIdx] || null;
 
   // Load defaults and existing cost sheets when line item changes
   useEffect(() => {
@@ -90,7 +90,7 @@ export function CostingDetailsPanel({
           const initialForms: Record<string, CostingFormState> = {};
           const initialOverrides: Record<string, Record<string, boolean>> = {};
 
-          for (const qb of lineItem.quantityBreaks) {
+          for (const qb of lineItem.quantityBreaks || []) {
             const sheet = sheets.find((s: any) => s.quantityBreakId === qb.id);
             if (sheet) {
               initialForms[qb.id] = {
@@ -117,9 +117,9 @@ export function CostingDetailsPanel({
 
     fetchExistingSheets();
 
-    if (lineItem.productId) {
-      setLoadingDefaults(true);
-      fetch(`/api/rfq/${rfqId}/line-items/${lineItem.id}/auto-fill`)
+    // Always fetch auto-fill defaults — API handles no-product case gracefully
+    setLoadingDefaults(true);
+    fetch(`/api/rfq/${rfqId}/line-items/${lineItem.id}/auto-fill`)
         .then((res) => res.json())
         .then((data) => {
           if (data.success) {
@@ -134,11 +134,11 @@ export function CostingDetailsPanel({
             // Pre-fill breaks that don't have sheets saved yet
             setTierForms((prev) => {
               const updated = { ...prev };
-              for (const qb of lineItem.quantityBreaks) {
+              for (const qb of lineItem.quantityBreaks || []) {
                 if (!updated[qb.id]) {
                   updated[qb.id] = {
                     material_cost: String(data.data.material_cost),
-                    labour_cost: String(data.data.labourCost),
+                    labour_cost: String(data.data.labour_cost),
                     overhead_percent: String(data.data.overhead_percent),
                     margin_percent: String(data.data.margin_percent),
                     freight_cost: "0",
@@ -155,7 +155,6 @@ export function CostingDetailsPanel({
         })
         .catch((err) => console.error("Error fetching costing defaults:", err))
         .finally(() => setLoadingDefaults(false));
-    }
   }, [isOpen, lineItem, rfqId]);
 
   if (!isOpen || !lineItem || !activeBreak) return null;
@@ -312,6 +311,60 @@ export function CostingDetailsPanel({
     }
   };
 
+  const handleSaveAll = async () => {
+    const breaks = lineItem?.quantityBreaks || [];
+    const formsToSave = breaks.filter((qb) => {
+      const f = tierForms[qb.id];
+      if (!f) return false;
+      const fmc = parseFloat(f.material_cost) || 0;
+      const flc = parseFloat(f.labour_cost) || 0;
+      return fmc > 0 && flc > 0;
+    });
+
+    if (formsToSave.length === 0) {
+      toast.error("No valid costing data to save. Material cost and labour cost must be greater than 0.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const line_items = formsToSave.map((qb) => {
+        const f = tierForms[qb.id];
+        return {
+          line_item_id: lineItem!.id,
+          quantity_break_id: qb.id,
+          material_cost: parseFloat(f.material_cost) || 0,
+          labour_cost: parseFloat(f.labour_cost) || 0,
+          overhead_percent: parseFloat(f.overhead_percent) || 0,
+          margin_percent: parseFloat(f.margin_percent) || 0,
+          freight_cost: parseFloat(f.freight_cost) || 0,
+          packaging_cost: parseFloat(f.packaging_cost) || 0,
+          tooling_cost: parseFloat(f.tooling_cost) || 0,
+          other_cost: parseFloat(f.other_cost) || 0,
+          notes: f.notes || undefined,
+        };
+      });
+
+      const res = await fetch(`/api/rfq/${rfqId}/costing-sheet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ line_items }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`Saved costing for ${formsToSave.length} tier(s)`);
+        onSaved();
+      } else {
+        toast.error(data.message || "Failed to save costing sheets");
+      }
+    } catch {
+      toast.error("Failed to save costing sheets");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex-col animate-slide-in">
       {/* Header */}
@@ -370,11 +423,25 @@ export function CostingDetailsPanel({
           <div className="text-xs text-slate-400 italic py-1 animate-pulse">
             Loading rates from BOM and Routing...
           </div>
-        ) : defaults === null && lineItem.productId ? (
+        ) : defaults && !defaults.bomFound && !defaults.routingFound && lineItem.productId ? (
           <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
             <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
             <p className="text-xs text-amber-700 dark:text-amber-300">
               No active BOM or Routing master data found for this product. Fields default to blank and must be populated manually.
+            </p>
+          </div>
+        ) : defaults && !defaults.bomFound && lineItem.productId ? (
+          <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
+            <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              No active BOM found for this product. Material cost must be entered manually.
+            </p>
+          </div>
+        ) : defaults && !defaults.routingFound && lineItem.productId ? (
+          <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
+            <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              No active Routing found for this product. Labour cost must be entered manually.
             </p>
           </div>
         ) : null}
@@ -521,13 +588,19 @@ export function CostingDetailsPanel({
           <div className="flex justify-between items-center text-xs text-slate-400">
             <span>Direct Cost (Material + Labour + Overhead):</span>
             <span className="font-semibold text-slate-200">
-              ₹{(mc + lc).toFixed(2)}
+              ₹{((mc + lc) * (1 + oh / 100)).toFixed(2)}
             </span>
           </div>
           <div className="flex justify-between items-center text-xs text-slate-400">
             <span>Add-ons (Freight + Pack + Tooling + Other):</span>
             <span className="font-semibold text-slate-200">
               ₹{(fr + pk + tl + ot).toFixed(2)}
+            </span>
+          </div>
+          <div className="flex justify-between items-center text-xs text-slate-400">
+            <span>Total Cost (before margin):</span>
+            <span className="font-semibold text-slate-200">
+              ₹{((mc + lc + fr + pk + tl + ot) * (1 + oh / 100)).toFixed(2)}
             </span>
           </div>
           <div className="border-t border-slate-800 my-1 pt-2 flex justify-between items-end">
@@ -553,12 +626,21 @@ export function CostingDetailsPanel({
         >
           Cancel
         </button>
+        {lineItem.quantityBreaks.length > 1 && (
+          <button
+            onClick={handleSaveAll}
+            disabled={saving}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            {saving ? "Saving..." : <><Save size={13} /> Save All Tiers ({lineItem.quantityBreaks.length})</>}
+          </button>
+        )}
         <button
           onClick={handleSave}
           disabled={saving || mc <= 0 || lc <= 0}
           className="px-4 py-2 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 disabled:opacity-50 transition-colors shadow-sm"
         >
-          {saving ? "Saving..." : <><Save size={13} /> Save Costing</>}
+          {saving ? "Saving..." : <><Save size={13} /> Save This Tier</>}
         </button>
       </div>
     </div>

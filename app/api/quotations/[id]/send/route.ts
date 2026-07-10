@@ -24,8 +24,8 @@ export async function POST(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
-  if (existing.status !== "Draft") {
-    return NextResponse.json({ success: false, message: "Only Draft quotations can be sent" }, { status: 400 });
+  if (!["Draft", "Approved"].includes(existing.status)) {
+    return NextResponse.json({ success: false, message: "Only Draft or Approved quotations can be sent" }, { status: 400 });
   }
 
   if (existing.items.length === 0) {
@@ -89,7 +89,7 @@ export async function POST(
     (a: any) => a.status === "Approved"
   );
 
-  if (reasons.length > 0 && !hasApprovedApproval) {
+  if (reasons.length > 0 && !hasApprovedApproval && user.role !== "Admin") {
     return NextResponse.json(
       {
         success: false,
@@ -113,7 +113,7 @@ export async function POST(
       await tx.quotationStatusHistory.create({
         data: {
           quotationId: id,
-          fromStatus: "Draft",
+          fromStatus: existing.status,
           toStatus: "Sent",
           changedById: user.id,
           notes: `Quotation sent to customer.${reasons.length > 0 ? " Approved override." : ""}`,
@@ -136,6 +136,29 @@ export async function POST(
         },
       });
 
+      // 4. If linked to an opportunity, transition deal to ProposalSent
+      if (existing.dealId) {
+        const deal = await tx.deal.findUnique({
+          where: { id: existing.dealId },
+          select: { id: true, status: true },
+        });
+        if (deal && !["Won", "Lost", "Rejected"].includes(deal.status)) {
+          await tx.deal.update({
+            where: { id: deal.id },
+            data: { status: "ProposalSent" },
+          });
+          await tx.dealStageHistory.create({
+            data: {
+              dealId: deal.id,
+              fromStatus: deal.status,
+              toStatus: "ProposalSent",
+              changedById: user.id,
+              outcomeNotes: `Quotation ${existing.quotationCode} sent to customer`,
+            },
+          });
+        }
+      }
+
       return q;
     });
 
@@ -144,6 +167,28 @@ export async function POST(
       newState: { status: "Sent" },
       context: extractAuditContext(request),
     });
+
+    // Notify assigned user if different from sender
+    if (existing.assignedUserId && existing.assignedUserId !== user.id) {
+      await dispatchNotification({
+        userId: existing.assignedUserId,
+        title: "Quotation Sent",
+        message: `Quotation ${existing.quotationCode} has been sent to ${existing.customer?.name || "customer"}.`,
+        type: "quotation",
+        link: `/quotations/${id}`,
+      }).catch(() => undefined);
+    }
+
+    // Notify customer contact if linked
+    if (existing.contactId) {
+      await dispatchNotification({
+        userId: existing.contactId,
+        title: "Quotation Received",
+        message: `You have received quotation ${existing.quotationCode}. Total: ₹${existing.finalAmount.toFixed(2)}`,
+        type: "quotation",
+        link: `/quotations/${id}`,
+      }).catch(() => undefined);
+    }
 
     return NextResponse.json({ success: true, data: quotation });
   } catch (error: any) {

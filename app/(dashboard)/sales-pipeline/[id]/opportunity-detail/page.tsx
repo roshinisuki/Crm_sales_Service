@@ -96,6 +96,8 @@ const STAGE_LABELS: Record<string, string> = {
   TechnicalDiscussion:  "Technical discussion",
   MeetingScheduled:     "Meeting scheduled",
   DemoConducted:        "Demo conducted",
+  ProposalSent:         "Proposal sent",
+  Negotiation:          "Negotiation",
   Won:                  "Won",
   Lost:                 "Lost",
   Rejected:             "Rejected",
@@ -218,8 +220,11 @@ function ProposalQuotationGuide({
   const latestQuote = linkedQuotations[0];
   const hasAcceptedQuote = linkedQuotations.some((q: any) => q.status === "Accepted");
   const hasSentQuote = linkedQuotations.some((q: any) => q.status === "Sent");
+  const hasApprovedQuote = linkedQuotations.some((q: any) => q.status === "Approved");
+  const hasPendingApprovalQuote = linkedQuotations.some((q: any) => q.status === "PendingApproval");
   const hasDraftQuote = linkedQuotations.some((q: any) => q.status === "Draft");
   const hasUnderReviewQuote = linkedQuotations.some((q: any) => q.status === "UnderReview");
+  const hasExpiredQuote = linkedQuotations.some((q: any) => q.status === "Expired");
 
   const handleSendQuote = async (quoteId: string) => {
     setSending(true);
@@ -278,6 +283,7 @@ function ProposalQuotationGuide({
 
   // State D — Accepted quotation
   if (hasAcceptedQuote) {
+    // (existing code below)
     const q = linkedQuotations.find((q: any) => q.status === "Accepted") || latestQuote;
     return (
       <div className="bg-green-50 border border-green-200 rounded-xl p-4">
@@ -303,6 +309,71 @@ function ProposalQuotationGuide({
     );
   }
 
+  // State C2 — Approved quotation (ready to send)
+  if (hasApprovedQuote) {
+    const q = linkedQuotations.find((q: any) => q.status === "Approved") || latestQuote;
+    return (
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">✅</span>
+            <div>
+              <p className="text-sm font-semibold text-emerald-800">Quotation approved — ready to send to customer</p>
+              <p className="text-xs text-emerald-600">
+                {q.quotationCode} • Final value: {formatCurrency(q.finalAmount || q.totalAmount)}
+                {q.overallMarginPercent != null && <> • Margin: {Number(q.overallMarginPercent).toFixed(1)}%</>}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => router.push(`/quotations/${q.id}`)}
+              className="px-3 py-2 rounded-lg text-xs font-medium text-blue-600 bg-white border border-blue-200 hover:bg-blue-50 transition-colors"
+            >
+              View Quotation
+            </button>
+            <button
+              onClick={() => handleSendQuote(q.id)}
+              disabled={sending}
+              className="px-3 py-2 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            >
+              {sending ? "Sending..." : "Send to Customer"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // State C1 — Pending approval quotation
+  if (hasPendingApprovalQuote) {
+    const q = linkedQuotations.find((q: any) => q.status === "PendingApproval") || latestQuote;
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">⏳</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Quotation pending manager approval</p>
+              <p className="text-xs text-amber-600">
+                {q.quotationCode} • Final value: {formatCurrency(q.finalAmount || q.totalAmount)}
+                {q.overallMarginPercent != null && <> • Margin: {Number(q.overallMarginPercent).toFixed(1)}%</>}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => router.push(`/quotations/${q.id}`)}
+              className="px-3 py-2 rounded-lg text-xs font-medium text-blue-600 bg-white border border-blue-200 hover:bg-blue-50 transition-colors"
+            >
+              View Quotation
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // State C — Sent quotation
   if (hasSentQuote) {
     const q = linkedQuotations.find((q: any) => q.status === "Sent") || latestQuote;
@@ -314,7 +385,9 @@ function ProposalQuotationGuide({
             <div>
               <p className="text-sm font-semibold text-green-800">Quotation sent — waiting for customer response</p>
               <p className="text-xs text-green-600">
-                {q.quotationCode} • Valid until {q.validUntil ? new Date(q.validUntil).toLocaleDateString("en-IN") : "—"}
+                {q.quotationCode} • {formatCurrency(q.finalAmount || q.totalAmount)}
+                {q.overallMarginPercent != null && <> • Margin: {Number(q.overallMarginPercent).toFixed(1)}%</>}
+                • Valid until {q.validUntil ? new Date(q.validUntil).toLocaleDateString("en-IN") : "—"}
               </p>
             </div>
           </div>
@@ -357,6 +430,7 @@ function ProposalQuotationGuide({
               <p className="text-sm font-semibold text-amber-800">Quotation under negotiation</p>
               <p className="text-xs text-amber-600">
                 {q.quotationCode} • Final value: {formatCurrency(q.finalAmount || q.totalAmount)}
+                {q.overallMarginPercent != null && <> • Margin: {Number(q.overallMarginPercent).toFixed(1)}%</>}
               </p>
             </div>
           </div>
