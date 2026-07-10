@@ -37,6 +37,7 @@ interface CostingDefaults {
   marginPercent: number;
   bomFound: boolean;
   routingFound: boolean;
+  categoryFound: boolean;
 }
 
 interface CostingFormState {
@@ -130,6 +131,7 @@ export function CostingDetailsPanel({
               marginPercent: data.data.margin_percent,
               bomFound: data.data.sources.material_cost === "bom",
               routingFound: data.data.sources.labour_cost === "routing",
+              categoryFound: data.data.sources.overhead_percent === "category",
             });
             // Pre-fill breaks that don't have sheets saved yet
             setTierForms((prev) => {
@@ -443,26 +445,32 @@ export function CostingDetailsPanel({
           <div className="text-xs text-slate-400 italic py-1 animate-pulse">
             Loading rates from BOM and Routing...
           </div>
-        ) : defaults && !defaults.bomFound && !defaults.routingFound && lineItem.productId ? (
-          <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
-            <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              No active BOM or Routing master data found for this product. Fields default to blank and must be populated manually.
-            </p>
-          </div>
-        ) : defaults && !defaults.bomFound && lineItem.productId ? (
-          <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
-            <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              No active BOM found for this product. Material cost must be entered manually.
-            </p>
-          </div>
-        ) : defaults && !defaults.routingFound && lineItem.productId ? (
-          <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
-            <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              No active Routing found for this product. Labour cost must be entered manually.
-            </p>
+        ) : defaults ? (
+          <div className="space-y-2">
+            {!defaults.bomFound && (
+              <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
+                <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  No BOM data found for Material Cost — populate manually.
+                </p>
+              </div>
+            )}
+            {!defaults.routingFound && (
+              <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
+                <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  No Routing data found for Labour Cost — populate manually.
+                </p>
+              </div>
+            )}
+            {!defaults.categoryFound && (
+              <div className="flex items-start gap-2 p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-lg">
+                <AlertTriangle className="text-amber-500 mt-0.5 flex-shrink-0" size={14} />
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  No Category default data found for Overhead & Margin — populate manually.
+                </p>
+              </div>
+            )}
           </div>
         ) : null}
 
