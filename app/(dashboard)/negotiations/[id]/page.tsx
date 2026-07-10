@@ -47,7 +47,7 @@ const tabs = ["Overview", "Revisions", "Discussion"];
 const STATUS_FLOW: Record<string, string[]> = {
   Active: ["PriceRevision", "Closed-Success", "Closed-Failure"],
   PriceRevision: ["CommercialDiscussion", "Closed-Success", "Closed-Failure"],
-  CommercialDiscussion: ["PendingApproval", "Closed-Success", "Closed-Failure"],
+  CommercialDiscussion: ["PendingApproval", "PriceRevision", "Closed-Success", "Closed-Failure"],
   PendingApproval: ["Closed-Success", "Closed-Failure"],
   "Closed-Success": [],
   "Closed-Failure": [],
@@ -85,12 +85,17 @@ export default function NegotiationDetailPage() {
   const [discussionNotes, setDiscussionNotes] = useState<any[]>([]);
   const [savingNote, setSavingNote] = useState(false);
 
+  // B.4: Dynamic threshold config from API
+  const [config, setConfig] = useState({ discountThreshold: 5, escalationThreshold: 15, escalationRole: "SalesDirector" });
+  const [requestingApproval, setRequestingApproval] = useState(false);
+
   const loadNegotiation = async () => {
     try {
       const res = await fetch(`/api/negotiations/${id}`);
       const data = await res.json();
       if (data.success) {
         setNegotiation(data.data);
+        if (data.config) setConfig(data.config);
         setEditForm({
           customerDemands: data.data.customerDemands || "",
           internalNotes: data.data.internalNotes || "",
@@ -227,6 +232,16 @@ export default function NegotiationDetailPage() {
 
   const handleCreateRevision = async () => {
     if (!revisionForm.proposedAmount) { toast.error("Proposed amount is required"); return; }
+    const proposed = parseFloat(revisionForm.proposedAmount);
+    const currentAmount = negotiation.revisedAmount || negotiation.initialAmount;
+    if (proposed > currentAmount) {
+      toast.error(`Proposed amount cannot exceed current amount (${formatCurrency(currentAmount)})`);
+      return;
+    }
+    if (proposed <= 0) {
+      toast.error("Proposed amount must be positive");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/negotiations/${id}/revisions`, {
@@ -250,11 +265,44 @@ export default function NegotiationDetailPage() {
     }
   };
 
+  // B.3: Manually request approval — creates a real ApprovalHistory entry
+  const handleRequestApproval = async () => {
+    setRequestingApproval(true);
+    try {
+      const res = await fetch(`/api/negotiations/${id}/request-approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNegotiation(data.data);
+        toast.success(data.message || "Approval requested — visible in Approval Center");
+      } else {
+        toast.error(data.message || "Failed to request approval");
+      }
+    } catch {
+      toast.error("Failed to request approval");
+    } finally {
+      setRequestingApproval(false);
+    }
+  };
+
   if (loading) return <PageContainer className="p-6"><div className="text-center text-slate-400">Loading...</div></PageContainer>;
   if (!negotiation) return null;
 
   const canRevise = ["Active", "PriceRevision"].includes(negotiation.status);
   const isClosed = ["Closed-Success", "Closed-Failure"].includes(negotiation.status);
+  const canRequestApproval = ["CommercialDiscussion", "PriceRevision"].includes(negotiation.status);
+  const canResumeRevision = negotiation.status === "CommercialDiscussion";
+
+  // B.6: Auto-calculate discount from proposedAmount vs current amount
+  const currentAmount = negotiation.revisedAmount || negotiation.initialAmount;
+  const autoDiscount = revisionForm.proposedAmount && currentAmount > 0
+    ? Math.max(0, ((currentAmount - parseFloat(revisionForm.proposedAmount)) / currentAmount) * 100)
+    : 0;
+  const userEnteredDiscount = revisionForm.discountPercent !== "";
+  const discountMismatch = userEnteredDiscount && Math.abs(parseFloat(revisionForm.discountPercent) - autoDiscount) > 0.01;
 
   return (
     <PageContainer className="space-y-4 p-0">
@@ -272,14 +320,35 @@ export default function NegotiationDetailPage() {
           </div>
           <p className="text-sm text-slate-500 mt-0.5">{negotiation.customer?.name} • {negotiation.customer?.customerCode}</p>
         </div>
-        {canRevise && (
-          <button
-            onClick={() => setShowRevisionModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
-          >
-            <Ico d={icons.plus} size={16} /> Add Revision
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {canRevise && (
+            <button
+              onClick={() => setShowRevisionModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+            >
+              <Ico d={icons.plus} size={16} /> Add Revision
+            </button>
+          )}
+          {canResumeRevision && (
+            <button
+              onClick={() => handleStatusChange("PriceRevision")}
+              disabled={saving}
+              title="Go back to price revision to propose a new price"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer disabled:opacity-60"
+            >
+              ↩ Resume Price Revision
+            </button>
+          )}
+          {canRequestApproval && (
+            <button
+              onClick={handleRequestApproval}
+              disabled={requestingApproval}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-60"
+            >
+              {requestingApproval ? "Requesting..." : "Request Approval"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Breadcrumbs — full lineage: RFQ → Quotation → Negotiation */}
@@ -533,14 +602,22 @@ export default function NegotiationDetailPage() {
           <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Price Revision History</h2>
-              {canRevise && (
+              {canRevise ? (
                 <button
                   onClick={() => setShowRevisionModal(true)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer shadow-sm"
                 >
                   <Plus size={14} /> Add Revision
                 </button>
-              )}
+              ) : !isClosed ? (
+                <button
+                  disabled
+                  title="Only available in Active or PriceRevision status"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-400 bg-slate-100 cursor-not-allowed shadow-sm"
+                >
+                  <Plus size={14} /> Add Revision
+                </button>
+              ) : null}
             </div>
             {negotiation.revisions?.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
@@ -556,6 +633,7 @@ export default function NegotiationDetailPage() {
                       <th className="crm-th text-right">Proposed</th>
                       <th className="crm-th text-right">Δ Amount</th>
                       <th className="crm-th text-right">Discount</th>
+                      <th className="crm-th text-right">Cum. Disc.</th>
                       <th className="crm-th text-right">Margin</th>
                       <th className="crm-th text-right">Δ Margin</th>
                       <th className="crm-th text-left">Reason</th>
@@ -568,6 +646,10 @@ export default function NegotiationDetailPage() {
                     {negotiation.revisions?.map((r: any, idx: number) => {
                       const prevAmount = idx === 0 ? negotiation.initialAmount : negotiation.revisions[idx - 1].proposedAmount;
                       const amountDelta = r.proposedAmount - prevAmount;
+                      // C.2: Cumulative discount from original initialAmount
+                      const cumulativeDiscount = negotiation.initialAmount > 0
+                        ? ((negotiation.initialAmount - r.proposedAmount) / negotiation.initialAmount) * 100
+                        : 0;
                       // Margin: use negotiation's overallMarginPercent as baseline, compute revised margin if available
                       const baseMargin = Number(negotiation.overallMarginPercent) || 0;
                       const revisedMargin = baseMargin > 0 && negotiation.initialAmount > 0
@@ -583,6 +665,7 @@ export default function NegotiationDetailPage() {
                             {amountDelta < 0 ? "" : "+"}{formatCurrency(amountDelta)}
                           </td>
                           <td className="crm-td text-right text-slate-700 dark:text-slate-200">{r.discountPercent ? `${r.discountPercent}%` : "—"}</td>
+                          <td className="crm-td text-right font-semibold text-slate-600 dark:text-slate-300">{cumulativeDiscount > 0 ? `${cumulativeDiscount.toFixed(2)}%` : "—"}</td>
                           <td className="crm-td text-right text-slate-700 dark:text-slate-200">{revisedMargin != null ? `${revisedMargin.toFixed(1)}%` : "—"}</td>
                           <td className={cn("crm-td text-right font-semibold", marginDelta != null && marginDelta < 0 ? "text-rose-600" : "text-emerald-600")}>
                             {marginDelta != null ? `${marginDelta < 0 ? "" : "+"}${marginDelta.toFixed(1)}%` : "—"}
@@ -639,6 +722,9 @@ export default function NegotiationDetailPage() {
                     ? Number(negotiation.overallMarginPercent) * (r.proposedAmount / negotiation.initialAmount)
                     : null;
                   const barWidth = Math.max(10, Math.min(100, (r.proposedAmount / negotiation.initialAmount) * 100));
+                  const cumulativeDiscount = negotiation.initialAmount > 0
+                    ? ((negotiation.initialAmount - r.proposedAmount) / negotiation.initialAmount) * 100
+                    : 0;
                   return (
                     <div key={r.id} className="space-y-1">
                       <div className="flex items-center justify-between">
@@ -646,7 +732,7 @@ export default function NegotiationDetailPage() {
                         <span className="text-xs font-semibold text-slate-850 dark:text-slate-200">{formatCurrency(r.proposedAmount)}</span>
                       </div>
                       <div className="flex justify-between text-[10px] text-slate-450 mb-1">
-                        <span>Discount: {r.discountPercent || 0}%</span>
+                        <span>Round: {r.discountPercent || 0}% | Cum: {cumulativeDiscount.toFixed(1)}%</span>
                         <span className={cn(
                           "font-bold",
                           revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "text-rose-500" : "text-emerald-500"
@@ -750,10 +836,18 @@ export default function NegotiationDetailPage() {
                   min="0"
                   value={revisionForm.discountPercent}
                   onChange={(e) => setRevisionForm({ ...revisionForm, discountPercent: e.target.value })}
-                  placeholder="0"
+                  placeholder={autoDiscount > 0 ? autoDiscount.toFixed(2) : "0"}
                   className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
                 />
-                <p className="text-xs text-slate-400 mt-1">Discounts above 5% require approval.</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Auto-calculated: {autoDiscount.toFixed(2)}%{userEnteredDiscount ? " (manual override)" : ""}
+                </p>
+                {discountMismatch && (
+                  <p className="text-xs text-amber-600 mt-0.5 font-medium">⚠ Manual discount doesn't match the calculated value.</p>
+                )}
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Discounts above {config.discountThreshold}% require approval. Above {config.escalationThreshold}% escalates to {config.escalationRole}.
+                </p>
               </div>
 
               <div>

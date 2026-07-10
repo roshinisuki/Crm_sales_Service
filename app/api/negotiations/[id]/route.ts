@@ -35,7 +35,21 @@ export async function GET(
 
   if (!negotiation) return NextResponse.json({ success: false, message: "Negotiation not found" }, { status: 404 });
 
-  return NextResponse.json({ success: true, data: negotiation });
+  // B.4: Fetch discount threshold + escalation config from SystemConfig so the UI matches the backend
+  const [discountConfig, escalationThresholdConfig, escalationRoleConfig] = await Promise.all([
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_discount_threshold" } }),
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_escalation_threshold" } }),
+    prisma.systemConfig.findFirst({ where: { key: "approval_matrix_escalation_role" } }),
+  ]);
+  const discountThreshold = discountConfig ? parseFloat(discountConfig.value) : 5;
+  const escalationThreshold = escalationThresholdConfig ? parseFloat(escalationThresholdConfig.value) : 15;
+  const escalationRole = escalationRoleConfig?.value || "SalesDirector";
+
+  return NextResponse.json({
+    success: true,
+    data: negotiation,
+    config: { discountThreshold, escalationThreshold, escalationRole },
+  });
 }
 
 export async function PUT(
@@ -72,7 +86,7 @@ export async function PUT(
     const SERVER_STATUS_FLOW: Record<string, string[]> = {
       Active: ["PriceRevision", "Closed-Success", "Closed-Failure"],
       PriceRevision: ["CommercialDiscussion", "Closed-Success", "Closed-Failure"],
-      CommercialDiscussion: ["PendingApproval", "Closed-Success", "Closed-Failure"],
+      CommercialDiscussion: ["PendingApproval", "PriceRevision", "Closed-Success", "Closed-Failure"],
       PendingApproval: ["Closed-Success", "Closed-Failure"],
       "Closed-Success": [],
       "Closed-Failure": [],

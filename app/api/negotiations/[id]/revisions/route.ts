@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
-import { computeItemMarginPercent, computeOverallMarginPercent } from "@/lib/quotation-margins";
+import { computeItemMarginPercent, computeOverallMarginPercent, applyDiscountToQuotationItems } from "@/lib/quotation-margins";
 
 // Default discount threshold (%) above which approval is required.
 // Falls back to this if no Approval Matrix config is found.
@@ -63,6 +63,15 @@ export async function POST(
   const reason = body.reason || null;
   const nextRevisionNumber = (negotiation.revisions[0]?.revisionNumber || 0) + 1;
 
+  // B.6: Validate proposedAmount — reject non-positive or amounts greater than current amount
+  const currentAmount = negotiation.revisedAmount || negotiation.initialAmount;
+  if (isNaN(proposedAmount) || proposedAmount <= 0) {
+    return NextResponse.json({ success: false, message: "Proposed amount must be a positive number" }, { status: 400 });
+  }
+  if (proposedAmount > currentAmount) {
+    return NextResponse.json({ success: false, message: `Proposed amount (${proposedAmount}) cannot exceed the current negotiated amount (${currentAmount}). Revisions can only lower the price.` }, { status: 400 });
+  }
+
   // Determine if approval is required based on discount threshold from Approval Matrix settings
   const threshold = await getDiscountThreshold(user.companyId!);
   const escalationConfig = await getEscalationConfig();
@@ -90,17 +99,37 @@ export async function POST(
     if (!requiresApproval && negotiation.quotationId) {
       const rootQuotation = await tx.quotation.findFirst({
         where: { id: negotiation.quotationId, deletedAt: null },
+        include: { items: true },
       });
       if (rootQuotation) {
         const totalAmount = rootQuotation.totalAmount || 0;
-        const newFinalAmount = totalAmount * (1 - discountPercent / 100);
+        // C.3/C.4: Recalculate line items + tax proportionally
+        const recalc = applyDiscountToQuotationItems(
+          rootQuotation.items.map(i => ({ id: i.id, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice, taxPercent: i.taxPercent, discountPercent: i.discountPercent })),
+          totalAmount,
+          discountPercent
+        );
         await tx.quotation.update({
           where: { id: rootQuotation.id },
           data: {
             discountPercent,
-            finalAmount: newFinalAmount,
+            finalAmount: recalc.finalAmount,
+            taxAmount: recalc.taxAmount,
+            subtotal: recalc.subtotal,
           },
         });
+        // Update each line item
+        for (const updatedItem of recalc.items) {
+          await tx.quotationItem.update({
+            where: { id: updatedItem.id },
+            data: {
+              unitPrice: updatedItem.unitPrice,
+              totalPrice: updatedItem.totalPrice,
+              lineTotal: updatedItem.lineTotal,
+              discountPercent: updatedItem.discountPercent,
+            },
+          });
+        }
         await tx.quotationStatusHistory.create({
           data: {
             quotationId: rootQuotation.id,

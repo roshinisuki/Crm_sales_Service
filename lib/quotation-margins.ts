@@ -37,3 +37,61 @@ export function computeOverallMarginPercent(
 
   return totalRevenueForMargin > 0 ? (totalMarginRevenue / totalRevenueForMargin) * 100 : null;
 }
+
+/**
+ * Apply a discount to a quotation: updates header fields, recalculates each line item
+ * proportionally, and recomputes tax so everything stays consistent.
+ *
+ * Used by:
+ * - Negotiation revision auto-approve path (revisions/route.ts)
+ * - Negotiation revision approval-resolution path (approvals/[id]/route.ts)
+ * - Start Negotiation initial revision (quotations/[id]/negotiate/route.ts)
+ *
+ * Returns the updated header values so the caller can persist them.
+ */
+export function applyDiscountToQuotationItems(
+  items: Array<{
+    id: string;
+    quantity: number;
+    unitPrice: number;
+    totalPrice: number;
+    taxPercent: number;
+    discountPercent: number;
+  }>,
+  headerTotalAmount: number,
+  discountPercent: number
+): {
+  items: Array<{ id: string; unitPrice: number; totalPrice: number; lineTotal: number; discountPercent: number }>;
+  finalAmount: number;
+  taxAmount: number;
+  subtotal: number;
+} {
+  const finalAmount = headerTotalAmount * (1 - discountPercent / 100);
+  const ratio = headerTotalAmount > 0 ? finalAmount / headerTotalAmount : 1;
+
+  const updatedItems = items.map((item) => {
+    const newUnitPrice = item.unitPrice * ratio;
+    const newTotalPrice = item.totalPrice * ratio;
+    const newLineTotal = newTotalPrice * (1 + item.taxPercent / 100);
+    return {
+      id: item.id,
+      unitPrice: Math.round(newUnitPrice * 100) / 100,
+      totalPrice: Math.round(newTotalPrice * 100) / 100,
+      lineTotal: Math.round(newLineTotal * 100) / 100,
+      discountPercent,
+    };
+  });
+
+  const subtotal = updatedItems.reduce((sum, i) => sum + i.totalPrice, 0);
+  const taxAmount = updatedItems.reduce(
+    (sum, i) => sum + (i.totalPrice * (items.find((x) => x.id === i.id)?.taxPercent || 0)) / 100,
+    0
+  );
+
+  return {
+    items: updatedItems,
+    finalAmount: Math.round(finalAmount * 100) / 100,
+    taxAmount: Math.round(taxAmount * 100) / 100,
+    subtotal: Math.round(subtotal * 100) / 100,
+  };
+}

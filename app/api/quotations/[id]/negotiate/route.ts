@@ -3,6 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 
+const DEFAULT_DISCOUNT_THRESHOLD = 5;
+
+async function getDiscountThreshold(companyId: string): Promise<number> {
+  const config = await prisma.systemConfig.findFirst({
+    where: { key: "approval_matrix_discount_threshold" },
+  });
+  if (config) {
+    const val = parseFloat(config.value);
+    if (!isNaN(val)) return val;
+  }
+  return DEFAULT_DISCOUNT_THRESHOLD;
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -12,6 +25,7 @@ export async function POST(
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
   const { id } = await params;
+  const body = await request.json().catch(() => ({}));
 
   const existing = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
@@ -109,6 +123,9 @@ export async function POST(
             companyId: user.companyId,
             costBasisUnitPrice: costBasisAvg,
             overallMarginPercent: existing.overallMarginPercent,
+            // B.1: Persist form fields from the Start Negotiation modal
+            customerDemands: body.customerDemands || null,
+            internalNotes: body.internalNotes || null,
           },
         });
         // Set negotiationId on the root quotation so the negotiation badge shows on R1's page
@@ -122,11 +139,74 @@ export async function POST(
           data: {
             costBasisUnitPrice: costBasisAvg,
             overallMarginPercent: existing.overallMarginPercent,
+            // B.1: Update form fields if provided on re-entry
+            ...(body.customerDemands ? { customerDemands: body.customerDemands } : {}),
+            ...(body.internalNotes ? { internalNotes: body.internalNotes } : {}),
           },
         });
       }
 
-      return { quotation: q, negotiationId: negotiationRecord?.id };
+      // B.1: If the user provided an initial revision, create it now
+      let initialRevisionCreated = false;
+      if (body.initialRevision && body.initialRevision.proposedAmount != null && body.initialRevision.proposedAmount !== "") {
+        const revBody = body.initialRevision;
+        const proposedAmount = parseFloat(revBody.proposedAmount);
+        const discountPercent = revBody.discountPercent ? parseFloat(revBody.discountPercent) : 0;
+        const reason = revBody.reason || null;
+        const baseAmount = existing.finalAmount || existing.totalAmount || 0;
+
+        if (proposedAmount > 0 && proposedAmount <= baseAmount) {
+          const threshold = await getDiscountThreshold(user.companyId!);
+          const requiresApproval = discountPercent > threshold;
+
+          const revision = await tx.negotiationRevision.create({
+            data: {
+              negotiationId: negotiationRecord!.id,
+              revisionNumber: 1,
+              proposedAmount,
+              discountPercent,
+              reason,
+              status: requiresApproval ? "Pending" : "Approved",
+              createdById: user.id,
+            },
+          });
+          initialRevisionCreated = true;
+
+          // Apply discount to quotation if auto-approved
+          if (!requiresApproval) {
+            const newFinalAmount = baseAmount * (1 - discountPercent / 100);
+            await tx.quotation.update({
+              where: { id },
+              data: { discountPercent, finalAmount: newFinalAmount },
+            });
+            await tx.negotiation.update({
+              where: { id: negotiationRecord!.id },
+              data: { status: "PriceRevision", revisedAmount: proposedAmount, discountRequested: discountPercent },
+            });
+          } else {
+            // Pending approval — still set revisedAmount/discountRequested (C.1 fix)
+            await tx.negotiation.update({
+              where: { id: negotiationRecord!.id },
+              data: { status: "PendingApproval", revisedAmount: proposedAmount, discountRequested: discountPercent },
+            });
+            await tx.approvalHistory.create({
+              data: {
+                approvalType: "Negotiation",
+                entityType: "Negotiation",
+                entityId: negotiationRecord!.id,
+                status: "Pending",
+                discountPercent,
+                remarks: reason,
+                requestedById: user.id,
+                previousStatus: "Active",
+                companyId: user.companyId,
+              },
+            });
+          }
+        }
+      }
+
+      return { quotation: q, negotiationId: negotiationRecord?.id, initialRevisionCreated };
     });
 
     await logAudit(user.id, "Quotation", "Negotiate", `Moved quotation ${existing.quotationCode} to UnderReview`, {

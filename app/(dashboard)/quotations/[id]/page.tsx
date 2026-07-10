@@ -79,6 +79,16 @@ export default function QuotationDetailPage() {
   const [productResults, setProductResults] = useState<any[]>([]);
   const [approvalNotes, setApprovalNotes] = useState("");
   const [revisionModal, setRevisionModal] = useState<{ open: boolean; revisionNumber: number; data: any }>({ open: false, revisionNumber: 0, data: null });
+  // B.1: Start Negotiation modal state
+  const [showNegotiateModal, setShowNegotiateModal] = useState(false);
+  const [negotiateForm, setNegotiateForm] = useState({
+    customerDemands: "",
+    internalNotes: "",
+    proposedAmount: "",
+    discountPercent: "",
+    reason: "",
+  });
+  const [negotiating, setNegotiating] = useState(false);
   const searchParams = useSearchParams();
   const { startLoading, stopLoading } = useGlobalLoading();
 
@@ -262,11 +272,29 @@ export default function QuotationDetailPage() {
   };
 
   const handleNegotiate = async () => {
+    setNegotiating(true);
     try {
-      const res = await fetch(`/api/quotations/${id}/negotiate`, { method: "POST" });
+      const payload: any = {
+        customerDemands: negotiateForm.customerDemands || undefined,
+        internalNotes: negotiateForm.internalNotes || undefined,
+      };
+      // Include initial revision if proposedAmount is provided
+      if (negotiateForm.proposedAmount) {
+        payload.initialRevision = {
+          proposedAmount: negotiateForm.proposedAmount,
+          discountPercent: negotiateForm.discountPercent || "0",
+          reason: negotiateForm.reason || undefined,
+        };
+      }
+      const res = await fetch(`/api/quotations/${id}/negotiate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
       if (data.success) {
         toast.success("Moved to negotiation");
+        setShowNegotiateModal(false);
         if (data.data?.negotiationId) {
           router.push(`/negotiations/${data.data.negotiationId}`);
         } else {
@@ -277,6 +305,8 @@ export default function QuotationDetailPage() {
       }
     } catch {
       toast.error("Failed");
+    } finally {
+      setNegotiating(false);
     }
   };
 
@@ -678,10 +708,13 @@ export default function QuotationDetailPage() {
             <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.send} size={16} /> Send to Customer →</button>
           )}
           {quotation.status === "Sent" && (
-            <button onClick={handleNegotiate} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Start Negotiation →</button>
+            <button onClick={() => setShowNegotiateModal(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Start Negotiation →</button>
           )}
           {quotation.status === "UnderReview" && quotation.negotiationId && (
             <button onClick={() => router.push(`/negotiations/${quotation.negotiationId}`)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.alert} size={16} /> Open Negotiation →</button>
+          )}
+          {quotation.status === "UnderReview" && !quotation.negotiationId && (
+            <button onClick={() => setShowNegotiateModal(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Start Negotiation →</button>
           )}
           {quotation.status === "Accepted" && !quotation.dealId && (
             <button onClick={handleCreateDeal} disabled={creatingDeal} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-50"><Ico d={icons.deal} size={16} /> {creatingDeal ? "Creating..." : "Create Deal →"}</button>
@@ -1307,6 +1340,95 @@ export default function QuotationDetailPage() {
             <div className="flex gap-2 justify-end">
               <button onClick={() => { setConfirmState({ isOpen: false, title: "", message: "", action: () => {} }); setRejectReason(""); setRejectReasonId(""); }} className="px-4 py-2 rounded-xl font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
               <button onClick={confirmState.action} className="px-4 py-2 rounded-xl font-semibold text-white bg-rose-600 hover:bg-rose-700 cursor-pointer">Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* B.1: Start Negotiation Modal */}
+      {showNegotiateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-800">Start Negotiation</h3>
+              <button onClick={() => setShowNegotiateModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
+                <Ico d={icons.x} size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer Demands</label>
+                <textarea
+                  value={negotiateForm.customerDemands}
+                  onChange={(e) => setNegotiateForm({ ...negotiateForm, customerDemands: e.target.value })}
+                  rows={2}
+                  placeholder="What is the customer asking for? (e.g. 10% discount, extended warranty, 30-day payment terms)"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Internal Notes</label>
+                <textarea
+                  value={negotiateForm.internalNotes}
+                  onChange={(e) => setNegotiateForm({ ...negotiateForm, internalNotes: e.target.value })}
+                  rows={2}
+                  placeholder="Internal notes for the negotiation team (not visible to customer)"
+                  className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
+                />
+              </div>
+
+              <div className="border-t border-slate-200 pt-4">
+                <p className="text-sm font-semibold text-slate-700 mb-2">Initial Price Revision <span className="text-slate-400 font-normal">(optional)</span></p>
+                <p className="text-xs text-slate-400 mb-3">If you already know the customer's ask, enter it here to create the first revision immediately.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Proposed Amount</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={negotiateForm.proposedAmount}
+                      onChange={(e) => setNegotiateForm({ ...negotiateForm, proposedAmount: e.target.value })}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Discount %</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={negotiateForm.discountPercent}
+                      onChange={(e) => setNegotiateForm({ ...negotiateForm, discountPercent: e.target.value })}
+                      placeholder="0"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">Discounts above {discountThreshold}% require approval.</p>
+                <div className="mt-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Reason</label>
+                  <input
+                    type="text"
+                    value={negotiateForm.reason}
+                    onChange={(e) => setNegotiateForm({ ...negotiateForm, reason: e.target.value })}
+                    placeholder="Why this revision?"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setShowNegotiateModal(false)} className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleNegotiate} disabled={negotiating} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-60">
+                {negotiating ? "Starting..." : "Start Negotiation"}
+              </button>
             </div>
           </div>
         </div>

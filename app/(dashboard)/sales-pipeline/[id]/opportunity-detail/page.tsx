@@ -154,8 +154,8 @@ const getStepState = (stageKey: string, currentStage: string): StepState => {
   if (currentStage === "Lost" || currentStage === "Rejected" || currentStage === "Won") {
     return "completed";
   }
-  const stageIndex = PIPELINE_STAGES.findIndex((s) => s === stageKey);
-  const currentIndex = PIPELINE_STAGES.findIndex((s) => s === currentStage);
+  const stageIndex = PIPELINE_STAGES.findIndex((s) => s.key === stageKey);
+  const currentIndex = PIPELINE_STAGES.findIndex((s) => s.key === currentStage);
   if (stageIndex < currentIndex) return "completed";
   if (stageIndex === currentIndex) return "active";
   return "future";
@@ -896,9 +896,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   };
 
   const getNextStageKey = (currentStage: string) => {
-    const idx = PIPELINE_STAGES.findIndex((s) => s === currentStage);
+    const idx = PIPELINE_STAGES.findIndex((s) => s.key === currentStage);
     if (idx === -1 || idx >= PIPELINE_STAGES.length - 1) return null;
-    return PIPELINE_STAGES[idx + 1];
+    return PIPELINE_STAGES[idx + 1].key;
   };
 
   const handleSaveAndMove = async (toStage: string, options?: { demoOutcome?: "Accepted" | "Rejected" | "Follow-up needed"; demoFollowUpDate?: string; rejectedReason?: string; extraFields?: Record<string, any> }) => {
@@ -2991,7 +2991,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     );
   }
 
-  const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s === deal.status);
+  const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s.key === deal.status);
   const hasAcceptedQuotation = deal.quotations?.some((q: any) => q.status === "Accepted");
   const isTerminalStage = deal.status === "Won" || deal.status === "Lost" || deal.status === "Rejected";
   const isValidStage = currentStageIndex !== -1 || isTerminalStage;
@@ -3089,7 +3089,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 <p className="font-semibold text-danger-text">Invalid Opportunity Stage</p>
                 <p className="text-sm text-danger-text mt-1">
                   This opportunity has an invalid stage value: <code className="bg-danger-bg px-1.5 py-0.5 rounded border border-danger-border">{deal.status}</code>.
-                  Valid stages are: Qualified, RequirementGathering, MeetingScheduled, DemoConducted, Rejected, Lost.
+                  Valid stages are: {PIPELINE_STAGE_VALUES.join(", ")}.
                   Please contact support to correct this record.
                 </p>
               </div>

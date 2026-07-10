@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { dispatchNotification } from "@/lib/notifications";
+import { applyDiscountToQuotationItems } from "@/lib/quotation-margins";
 
 // Approve / Reject an approval request
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -130,17 +131,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (updatedNegotiation.quotationId) {
         const rootQuotation = await prisma.quotation.findFirst({
           where: { id: updatedNegotiation.quotationId, deletedAt: null },
+          include: { items: true },
         });
         if (rootQuotation) {
           const totalAmount = rootQuotation.totalAmount || 0;
-          const newFinalAmount = totalAmount * (1 - approval.discountPercent / 100);
+          // C.3/C.4: Recalculate line items + tax proportionally
+          const recalc = applyDiscountToQuotationItems(
+            rootQuotation.items.map(i => ({ id: i.id, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice, taxPercent: i.taxPercent, discountPercent: i.discountPercent })),
+            totalAmount,
+            approval.discountPercent
+          );
           await prisma.quotation.update({
             where: { id: rootQuotation.id },
             data: {
               discountPercent: approval.discountPercent,
-              finalAmount: newFinalAmount,
+              finalAmount: recalc.finalAmount,
+              taxAmount: recalc.taxAmount,
+              subtotal: recalc.subtotal,
             },
           });
+          // Update each line item
+          for (const updatedItem of recalc.items) {
+            await prisma.quotationItem.update({
+              where: { id: updatedItem.id },
+              data: {
+                unitPrice: updatedItem.unitPrice,
+                totalPrice: updatedItem.totalPrice,
+                lineTotal: updatedItem.lineTotal,
+                discountPercent: updatedItem.discountPercent,
+              },
+            });
+          }
           await prisma.quotationStatusHistory.create({
             data: {
               quotationId: rootQuotation.id,
