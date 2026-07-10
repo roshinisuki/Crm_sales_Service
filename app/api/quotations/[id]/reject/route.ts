@@ -50,6 +50,22 @@ export async function POST(
         },
       });
 
+      // Close active negotiations
+      const activeNegotiations = await tx.negotiation.findMany({
+        where: {
+          quotationId: id,
+          status: { in: ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval"] },
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (activeNegotiations.length > 0) {
+        await tx.negotiation.updateMany({
+          where: { id: { in: activeNegotiations.map(n => n.id) } },
+          data: { status: "Closed-Failure", outcome: "Lost", closedAt: new Date() },
+        });
+      }
+
       return q;
     });
 

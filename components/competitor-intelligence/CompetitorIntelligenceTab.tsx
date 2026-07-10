@@ -314,144 +314,145 @@ export function CompetitorIntelligenceTab({ entity }: { entity: EntityContext })
         </div>
       )}
 
-      <Modal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        title={editingId ? "Edit Competitor Involvement" : "Add Competitor Involvement"}
-        subtitle="Track competitor activity and intelligence"
-        size="lg"
-        footer={
-          <>
-            <button onClick={() => setShowModal(false)} className="btn-secondary text-sm">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="btn-primary text-sm">
-              {saving ? "Saving..." : "Save"}
-            </button>
-          </>
-        }
-      >
-        <div className="p-6 space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="Competitor" required>
-              <Select value={form.competitorId} onChange={e => setForm(p => ({ ...p, competitorId: e.target.value }))}>
-                <option value="">Select competitor...</option>
-                {competitors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Competitor Product">
-              <Select value={form.competitorProductId || ""} onChange={e => setForm(p => ({ ...p, competitorProductId: e.target.value || null }))}>
-                <option value="">—</option>
-                {competitors.find(c => c.id === form.competitorId)?.products?.map((p: any) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </Select>
-            </FormField>
-
-            <FormField label="Discovered At Stage" required>
-              <Select value={form.discoveredAtStage} onChange={e => setForm(p => ({ ...p, discoveredAtStage: e.target.value }))}>
-                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Discovered Through" required>
-              <Select value={form.discoveredThrough} onChange={e => setForm(p => ({ ...p, discoveredThrough: e.target.value }))}>
-                {DISCOVERY_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Competitor Status" required>
-              <Select value={form.competitorStatus} onChange={e => setForm(p => ({ ...p, competitorStatus: e.target.value }))}>
-                {COMPETITOR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-              </Select>
-            </FormField>
-
-            <FormField label="Threat Level" required>
-              <Select value={form.threatLevel} onChange={e => setForm(p => ({ ...p, threatLevel: e.target.value }))}>
-                {THREAT_LEVELS.map(t => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FormField>
+      {showModal && (
+        <div className="crm-card border-2 border-[var(--primary)]/20 p-5 mt-4 bg-[var(--surface-2)]">
+          <div className="mb-4 pb-3 border-b border-border">
+            <h3 className="text-[15px] font-bold text-text-primary">
+              {editingId ? "Edit Competitor Involvement" : "Add Competitor Involvement"}
+            </h3>
+            <p className="text-xs text-text-secondary mt-0.5">Track competitor activity and intelligence</p>
           </div>
-
-          {visibleGroups.includes("Early Discovery") && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Early Discovery</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderField("currentVendor", "Current Vendor", "text")}
-                {renderField("customerPainPoint", "Customer Pain Point", "textarea")}
-                {renderField("customerPreference", "Customer Preference", "textarea")}
-                {renderField("requiredFeatures", "Required Features", "textarea")}
-              </div>
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField label="Competitor" required>
+                <Select value={form.competitorId} onChange={e => setForm(p => ({ ...p, competitorId: e.target.value }))}>
+                  <option value="">Select competitor...</option>
+                  {competitors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </Select>
+              </FormField>
+  
+              <FormField label="Competitor Product">
+                <Select value={form.competitorProductId || ""} onChange={e => setForm(p => ({ ...p, competitorProductId: e.target.value || null }))}>
+                  <option value="">—</option>
+                  {competitors.find(c => c.id === form.competitorId)?.products?.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </Select>
+              </FormField>
+  
+              <FormField label="Discovered At Stage" required>
+                <Select value={form.discoveredAtStage} onChange={e => setForm(p => ({ ...p, discoveredAtStage: e.target.value }))}>
+                  {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </FormField>
+  
+              <FormField label="Discovered Through" required>
+                <Select value={form.discoveredThrough} onChange={e => setForm(p => ({ ...p, discoveredThrough: e.target.value }))}>
+                  {DISCOVERY_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+                </Select>
+              </FormField>
+  
+              <FormField label="Competitor Status" required>
+                <Select value={form.competitorStatus} onChange={e => setForm(p => ({ ...p, competitorStatus: e.target.value }))}>
+                  {COMPETITOR_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </FormField>
+  
+              <FormField label="Threat Level" required>
+                <Select value={form.threatLevel} onChange={e => setForm(p => ({ ...p, threatLevel: e.target.value }))}>
+                  {THREAT_LEVELS.map(t => <option key={t} value={t}>{t}</option>)}
+                </Select>
+              </FormField>
             </div>
-          )}
-
-          {visibleGroups.includes("Technical Comparison") && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Technical Comparison</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderField("competitorStrengths", "Competitor Strengths", "textarea")}
-                {renderField("competitorWeaknesses", "Competitor Weaknesses", "textarea")}
-                {renderField("ourAdvantages", "Our Advantages", "textarea")}
-                {renderField("ourGaps", "Our Gaps", "textarea")}
-                {renderField("technicalComparisonNotes", "Technical Comparison Notes", "textarea")}
-                {renderField("demoFeedback", "Demo Feedback", "textarea")}
+  
+            {visibleGroups.includes("Early Discovery") && (
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Early Discovery</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {renderField("currentVendor", "Current Vendor", "text")}
+                  {renderField("customerPainPoint", "Customer Pain Point", "textarea")}
+                  {renderField("customerPreference", "Customer Preference", "textarea")}
+                  {renderField("requiredFeatures", "Required Features", "textarea")}
+                </div>
               </div>
-            </div>
-          )}
-
-          {visibleGroups.includes("Commercial Competition") && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Commercial Competition</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {renderField("competitorQuotedPrice", "Competitor Quoted Price", "number")}
-                {renderField("ourQuotedPrice", "Our Quoted Price", "number")}
-                {renderField("commercialTermsComparison", "Commercial Terms Comparison", "textarea")}
-                {renderField("paymentTermsComparison", "Payment Terms Comparison", "textarea")}
-                {renderField("deliveryComparison", "Delivery Comparison", "textarea")}
-                {renderField("negotiationActionPlan", "Negotiation Action Plan", "textarea")}
-                {renderField("discountRequestedDueToComp", "Discount Requested Due to Competitor", "checkbox")}
-                {renderField("expectedCompetitorDiscount", "Expected Competitor Discount", "number")}
-                <FormField label="Discount Approval Status">
-                  <Select value={form.discountApprovalStatus || ""} onChange={e => setForm(p => ({ ...p, discountApprovalStatus: e.target.value || null }))}>
-                    <option value="">—</option>
-                    {DISCOUNT_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
-                  </Select>
-                </FormField>
+            )}
+  
+            {visibleGroups.includes("Technical Comparison") && (
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Technical Comparison</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {renderField("competitorStrengths", "Competitor Strengths", "textarea")}
+                  {renderField("competitorWeaknesses", "Competitor Weaknesses", "textarea")}
+                  {renderField("ourAdvantages", "Our Advantages", "textarea")}
+                  {renderField("ourGaps", "Our Gaps", "textarea")}
+                  {renderField("technicalComparisonNotes", "Technical Comparison Notes", "textarea")}
+                  {renderField("demoFeedback", "Demo Feedback", "textarea")}
+                </div>
               </div>
-              {form.discountApprovalStatus === "Approved" && !canApproveDiscount && (
-                <p className="text-[11px] text-amber-600 font-medium">Only Sales Manager or Admin can set status to Approved.</p>
-              )}
-            </div>
-          )}
-
-          {visibleGroups.includes("Final Outcome") && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Final Outcome</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Final Result">
-                  <Select value={form.finalResult || "Open"} onChange={e => setForm(p => ({ ...p, finalResult: e.target.value }))}>
-                    {FINAL_RESULTS.map(r => <option key={r} value={r}>{r}</option>)}
-                  </Select>
-                </FormField>
-                <FormField label="Selected Competitor">
-                  <Select value={form.selectedCompetitorId || ""} onChange={e => setForm(p => ({ ...p, selectedCompetitorId: e.target.value || null }))}>
-                    <option value="">—</option>
-                    {competitors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </Select>
-                </FormField>
-                <FormField label="Win/Loss Reason">
-                  <Select value={form.winLossReasonId || ""} onChange={e => setForm(p => ({ ...p, winLossReasonId: e.target.value || null }))}>
-                    <option value="">—</option>
-                    {lossReasons.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                  </Select>
-                </FormField>
-                {renderField("secondaryReason", "Secondary Reason", "text")}
-                {renderField("correctiveAction", "Corrective Action", "textarea")}
-                {renderField("managerReviewNotes", "Manager Review Notes", "textarea")}
+            )}
+  
+            {visibleGroups.includes("Commercial Competition") && (
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Commercial Competition</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {renderField("competitorQuotedPrice", "Competitor Quoted Price", "number")}
+                  {renderField("ourQuotedPrice", "Our Quoted Price", "number")}
+                  {renderField("commercialTermsComparison", "Commercial Terms Comparison", "textarea")}
+                  {renderField("paymentTermsComparison", "Payment Terms Comparison", "textarea")}
+                  {renderField("deliveryComparison", "Delivery Comparison", "textarea")}
+                  {renderField("negotiationActionPlan", "Negotiation Action Plan", "textarea")}
+                  {renderField("discountRequestedDueToComp", "Discount Requested Due to Competitor", "checkbox")}
+                  {renderField("expectedCompetitorDiscount", "Expected Competitor Discount", "number")}
+                  <FormField label="Discount Approval Status">
+                    <Select value={form.discountApprovalStatus || ""} onChange={e => setForm(p => ({ ...p, discountApprovalStatus: e.target.value || null }))}>
+                      <option value="">—</option>
+                      {DISCOUNT_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </Select>
+                  </FormField>
+                </div>
+                {form.discountApprovalStatus === "Approved" && !canApproveDiscount && (
+                  <p className="text-[11px] text-amber-600 font-medium">Only Sales Manager or Admin can set status to Approved.</p>
+                )}
               </div>
+            )}
+  
+            {visibleGroups.includes("Final Outcome") && (
+              <div className="space-y-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-theme-muted">Final Outcome</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Final Result">
+                    <Select value={form.finalResult || "Open"} onChange={e => setForm(p => ({ ...p, finalResult: e.target.value }))}>
+                      {FINAL_RESULTS.map(r => <option key={r} value={r}>{r}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Selected Competitor">
+                    <Select value={form.selectedCompetitorId || ""} onChange={e => setForm(p => ({ ...p, selectedCompetitorId: e.target.value || null }))}>
+                      <option value="">—</option>
+                      {competitors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </Select>
+                  </FormField>
+                  <FormField label="Win/Loss Reason">
+                    <Select value={form.winLossReasonId || ""} onChange={e => setForm(p => ({ ...p, winLossReasonId: e.target.value || null }))}>
+                      <option value="">—</option>
+                      {lossReasons.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </Select>
+                  </FormField>
+                  {renderField("secondaryReason", "Secondary Reason", "text")}
+                  {renderField("correctiveAction", "Corrective Action", "textarea")}
+                  {renderField("managerReviewNotes", "Manager Review Notes", "textarea")}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-5 mt-2 border-t border-border">
+              <button onClick={() => setShowModal(false)} className="btn-secondary text-sm px-4">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary text-sm px-4">
+                {saving ? "Saving..." : "Save"}
+              </button>
             </div>
-          )}
+          </div>
         </div>
-      </Modal>
+      )}
     </div>
   );
 }

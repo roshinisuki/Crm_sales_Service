@@ -15,7 +15,7 @@ import { CostingDetailsPanel } from "@/components/rfq/CostingDetailsPanel";
 import { GenerateQuotationModal } from "@/components/rfq/GenerateQuotationModal";
 import {
   CheckCircle, Clock, FileText, Calculator, ArrowRight,
-  AlertTriangle, Trash2, Plus, Pencil, RotateCcw, Link2, DollarSign, Percent
+  AlertTriangle, Trash2, Plus, Pencil, RotateCcw, Link2, DollarSign, Percent, Download
 } from "lucide-react";
 
 const STATUS_STEPS = [
@@ -56,6 +56,174 @@ export default function RFQDetailPage() {
   // Costing slide-over panel
   const [selectedLineItem, setSelectedLineItem] = useState<any | null>(null);
   const [isCostingPanelOpen, setIsCostingPanelOpen] = useState(false);
+
+  // Generate + download Requirement Gathering Report PDF
+  const [downloadingReport, setDownloadingReport] = useState(false);
+  const downloadRequirementReport = async () => {
+    setDownloadingReport(true);
+    try {
+      const res = await fetch(`/api/rfq/${id}/requirement-report`);
+      const json = await res.json();
+      if (!json.success) {
+        toast.error(json.message || "Failed to load report data");
+        return;
+      }
+      const data = json.data;
+
+      // Dynamic import to keep jspdf out of the server bundle
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      let y = 14;
+
+      const heading = (text: string) => {
+        doc.setFontSize(11);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(30, 41, 59);
+        doc.text(text, margin, y);
+        y += 6;
+        doc.setDrawColor(203, 213, 225);
+        doc.line(margin, y, pageW - margin, y);
+        y += 5;
+      };
+
+      const field = (label: string, value: string | null | undefined) => {
+        if (!value) return;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(100, 116, 139);
+        doc.text(label + ":", margin, y);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(30, 41, 59);
+        doc.text(String(value), margin + 38, y);
+        y += 5;
+      };
+
+      // ── Section 1: Header ───────────────────────────────────────────────
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(15, 23, 42);
+      doc.text("Requirement Gathering Report", margin, y);
+      y += 7;
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `RFQ: ${data.rfq.rfqCode}  ·  Generated: ${new Date(data.generatedAt).toLocaleString()}`,
+        margin, y
+      );
+      y += 10;
+
+      // ── Section 2: Customer & Opportunity Summary ────────────────────────
+      heading("1. Customer & Opportunity Summary");
+      field("Customer", data.customer?.name);
+      field("Customer Code", data.customer?.customerCode);
+      field("City", data.customer?.city);
+      field("Opportunity", data.opportunity?.dealName);
+      field("Opp. Code", data.opportunity?.opportunityCode);
+      field("Current Stage", data.opportunity?.currentStatus);
+      field("Demo Outcome", data.opportunity?.demoOutcome);
+      field("Demo Date", data.opportunity?.demoDate ? new Date(data.opportunity.demoDate).toLocaleDateString() : null);
+      field("Demo Type", data.opportunity?.demoType);
+      field("Interest Level", data.opportunity?.demoInterestLevel);
+      y += 3;
+
+      // ── Section 3: Demo Notes ────────────────────────────────────────────
+      if (data.opportunity?.demoNotes) {
+        heading("2. Demo Notes");
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(30, 41, 59);
+        const lines = doc.splitTextToSize(data.opportunity.demoNotes, pageW - margin * 2);
+        doc.text(lines, margin, y);
+        y += lines.length * 4.5 + 5;
+      }
+
+      // ── Section 4: RFQ Metadata ──────────────────────────────────────────
+      heading("3. RFQ Metadata");
+      field("RFQ Code", data.rfq.rfqCode);
+      field("Status", data.rfq.status);
+      field("Priority", data.rfq.priority);
+      field("Received Date", data.rfq.receivedDate ? new Date(data.rfq.receivedDate).toLocaleDateString() : null);
+      y += 3;
+
+      // ── Section 5: Full Product Requirement List ─────────────────────────
+      heading("4. Full Product Requirement List");
+      if (data.requirementItems.length === 0) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "italic");
+        doc.setTextColor(100, 116, 139);
+        doc.text("No requirement items found.", margin, y);
+        y += 8;
+      } else {
+        autoTable(doc, {
+          startY: y,
+          margin: { left: margin, right: margin },
+          head: [["Product", "Qty", "Feasibility", "In RFQ?", "Needs Review", "Spec / Confirmed Spec", "Tooling"]],
+          body: data.requirementItems.map((item: any) => [
+            item.productName,
+            String(item.estimatedQuantity),
+            item.feasibility ?? "—",
+            item.includedInRFQ ? "✓ Yes" : "✗ No",
+            item.needsFeasibilityReview ? "⚠ Yes" : "No",
+            item.confirmedSpec || item.specNotes || "—",
+            item.toolingRequired || "—",
+          ]),
+          headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8, fontStyle: "bold" },
+          bodyStyles: { fontSize: 8 },
+          columnStyles: {
+            0: { cellWidth: 35 },
+            1: { cellWidth: 12, halign: "right" },
+            2: { cellWidth: 28 },
+            3: { cellWidth: 18, halign: "center" },
+            4: { cellWidth: 20, halign: "center" },
+            5: { cellWidth: 42 },
+            6: { cellWidth: 25 },
+          },
+          didParseCell: (hookData: any) => {
+            // Highlight needs-review rows in amber
+            if (hookData.row.index >= 0 && hookData.row.section === "body") {
+              const item = data.requirementItems[hookData.row.index];
+              if (item?.needsFeasibilityReview) {
+                hookData.cell.styles.fillColor = [254, 243, 199];
+              }
+            }
+          },
+        });
+        y = (doc as any).lastAutoTable.finalY + 5;
+      }
+
+      // ── Section 6: Stage History ─────────────────────────────────────────
+      if (data.stageHistory.length > 0) {
+        heading("5. Stage History");
+        autoTable(doc, {
+          startY: y,
+          margin: { left: margin, right: margin },
+          head: [["From", "To", "Date", "Notes"]],
+          body: data.stageHistory.map((h: any) => [
+            h.fromStatus ?? "—",
+            h.toStatus,
+            new Date(h.changedAt).toLocaleDateString(),
+            h.outcomeNotes ?? "—",
+          ]),
+          headStyles: { fillColor: [30, 41, 59], textColor: 255, fontSize: 8, fontStyle: "bold" },
+          bodyStyles: { fontSize: 8 },
+        });
+      }
+
+      const filename = `requirement-report-${data.rfq.rfqCode}-${new Date().toISOString().split("T")[0]}.pdf`;
+      doc.save(filename);
+      toast.success("Report downloaded");
+    } catch (err) {
+      console.error("Report generation error:", err);
+      toast.error("Failed to generate report");
+    } finally {
+      setDownloadingReport(false);
+    }
+  };
 
   // Assign costing modal
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -470,32 +638,46 @@ export default function RFQDetailPage() {
               <p className="text-sm text-slate-600 mt-0.5">All items costed — ready to generate quotation</p>
             )}
           </div>
-          {rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
-            <button
-              onClick={() => {
-                if (rfq.lineItems?.length === 0) {
-                  toast.error("Add at least one line item first");
-                } else if (pendingItemsCount > 0) {
-                  toast.error(`${pendingItemsCount} item(s) still need costing`);
-                } else {
-                  setShowGenQuoteModal(true);
-                }
-              }}
-              disabled={rfq.lineItems?.length === 0 || pendingItemsCount > 0}
-              title={rfq.lineItems?.length === 0 ? "Add line items first" : pendingItemsCount > 0 ? `${pendingItemsCount} item(s) need costing` : "Generate quotation from costing"}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <ArrowRight size={16} /> Generate Quotation →
-            </button>
-          )}
-          {rfq.quotations?.length > 0 && (
-            <button
-              onClick={() => router.push(`/quotations/${rfq.quotations[0].id}`)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer transition-all"
-            >
-              <ArrowRight size={16} /> View Quotation →
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* Download Requirement Report — available from status New onward */}
+            {rfq.opportunityId && (
+              <button
+                onClick={downloadRequirementReport}
+                disabled={downloadingReport}
+                title="Download the full requirement gathering report as PDF"
+                className="flex items-center gap-2 h-9 px-4 rounded-lg text-xs font-bold bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800 shadow-sm cursor-pointer disabled:opacity-50 transition-all"
+              >
+                <Download size={14} className="text-slate-500" />
+                <span>{downloadingReport ? "Generating..." : "Download Report"}</span>
+              </button>
+            )}
+            {rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
+              <button
+                onClick={() => {
+                  if (rfq.lineItems?.length === 0) {
+                    toast.error("Add at least one line item first");
+                  } else if (pendingItemsCount > 0) {
+                    toast.error(`${pendingItemsCount} item(s) still need costing`);
+                  } else {
+                    setShowGenQuoteModal(true);
+                  }
+                }}
+                disabled={rfq.lineItems?.length === 0 || pendingItemsCount > 0}
+                title={rfq.lineItems?.length === 0 ? "Add line items first" : pendingItemsCount > 0 ? `${pendingItemsCount} item(s) need costing` : "Generate quotation from costing"}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <ArrowRight size={16} /> Generate Quotation →
+              </button>
+            )}
+            {rfq.quotations?.length > 0 && (
+              <button
+                onClick={() => router.push(`/quotations/${rfq.quotations[0].id}`)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer transition-all"
+              >
+                <ArrowRight size={16} /> View Quotation →
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Header Card */}
@@ -677,9 +859,21 @@ export default function RFQDetailPage() {
                             setIsCostingPanelOpen(true);
                           }
                         }}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                        className={cn(
+                          "hover:bg-slate-50/70 dark:hover:bg-slate-800/40 cursor-pointer transition-colors",
+                          item.needsFeasibilityReview && "bg-amber-50/30 dark:bg-amber-950/10 border-l-2 border-l-amber-500"
+                        )}
                       >
-                        <td className="crm-td font-medium text-foreground">{item.itemDescription}</td>
+                        <td className="crm-td font-medium text-foreground">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-semibold">{item.itemDescription}</span>
+                            {item.needsFeasibilityReview && (
+                              <span className="inline-flex items-center w-max gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-250 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30">
+                                ⚠ Needs Feasibility Review
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="crm-td text-foreground">{item.product?.name || item.product?.productCode || <span className="text-slate-300 italic">No master product</span>}</td>
                         <td className="crm-td">
                           {item.costingStatus === "Done" ? (

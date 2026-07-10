@@ -96,10 +96,72 @@ export async function PUT(
 
   let detail;
   try {
-    detail = await prisma.opportunityDetail.upsert({
-      where: { dealId: id },
-      update: data,
-      create: { dealId: id, ...data },
+    detail = await prisma.$transaction(async (tx) => {
+      const upserted = await tx.opportunityDetail.upsert({
+        where: { dealId: id },
+        update: data,
+        create: { dealId: id, ...data },
+      });
+
+      if (body.syncToProfile === true) {
+        if (deal.customerId) {
+          await tx.customer.update({
+            where: { id: deal.customerId },
+            data: {
+              ...(body.companyName ? { name: body.companyName } : {}),
+              ...(body.email ? { email: body.email } : {}),
+              ...(body.phone ? { phone: body.phone } : {}),
+              ...(body.industry ? { industryType: body.industry } : {}),
+            },
+          });
+
+          if (body.contactPerson) {
+            const primaryContact = await tx.contact.findFirst({
+              where: { customerId: deal.customerId, isPrimary: true },
+            });
+            if (primaryContact) {
+              await tx.contact.update({
+                where: { id: primaryContact.id },
+                data: {
+                  name: body.contactPerson,
+                  ...(body.email ? { email: body.email } : {}),
+                  ...(body.phone ? { phone: body.phone } : {}),
+                },
+              });
+            } else {
+              await tx.contact.create({
+                data: {
+                  customerId: deal.customerId,
+                  name: body.contactPerson,
+                  email: body.email || null,
+                  phone: body.phone || null,
+                  isPrimary: true,
+                  ownerId: user.id,
+                  companyId: user.companyId || null,
+                },
+              });
+            }
+          }
+        }
+
+        const associatedLead = await tx.lead.findFirst({
+          where: { convertedOpportunityId: id },
+        });
+        if (associatedLead) {
+          await tx.lead.update({
+            where: { id: associatedLead.id },
+            data: {
+              ...(body.contactPerson ? { name: body.contactPerson } : {}),
+              ...(body.companyName ? { companyName: body.companyName } : {}),
+              ...(body.email ? { email: body.email } : {}),
+              ...(body.phone ? { phone: body.phone } : {}),
+              ...(body.industry ? { industryType: body.industry } : {}),
+            },
+          });
+        }
+      }
+
+      return upserted;
     });
   } catch (error: any) {
     console.error("[RG Details Save Error]", error?.message || error);

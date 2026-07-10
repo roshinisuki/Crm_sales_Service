@@ -84,214 +84,32 @@ export async function POST(
       },
     });
 
-    // Auto-create a quotation revision linked to this negotiation if the negotiation has a linked quotation
-    //
-    // REVISION CHAIN MODEL (root-anchored):
-    //   parentQuotationId on every revision points to the ROOT quotation (R1).
-    //   revisionNumber is computed from the LATEST revision (max revisionNumber) + 1,
-    //   NOT from root.revisionNumber + 1 (which would always produce 2).
-    //   To walk the chain: query by parentQuotationId = rootId, orderBy revisionNumber.
-    //
     let quotationRevisionId: string | null = null;
-    if (negotiation.quotationId) {
-      // Fetch the root quotation (R1) — used for parent anchor and field copying
+    // Apply discount to the underlying Quotation ONLY if it does not require approval.
+    // If it requires approval, the Quotation will be updated in the Approval Center handler.
+    if (!requiresApproval && negotiation.quotationId) {
       const rootQuotation = await tx.quotation.findFirst({
         where: { id: negotiation.quotationId, deletedAt: null },
-        include: { items: true },
       });
       if (rootQuotation) {
-        // Find the LATEST revision quotation (highest revisionNumber) linked to this negotiation
-        const latestRevision = await tx.quotation.findFirst({
-          where: { negotiationId: id, deletedAt: null },
-          orderBy: { revisionNumber: "desc" },
-          include: { items: true },
-        });
-        // The "prior" quotation is the latest revision if it exists, otherwise root itself
-        const priorQuotation = latestRevision || rootQuotation;
-        const newRevisionNumber = priorQuotation.revisionNumber + 1;
-
-        // Snapshot the prior quotation before creating the new revision
-        const snapshotJson = JSON.stringify({
-          quotationCode: priorQuotation.quotationCode,
-          revisionNumber: priorQuotation.revisionNumber,
-          status: priorQuotation.status,
-          finalAmount: priorQuotation.finalAmount,
-          discountPercent: priorQuotation.discountPercent,
-          items: priorQuotation.items.map((it) => ({
-            description: it.description,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-          })),
-        });
-        await tx.quotationRevisionSnapshot.create({
+        const totalAmount = rootQuotation.totalAmount || 0;
+        const newFinalAmount = totalAmount * (1 - discountPercent / 100);
+        await tx.quotation.update({
+          where: { id: rootQuotation.id },
           data: {
-            quotationId: priorQuotation.id,
-            revisionNumber: priorQuotation.revisionNumber,
-            snapshotJson,
-            createdById: user.id,
-          },
-        });
-
-        // Generate new quotation code for the revision
-        const year = new Date().getFullYear();
-        const yearCount = await tx.quotation.count({
-          where: {
-            companyId: user.companyId,
-            quotationCode: { startsWith: `QT-${year}-` },
-          },
-        });
-        const newCode = `QT-${year}-${String(yearCount + 1).padStart(5, "0")}`;
-
-        // Root-anchored: parentQuotationId always points to R1
-        const rootParentId = rootQuotation.parentQuotationId || rootQuotation.id;
-
-        // ─── Proportional price recalculation ────────────────────────────
-        // Scale each line item's unitPrice/totalPrice/lineTotal proportionally
-        // so the new total matches proposedAmount (relative to prior finalAmount).
-        const priorFinalAmount = priorQuotation.finalAmount || priorQuotation.totalAmount || 0;
-        const scaleFactor = priorFinalAmount > 0 ? proposedAmount / priorFinalAmount : 1;
-
-        // Compute new line items with recalculated prices, tax, and margin
-        let newSubtotal = 0;
-        let newTaxAmount = 0;
-        const newItemsData: Array<any> = [];
-
-        for (const item of priorQuotation.items) {
-          const newUnitPrice = item.unitPrice * scaleFactor;
-          const newTotalPrice = item.totalPrice * scaleFactor;
-          const newLineTotal = item.lineTotal * scaleFactor;
-          const itemTaxAmount = newLineTotal * (item.taxPercent / 100);
-
-          newSubtotal += newLineTotal;
-          newTaxAmount += itemTaxAmount;
-
-          // Recalculate marginPercent against new unitPrice if cost basis exists
-          const newMarginPercent = computeItemMarginPercent(
-            newUnitPrice,
-            item.costBasisUnitPrice != null ? Number(item.costBasisUnitPrice) : null
-          );
-
-          newItemsData.push({
-            quotationId: null as any, // will be set after quotation create
-            productId: item.productId,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: newUnitPrice,
-            totalPrice: newTotalPrice,
-            discountPercent: item.discountPercent,
-            taxPercent: item.taxPercent,
-            lineTotal: newLineTotal,
-            hsn: item.hsn,
-            unit: item.unit,
-            notes: item.notes,
-            // Carry cost basis and margin data from prior revision
-            costBasisUnitPrice: item.costBasisUnitPrice,
-            marginPercent: newMarginPercent,
-            priceSource: item.priceSource || "RFQCosting",
-            quantityBreakId: item.quantityBreakId,
-          });
-        }
-
-        // proposedAmount is tax-inclusive (matches how quotation finalAmount works)
-        const newFinalAmount = proposedAmount;
-
-        const newQuotation = await tx.quotation.create({
-          data: {
-            quotationCode: newCode,
-            rfqId: rootQuotation.rfqId,
-            customerId: rootQuotation.customerId,
-            contactId: rootQuotation.contactId,
-            dealId: rootQuotation.dealId,
-            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             discountPercent,
-            totalAmount: newSubtotal,
-            subtotal: newSubtotal,
-            taxAmount: newTaxAmount,
             finalAmount: newFinalAmount,
-            termsAndConditions: rootQuotation.termsAndConditions,
-            paymentTerms: rootQuotation.paymentTerms,
-            deliveryTerms: rootQuotation.deliveryTerms,
-            freightTerms: rootQuotation.freightTerms,
-            leadTimeDays: rootQuotation.leadTimeDays,
-            revisionNumber: newRevisionNumber,
-            status: requiresApproval ? "PendingApproval" : "Draft",
-            createdById: user.id,
-            companyId: user.companyId,
-            negotiationId: id,
-            parentQuotationId: rootParentId,
           },
         });
-
-        // Create line items for the new revision quotation
-        for (const itemData of newItemsData) {
-          await tx.quotationItem.create({
-            data: {
-              ...itemData,
-              quotationId: newQuotation.id,
-            },
-          });
-        }
-
-        // Compute overall margin for the new revision
-        const overallMargin = computeOverallMarginPercent(
-          newItemsData.map((it) => ({
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-            costBasisUnitPrice: it.costBasisUnitPrice != null ? Number(it.costBasisUnitPrice) : null,
-          }))
-        );
-        if (overallMargin != null) {
-          await tx.quotation.update({
-            where: { id: newQuotation.id },
-            data: { overallMarginPercent: overallMargin },
-          });
-        }
-
-        // Create status history for the new revision
         await tx.quotationStatusHistory.create({
           data: {
-            quotationId: newQuotation.id,
-            fromStatus: null,
-            toStatus: requiresApproval ? "PendingApproval" : "Draft",
+            quotationId: rootQuotation.id,
+            fromStatus: rootQuotation.status,
+            toStatus: rootQuotation.status,
             changedById: user.id,
-            notes: `Revision R${newRevisionNumber} created from negotiation ${negotiation.negotiationCode}`,
+            notes: `Discount of ${discountPercent}% applied via auto-approved negotiation revision`,
           },
         });
-
-        // If approval is required, create a QuotationApproval with the correct approver role
-        if (requiresApproval) {
-          // Find approver with the required role
-          const approver = await tx.user.findFirst({
-            where: { role: approverRole, companyId: user.companyId, isActive: true },
-            select: { id: true },
-          });
-          if (approver) {
-            await tx.quotationApproval.create({
-              data: {
-                quotationId: newQuotation.id,
-                requestedById: user.id,
-                approverId: approver.id,
-                status: "Pending",
-                discountPercent,
-                notes: reason || `Price revision from negotiation ${negotiation.negotiationCode}`,
-                requiredApproverRole: approverRole,
-                revisionAuthorId: user.id,
-              },
-            });
-            // Notify approver
-            await tx.notification.create({
-              data: {
-                userId: approver.id,
-                title: requiresEscalation ? "Escalation Approval Needed: Quotation Revision" : "Approval Needed: Quotation Revision",
-                message: `Revision R${newRevisionNumber} of ${rootQuotation.quotationCode} needs approval (discount ${discountPercent}%${requiresEscalation ? " — escalated to " + approverRole : ""})`,
-                type: "Approval",
-                link: `/quotations/${newQuotation.id}`,
-              },
-            });
-          }
-        }
-
-        quotationRevisionId = newQuotation.id;
       }
     }
 

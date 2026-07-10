@@ -15,6 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
+import { createOrHealRFQ } from "@/lib/rfqService";
 type DealStatus = string;
 
 type TransitionContext = {
@@ -39,8 +40,9 @@ export async function transitionDealStatus(
   toStatus: DealStatus,
   ctx: TransitionContext,
   tx?: Omit<typeof prisma, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">
-): Promise<void> {
+): Promise<{ rfqId?: string }> {
   const db = (tx ?? prisma) as typeof prisma;
+  let rfqId: string | undefined = undefined;
 
   const deal = await db.deal.findUnique({
     where: { id: dealId },
@@ -60,7 +62,7 @@ export async function transitionDealStatus(
   const fromStatus = deal.status;
 
   // No-op if already at target status
-  if (fromStatus === toStatus) return;
+  if (fromStatus === toStatus) return { rfqId };
 
   // Calculate duration in previous stage (in days)
   const previousStageEntry = await db.dealStageHistory.findFirst({
@@ -141,48 +143,30 @@ export async function transitionDealStatus(
   if (toStatus === "DemoConducted") {
     const dealWithDetails = await db.deal.findUnique({
       where: { id: dealId },
-      include: { customer: true, opportunityDetail: true }
+      include: {
+        customer: true,
+        opportunityDetail: true,
+        requirementItems: {
+          include: { technicalNote: true },
+          orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
+        },
+      }
     });
     
     if (dealWithDetails) {
       // Check structured demoOutcome field (set by stage-change API)
-      // Falls back to checking ctx.reason for backward compatibility
-      const demoAccepted = dealWithDetails.demoOutcome === "Accepted" ||
-        (ctx.reason?.toLowerCase().includes("accepted") ?? false);
+      const demoAccepted = dealWithDetails.demoOutcome === "Accepted";
       
       if (demoAccepted) {
-        // Check if RFQ already exists for this opportunity
-        const existingRfq = await db.rFQ.findFirst({
-          where: { opportunityId: dealId },
-        });
+        rfqId = await createOrHealRFQ(dealId, dealWithDetails, ctx.companyId, db);
         
-        if (!existingRfq) {
-          // Generate RFQ code: RFQ-YYYY-NNNNN
-          const year = new Date().getFullYear();
-          const rfqPrefix = `RFQ-${year}-`;
-          const rfqCount = await db.rFQ.count({
-            where: { rfqCode: { startsWith: rfqPrefix } },
-          });
-          const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
-          
-          await db.rFQ.create({
-            data: {
-              rfqCode,
-              customerId: dealWithDetails.customerId,
-              opportunityId: dealId,
-              status: "New",
-              receivedDate: new Date(),
-              priority: "Normal",
-              companyId: ctx.companyId,
-            }
-          });
-          
-          // Log RFQ creation
+        if (rfqId) {
+          // Log RFQ creation / heal event (if applicable, or we could handle logging inside createOrHealRFQ)
           await logAudit(
             ctx.actorId,
             "RFQ",
             "AutoCreate",
-            `Auto-created RFQ ${rfqCode} for deal "${dealWithDetails.dealName}" on Demo Accepted outcome`
+            `Auto-created/Healed RFQ for deal "${dealWithDetails.dealName}" on Demo Accepted outcome`
           );
         }
       }
@@ -297,6 +281,8 @@ export async function transitionDealStatus(
       });
     }
   }
+
+  return { rfqId };
 }
 
 /**

@@ -4,7 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { transitionDealStatus } from "@/lib/dealService";
 
-const VALID_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Won", "Lost"];
+const VALID_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Closed-Success", "Closed-Failure"];
 
 export async function GET(
   request: NextRequest,
@@ -65,17 +65,17 @@ export async function PUT(
 
   // B2: Block terminal status transitions when approval is pending
   if (body.status && body.status !== existing.status) {
-    if (existing.status === "PendingApproval" && ["Won", "Lost", "Active", "PriceRevision", "CommercialDiscussion"].includes(body.status)) {
+    if (existing.status === "PendingApproval" && ["Closed-Success", "Closed-Failure", "Active", "PriceRevision", "CommercialDiscussion"].includes(body.status)) {
       return NextResponse.json({ success: false, message: "Cannot change status while approval is pending. Resolve the approval in the Approval Center first." }, { status: 400 });
     }
     // Enforce sequential status transitions server-side (mirrors UI STATUS_FLOW)
     const SERVER_STATUS_FLOW: Record<string, string[]> = {
-      Active: ["PriceRevision", "Won", "Lost"],
-      PriceRevision: ["CommercialDiscussion", "Won", "Lost"],
-      CommercialDiscussion: ["PendingApproval", "Won", "Lost"],
-      PendingApproval: ["Won", "Lost"],
-      Won: [],
-      Lost: [],
+      Active: ["PriceRevision", "Closed-Success", "Closed-Failure"],
+      PriceRevision: ["CommercialDiscussion", "Closed-Success", "Closed-Failure"],
+      CommercialDiscussion: ["PendingApproval", "Closed-Success", "Closed-Failure"],
+      PendingApproval: ["Closed-Success", "Closed-Failure"],
+      "Closed-Success": [],
+      "Closed-Failure": [],
     };
     const allowed = SERVER_STATUS_FLOW[existing.status] || [];
     if (!allowed.includes(body.status)) {
@@ -100,12 +100,12 @@ export async function PUT(
   if (body.status !== undefined && body.status !== existing.status) {
     updateData.status = body.status;
     const now = new Date();
-    if (body.status === "Won") {
+    if (body.status === "Closed-Success") {
       updateData.outcome = "Won";
       updateData.closedAt = now;
       if (body.finalAmount !== undefined) updateData.finalAmount = parseFloat(body.finalAmount);
     }
-    if (body.status === "Lost") {
+    if (body.status === "Closed-Failure") {
       updateData.outcome = "Lost";
       updateData.closedAt = now;
     }
@@ -136,65 +136,7 @@ export async function PUT(
       context: extractAuditContext(request),
     });
 
-    // Cascade Won/Lost to linked Deal and Quotation
-    if (body.status === "Won" || body.status === "Lost") {
-      // Find the LATEST revision quotation linked to this negotiation (not root R1)
-      // The customer agreed to the latest revision, so that's the one to mark Accepted/Rejected
-      const latestRevisionQuote = await prisma.quotation.findFirst({
-        where: { negotiationId: id, deletedAt: null },
-        orderBy: { revisionNumber: "desc" },
-        select: { id: true, status: true, quotationCode: true, negotiationId: true },
-      });
-      // Fallback to the negotiation's root quotationId if no revision exists
-      const targetQuote = latestRevisionQuote ||
-        (existing.quotationId ? await prisma.quotation.findUnique({
-          where: { id: existing.quotationId },
-          select: { id: true, status: true, quotationCode: true, negotiationId: true },
-        }) : null);
 
-      if (targetQuote && !["Accepted", "Rejected", "Expired"].includes(targetQuote.status)) {
-        const newQuoteStatus = body.status === "Won" ? "Accepted" : "Rejected";
-        await prisma.quotation.update({
-          where: { id: targetQuote.id },
-          data: {
-            status: newQuoteStatus,
-            // Ensure negotiationId is set so the negotiation badge shows on the quotation page
-            negotiationId: targetQuote.negotiationId || id,
-            ...(body.status === "Won" ? { acceptedAt: new Date() } : {}),
-            ...(body.status === "Lost" ? { rejectedAt: new Date(), rejectionReasonId: body.lossReasonId || null } : {}),
-          },
-        });
-        await prisma.quotationStatusHistory.create({
-          data: {
-            quotationId: targetQuote.id,
-            fromStatus: targetQuote.status,
-            toStatus: newQuoteStatus,
-            changedById: user.id,
-            notes: `Auto-cascaded from negotiation ${existing.negotiationCode} (${body.status}) — ${targetQuote.quotationCode} was the latest revision`,
-          },
-        });
-      }
-
-      // Update linked Deal via transitionDealStatus
-      if (existing.dealId) {
-        const deal = await prisma.deal.findUnique({
-          where: { id: existing.dealId },
-          select: { id: true, status: true },
-        });
-        if (deal && deal.status !== body.status) {
-          try {
-            await transitionDealStatus(deal.id, body.status, {
-              actorId: user.id,
-              reason: `Negotiation ${existing.negotiationCode} closed as ${body.status}`,
-              companyId: user.companyId!,
-            });
-          } catch (err: any) {
-            // If transitionDealStatus throws (e.g. Won gate), log but don't block negotiation update
-            console.error(`Negotiation cascade: deal transition failed: ${err.message}`);
-          }
-        }
-      }
-    }
   } else {
     await logAudit(user.id, "Negotiation", "Update", `Updated negotiation ${existing.negotiationCode}`, {
       resourceId: id,

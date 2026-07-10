@@ -2015,6 +2015,7 @@ model RFQLineItem {
   notes                 String?                    @db.NVarChar(Max)
   displayOrder          Int                        @default(0)
   costingStatus         String                     @default("Pending")
+  needsFeasibilityReview Boolean                   @default(false)
   createdAt             DateTime                   @default(now())
   updatedAt             DateTime                   @updatedAt
   product               Product?                   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)

@@ -62,22 +62,29 @@ export async function POST(
   const activeCostingSheets: any[] = [];
 
   for (const item of rfq.lineItems) {
-    for (const qb of item.quantityBreaks) {
-      const costing = qb.costingSheets[0];
-      if (!costing) {
-        return NextResponse.json({
-          success: false,
-          message: `Missing costing details for line item ${item.itemDescription} (Qty: ${qb.quantity})`,
-        }, { status: 400 });
-      }
-      activeCostingSheets.push({ item, qb, costing });
-      if (costing.marginPercent < threshold) {
-        lowMarginItems.push({
-          itemDescription: item.itemDescription,
-          quantity: qb.quantity,
-          marginPercent: costing.marginPercent,
-        });
-      }
+    const primaryQb = item.quantityBreaks.find((q) => q.quantity === item.quantity) || item.quantityBreaks[0];
+    if (!primaryQb) {
+      return NextResponse.json({
+        success: false,
+        message: `No quantity breaks found for line item ${item.itemDescription}`,
+      }, { status: 400 });
+    }
+
+    const costing = primaryQb.costingSheets[0];
+    if (!costing) {
+      return NextResponse.json({
+        success: false,
+        message: `Missing costing details for line item ${item.itemDescription} (Qty: ${primaryQb.quantity})`,
+      }, { status: 400 });
+    }
+
+    activeCostingSheets.push({ item, qb: primaryQb, costing });
+    if (costing.marginPercent < threshold) {
+      lowMarginItems.push({
+        itemDescription: item.itemDescription,
+        quantity: primaryQb.quantity,
+        marginPercent: costing.marginPercent,
+      });
     }
   }
 

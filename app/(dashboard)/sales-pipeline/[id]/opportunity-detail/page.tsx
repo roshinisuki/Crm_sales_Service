@@ -154,8 +154,8 @@ const getStepState = (stageKey: string, currentStage: string): StepState => {
   if (currentStage === "Lost" || currentStage === "Rejected" || currentStage === "Won") {
     return "completed";
   }
-  const stageIndex = PIPELINE_STAGES.findIndex((s) => s.key === stageKey);
-  const currentIndex = PIPELINE_STAGES.findIndex((s) => s.key === currentStage);
+  const stageIndex = PIPELINE_STAGES.findIndex((s) => s === stageKey);
+  const currentIndex = PIPELINE_STAGES.findIndex((s) => s === currentStage);
   if (stageIndex < currentIndex) return "completed";
   if (stageIndex === currentIndex) return "active";
   return "future";
@@ -896,9 +896,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   };
 
   const getNextStageKey = (currentStage: string) => {
-    const idx = PIPELINE_STAGES.findIndex((s) => s.key === currentStage);
+    const idx = PIPELINE_STAGES.findIndex((s) => s === currentStage);
     if (idx === -1 || idx >= PIPELINE_STAGES.length - 1) return null;
-    return PIPELINE_STAGES[idx + 1].key;
+    return PIPELINE_STAGES[idx + 1];
   };
 
   const handleSaveAndMove = async (toStage: string, options?: { demoOutcome?: "Accepted" | "Rejected" | "Follow-up needed"; demoFollowUpDate?: string; rejectedReason?: string; extraFields?: Record<string, any> }) => {
@@ -1284,8 +1284,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   };
 
   const validateStageGate = (fromStage: string, toStage: string): string | null => {
-    const fromOrder = PIPELINE_STAGES.find((s) => s.key === fromStage)?.order ?? 0;
-    const toOrder = PIPELINE_STAGES.find((s) => s.key === toStage)?.order ?? 0;
+    const fromOrder = PIPELINE_STAGE_ORDER[fromStage as keyof typeof PIPELINE_STAGE_ORDER] ?? 0;
+    const toOrder = PIPELINE_STAGE_ORDER[toStage as keyof typeof PIPELINE_STAGE_ORDER] ?? 0;
     if (toOrder <= fromOrder) return null;
 
     const required = STAGE_REQUIRED_FIELDS[fromStage];
@@ -2064,6 +2064,30 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     <CheckCircle size={15} /> Meeting Conducted — Enter Demo Details
                   </div>
                   <div className="p-4 space-y-4">
+                    {/* Demo Specific Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-amber-200/50">
+                      <FormField label="Demo Date" required error={rgAttempted && !rgForm.demoDate ? "Required" : ""}>
+                        <Input type="date" value={rgForm.demoDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoDate: e.target.value })} className={cn(rgAttempted && !rgForm.demoDate && "border-rose-500")} />
+                      </FormField>
+                      <FormField label="Demo Type" required error={rgAttempted && !rgForm.demoType ? "Required" : ""}>
+                        <Select value={rgForm.demoType || ""} onChange={(e) => setRgForm({ ...rgForm, demoType: e.target.value })} className={cn(rgAttempted && !rgForm.demoType && "border-rose-500")}>
+                          <option value="">Select...</option>
+                          <option value="Product Tour">Product Tour</option>
+                          <option value="Technical Deep Dive">Technical Deep Dive</option>
+                          <option value="Executive Overview">Executive Overview</option>
+                          <option value="Other">Other</option>
+                        </Select>
+                      </FormField>
+                      <FormField label="Interest Level" required error={rgAttempted && !rgForm.demoInterestLevel ? "Required" : ""}>
+                        <Select value={rgForm.demoInterestLevel || ""} onChange={(e) => setRgForm({ ...rgForm, demoInterestLevel: e.target.value })} className={cn(rgAttempted && !rgForm.demoInterestLevel && "border-rose-500")}>
+                          <option value="">Select...</option>
+                          <option value="High">High</option>
+                          <option value="Medium">Medium</option>
+                          <option value="Low">Low</option>
+                        </Select>
+                      </FormField>
+                    </div>
+
                     {/* Required: Demo Outcome selector */}
                     <FormField label="Demo Outcome" required>
                       <Select
@@ -2422,83 +2446,158 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
               {/* Edge case: DemoConducted stage but no outcome set — show outcome selection */}
               {!outcome && (
-                <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
-                  <div className="px-4 py-3 bg-amber-100/60 text-sm font-bold text-amber-800 flex items-center gap-2">
-                    <AlertTriangle size={15} /> Record Demo Outcome
+                <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/20 dark:bg-amber-950/5 dark:border-amber-900/30">
+                  <div className="px-4 py-3 bg-amber-100/50 border-b border-amber-200 dark:border-amber-900/30 text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2 uppercase tracking-wider">
+                    <AlertTriangle size={14} className="text-amber-500" /> Record Demo Outcome
                   </div>
-                  <div className="p-4 space-y-4">
-                    <p className="text-sm text-slate-600">This demo has been conducted but no outcome has been recorded. Select an outcome below to proceed.</p>
-                    <FormField label="Demo Follow-up Date (if follow-up needed)">
-                      <Input type="date" value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
-                    </FormField>
-                    <FormField label="Outcome Notes">
-                      <Textarea rows={3} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} placeholder="What happened in the demo? Customer reactions, key takeaways..." />
-                    </FormField>
-                    <FormField label="Rejection Reason (if rejecting)">
-                      <Select value={demoRejectionReason} onChange={(e) => setDemoRejectionReason(e.target.value)}>
-                        <option value="">Select reason (only if rejecting)...</option>
-                        <option value="Price too high">Price too high</option>
-                        <option value="Went with competitor">Went with competitor</option>
-                        <option value="No budget">No budget</option>
-                        <option value="Not interested">Not interested</option>
-                        <option value="Product doesn't meet needs">Product doesn't meet needs</option>
-                        <option value="Timing not right">Timing not right</option>
-                        <option value="Other">Other</option>
-                      </Select>
-                    </FormField>
-                    <FormField label="Rejection Remarks (optional)">
-                      <Textarea rows={2} value={demoRejectionRemarks} onChange={(e) => setDemoRejectionRemarks(e.target.value)} placeholder="Additional context on why the demo was rejected..." />
-                    </FormField>
-                    <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-amber-200">
+                  <div className="p-5 space-y-5">
+                    <p className="text-xs text-slate-505 leading-relaxed">
+                      This demo has been conducted but the final outcome is not yet recorded. Please select the customer's decision below to update the status and unlock next actions.
+                    </p>
+
+                    {/* Three Toggle Buttons for Outcome Choice */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <button
-                        onClick={() => handleSaveAndMove("DemoConducted", {
-                          demoOutcome: "Accepted",
-                          extraFields: { meetingOutcome: rgForm.meetingOutcome },
-                        })}
-                        disabled={stageMoving}
-                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        type="button"
+                        onClick={() => setDemoOutcomeChoice("Accepted")}
+                        className={cn(
+                          "py-3 px-4 rounded-xl border text-xs font-bold text-center transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm cursor-pointer",
+                          demoOutcomeChoice === "Accepted"
+                            ? "bg-green-50 border-green-200 text-green-700 dark:bg-green-950/20 dark:border-green-900/30 dark:text-green-400"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
+                        )}
                       >
-                        <CheckCircle size={16} /> Demo Accepted →
+                        <CheckCircle size={18} />
+                        <span>Demo Accepted</span>
                       </button>
                       <button
-                        onClick={() => {
-                          if (!rgForm.demoFollowUpDate) {
-                            toast.error("Please set a Demo Follow-up Date first");
-                            return;
-                          }
-                          handleSaveAndMove("DemoConducted", {
-                            demoOutcome: "Follow-up needed",
-                            demoFollowUpDate: rgForm.demoFollowUpDate,
-                            extraFields: { meetingOutcome: rgForm.meetingOutcome },
-                          });
-                        }}
-                        disabled={stageMoving}
-                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        type="button"
+                        onClick={() => setDemoOutcomeChoice("Follow-up needed")}
+                        className={cn(
+                          "py-3 px-4 rounded-xl border text-xs font-bold text-center transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm cursor-pointer",
+                          demoOutcomeChoice === "Follow-up needed"
+                            ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-400"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
+                        )}
                       >
-                        <AlertTriangle size={16} /> Follow-up Needed →
+                        <Calendar size={18} />
+                        <span>Follow-up Needed</span>
                       </button>
                       <button
-                        onClick={() => {
-                          if (!demoRejectionReason.trim()) {
-                            toast.error("Please select a Rejection Reason first");
-                            return;
-                          }
-                          handleSaveAndMove("DemoConducted", {
-                            demoOutcome: "Rejected",
-                            rejectedReason: demoRejectionReason,
-                            extraFields: {
-                              meetingOutcome: rgForm.meetingOutcome,
-                              demoRejectionReason,
-                              demoRejectionRemarks: demoRejectionRemarks || null,
-                            },
-                          });
-                        }}
-                        disabled={stageMoving}
-                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-orange-600 hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                        type="button"
+                        onClick={() => setDemoOutcomeChoice("Rejected")}
+                        className={cn(
+                          "py-3 px-4 rounded-xl border text-xs font-bold text-center transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm cursor-pointer",
+                          demoOutcomeChoice === "Rejected"
+                            ? "bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-900/30 dark:text-rose-400"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
+                        )}
                       >
-                        <XCircle size={16} /> Demo Rejected →
+                        <XCircle size={18} />
+                        <span>Demo Rejected</span>
                       </button>
                     </div>
+
+                    {/* Inline Conditional Form Panel */}
+                    {demoOutcomeChoice === "Accepted" && (
+                      <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 animate-fadeIn">
+                        <FormField label="Outcome Notes">
+                          <Textarea rows={3} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} placeholder="Record notes about the acceptance, customer requests, or next steps..." />
+                        </FormField>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleSaveAndMove("DemoConducted", {
+                              demoOutcome: "Accepted",
+                              extraFields: { meetingOutcome: rgForm.meetingOutcome },
+                            })}
+                            disabled={stageMoving}
+                            className="px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                          >
+                            <CheckCircle size={14} /> Accept & Proceed
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {demoOutcomeChoice === "Follow-up needed" && (
+                      <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 animate-fadeIn">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField label="Follow-up Date" required>
+                            <Input type="date" value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
+                          </FormField>
+                          <FormField label="Outcome Notes">
+                            <Textarea rows={2} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} placeholder="Reason for follow-up or topics to cover..." />
+                          </FormField>
+                        </div>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => {
+                              if (!rgForm.demoFollowUpDate) {
+                                toast.error("Please set a Demo Follow-up Date first");
+                                return;
+                              }
+                              handleSaveAndMove("DemoConducted", {
+                                demoOutcome: "Follow-up needed",
+                                demoFollowUpDate: rgForm.demoFollowUpDate,
+                                extraFields: { meetingOutcome: rgForm.meetingOutcome },
+                              });
+                            }}
+                            disabled={stageMoving}
+                            className="px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                          >
+                            <Calendar size={14} /> Set Follow-up Date
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {demoOutcomeChoice === "Rejected" && (
+                      <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 animate-fadeIn">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField label="Rejection Reason" required>
+                            <Select value={demoRejectionReason} onChange={(e) => setDemoRejectionReason(e.target.value)}>
+                              <option value="">Select reason...</option>
+                              <option value="Price too high">Price too high</option>
+                              <option value="Went with competitor">Went with competitor</option>
+                              <option value="No budget">No budget</option>
+                              <option value="Not interested">Not interested</option>
+                              <option value="Product doesn't meet needs">Product doesn't meet needs</option>
+                              <option value="Timing not right">Timing not right</option>
+                              <option value="Other">Other</option>
+                            </Select>
+                          </FormField>
+                          <FormField label="Rejection Remarks (optional)">
+                            <Textarea rows={2} value={demoRejectionRemarks} onChange={(e) => setDemoRejectionRemarks(e.target.value)} placeholder="Additional context..." />
+                          </FormField>
+                        </div>
+                        <FormField label="Outcome Notes">
+                          <Textarea rows={2} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} placeholder="Summary comments..." />
+                        </FormField>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => {
+                              if (!demoRejectionReason.trim()) {
+                                toast.error("Please select a Rejection Reason first");
+                                return;
+                              }
+                              handleSaveAndMove("DemoConducted", {
+                                demoOutcome: "Rejected",
+                                rejectedReason: demoRejectionReason,
+                                extraFields: {
+                                  meetingOutcome: rgForm.meetingOutcome,
+                                  demoRejectionReason,
+                                  demoRejectionRemarks: demoRejectionRemarks || null,
+                                },
+                              });
+                            }}
+                            disabled={stageMoving}
+                            className="px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                          >
+                            <XCircle size={14} /> Reject & Close
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2778,8 +2877,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   // ─── Read-Only Completed Requirement Gathering ───────────────────────────────
 
   const renderReadOnlyRequirementGathering = () => {
-    const currentOrder = PIPELINE_STAGES.find((s) => s.key === deal.status)?.order ?? 0;
-    const rgOrder = PIPELINE_STAGES.find((s) => s.key === "RequirementGathering")?.order ?? 0;
+    const currentOrder = PIPELINE_STAGE_ORDER[deal.status as keyof typeof PIPELINE_STAGE_ORDER] ?? 0;
+    const rgOrder = PIPELINE_STAGE_ORDER["RequirementGathering"] ?? 0;
     if (currentOrder <= rgOrder) return null;
 
     const ReadOnlyField = ({ label, value }: { label: string; value?: string | number | null }) => (
@@ -2892,7 +2991,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     );
   }
 
-  const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s.key === deal.status);
+  const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s === deal.status);
   const hasAcceptedQuotation = deal.quotations?.some((q: any) => q.status === "Accepted");
   const isTerminalStage = deal.status === "Won" || deal.status === "Lost" || deal.status === "Rejected";
   const isValidStage = currentStageIndex !== -1 || isTerminalStage;

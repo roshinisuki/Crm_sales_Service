@@ -12,6 +12,9 @@ import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { cn } from "@/lib/ui-utils";
+import {
+  ChevronRight, ChevronLeft, CheckCircle, Edit, AlertTriangle, Send, Zap, FileCode, Copy, Download, X, XCircle, Check, Plus
+} from "lucide-react";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -511,114 +514,46 @@ export default function QuotationDetailPage() {
 
   return (
     <PageContainer className="space-y-4 p-0">
-      {/* Breadcrumbs — RFQ → Quotation → Negotiation */}
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        {quotation.rfq && (
+      {/* Breadcrumbs — full lineage: RFQ → Quotation → Negotiation */}
+      <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/40 w-max">
+        {quotation.rfq ? (
           <>
-            <button onClick={() => router.push(`/rfq/${quotation.rfq.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
-              {quotation.rfq.rfqCode}
+            <button
+              onClick={() => router.push(`/rfq/${quotation.rfq.id}`)}
+              className="text-slate-600 dark:text-slate-400 hover:text-[var(--primary)] hover:underline cursor-pointer transition-colors flex items-center gap-1"
+            >
+              📄 {quotation.rfq.rfqCode}
             </button>
-            <span>›</span>
+            <ChevronRight size={12} className="text-slate-450" />
+          </>
+        ) : (
+          <span className="text-slate-400">No RFQ</span>
+        )}
+        <span className="px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] font-bold flex items-center gap-1">
+          💼 {quotation.quotationCode} {quotation.revisionNumber > 1 ? `(R${quotation.revisionNumber})` : ""}
+        </span>
+        {quotation.negotiation ? (
+          <>
+            <ChevronRight size={12} className="text-slate-450" />
+            <button
+              onClick={() => router.push(`/negotiations/${quotation.negotiation.id}`)}
+              className="text-slate-600 dark:text-slate-400 hover:text-[var(--primary)] hover:underline cursor-pointer transition-colors flex items-center gap-1"
+            >
+              🤝 {quotation.negotiation.negotiationCode}
+            </button>
+          </>
+        ) : (
+          <>
+            <ChevronRight size={12} className="text-slate-400 opacity-40" />
+            <span className="text-slate-450 italic">No Negotiation</span>
           </>
         )}
-        <span className="font-medium text-slate-700">{quotation.quotationCode}</span>
-        {quotation.negotiationId && (
-          <>
-            <span>›</span>
-            <button onClick={() => router.push(`/negotiations/${quotation.negotiationId}`)} className="hover:text-[var(--primary)] cursor-pointer">
-              Negotiation
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Lifecycle Stepper */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {[
-            { label: "RFQ", key: "rfq", id: quotation.rfq?.id, reached: !!quotation.rfq },
-            { label: "Quotation", key: "quotation", id: id, reached: true, current: true },
-            { label: "Negotiation", key: "negotiation", id: quotation.negotiationId, reached: !!quotation.negotiationId },
-            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(quotation.status) },
-          ].map((step, i, arr) => (
-            <div key={step.key} className="flex items-center shrink-0">
-              <div
-                onClick={() => {
-                  if (step.id && !step.current) {
-                    if (step.key === "rfq") router.push(`/rfq/${step.id}`);
-                    else if (step.key === "negotiation") router.push(`/negotiations/${step.id}`);
-                  }
-                }}
-                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  step.current
-                    ? "bg-[var(--primary)] text-white"
-                    : step.reached
-                    ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100"
-                    : "bg-slate-50 text-slate-400"
-                }`}
-              >
-                {step.reached && !step.current && <Ico d={icons.check} size={12} />}
-                {step.label}
-              </div>
-              {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Next Step — single prominent primary action */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Step</p>
-          <p className="text-sm text-slate-600 mt-0.5">
-            {quotation.status === "Draft" && (needsApproval ? "Request approval before sending to customer" : "Send quotation to customer")}
-            {quotation.status === "PendingApproval" && "Waiting for approval — check Approval Center"}
-            {quotation.status === "Approved" && "Send approved quotation to customer"}
-            {quotation.status === "Sent" && "Awaiting customer response — or start negotiation"}
-            {quotation.status === "UnderReview" && "Negotiation in progress — propose revisions"}
-            {quotation.status === "Accepted" && "Create purchase order from this quotation"}
-            {quotation.status === "Rejected" && "Quotation rejected — clone & revise if needed"}
-            {quotation.status === "Expired" && "Quotation expired — clone & revise to renew"}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {quotation.status === "Draft" && !editMode && !needsApproval && (
-            <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
-              <Ico d={icons.send} size={16} /> Send to Customer →
-            </button>
-          )}
-          {quotation.status === "Draft" && needsApproval && (
-            <button onClick={handleRequestApproval} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer">
-              <Ico d={icons.alert} size={16} /> Request Approval →
-            </button>
-          )}
-          {quotation.status === "Approved" && (
-            <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer">
-              <Ico d={icons.send} size={16} /> Send to Customer →
-            </button>
-          )}
-          {quotation.status === "Sent" && (
-            <button onClick={handleNegotiate} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer">
-              <Ico d={icons.alert} size={16} /> Start Negotiation →
-            </button>
-          )}
-          {quotation.status === "UnderReview" && quotation.negotiationId && (
-            <button onClick={() => router.push(`/negotiations/${quotation.negotiationId}`)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer">
-              <Ico d={icons.alert} size={16} /> Go to Negotiation →
-            </button>
-          )}
-          {quotation.status === "Accepted" && (
-            <button onClick={handleCreatePo} disabled={creatingPo} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50">
-              <Ico d={icons.po} size={16} /> {creatingPo ? "Creating..." : "Create Purchase Order →"}
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/quotations")} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer"><Ico d={icons.back} size={18} /></button>
+          <button onClick={() => router.push("/quotations")} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer"><ChevronLeft size={18} /></button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{quotation.quotationCode}</h1>
@@ -636,91 +571,83 @@ export default function QuotationDetailPage() {
           {/* Edit Mode: show Save/Cancel only */}
           {editMode ? (
             <>
-              <button onClick={handleSaveItems} disabled={savingItems} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-50"><Ico d={icons.check} size={15} /> {savingItems ? "Saving..." : "Save Changes"}</button>
+              <button onClick={handleSaveItems} disabled={savingItems} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-50"><CheckCircle size={15} /> {savingItems ? "Saving..." : "Save Changes"}</button>
               <button onClick={() => setEditMode(false)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
             </>
           ) : (
             <>
               {/* Edit Line Items — only in Draft */}
-              <button onClick={startEdit} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be edited" : "Edit line items, prices, and discounts"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-slate-700 bg-slate-100 hover:bg-slate-200" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.edit} size={15} /> Edit</button>
+              <button onClick={startEdit} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be edited" : "Edit line items, prices, and discounts"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-slate-700 bg-slate-100 hover:bg-slate-200" : "text-slate-400 bg-slate-50"}`}><Edit size={15} /> Edit</button>
               {/* Request Approval — only in Draft when approval needed */}
-              <button onClick={handleRequestApproval} disabled={quotation.status !== "Draft" || !needsApproval} title={quotation.status !== "Draft" ? "Quotation must be in Draft" : !needsApproval ? "No approval triggers — discount/margin within limits" : "Request manager approval for discount/margin override"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" && needsApproval ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.alert} size={15} /> Request Approval</button>
+              <button onClick={handleRequestApproval} disabled={quotation.status !== "Draft" || !needsApproval} title={quotation.status !== "Draft" ? "Quotation must be in Draft" : !needsApproval ? "No approval triggers — discount/margin within limits" : "Request manager approval for discount/margin override"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" && needsApproval ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><AlertTriangle size={15} /> Request Approval</button>
               {/* Send — available in Draft and Approved */}
-              <button onClick={handleSend} disabled={!["Draft", "Approved"].includes(quotation.status)} title={!["Draft", "Approved"].includes(quotation.status) ? "Quotation must be Draft or Approved to send" : "Send quotation to customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Draft", "Approved"].includes(quotation.status) ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.send} size={15} /> Send</button>
+              <button onClick={handleSend} disabled={!["Draft", "Approved"].includes(quotation.status)} title={!["Draft", "Approved"].includes(quotation.status) ? "Quotation must be Draft or Approved to send" : "Send quotation to customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Draft", "Approved"].includes(quotation.status) ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-slate-400 bg-slate-50"}`}><Send size={15} /> Send</button>
               {/* Negotiate — available in Sent and UnderReview */}
-              <button onClick={handleNegotiate} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent to customer first" : "Move quotation to negotiation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.alert} size={15} /> Negotiate</button>
+              <button onClick={handleNegotiate} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent to customer first" : "Move quotation to negotiation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><AlertTriangle size={15} /> Negotiate</button>
               {/* Mark Accepted — available in Sent and UnderReview */}
-              <button onClick={handleAccept} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as accepted by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.check} size={15} /> Accept</button>
+              <button onClick={handleAccept} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as accepted by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Check size={15} /> Accept</button>
               {/* Mark Rejected — available in Sent and UnderReview */}
-              <button onClick={handleReject} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as rejected by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-red-600 hover:bg-red-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.x} size={15} /> Reject</button>
+              <button onClick={handleReject} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as rejected by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-rose-600 hover:bg-rose-700" : "text-slate-400 bg-slate-50"}`}><XCircle size={15} /> Reject</button>
               {/* Create Deal — only in Accepted without existing deal */}
-              <button onClick={handleCreateDeal} disabled={quotation.status !== "Accepted" || !!quotation.dealId || creatingDeal} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : quotation.dealId ? "Deal already created" : "Create a deal from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" && !quotation.dealId ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.deal} size={15} /> {creatingDeal ? "Creating..." : "Create Deal"}</button>
+              <button onClick={handleCreateDeal} disabled={quotation.status !== "Accepted" || !!quotation.dealId || creatingDeal} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : quotation.dealId ? "Deal already created" : "Create a deal from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" && !quotation.dealId ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Zap size={15} /> {creatingDeal ? "Creating..." : "Create Deal"}</button>
               {/* Create PO — only in Accepted */}
-              <button onClick={handleCreatePo} disabled={quotation.status !== "Accepted" || creatingPo} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : "Create purchase order from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" ? "text-white bg-blue-600 hover:bg-blue-700" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.po} size={15} /> Create PO</button>
+              <button onClick={handleCreatePo} disabled={quotation.status !== "Accepted" || creatingPo} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : "Create purchase order from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" ? "text-white bg-blue-600 hover:bg-blue-700" : "text-slate-400 bg-slate-50"}`}><FileCode size={15} /> Create PO</button>
               {/* Clone & Revise — always available */}
-              <button onClick={handleClone} title="Create a new revision of this quotation" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={15} /> Clone & Revise</button>
+              <button onClick={handleClone} title="Create a new revision of this quotation" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Copy size={15} /> Clone & Revise</button>
               {/* PDF — always available */}
-              <button onClick={handleDownloadPdf} title="Download quotation as PDF" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.download} size={15} /> PDF</button>
+              <button onClick={handleDownloadPdf} title="Download quotation as PDF" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Download size={15} /> PDF</button>
               {/* Delete — only in Draft */}
-              <button onClick={handleDelete} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be deleted" : "Delete this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-red-600 bg-red-50 hover:bg-red-100" : "text-slate-400 bg-slate-50"}`}><Ico d={icons.x} size={15} /> Delete</button>
+              <button onClick={handleDelete} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be deleted" : "Delete this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-red-600 bg-red-50 hover:bg-red-100" : "text-slate-400 bg-slate-50"}`}><X size={15} /> Delete</button>
             </>
           )}
         </div>
       </div>
 
-      {/* Breadcrumbs — full lineage: RFQ → Quotation → Negotiation */}
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        {quotation.rfq && (
-          <>
-            <button onClick={() => router.push(`/rfq/${quotation.rfq.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
-              {quotation.rfq.rfqCode}
-            </button>
-            <span>›</span>
-          </>
-        )}
-        <span className="font-medium text-slate-700">{quotation.quotationCode}</span>
-        {quotation.negotiation && (
-          <>
-            <span>›</span>
-            <button onClick={() => router.push(`/negotiations/${quotation.negotiation.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
-              {quotation.negotiation.negotiationCode}
-            </button>
-          </>
-        )}
-        {quotation.revisionNumber > 1 && (
-          <span className="text-slate-400">(R{quotation.revisionNumber})</span>
-        )}
-      </div>
-
       {/* Lifecycle Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
-        <div className="flex items-center gap-1 overflow-x-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+        <div className="flex items-center justify-between w-full overflow-x-auto py-1 gap-2">
           {[
-            { label: "RFQ", key: "rfq", id: quotation.rfq?.id, reached: !!quotation.rfq },
-            { label: "Quotation", key: "quotation", id: id, reached: true, current: true },
-            { label: "Negotiation", key: "negotiation", id: quotation.negotiation?.id, reached: !!quotation.negotiation },
-            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(quotation.status) },
+            { label: "RFQ", key: "rfq", id: quotation.rfq?.id, reached: !!quotation.rfq, active: false },
+            { label: "Quotation", key: "quotation", id: id, reached: true, active: true },
+            { label: "Negotiation", key: "negotiation", id: quotation.negotiation?.id, reached: !!quotation.negotiation, active: false },
+            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(quotation.status), active: false },
           ].map((step, i, arr) => (
-            <div key={step.key} className="flex items-center shrink-0">
+            <div key={step.key} className="flex items-center flex-1 min-w-0 justify-center">
               <div
                 onClick={() => {
-                  if (step.id && !step.current) {
+                  if (step.id && !step.active) {
                     if (step.key === "rfq") router.push(`/rfq/${step.id}`);
                     else if (step.key === "negotiation") router.push(`/negotiations/${step.id}`);
                   }
                 }}
-                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  step.current
-                    ? "bg-[var(--primary)] text-white"
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors truncate",
+                  step.active
+                    ? "bg-[var(--primary)] text-white shadow-sm border border-[var(--primary)]"
+                    : step.reached && step.id
+                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30 cursor-pointer hover:bg-green-100"
                     : step.reached
-                    ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100"
-                    : "bg-slate-50 text-slate-400"
-                }`}
+                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30"
+                    : "bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
+                )}
               >
-                {step.reached && !step.current && <Ico d={icons.check} size={12} />}
-                {step.label}
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border",
+                    step.active
+                      ? "bg-white text-[var(--primary)] border-white"
+                      : step.reached
+                      ? "bg-success text-white border-success"
+                      : "text-slate-400 border-slate-300"
+                  )}
+                >
+                  {step.reached && !step.active ? <CheckCircle size={10} /> : i + 1}
+                </div>
+                <span className="text-xs font-semibold truncate">{step.label}</span>
               </div>
-              {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
+              {i < arr.length - 1 && (
+                <div className={cn("flex-1 h-0.5 min-w-[12px] mx-2", step.reached ? "bg-success" : "bg-slate-200 dark:bg-slate-800")} />
+              )}
             </div>
           ))}
         </div>
@@ -1022,9 +949,15 @@ export default function QuotationDetailPage() {
                               key={qb.id}
                               type="button"
                               onClick={() => {
+                                const costing = qb.costingSheets?.[0];
+                                const marginPct = costing?.marginPercent ?? 0;
+                                const costBasis = marginPct > 0
+                                  ? qb.computedUnitPrice / (1 + marginPct / 100)
+                                  : qb.computedUnitPrice;
+
                                 updateEditItem(idx, "quantity", String(qb.quantity));
                                 updateEditItem(idx, "unitPrice", String(qb.computedUnitPrice));
-                                updateEditItem(idx, "costBasisUnitPrice", String(qb.computedUnitPrice));
+                                updateEditItem(idx, "costBasisUnitPrice", String(costBasis));
                                 updateEditItem(idx, "quantityBreakId", qb.id);
                                 updateEditItem(idx, "priceSource", "RFQCosting");
                               }}
@@ -1083,70 +1016,70 @@ export default function QuotationDetailPage() {
           ) : (
             <>
               {/* Read Only Items Table */}
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">#</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Description</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">HSN</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Qty</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">UOM</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Unit Price</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">Margin</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">Disc%</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">Tax%</th>
-                    <th className="px-4 py-2.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-right">Line Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {quotation.items?.map((item: any, idx: number) => {
-                    const costBasis = item.costBasisUnitPrice ? Number(item.costBasisUnitPrice) : null;
-                    const margin = item.marginPercent ? parseFloat(String(item.marginPercent)) : null;
+              <table className="crm-table">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/40">
+                  <th className="crm-th text-left w-10">#</th>
+                  <th className="crm-th text-left">Description</th>
+                  <th className="crm-th text-center">HSN</th>
+                  <th className="crm-th text-right">Qty</th>
+                  <th className="crm-th text-center">UOM</th>
+                  <th className="crm-th text-right">Unit Price</th>
+                  <th className="crm-th text-center">Margin</th>
+                  <th className="crm-th text-right">Disc%</th>
+                  <th className="crm-th text-right">Tax%</th>
+                  <th className="crm-th text-right">Line Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotation.items?.map((item: any, idx: number) => {
+                  const costBasis = item.costBasisUnitPrice ? Number(item.costBasisUnitPrice) : null;
+                  const margin = item.marginPercent ? parseFloat(String(item.marginPercent)) : null;
 
-                    let marginColor = "text-slate-400";
-                    if (margin !== null) {
-                      if (margin >= 20) marginColor = "text-emerald-600 font-semibold";
-                      else if (margin >= marginFloor) marginColor = "text-amber-600 font-semibold";
-                      else marginColor = "text-rose-600 font-semibold";
-                    }
+                  let marginColor = "text-slate-400";
+                  if (margin !== null) {
+                    if (margin >= 20) marginColor = "text-emerald-600 font-semibold";
+                    else if (margin >= marginFloor) marginColor = "text-amber-600 font-semibold";
+                    else marginColor = "text-rose-600 font-semibold";
+                  }
 
-                    return (
-                      <tr key={item.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/40">
-                        <td className="px-4 py-3.5 text-xs text-slate-500">{idx + 1}</td>
-                        <td className="px-4 py-3.5 text-xs font-semibold text-slate-700">
-                          {item.description}
-                          {item.product && <span className="text-[10px] text-slate-400 ml-2 font-normal">({item.product.productCode})</span>}
-                          {/* Price source label */}
-                          {item.priceSource && (
-                            <div className="text-[9px] mt-0.5 font-bold uppercase tracking-wider">
-                              {item.priceSource === "RFQCosting" ? (
-                                <span className="text-emerald-600">from RFQ costing</span>
-                              ) : item.priceSource === "ManualOverride" ? (
-                                <span className="text-amber-500">manual override</span>
-                              ) : (
-                                <span className="text-slate-400">no cost basis</span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3.5 text-xs text-slate-500 text-center">{item.hsn || "—"}</td>
-                        <td className="px-4 py-3.5 text-xs text-slate-700 text-right">{item.quantity}</td>
-                        <td className="px-4 py-3.5 text-xs text-slate-500 text-center">{item.unit || "Nos"}</td>
-                        <td className="px-4 py-3.5 text-xs text-slate-700 text-right">{formatCurrency(item.unitPrice)}</td>
-                        {/* Margin column */}
-                        <td className="px-4 py-3.5 text-xs text-center">
-                          <span className={marginColor}>
-                            {margin !== null ? `${margin.toFixed(1)}%` : "unknown"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3.5 text-xs text-slate-500 text-center">{item.discountPercent || 0}%</td>
-                        <td className="px-4 py-3.5 text-xs text-slate-500 text-center">{item.taxPercent || 18}%</td>
-                        <td className="px-4 py-3.5 text-xs font-bold text-slate-800 text-right">{formatCurrency(item.lineTotal || item.totalPrice)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                  return (
+                    <tr key={item.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/40">
+                      <td className="crm-td text-left text-slate-400">{idx + 1}</td>
+                      <td className="crm-td font-semibold text-slate-700 dark:text-slate-200">
+                        {item.description}
+                        {item.product && <span className="text-[10px] text-slate-400 ml-2 font-normal">({item.product.productCode})</span>}
+                        {/* Price source label */}
+                        {item.priceSource && (
+                          <div className="text-[9px] mt-0.5 font-bold uppercase tracking-wider">
+                            {item.priceSource === "RFQCosting" ? (
+                              <span className="text-emerald-600">from RFQ costing</span>
+                            ) : item.priceSource === "ManualOverride" ? (
+                              <span className="text-amber-500">manual override</span>
+                            ) : (
+                              <span className="text-slate-400">no cost basis</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="crm-td text-center text-slate-500">{item.hsn || "—"}</td>
+                      <td className="crm-td text-right text-slate-700 dark:text-slate-200">{item.quantity}</td>
+                      <td className="crm-td text-center text-slate-500">{item.unit || "Nos"}</td>
+                      <td className="crm-td text-right text-slate-700 dark:text-slate-200">{formatCurrency(item.unitPrice)}</td>
+                      {/* Margin column */}
+                      <td className="crm-td text-center">
+                        <span className={marginColor}>
+                          {margin !== null ? `${margin.toFixed(1)}%` : "unknown"}
+                        </span>
+                      </td>
+                      <td className="crm-td text-right text-slate-500">{item.discountPercent || 0}%</td>
+                      <td className="crm-td text-right text-slate-500">{item.taxPercent || 18}%</td>
+                      <td className="crm-td text-right font-bold text-slate-800 dark:text-slate-100">{formatCurrency(item.lineTotal || item.totalPrice)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
 
               {/* Totals */}
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
@@ -1200,16 +1133,21 @@ export default function QuotationDetailPage() {
 
       {/* Revisions Tab */}
       {activeTab === "revisions" && (
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 text-xs">
-          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">Revision History</h2>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-sm text-xs">
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide mb-4">Revision History</h2>
           <div className="space-y-3">
             {quotation.revisionSnapshots?.length > 0 ? (
               quotation.revisionSnapshots.map((rev: any) => (
-                <div key={rev.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                  <div>
-                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-[10px] font-bold">R{rev.revisionNumber}</span>
-                    <span className="text-slate-700 ml-3">{new Date(rev.createdAt).toLocaleString()}</span>
-                    <span className="text-slate-400 ml-2">by {rev.createdBy?.name || "—"}</span>
+                <div key={rev.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold">R{rev.revisionNumber}</span>
+                    {rev.revisionNumber === 1 ? (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold">Root</span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold">v{rev.revisionNumber}</span>
+                    )}
+                    <span className="text-slate-700 dark:text-slate-300 font-medium ml-1">{new Date(rev.createdAt).toLocaleString()}</span>
+                    <span className="text-slate-400">by {rev.createdBy?.name || "—"}</span>
                   </div>
                   <button onClick={() => { try { const snap = JSON.parse(rev.snapshotJson); setRevisionModal({ open: true, revisionNumber: rev.revisionNumber, data: snap }); } catch { toast.error("Failed to load snapshot"); } }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 cursor-pointer">View Snapshot</button>
                 </div>
@@ -1217,7 +1155,17 @@ export default function QuotationDetailPage() {
             ) : (
               <p className="text-slate-400 italic">No revisions cloned yet</p>
             )}
-            <p className="text-slate-400 italic">Current revision: R{quotation.revisionNumber || 1}</p>
+            <p className="text-slate-400 italic mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-1.5">
+              <span>Current version:</span>
+              <span className={cn(
+                "px-2 py-0.5 rounded-md font-bold text-[11px]",
+                quotation.revisionNumber === 1
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                  : "bg-blue-50 text-blue-700 border border-blue-200/50"
+              )}>
+                R{quotation.revisionNumber || 1} {quotation.revisionNumber === 1 ? "(Root)" : ""}
+              </span>
+            </p>
           </div>
         </div>
       )}

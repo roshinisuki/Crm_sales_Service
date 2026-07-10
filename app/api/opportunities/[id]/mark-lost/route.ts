@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
+import { transitionDealStatus } from "@/lib/dealService";
+
 
 // POST /api/opportunities/[id]/mark-lost
 // Body: { lost_reason_id, competitor_id?, notes? }
@@ -59,31 +61,29 @@ export async function POST(
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    // Update deal to Lost
+    // 1. Update deal lost-specific fields
     const updated = await tx.deal.update({
       where: { id },
       data: {
-        status: "Lost",
         probabilityPercent: 0,
         lostReasonRefId: lost_reason_id,
         lostReason: lossReason.name,
-        stageEnteredAt: new Date(),
       },
     });
 
-    // Insert stage history
-    await tx.dealStageHistory.create({
-      data: {
-        dealId: id,
-        fromStatus: deal.status,
-        toStatus: "Lost",
-        changedById: user.id,
-        durationInPreviousStage: daysInPreviousStage,
-        outcomeNotes: notes || `Lost reason: ${lossReason.name}${competitor_id ? ` (Competitor won)` : ""}`,
+    // 2. Perform status transition via central state machine
+    await transitionDealStatus(
+      id,
+      "Lost",
+      {
+        actorId: user.id,
+        companyId: user.companyId!,
+        reason: notes || `Lost reason: ${lossReason.name}${competitor_id ? ` (Competitor won)` : ""}`,
       },
-    });
+      tx
+    );
 
-    // Bulk-cancel open follow-ups for this opportunity's customer
+    // 3. Bulk-cancel open follow-ups for this opportunity's customer
     await tx.followUp.updateMany({
       where: {
         customerId: deal.customerId,

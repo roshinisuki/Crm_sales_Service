@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
+import { createOrHealRFQ } from "@/lib/rfqService";
 import { normalizeStage, PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
+import { transitionDealStatus } from "@/lib/dealService";
+
 
 // POST /api/opportunities/[id]/stage-change
 // Body: { to_stage, notes?, demoOutcome?, demoFollowUpDate?, rejectedReason?, force? }
@@ -68,18 +71,17 @@ export async function POST(
           ...(demoOutcome === "Rejected" && rejectedReason ? { rejectedReason } : {}),
         },
       });
-      await prisma.dealStageHistory.create({
-        data: {
-          dealId: id,
-          fromStatus: currentStage,
-          toStatus: targetStage,
-          changedById: user.id,
-          outcomeNotes: `Demo outcome set: ${demoOutcome}`,
-        },
-      });
       // Auto-create RFQ with line items when demoOutcome is Accepted
       if (demoOutcome === "Accepted") {
-        await createRFQWithLineItems(id, deal, user);
+        await prisma.$transaction(async (tx) => {
+          const latestDeal = await tx.deal.findUnique({
+            where: { id },
+            include: { requirementItems: { include: { technicalNote: true }, orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }] } }
+          });
+          if (latestDeal && user.companyId) {
+            await createOrHealRFQ(id, latestDeal, user.companyId, tx);
+          }
+        });
       }
       return NextResponse.json({ success: true, data: updated });
     }
@@ -246,13 +248,14 @@ export async function POST(
   // Read probability from PipelineStageMaster, fallback to hardcoded map
   const newProbability = masterProbMap[targetStage] ?? deal.probabilityPercent;
 
+  let rfqId: string | undefined = undefined;
+
   const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.deal.update({
+    // 1. Update deal fields first
+    await tx.deal.update({
       where: { id },
       data: {
-        status: targetStage,
         probabilityPercent: newProbability,
-        stageEnteredAt: new Date(),
         ...(targetStage === "DemoConducted" && demoOutcome ? { demoOutcome } : {}),
         ...(targetStage === "DemoConducted" && demoOutcome === "Follow-up needed" && demoFollowUpDate
           ? { demoFollowUpDate: new Date(demoFollowUpDate) }
@@ -261,22 +264,23 @@ export async function POST(
       },
     });
 
-    await tx.dealStageHistory.create({
-      data: {
-        dealId: id,
-        fromStatus: currentStage,
-        toStatus: targetStage,
-        changedById: user.id,
-        durationInPreviousStage: daysInPreviousStage,
-        outcomeNotes:
-          notes ||
+    // 2. Perform the transition central state machine
+    const transitionRes = await transitionDealStatus(
+      id,
+      targetStage,
+      {
+        actorId: user.id,
+        companyId: user.companyId!,
+        reason: notes ||
           (demoOutcome ? `Demo ${demoOutcome}${demoFollowUpDate ? ` — follow-up on ${demoFollowUpDate}` : ""}` : null) ||
           (rejectedReason ? `Rejected: ${rejectedReason}` : null) ||
-          null,
+          undefined,
       },
-    });
+      tx
+    );
+    rfqId = transitionRes?.rfqId;
 
-    // Auto-create stage-appropriate follow-up
+    // 3. Auto-create stage-appropriate follow-up
     const stageFollowUpMap: Record<string, string> = {
       TechnicalDiscussion: "Schedule technical discussion with engineering team",
       MeetingScheduled: "Confirm attendee list and meeting agenda",
@@ -306,13 +310,11 @@ export async function POST(
       });
     }
 
-    return updated;
+    return tx.deal.findUnique({
+      where: { id },
+      include: { rfqs: true },
+    });
   });
-
-  // Auto-create RFQ with line items when DemoConducted with Accepted outcome
-  if (targetStage === "DemoConducted" && demoOutcome === "Accepted") {
-    await createRFQWithLineItems(id, deal, user);
-  }
 
   // Audit log
   await logAudit(
@@ -361,61 +363,9 @@ export async function POST(
   return NextResponse.json({
     success: true,
     data: result,
+    rfqId,
     message: `Stage changed from ${currentStage} to ${targetStage}`,
   });
 }
 
-// ─── Helper: Auto-create RFQ with line items from feasible requirement items ──
-async function createRFQWithLineItems(
-  dealId: string,
-  deal: any,
-  user: { id: string; companyId?: string | null }
-) {
-  if (!user.companyId) {
-    throw new Error("Company ID is required to create RFQ");
-  }
-  const existingRfq = await prisma.rFQ.findFirst({ where: { opportunityId: dealId } });
-  if (existingRfq) return existingRfq; // Already exists — don't duplicate
 
-  const year = new Date().getFullYear();
-  const rfqPrefix = `RFQ-${year}-`;
-  const rfqCount = await prisma.rFQ.count({ where: { rfqCode: { startsWith: rfqPrefix } } });
-  const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
-
-  // Only include items that are Feasible or FeasibleWithChanges
-  const feasibleItems = (deal.requirementItems || []).filter(
-    (item: any) =>
-      item.technicalNote &&
-      ["Feasible", "FeasibleWithChanges"].includes(item.technicalNote.feasibility)
-  );
-
-  const rfq = await prisma.rFQ.create({
-    data: {
-      rfqCode,
-      customerId: deal.customerId,
-      opportunityId: dealId,
-      status: "New",
-      receivedDate: new Date(),
-      priority: "Normal",
-      companyId: user.companyId,
-      lineItems: {
-        create: feasibleItems.map((item: any, idx: number) => ({
-          itemDescription: item.productName,
-          quantity: item.estimatedQuantity,
-          targetPrice: item.targetPriceMin
-            ? Number(item.targetPriceMin)
-            : null,
-          requestedDeliveryDate: item.requiredDelivery || null,
-          // Use confirmedSpec from Technical Discussion; fallback to specNotes from RG
-          specifications: item.technicalNote?.confirmedSpec || item.specNotes || null,
-          notes: item.technicalNote?.toolingRequired
-            ? `Tooling: ${item.technicalNote.toolingRequired}`
-            : null,
-          displayOrder: idx,
-        })),
-      },
-    },
-  });
-
-  return rfq;
-}

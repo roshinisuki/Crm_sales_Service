@@ -243,26 +243,46 @@ export function CostingDetailsPanel({
   const getSourceLabel = (field: "material" | "labour" | "overhead" | "margin") => {
     const isOverridden = currentOverrides[field === "material" ? "material_cost" : field === "labour" ? "labour_cost" : `${field}_percent`];
     if (isOverridden) {
-      return <span className="text-[10px] text-amber-500 font-medium font-mono uppercase tracking-wider">Manual Override</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider">
+          ✏️ Manual Override
+        </span>
+      );
     }
     if (!defaults) {
-      return <span className="text-[10px] text-slate-400 font-medium font-mono uppercase tracking-wider">Enter Manually</span>;
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-50 text-slate-500 border border-slate-200 uppercase tracking-wider">
+          Enter Manually
+        </span>
+      );
     }
     if (field === "material") {
       return defaults.bomFound ? (
-        <span className="text-[10px] text-emerald-500 font-medium font-mono uppercase tracking-wider">From BOM</span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
+          ✨ Auto-filled: BOM
+        </span>
       ) : (
-        <span className="text-[10px] text-amber-400 font-medium font-mono uppercase tracking-wider">No BOM - Manual</span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider">
+          No BOM - Manual
+        </span>
       );
     }
     if (field === "labour") {
       return defaults.routingFound ? (
-        <span className="text-[10px] text-emerald-500 font-medium font-mono uppercase tracking-wider">From Routing</span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
+          ✨ Auto-filled: Routing
+        </span>
       ) : (
-        <span className="text-[10px] text-amber-400 font-medium font-mono uppercase tracking-wider">No Routing - Manual</span>
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider">
+          No Routing - Manual
+        </span>
       );
     }
-    return <span className="text-[10px] text-emerald-500 font-medium font-mono uppercase tracking-wider">Category Default</span>;
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
+        ✨ Auto-filled: Category
+      </span>
+    );
   };
 
   const handleSave = async () => {

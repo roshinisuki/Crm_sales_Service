@@ -7,6 +7,9 @@ import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
+import { cn } from "@/lib/ui-utils";
+import { ConfirmModal } from "@/components/ConfirmModal";
+import { ChevronRight, ChevronLeft, CheckCircle, Plus } from "lucide-react";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -27,8 +30,8 @@ const statusColors: Record<string, string> = {
   PriceRevision: "bg-amber-100 text-amber-700",
   CommercialDiscussion: "bg-purple-100 text-purple-700",
   PendingApproval: "bg-orange-100 text-orange-700",
-  Won: "bg-green-100 text-green-700",
-  Lost: "bg-red-100 text-red-700",
+  "Closed-Success": "bg-green-100 text-green-700",
+  "Closed-Failure": "bg-red-100 text-red-700",
 };
 
 const revisionStatusColors: Record<string, string> = {
@@ -42,15 +45,15 @@ const tabs = ["Overview", "Revisions", "Discussion"];
 
 // Sequential status flow: each status can only transition to the next one(s)
 const STATUS_FLOW: Record<string, string[]> = {
-  Active: ["PriceRevision", "Won", "Lost"],
-  PriceRevision: ["CommercialDiscussion", "Won", "Lost"],
-  CommercialDiscussion: ["PendingApproval", "Won", "Lost"],
-  PendingApproval: ["Won", "Lost"],
-  Won: [],
-  Lost: [],
+  Active: ["PriceRevision", "Closed-Success", "Closed-Failure"],
+  PriceRevision: ["CommercialDiscussion", "Closed-Success", "Closed-Failure"],
+  CommercialDiscussion: ["PendingApproval", "Closed-Success", "Closed-Failure"],
+  PendingApproval: ["Closed-Success", "Closed-Failure"],
+  "Closed-Success": [],
+  "Closed-Failure": [],
 };
 
-const ALL_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Won", "Lost"];
+const ALL_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Closed-Success", "Closed-Failure"];
 
 export default function NegotiationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -65,6 +68,7 @@ export default function NegotiationDetailPage() {
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const { startLoading, stopLoading } = useGlobalLoading();
+  const [confirmState, setConfirmState] = useState({ isOpen: false, title: "", message: "", action: () => {} });
 
   // Edit form state
   const [editForm, setEditForm] = useState<any>({});
@@ -129,30 +133,51 @@ export default function NegotiationDetailPage() {
       toast.error(`Cannot move from ${negotiation.status} to ${newStatus}. Allowed: ${allowed.join(", ") || "none"}`);
       return;
     }
-    if (newStatus === "Won") startLoading("Closing the deal...", "handshake");
-    setSaving(true);
-    try {
-      const payload: any = { status: newStatus };
-      if (newStatus === "Won" && negotiation.revisedAmount) {
-        payload.finalAmount = negotiation.revisedAmount;
+
+    const executeChange = async () => {
+      if (newStatus === "Closed-Success") startLoading("Closing negotiation successfully...", "check");
+      setSaving(true);
+      try {
+        const payload: any = { status: newStatus };
+        if (newStatus === "Closed-Success" && negotiation.revisedAmount) {
+          payload.finalAmount = negotiation.revisedAmount;
+        }
+        const res = await fetch(`/api/negotiations/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setNegotiation(data.data);
+          toast.success(`Status changed to ${newStatus}`);
+        } else {
+          toast.error(data.message || "Failed to update status");
+        }
+      } catch {
+        toast.error("Failed to update status");
+      } finally {
+        setSaving(false);
+        stopLoading();
       }
-      const res = await fetch(`/api/negotiations/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    };
+
+    if (newStatus === "Closed-Success" || newStatus === "Closed-Failure") {
+      const isWon = newStatus === "Closed-Success";
+      const outcomeText = isWon ? "Won" : "Lost";
+      const message = `This will mark the negotiation as ${newStatus}. Are you sure you want to proceed?`;
+
+      setConfirmState({
+        isOpen: true,
+        title: `Transition to ${newStatus}`,
+        message,
+        action: async () => {
+          await executeChange();
+          setConfirmState({ isOpen: false, title: "", message: "", action: () => {} });
+        }
       });
-      const data = await res.json();
-      if (data.success) {
-        setNegotiation(data.data);
-        toast.success(`Status changed to ${newStatus}`);
-      } else {
-        toast.error(data.message || "Failed to update status");
-      }
-    } catch {
-      toast.error("Failed to update status");
-    } finally {
-      setSaving(false);
-      stopLoading();
+    } else {
+      await executeChange();
     }
   };
 
@@ -229,7 +254,7 @@ export default function NegotiationDetailPage() {
   if (!negotiation) return null;
 
   const canRevise = ["Active", "PriceRevision"].includes(negotiation.status);
-  const isClosed = ["Won", "Lost"].includes(negotiation.status);
+  const isClosed = ["Closed-Success", "Closed-Failure"].includes(negotiation.status);
 
   return (
     <PageContainer className="space-y-4 p-0">
@@ -257,84 +282,147 @@ export default function NegotiationDetailPage() {
         )}
       </div>
 
-      {/* Breadcrumbs */}
+      {/* Breadcrumbs — full lineage: RFQ → Quotation → Negotiation */}
       {negotiation.quotation && (
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          {negotiation.quotation?.rfq && (
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/40 w-max animate-fadeIn">
+          {negotiation.quotation.rfq ? (
             <>
-              <button onClick={() => router.push(`/rfq/${negotiation.quotation.rfq.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
-                {negotiation.quotation.rfq.rfqCode}
+              <button
+                onClick={() => router.push(`/rfq/${negotiation.quotation.rfq.id}`)}
+                className="text-slate-600 dark:text-slate-400 hover:text-[var(--primary)] hover:underline cursor-pointer transition-colors flex items-center gap-1"
+              >
+                📄 {negotiation.quotation.rfq.rfqCode}
               </button>
-              <span>›</span>
+              <ChevronRight size={12} className="text-slate-450" />
             </>
+          ) : (
+            <span className="text-slate-400">No RFQ</span>
           )}
-          <button onClick={() => router.push(`/quotations/${negotiation.quotation.id}`)} className="hover:text-[var(--primary)] cursor-pointer">
-            {negotiation.quotation.quotationCode}
+          <button
+            onClick={() => router.push(`/quotations/${negotiation.quotation.id}`)}
+            className="text-slate-600 dark:text-slate-400 hover:text-[var(--primary)] hover:underline cursor-pointer transition-colors flex items-center gap-1"
+          >
+            💼 {negotiation.quotation.quotationCode}
           </button>
-          <span>›</span>
-          <span className="font-medium text-slate-700">{negotiation.negotiationCode}</span>
+          <ChevronRight size={12} className="text-slate-450" />
+          <span className="px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] font-bold flex items-center gap-1">
+            🤝 {negotiation.negotiationCode}
+          </span>
         </div>
       )}
 
-      {/* Stage Stepper */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
-        <div className="flex items-center gap-1 overflow-x-auto">
+      {/* Stage Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+        <div className="flex items-center justify-between w-full overflow-x-auto py-1 gap-2">
           {[
-            { label: "RFQ", key: "rfq", id: negotiation.quotation?.rfq?.id, reached: !!negotiation.quotation?.rfq },
-            { label: "Quotation", key: "quotation", id: negotiation.quotation?.id, reached: !!negotiation.quotation },
-            { label: "Negotiation", key: "negotiation", id: id, reached: true, current: true },
-            { label: "Revision", key: "revision", id: null, reached: (negotiation.revisions?.length || 0) > 0 },
-            { label: negotiation.status === "Won" ? "Won" : negotiation.status === "Lost" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Won", "Lost"].includes(negotiation.status) },
+            { label: "RFQ", key: "rfq", id: negotiation.quotation?.rfq?.id, reached: !!negotiation.quotation?.rfq, active: false },
+            { label: "Quotation", key: "quotation", id: negotiation.quotation?.id, reached: !!negotiation.quotation, active: false },
+            { label: "Negotiation", key: "negotiation", id: id, reached: true, active: true },
+            { label: "Revision", key: "revision", id: null, reached: (negotiation.revisions?.length || 0) > 0, active: false },
+            { label: negotiation.status === "Closed-Success" ? "Closed-Success" : negotiation.status === "Closed-Failure" ? "Closed-Failure" : "Closed", key: "outcome", id: null, reached: ["Closed-Success", "Closed-Failure"].includes(negotiation.status), active: false },
           ].map((step, i, arr) => (
-            <div key={step.key} className="flex items-center shrink-0">
+            <div key={step.key} className="flex items-center flex-1 min-w-0 justify-center">
               <div
-                onClick={() => step.id && step.key !== "negotiation" && router.push(`/${step.key === "rfq" ? "rfq" : step.key === "quotation" ? "quotations" : "negotiations"}/${step.id}`)}
-                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  step.current
-                    ? "bg-[var(--primary)] text-white"
+                onClick={() => {
+                  if (step.id && !step.active) {
+                    if (step.key === "rfq") router.push(`/rfq/${step.id}`);
+                    else if (step.key === "quotation") router.push(`/quotations/${step.id}`);
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors truncate",
+                  step.active
+                    ? "bg-[var(--primary)] text-white shadow-sm border border-[var(--primary)]"
+                    : step.reached && step.id
+                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30 cursor-pointer hover:bg-green-100"
                     : step.reached
-                    ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100"
-                    : "bg-slate-50 text-slate-400"
-                }`}
+                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30"
+                    : "bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
+                )}
               >
-                {step.reached && !step.current && <Ico d={icons.check} size={12} />}
-                {step.label}
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border",
+                    step.active
+                      ? "bg-white text-[var(--primary)] border-white"
+                      : step.reached
+                      ? "bg-success text-white border-success"
+                      : "text-slate-400 border-slate-300"
+                  )}
+                >
+                  {step.reached && !step.active ? <CheckCircle size={10} /> : i + 1}
+                </div>
+                <span className="text-xs font-semibold truncate">{step.label}</span>
               </div>
-              {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
+              {i < arr.length - 1 && (
+                <div className={cn("flex-1 h-0.5 min-w-[12px] mx-2", step.reached ? "bg-success" : "bg-slate-200 dark:bg-slate-800")} />
+              )}
             </div>
           ))}
         </div>
       </div>
 
       {/* Status flow bar — sequential enforcement */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
-        <div className="flex flex-wrap gap-2">
-          {ALL_STATUSES.map((s) => {
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+        <div className="flex items-center justify-between w-full overflow-x-auto py-1 gap-2">
+          {ALL_STATUSES.map((s, idx, arr) => {
             const isCurrent = negotiation.status === s;
             const allowed = STATUS_FLOW[negotiation.status] || [];
             const isAllowed = allowed.includes(s);
-            const isClosed = ["Won", "Lost"].includes(negotiation.status);
-            const tooltip = isCurrent ? "Current status" : isClosed ? "Negotiation is closed" : !isAllowed ? `Must go through ${allowed.join(" → ")} first` : `Click to transition to ${s}`;
+            const isClosed = ["Closed-Success", "Closed-Failure"].includes(negotiation.status);
+            const statusIdx = ALL_STATUSES.indexOf(negotiation.status);
+            const stepIdx = idx;
+            const isCompleted = stepIdx < statusIdx || (negotiation.status === "Closed-Success" && s === "Closed-Success") || (negotiation.status === "Closed-Failure" && s === "Closed-Failure");
+            const isFuture = stepIdx > statusIdx;
+            const isClickable = !isClosed && !isCurrent && isAllowed;
+            const tooltip = isCurrent
+              ? "Current status"
+              : isClosed
+              ? "Negotiation is closed"
+              : isClickable
+              ? `Click to transition to ${s}`
+              : `Must go through adjacent step: ${allowed.join(" or ")}`;
+
             return (
-              <button
-                key={s}
-                disabled={saving || isClosed || (!isCurrent && !isAllowed)}
-                onClick={() => handleStatusChange(s)}
-                title={tooltip}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                  isCurrent
-                    ? "bg-[var(--primary)] text-white"
-                    : isAllowed
-                    ? "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    : "bg-slate-50 text-slate-400"
-                }`}
-              >
-                {s}
-              </button>
+              <div key={s} className="flex items-center flex-1 min-w-0 justify-center">
+                <button
+                  type="button"
+                  disabled={saving || isClosed || (!isCurrent && !isAllowed)}
+                  onClick={() => handleStatusChange(s)}
+                  title={tooltip}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors truncate",
+                    isCurrent
+                      ? "bg-[var(--primary)] text-white shadow-sm border border-[var(--primary)]"
+                      : isCompleted
+                      ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30 cursor-pointer hover:bg-green-100"
+                      : isClickable
+                      ? "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 cursor-pointer"
+                      : "bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border",
+                      isCurrent
+                        ? "bg-white text-[var(--primary)] border-white"
+                        : isCompleted
+                        ? "bg-success text-white border-success"
+                        : "text-slate-400 border-slate-300"
+                    )}
+                  >
+                    {isCompleted ? <CheckCircle size={10} /> : idx + 1}
+                  </div>
+                  <span className="text-xs font-semibold truncate">{s}</span>
+                </button>
+                {idx < arr.length - 1 && (
+                  <div className={cn("flex-1 h-0.5 min-w-[12px] mx-2", isCompleted ? "bg-success" : "bg-slate-200 dark:bg-slate-850")} />
+                )}
+              </div>
             );
           })}
         </div>
-        <p className="text-xs text-slate-400 mt-2">Status transitions are sequential. Only reachable statuses are clickable; others are disabled with a tooltip.</p>
+        <p className="text-[10px] text-slate-400 mt-2 font-medium">Status transitions are sequential. Only reachable adjacent statuses are active; non-adjacent steps are disabled-with-tooltip.</p>
       </div>
 
       {/* Tabs */}
@@ -375,26 +463,36 @@ export default function NegotiationDetailPage() {
               {negotiation.closedAt && <Field label="Closed" value={new Date(negotiation.closedAt).toLocaleDateString()} />}
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer Demands</label>
-              <textarea
-                value={editForm.customerDemands}
-                onChange={(e) => setEditForm({ ...editForm, customerDemands: e.target.value })}
-                rows={3}
-                disabled={isClosed}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none disabled:opacity-60"
-              />
-            </div>
+            <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/80">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-750 dark:text-slate-300 uppercase tracking-wider">Customer Demands</label>
+                  {!isClosed && <span className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider">✏️ Editable</span>}
+                </div>
+                <textarea
+                  value={editForm.customerDemands}
+                  onChange={(e) => setEditForm({ ...editForm, customerDemands: e.target.value })}
+                  rows={3}
+                  disabled={isClosed}
+                  placeholder="Enter specific discount demands or terms requested by the customer..."
+                  className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none disabled:opacity-60 text-slate-700 dark:text-slate-250 shadow-sm"
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1.5">Internal Notes</label>
-              <textarea
-                value={editForm.internalNotes}
-                onChange={(e) => setEditForm({ ...editForm, internalNotes: e.target.value })}
-                rows={3}
-                disabled={isClosed}
-                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none disabled:opacity-60"
-              />
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-750 dark:text-slate-300 uppercase tracking-wider">Internal Notes</label>
+                  {!isClosed && <span className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-wider">✏️ Editable</span>}
+                </div>
+                <textarea
+                  value={editForm.internalNotes}
+                  onChange={(e) => setEditForm({ ...editForm, internalNotes: e.target.value })}
+                  rows={3}
+                  disabled={isClosed}
+                  placeholder="Enter internal negotiation strategy, margin trade-offs, or notes..."
+                  className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-800 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none disabled:opacity-60 text-slate-700 dark:text-slate-250 shadow-sm"
+                />
+              </div>
             </div>
 
             {!isClosed && (
@@ -430,146 +528,186 @@ export default function NegotiationDetailPage() {
       )}
 
       {activeTab === "Revisions" && (
-        <div className="space-y-4">
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Price Revisions</h2>
-            {canRevise && (
-              <button onClick={() => setShowRevisionModal(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer">
-                <Ico d={icons.plus} size={14} /> Add Revision
-              </button>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          {/* Left / Main side: Revisions List Table */}
+          <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <h2 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Price Revision History</h2>
+              {canRevise && (
+                <button
+                  onClick={() => setShowRevisionModal(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer shadow-sm"
+                >
+                  <Plus size={14} /> Add Revision
+                </button>
+              )}
+            </div>
+            {negotiation.revisions?.length === 0 ? (
+              <div className="text-center py-12 text-slate-400">
+                <p className="text-xs font-semibold">No revisions yet</p>
+                <p className="text-[10px] mt-1">Add a revision to propose a new price</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="crm-table">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/40">
+                      <th className="crm-th text-left w-14">#</th>
+                      <th className="crm-th text-right">Proposed</th>
+                      <th className="crm-th text-right">Δ Amount</th>
+                      <th className="crm-th text-right">Discount</th>
+                      <th className="crm-th text-right">Margin</th>
+                      <th className="crm-th text-right">Δ Margin</th>
+                      <th className="crm-th text-left">Reason</th>
+                      <th className="crm-th text-center">Status</th>
+                      <th className="crm-th text-left">By</th>
+                      <th className="crm-th text-left">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {negotiation.revisions?.map((r: any, idx: number) => {
+                      const prevAmount = idx === 0 ? negotiation.initialAmount : negotiation.revisions[idx - 1].proposedAmount;
+                      const amountDelta = r.proposedAmount - prevAmount;
+                      // Margin: use negotiation's overallMarginPercent as baseline, compute revised margin if available
+                      const baseMargin = Number(negotiation.overallMarginPercent) || 0;
+                      const revisedMargin = baseMargin > 0 && negotiation.initialAmount > 0
+                        ? baseMargin * (r.proposedAmount / negotiation.initialAmount)
+                        : null;
+                      const prevMargin = idx === 0 ? baseMargin : (baseMargin * (negotiation.revisions[idx - 1].proposedAmount / negotiation.initialAmount));
+                      const marginDelta = revisedMargin != null ? revisedMargin - prevMargin : null;
+                      return (
+                        <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50">
+                          <td className="crm-td font-semibold text-slate-700 dark:text-slate-200">R{r.revisionNumber + 1} <span className="text-[9px] text-slate-400 font-normal">(#{r.revisionNumber})</span></td>
+                          <td className="crm-td text-right font-medium text-slate-700 dark:text-slate-200">{formatCurrency(r.proposedAmount)}</td>
+                          <td className={cn("crm-td text-right font-semibold", amountDelta < 0 ? "text-rose-600" : "text-emerald-600")}>
+                            {amountDelta < 0 ? "" : "+"}{formatCurrency(amountDelta)}
+                          </td>
+                          <td className="crm-td text-right text-slate-700 dark:text-slate-200">{r.discountPercent ? `${r.discountPercent}%` : "—"}</td>
+                          <td className="crm-td text-right text-slate-700 dark:text-slate-200">{revisedMargin != null ? `${revisedMargin.toFixed(1)}%` : "—"}</td>
+                          <td className={cn("crm-td text-right font-semibold", marginDelta != null && marginDelta < 0 ? "text-rose-600" : "text-emerald-600")}>
+                            {marginDelta != null ? `${marginDelta < 0 ? "" : "+"}${marginDelta.toFixed(1)}%` : "—"}
+                          </td>
+                          <td className="crm-td text-left text-slate-750 dark:text-slate-350 max-w-xs truncate" title={r.reason || ""}>{r.reason || "—"}</td>
+                          <td className="crm-td text-center">
+                            <span className={cn(
+                              "inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                              r.status === "Approved"
+                                ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30"
+                                : r.status === "Rejected"
+                                ? "bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400 border border-red-200 dark:border-red-900/30"
+                                : "bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-200 dark:border-amber-900/30"
+                            )}>
+                              {r.status}
+                            </span>
+                          </td>
+                          <td className="crm-td text-left text-slate-500">{r.createdBy?.name || "—"}</td>
+                          <td className="crm-td text-left text-slate-455">{new Date(r.createdAt).toLocaleDateString()}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-          {negotiation.revisions?.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">
-              <p>No revisions yet</p>
-              <p className="text-xs mt-1">Add a revision to propose a new price</p>
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200">
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">#</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Proposed</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Δ Amount</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Discount %</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Margin %</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Δ Margin</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Reason</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">By</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {negotiation.revisions?.map((r: any, idx: number) => {
-                  const prevAmount = idx === 0 ? negotiation.initialAmount : negotiation.revisions[idx - 1].proposedAmount;
-                  const amountDelta = r.proposedAmount - prevAmount;
-                  // Margin: use negotiation's overallMarginPercent as baseline, compute revised margin if available
-                  const baseMargin = Number(negotiation.overallMarginPercent) || 0;
-                  const revisedMargin = baseMargin > 0 && negotiation.initialAmount > 0
-                    ? baseMargin * (r.proposedAmount / negotiation.initialAmount)
-                    : null;
-                  const prevMargin = idx === 0 ? baseMargin : (baseMargin * (negotiation.revisions[idx - 1].proposedAmount / negotiation.initialAmount));
-                  const marginDelta = revisedMargin != null ? revisedMargin - prevMargin : null;
-                  return (
-                    <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                      <td className="px-4 py-3 text-sm font-medium text-slate-800">R{r.revisionNumber + 1} <span className="text-xs text-slate-400">(#{r.revisionNumber})</span></td>
-                      <td className="px-4 py-3 text-sm text-slate-700">{formatCurrency(r.proposedAmount)}</td>
-                      <td className={`px-4 py-3 text-sm ${amountDelta < 0 ? "text-red-600" : "text-green-600"}`}>{amountDelta < 0 ? "" : "+"}{formatCurrency(Math.abs(amountDelta))}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700">{r.discountPercent ? `${r.discountPercent}%` : "—"}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700">{revisedMargin != null ? `${revisedMargin.toFixed(1)}%` : "—"}</td>
-                      <td className={`px-4 py-3 text-sm ${marginDelta != null && marginDelta < 0 ? "text-red-600" : "text-green-600"}`}>{marginDelta != null ? `${marginDelta < 0 ? "" : "+"}${marginDelta.toFixed(1)}%` : "—"}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700 max-w-xs truncate">{r.reason || "—"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${revisionStatusColors[r.status] || "bg-gray-100 text-gray-600"}`}>{r.status}</span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">{r.createdBy?.name || "—"}</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">{new Date(r.createdAt).toLocaleDateString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
 
-        {/* Discount / Margin Trend Panel */}
-        {negotiation.revisions?.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4">Negotiation Trajectory</h2>
-            <div className="space-y-3">
+          {/* Right side: Discount / Margin Trend Panel */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm p-6 space-y-4">
+            <h2 className="text-xs font-bold text-slate-750 dark:text-slate-400 uppercase tracking-wider">Negotiation Trajectory</h2>
+            <div className="space-y-4">
               {/* R1 baseline */}
-              <div className="flex items-center gap-4">
-                <span className="text-xs font-medium text-slate-500 w-12">R1</span>
-                <div className="flex-1 flex items-center gap-3">
-                  <span className="text-sm text-slate-700">{formatCurrency(negotiation.initialAmount)}</span>
-                  <span className="text-xs text-slate-400">Discount: 0%</span>
-                  <span className="text-xs text-slate-400">Margin: {Number(negotiation.overallMarginPercent).toFixed(1)}%</span>
+              <div className="flex items-start gap-3 bg-slate-50 dark:bg-slate-850/30 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-bold text-[var(--primary)] mt-0.5">R1</span>
+                <div className="flex-1 space-y-1">
+                  <div className="flex justify-between items-center text-xs font-semibold text-slate-700 dark:text-slate-350">
+                    <span>{formatCurrency(negotiation.initialAmount)}</span>
+                    <span className="text-[10px] text-slate-400 font-bold bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">Baseline</span>
+                  </div>
+                  <div className="flex gap-3 text-[10px] text-slate-400 font-medium">
+                    <span>Discount: 0%</span>
+                    <span>Margin: {Number(negotiation.overallMarginPercent).toFixed(1)}%</span>
+                  </div>
                 </div>
               </div>
-              {negotiation.revisions?.map((r: any, idx: number) => {
-                const revisedMargin = Number(negotiation.overallMarginPercent) > 0 && negotiation.initialAmount > 0
-                  ? Number(negotiation.overallMarginPercent) * (r.proposedAmount / negotiation.initialAmount)
-                  : null;
-                const barWidth = Math.max(10, Math.min(100, (r.proposedAmount / negotiation.initialAmount) * 100));
-                return (
-                  <div key={r.id} className="flex items-center gap-4">
-                    <span className="text-xs font-medium text-slate-500 w-12">R{r.revisionNumber + 1}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <span className="text-sm text-slate-700">{formatCurrency(r.proposedAmount)}</span>
-                        <span className="text-xs text-slate-400">Discount: {r.discountPercent || 0}%</span>
-                        <span className={`text-xs ${revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "text-red-500" : "text-green-500"}`}>
+
+              {/* Revisions list */}
+              {negotiation.revisions?.length === 0 ? (
+                <p className="text-[10px] text-slate-450 italic text-center py-4">No revisions logged yet.</p>
+              ) : (
+                negotiation.revisions?.map((r: any, idx: number) => {
+                  const revisedMargin = Number(negotiation.overallMarginPercent) > 0 && negotiation.initialAmount > 0
+                    ? Number(negotiation.overallMarginPercent) * (r.proposedAmount / negotiation.initialAmount)
+                    : null;
+                  const barWidth = Math.max(10, Math.min(100, (r.proposedAmount / negotiation.initialAmount) * 100));
+                  return (
+                    <div key={r.id} className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">R{r.revisionNumber + 1}</span>
+                        <span className="text-xs font-semibold text-slate-850 dark:text-slate-200">{formatCurrency(r.proposedAmount)}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-slate-450 mb-1">
+                        <span>Discount: {r.discountPercent || 0}%</span>
+                        <span className={cn(
+                          "font-bold",
+                          revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "text-rose-500" : "text-emerald-500"
+                        )}>
                           Margin: {revisedMargin != null ? `${revisedMargin.toFixed(1)}%` : "—"}
                         </span>
                       </div>
-                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "bg-amber-400" : "bg-green-400"}`}
+                          className={cn(
+                            "h-full rounded-full transition-all duration-300",
+                            revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "bg-amber-400" : "bg-[var(--primary)]"
+                          )}
                           style={{ width: `${barWidth}%` }}
                         />
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
-        )}
         </div>
       )}
 
       {activeTab === "Discussion" && (
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wider">Commercial Discussion Log</h2>
-          <textarea
-            value={discussionNote}
-            onChange={(e) => setDiscussionNote(e.target.value)}
-            rows={4}
-            placeholder="Log a discussion point, customer feedback, or internal decision..."
-            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none"
-          />
-          <div className="flex justify-end">
-            <button
-              onClick={handleAddNote}
-              disabled={savingNote || !discussionNote.trim()}
-              className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60"
-            >
-              {savingNote ? "Saving..." : "Add Note"}
-            </button>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-6 space-y-5">
+          <h2 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Commercial Discussion Log</h2>
+          <div className="space-y-4">
+            <textarea
+              value={discussionNote}
+              onChange={(e) => setDiscussionNote(e.target.value)}
+              rows={3}
+              placeholder="Log a discussion point, customer feedback, or internal decision..."
+              className="w-full px-4 py-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-805 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none shadow-sm text-slate-700 dark:text-slate-200"
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={handleAddNote}
+                disabled={savingNote || !discussionNote.trim()}
+                className="px-5 py-2.5 rounded-lg text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer disabled:opacity-60 shadow-sm"
+              >
+                {savingNote ? "Saving..." : "Add Log Entry"}
+              </button>
+            </div>
           </div>
-          <div className="pt-4 border-t border-slate-100 space-y-3">
+          <div className="pt-5 border-t border-slate-100 dark:border-slate-800/80 space-y-3 max-h-[400px] overflow-y-auto pr-1">
             {discussionNotes.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-8">No discussion notes yet. Add one above.</p>
+              <p className="text-xs text-slate-400 text-center py-8 italic">No discussion notes yet. Add one above.</p>
             ) : (
-              discussionNotes.map((note: any) => (
-                <div key={note.id} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                  <p className="text-sm text-slate-700">{note.text}</p>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-slate-400">
-                    <span>{note.createdByName || "Unknown"}</span>
-                    <span>•</span>
-                    <span>{new Date(note.createdAt).toLocaleString()}</span>
+              [...discussionNotes].reverse().map((note: any) => (
+                <div key={note.id} className="flex gap-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl p-4 border border-slate-100 dark:border-slate-800/50 shadow-sm">
+                  <div className="w-8 h-8 rounded-full bg-[var(--primary)]/10 text-[var(--primary)] flex items-center justify-center font-bold text-xs shrink-0 shadow-inner">
+                    {(note.createdByName || "U")[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{note.createdByName}</span>
+                      <span className="text-[10px] text-slate-400 font-medium">{new Date(note.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-slate-650 dark:text-slate-400 leading-relaxed font-medium">{note.text}</p>
                   </div>
                 </div>
               ))
@@ -641,15 +779,23 @@ export default function NegotiationDetailPage() {
           </div>
         </div>
       )}
+      <ConfirmModal
+        isOpen={confirmState.isOpen}
+        title={confirmState.title}
+        message={confirmState.message}
+        onConfirm={confirmState.action}
+        onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })}
+        isDestructive={true}
+      />
     </PageContainer>
   );
 }
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className="text-sm font-medium text-slate-800">{value}</p>
+    <div className="bg-slate-50/50 dark:bg-slate-850/20 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800/60 shadow-sm">
+      <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold uppercase tracking-wider">{label}</p>
+      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mt-0.5">{value}</p>
     </div>
   );
 }

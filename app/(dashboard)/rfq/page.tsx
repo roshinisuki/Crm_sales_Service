@@ -238,32 +238,36 @@ function RFQListContent() {
 
         {/* Bulk Actions Bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 border border-blue-200">
-            <span className="text-sm font-medium text-blue-800">{selectedIds.size} selected</span>
-            <select value={bulkAction} onChange={(e) => setBulkAction(e.target.value)} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-sm cursor-pointer">
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-blue-50/85 dark:bg-slate-900/50 border border-blue-200 dark:border-slate-800/80 animate-fadeIn">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400">
+              {selectedIds.size} selected
+            </span>
+            <select value={bulkAction} onChange={(e) => setBulkAction(e.target.value)} className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm cursor-pointer text-slate-700 dark:text-slate-200 focus:outline-none">
               <option value="">-- Select Action --</option>
               <option value="assign">Assign To</option>
               <option value="status">Change Status</option>
               <option value="delete">Delete</option>
             </select>
             {bulkAction === "assign" && (
-              <select value={bulkAssignUser} onChange={(e) => setBulkAssignUser(e.target.value)} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-sm cursor-pointer">
+              <select value={bulkAssignUser} onChange={(e) => setBulkAssignUser(e.target.value)} className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm cursor-pointer text-slate-700 dark:text-slate-200 focus:outline-none">
                 <option value="">-- Select User --</option>
                 {users.map((u: any) => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
               </select>
             )}
             {bulkAction === "status" && (
-              <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-sm cursor-pointer">
+              <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)} className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm cursor-pointer text-slate-700 dark:text-slate-200 focus:outline-none">
                 <option value="">-- Select Status --</option>
                 {statusOptions.map((s) => <option key={s} value={s}>{s.replace(/([A-Z])/g, " $1").trim()}</option>)}
               </select>
             )}
             {bulkAction && (
-              <button onClick={handleBulkAction} disabled={bulkLoading} className="px-4 py-1.5 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 cursor-pointer">
+              <button onClick={handleBulkAction} disabled={bulkLoading} className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 cursor-pointer shadow-sm">
                 {bulkLoading ? "Processing..." : "Apply"}
               </button>
             )}
-            <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-sm text-slate-500 hover:text-slate-700 cursor-pointer">Clear</button>
+            <button onClick={() => { setSelectedIds(new Set()); setBulkAction(""); }} className="ml-auto text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer">
+              Clear selection
+            </button>
           </div>
         )}
 

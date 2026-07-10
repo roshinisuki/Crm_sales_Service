@@ -177,7 +177,8 @@ export default function NewQuotationPage() {
       setItems(items.map((item, i) => (i === idx ? {
         ...item,
         productId,
-        description: item.description || product.name,
+        description: product.name,
+        unitPrice: String(product.basePrice || 0),
         hsn: product.hsnCode || product.productCode || item.hsn,
         unit: product.unit || item.unit || "Nos",
       } : item)));

@@ -118,7 +118,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           data: { status: "Approved" },
         });
       }
-      await prisma.negotiation.update({
+      const updatedNegotiation = await prisma.negotiation.update({
         where: { id: approval.entityId! },
         data: {
           status: "PriceRevision",
@@ -126,6 +126,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           approvedById: user.id,
         },
       });
+      // Apply the approved discount to the underlying Quotation
+      if (updatedNegotiation.quotationId) {
+        const rootQuotation = await prisma.quotation.findFirst({
+          where: { id: updatedNegotiation.quotationId, deletedAt: null },
+        });
+        if (rootQuotation) {
+          const totalAmount = rootQuotation.totalAmount || 0;
+          const newFinalAmount = totalAmount * (1 - approval.discountPercent / 100);
+          await prisma.quotation.update({
+            where: { id: rootQuotation.id },
+            data: {
+              discountPercent: approval.discountPercent,
+              finalAmount: newFinalAmount,
+            },
+          });
+          await prisma.quotationStatusHistory.create({
+            data: {
+              quotationId: rootQuotation.id,
+              fromStatus: rootQuotation.status,
+              toStatus: rootQuotation.status,
+              changedById: user.id,
+              notes: `Discount of ${approval.discountPercent}% applied via approved negotiation revision`,
+            },
+          });
+        }
+      }
     } else {
       // Reject: revert negotiation to previous status
       const revertStatus = approval.previousStatus || "Active";

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
+import { transitionDealStatus } from "@/lib/dealService";
+
 
 // POST /api/opportunities/[id]/mark-won
 export async function POST(
@@ -55,24 +57,24 @@ export async function POST(
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    // Update deal to Won
+    // 1. Update deal won-specific fields
     const updated = await tx.deal.update({
       where: { id },
-      data: { status: "Won", probabilityPercent: 100 },
+      data: { probabilityPercent: 100 },
     });
 
-    // Insert stage history
-    await tx.dealStageHistory.create({
-      data: {
-        dealId: id,
-        fromStatus: deal.status,
-        toStatus: "Won",
-        changedById: user.id,
-        durationInPreviousStage: daysInPreviousStage,
+    // 2. Perform status transition via central state machine
+    await transitionDealStatus(
+      id,
+      "Won",
+      {
+        actorId: user.id,
+        companyId: user.companyId!,
       },
-    });
+      tx
+    );
 
-    // Sync Customer status to ActiveCustomer
+    // 3. Sync Customer status to ActiveCustomer
     await tx.customer.update({
       where: { id: deal.customerId },
       data: { status: "ActiveCustomer" },

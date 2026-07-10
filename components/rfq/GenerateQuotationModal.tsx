@@ -67,11 +67,6 @@ export function GenerateQuotationModal({
           setPendingItems(pending);
 
           // Get margin floor settings
-          const configRes = await fetch(`/api/system-configs`);
-          // Wait! /api/system-configs might not exist or require Admin.
-          // Let's call /api/rfq/[id]/generate-quotation with dry-run or mock verify
-          // Or read from a custom settings endpoint.
-          // Let's just do a POST dry-run check or verify margins directly from costingSheets
           const sheetsRes = await fetch(`/api/rfq/${rfqId}/costing-sheet`);
           const sheetsData = await sheetsRes.json();
 
@@ -84,8 +79,11 @@ export function GenerateQuotationModal({
             try {
               // We'll read from system configs or fallback
               const cRes = await fetch("/api/system-configs").then((r) => r.json()).catch(() => null);
-              if (cRes?.success && cRes.data?.rfq_margin_floor_percent) {
-                threshold = parseFloat(cRes.data.rfq_margin_floor_percent);
+              if (cRes?.success && Array.isArray(cRes.data)) {
+                const floorConfig = cRes.data.find((c: any) => c.key === "rfq_margin_floor_percent");
+                if (floorConfig) {
+                  threshold = parseFloat(floorConfig.value);
+                }
               }
             } catch {}
             setMarginFloor(threshold);
