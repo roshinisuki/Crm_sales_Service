@@ -87,7 +87,7 @@ export default function TargetsPage() {
 
   return (
     <PageContainer className="space-y-5 p-0">
-      <AnalyticsPageHeader title="Sales Targets" subtitle="Manage monthly, quarterly, and yearly sales targets">
+      <AnalyticsPageHeader title="Targets Overview" subtitle="Manage monthly, quarterly, and yearly sales targets">
         <div className="flex gap-2">
           <Link href="/targets/achievement" className="btn-secondary">
             <BarChart3 size={16} /> Achievement Tracking

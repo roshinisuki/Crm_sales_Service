@@ -26,11 +26,13 @@ const statusColors: Record<string, string> = {
   PriceRevision: "bg-amber-100 text-amber-700",
   CommercialDiscussion: "bg-purple-100 text-purple-700",
   PendingApproval: "bg-orange-100 text-orange-700",
+  "Closed-Success": "bg-green-100 text-green-700",
+  "Closed-Failure": "bg-red-100 text-red-700",
   Won: "bg-green-100 text-green-700",
   Lost: "bg-red-100 text-red-700",
 };
 
-const statusOptions = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Won", "Lost"];
+const statusOptions = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Closed-Success", "Closed-Failure"];
 
 export default function NegotiationListPage() {
   const [negotiations, setNegotiations] = useState<any[]>([]);
@@ -104,7 +106,7 @@ export default function NegotiationListPage() {
     <PageContainer className="space-y-4 p-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Negotiation Management</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Negotiations Overview</h1>
           <p className="text-sm text-slate-500 mt-0.5">Track price negotiations, revisions, and approvals</p>
         </div>
         <button
@@ -166,7 +168,11 @@ export default function NegotiationListPage() {
                 <tr><td colSpan={8} className="crm-td text-center py-8 text-muted-foreground">No negotiations found</td></tr>
               ) : (
                 filtered.map((n: any) => (
-                  <tr key={n.id} className="crm-tr">
+                  <tr
+                    key={n.id}
+                    className="crm-tr table-row-clickable"
+                    onClick={() => router.push(`/negotiations/${n.id}?status=${n.status}`)}
+                  >
                     <td className="crm-td font-medium text-foreground">{n.negotiationCode}</td>
                     <td className="crm-td text-foreground">{n.customer?.name || "—"}</td>
                     <td className="crm-td text-foreground">{n.initialAmount ? formatCurrency(n.initialAmount) : "—"}</td>
@@ -176,7 +182,7 @@ export default function NegotiationListPage() {
                     </td>
                     <td className="crm-td text-foreground">{n._count?.revisions || 0}</td>
                     <td className="crm-td text-foreground">{n.assignedUser?.name || "—"}</td>
-                    <td className="crm-td text-right">
+                    <td className="crm-td text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => router.push(`/negotiations/${n.id}?status=${n.status}`)} className="p-1.5 rounded-lg hover:bg-muted text-slate-600 cursor-pointer" title="View">
                           <Ico d={icons.eye} size={15} />

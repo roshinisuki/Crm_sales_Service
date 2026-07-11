@@ -5,7 +5,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import {
-  Users, TrendingUp, DollarSign, Clock, CalendarCheck,
+  Users, TrendingUp, IndianRupee, Clock, CalendarCheck,
   ArrowUpRight, ArrowDownRight, Activity,
 } from "lucide-react";
 import {
@@ -36,7 +36,7 @@ function KpiStrip({ dashboardData, salesData, formatCurrency }: any) {
       display: salesData?.kpis?.pipelineRevenue ? <CountUp end={salesData.kpis.pipelineRevenue} prefix="₹" /> : "₹0",
       trend: "Revenue at stake",
       up: true,
-      icon: <DollarSign size={20} />,
+      icon: <IndianRupee size={20} />,
       color: "var(--accent)",
       bg: "var(--accent-soft)",
     },
@@ -278,7 +278,7 @@ export default function AdminDashboard({ dashboardData, salesData, user, loadDat
 
   return (
     <PageShell
-      title="Analytics Overview"
+      title="Dashboards Overview"
       subtitle="Master consolidated view of sales, pipeline, and module activity"
       action={
         <div className="flex items-center gap-2">

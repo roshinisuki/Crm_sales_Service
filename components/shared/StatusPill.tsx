@@ -44,6 +44,10 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
   // Generic
   Inactive:    { bg: "var(--surface-2)",         text: "var(--text-secondary)",      border: "var(--border)" },
 
+  // Active Customer status
+  ActiveCustomer: { bg: "var(--status-success-bg)", text: "var(--status-success-text)", border: "var(--status-success-border)" },
+  "Active Customer": { bg: "var(--status-success-bg)", text: "var(--status-success-text)", border: "var(--status-success-border)" },
+
   // SLA & Lead Statuses
   Met:         { bg: "var(--status-success-bg)", text: "var(--status-success-text)", border: "var(--status-success-border)" },
   Breached:    { bg: "var(--status-danger-bg)",  text: "var(--status-danger-text)",  border: "var(--status-danger-border)" },
@@ -51,6 +55,13 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 };
 
 const fallback = { bg: "var(--surface-2)", text: "var(--text-secondary)", border: "var(--border)" };
+
+export function formatStatusLabel(status: string): string {
+  if (!status) return "";
+  if (status === "ActiveCustomer") return "Active Customer";
+  // Insert spaces before capitals if camel cased
+  return status.replace(/([A-Z])/g, " $1").trim();
+}
 
 export function StatusPill({
   status,
@@ -61,7 +72,7 @@ export function StatusPill({
   size?: "sm" | "md";
   className?: string;
 }) {
-  const colors = STATUS_COLORS[status] || fallback;
+  const colors = STATUS_COLORS[status] || STATUS_COLORS[formatStatusLabel(status)] || fallback;
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full font-semibold whitespace-nowrap leading-none ${className ?? ""}`}
@@ -73,7 +84,7 @@ export function StatusPill({
         padding: size === "sm" ? "2px 8px" : "4px 12px",
       }}
     >
-      {status}
+      {formatStatusLabel(status)}
     </span>
   );
 }

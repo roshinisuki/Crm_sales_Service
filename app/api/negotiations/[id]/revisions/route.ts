@@ -59,7 +59,6 @@ export async function POST(
   }
 
   const proposedAmount = parseFloat(body.proposedAmount);
-  const discountPercent = body.discountPercent ? parseFloat(body.discountPercent) : 0;
   const reason = body.reason || null;
   const nextRevisionNumber = (negotiation.revisions[0]?.revisionNumber || 0) + 1;
 
@@ -71,6 +70,16 @@ export async function POST(
   if (proposedAmount > currentAmount) {
     return NextResponse.json({ success: false, message: `Proposed amount (${proposedAmount}) cannot exceed the current negotiated amount (${currentAmount}). Revisions can only lower the price.` }, { status: 400 });
   }
+
+  // B.4: Compute discount percent server-side instead of trusting client
+  const discountPercent = currentAmount > 0
+    ? Math.max(0, ((currentAmount - proposedAmount) / currentAmount) * 100)
+    : 0;
+
+  // Calculate cumulative discount relative to initialAmount
+  const cumulativeDiscount = negotiation.initialAmount > 0
+    ? Math.max(0, ((negotiation.initialAmount - proposedAmount) / negotiation.initialAmount) * 100)
+    : discountPercent;
 
   // Determine if approval is required based on discount threshold from Approval Matrix settings
   const threshold = await getDiscountThreshold(user.companyId!);
@@ -102,17 +111,60 @@ export async function POST(
         include: { items: true },
       });
       if (rootQuotation) {
+        // Create a snapshot of the quotation before applying the new discount
+        const snapshotJson = JSON.stringify({
+          quotationCode: rootQuotation.quotationCode,
+          revisionNumber: rootQuotation.revisionNumber,
+          status: rootQuotation.status,
+          validUntil: rootQuotation.validUntil,
+          subtotal: rootQuotation.subtotal,
+          taxAmount: rootQuotation.taxAmount,
+          totalAmount: rootQuotation.totalAmount,
+          discountPercent: rootQuotation.discountPercent,
+          finalAmount: rootQuotation.finalAmount,
+          termsAndConditions: rootQuotation.termsAndConditions,
+          paymentTerms: rootQuotation.paymentTerms,
+          deliveryTerms: rootQuotation.deliveryTerms,
+          freightTerms: rootQuotation.freightTerms,
+          leadTimeDays: rootQuotation.leadTimeDays,
+          overallMarginPercent: rootQuotation.overallMarginPercent ? Number(rootQuotation.overallMarginPercent) : null,
+          items: rootQuotation.items.map((it) => ({
+            description: it.description,
+            quantity: it.quantity,
+            unitPrice: it.unitPrice,
+            discountPercent: it.discountPercent,
+            taxPercent: it.taxPercent,
+            lineTotal: it.lineTotal,
+            hsn: it.hsn,
+            unit: it.unit,
+            notes: it.notes,
+            costBasisUnitPrice: it.costBasisUnitPrice ? Number(it.costBasisUnitPrice) : null,
+            marginPercent: it.marginPercent ? Number(it.marginPercent) : null,
+            priceSource: it.priceSource,
+            quantityBreakId: it.quantityBreakId,
+          })),
+        });
+
+        await tx.quotationRevisionSnapshot.create({
+          data: {
+            quotationId: rootQuotation.id,
+            revisionNumber: rootQuotation.revisionNumber,
+            snapshotJson,
+            createdById: user.id,
+          },
+        });
+
         const totalAmount = rootQuotation.totalAmount || 0;
-        // C.3/C.4: Recalculate line items + tax proportionally
+        // C.3/C.4: Recalculate line items + tax proportionally using cumulativeDiscount
         const recalc = applyDiscountToQuotationItems(
           rootQuotation.items.map(i => ({ id: i.id, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice, taxPercent: i.taxPercent, discountPercent: i.discountPercent })),
           totalAmount,
-          discountPercent
+          cumulativeDiscount
         );
         await tx.quotation.update({
           where: { id: rootQuotation.id },
           data: {
-            discountPercent,
+            discountPercent: cumulativeDiscount,
             finalAmount: recalc.finalAmount,
             taxAmount: recalc.taxAmount,
             subtotal: recalc.subtotal,
@@ -136,7 +188,7 @@ export async function POST(
             fromStatus: rootQuotation.status,
             toStatus: rootQuotation.status,
             changedById: user.id,
-            notes: `Discount of ${discountPercent}% applied via auto-approved negotiation revision`,
+            notes: `Discount of ${cumulativeDiscount.toFixed(2)}% applied via auto-approved negotiation revision`,
           },
         });
       }

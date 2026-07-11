@@ -8,7 +8,8 @@ import PageContainer from "@/components/PageContainer";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { FormSection, FormGrid, FormActions, FormButton, CompactFormContainer } from "@/components/ui/FormLayout";
 import { getCustomersAction } from "@/app/actions/customers";
-import { Trash2, Plus, ArrowLeft } from "lucide-react";
+import { TemplateUploader, ParsedLineItem } from "@/components/rfq/TemplateUploader";
+import { Trash2, Plus, ArrowLeft, Upload, Edit3 } from "lucide-react";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -50,6 +51,10 @@ export default function NewRFQPage() {
     assignedUserId: "",
     notes: "",
   });
+
+  const [uploadMode, setUploadMode] = useState<"manual" | "template">("manual");
+  const [templateFileName, setTemplateFileName] = useState<string | null>(null);
+  const [templateFileUrl, setTemplateFileUrl] = useState<string | null>(null);
 
   const [lineItems, setLineItems] = useState<any[]>([{ item_description: "", product_id: "", quantity: "1", unit: "", target_price: "", delivery_date: "", specifications: "" }]);
 
@@ -117,6 +122,29 @@ export default function NewRFQPage() {
   const removeLineItem = (idx: number) => setLineItems(lineItems.filter((_, i) => i !== idx));
   const updateLineItem = (idx: number, field: string, value: string) => setLineItems(lineItems.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
 
+  const handleParsed = (data: {
+    lineItems: ParsedLineItem[];
+    templateFileName: string;
+    templateFileUrl: string;
+    rawText?: string;
+  }) => {
+    setTemplateFileName(data.templateFileName);
+    setTemplateFileUrl(data.templateFileUrl);
+    setLineItems(
+      data.lineItems.map(li => ({
+        item_description: li.item_description,
+        product_id: "",
+        quantity: li.quantity,
+        unit: li.unit,
+        target_price: li.target_price,
+        delivery_date: "",
+        specifications: li.specifications,
+      }))
+    );
+    setUploadMode("manual");
+    toast.success("Template parsed successfully. Please review the line items.");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.customerId) { toast.error("Please select a customer"); return; }
@@ -129,7 +157,9 @@ export default function NewRFQPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          opportunity_id: opportunityId,
+          opportunityId: opportunityId,
+          templateFileName,
+          templateFileUrl,
           line_items: validLineItems.map(li => ({
             item_description: li.item_description,
             product_id: li.product_id || undefined,
@@ -267,17 +297,46 @@ export default function NewRFQPage() {
           </FormGrid>
         </FormSection>
 
-        {/* Line Items Section */}
         <FormSection
           title="Line Items"
           description="Items requested in this RFQ"
           actions={<FormButton variant="secondary" type="button" onClick={addLineItem}><Plus size={14} /> Add Line Item</FormButton>}
         >
-          <div className="space-y-3">
-            {lineItems.map((li, idx) => (
-              <div key={idx} className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-subtle)] space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[var(--text-tertiary)]">Item {idx + 1}</span>
+          <div className="mb-4 flex space-x-2 border-b border-[var(--border-subtle)] pb-2">
+            <button
+              type="button"
+              onClick={() => setUploadMode("manual")}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg ${uploadMode === "manual" ? "bg-[var(--surface-1)] border-b-2 border-primary-600 text-primary-700" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
+            >
+              <div className="flex items-center gap-2"><Edit3 size={16} /> Manual Entry</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setUploadMode("template")}
+              className={`px-4 py-2 text-sm font-medium rounded-t-lg ${uploadMode === "template" ? "bg-[var(--surface-1)] border-b-2 border-primary-600 text-primary-700" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
+            >
+              <div className="flex items-center gap-2"><Upload size={16} /> Upload Template</div>
+            </button>
+          </div>
+
+          {uploadMode === "template" ? (
+            <div className="p-6 bg-[var(--surface-0)] border border-[var(--border-subtle)] rounded-lg">
+              <TemplateUploader onParsed={handleParsed} />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {templateFileName && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded flex justify-between items-center">
+                  <span className="text-sm font-medium">Imported from template: {templateFileName}</span>
+                  <button type="button" onClick={() => { setTemplateFileName(null); setTemplateFileUrl(null); }} className="text-blue-500 hover:text-blue-700 text-xs font-semibold">
+                    Remove Link
+                  </button>
+                </div>
+              )}
+              {lineItems.map((li, idx) => (
+                <div key={idx} className="p-4 rounded-xl bg-[var(--surface-2)] border border-[var(--border-subtle)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[var(--text-tertiary)]">Item {idx + 1}</span>
                   {lineItems.length > 1 && (
                     <button type="button" onClick={() => removeLineItem(idx)} className="text-red-500 hover:text-red-700 cursor-pointer">
                       <Trash2 size={14} />
@@ -338,7 +397,8 @@ export default function NewRFQPage() {
                 </FormGrid>
               </div>
             ))}
-          </div>
+            </div>
+          )}
         </FormSection>
 
         <FormSection title="Additional Information">

@@ -16,7 +16,7 @@ import {
   LayoutDashboard, Users, CalendarClock, Briefcase, BookUser,
   CheckSquare, Settings, LogOut, Menu, X, TrendingUp, Building,
   ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo,
-  Package, FileText, DollarSign, MessageSquare, Clock, Target, Layers, MapPin, Search,
+  Package, FileText, IndianRupee, MessageSquare, Clock, Target, Layers, MapPin, Search,
   Swords, Crown, Globe, Trophy, Wrench, ShieldAlert, Hammer, LifeBuoy, AlertTriangle, HelpCircle, Calendar
 } from "lucide-react";
 
@@ -39,10 +39,11 @@ function NavLink({ item, active, onClick, collapsed }: { item: NavItem; active: 
       )}
       style={{
         fontSize: collapsed ? undefined : "13.5px",
-        ...(active ? { background: "var(--sidebar-active-bg)", color: "var(--sidebar-text-act)" } : { color: "var(--sidebar-text)" })
+        color: active ? "var(--sidebar-text-act)" : "var(--sidebar-text)",
+        background: active ? "var(--sidebar-active-bg)" : "transparent"
       }}
-      onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
-      onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
+      onMouseEnter={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; e.currentTarget.style.borderLeft = "3px solid var(--brand-primary)"; e.currentTarget.style.paddingLeft = "10px"; } }}
+      onMouseLeave={e => { if (!active) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderLeft = ""; e.currentTarget.style.paddingLeft = ""; } }}
     >
       <span className={cn("transition-colors shrink-0")} style={{ color: active ? "var(--sidebar-text-act)" : "var(--sidebar-heading)" }}>
         {item.icon}
@@ -215,10 +216,10 @@ function ExpandableNavSection({
           className="w-full flex items-center justify-center px-2 py-2.5 rounded-lg text-sm font-medium transition-colors"
           style={{
             color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)",
-            background: isSectionActive ? "color-mix(in srgb, var(--brand-primary) 10%, transparent)" : "transparent"
+            background: isSectionActive ? "color-mix(in srgb, var(--brand-primary) 20%, transparent)" : "transparent"
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = isSectionActive ? "color-mix(in srgb, var(--brand-primary) 15%, transparent)" : "var(--sidebar-hover)"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = isSectionActive ? "color-mix(in srgb, var(--brand-primary) 10%, transparent)" : "transparent"; }}
+          onMouseEnter={e => { e.currentTarget.style.background = isSectionActive ? "color-mix(in srgb, var(--brand-primary) 35%, transparent)" : "var(--sidebar-hover)"; if (!isSectionActive) { e.currentTarget.style.borderLeft = "3px solid var(--brand-primary)"; e.currentTarget.style.paddingLeft = "11px"; } }}
+          onMouseLeave={e => { e.currentTarget.style.background = isSectionActive ? "color-mix(in srgb, var(--brand-primary) 20%, transparent)" : "transparent"; if (!isSectionActive) { e.currentTarget.style.borderLeft = ""; e.currentTarget.style.paddingLeft = ""; } }}
         >
           <span style={{ color: isSectionActive ? "var(--sidebar-active)" : "var(--sidebar-heading)" }}>{icon}</span>
         </button>
@@ -236,9 +237,13 @@ function ExpandableNavSection({
             return (
               <Link key={href} href={href} onClick={onNavClick}
                 className="block px-3 py-1.5 text-[12px] rounded-md mx-1 transition-colors"
-                style={isActive ? { color: "var(--sidebar-text-act)", fontWeight: 600, background: "var(--sidebar-active-bg)" } : { color: "var(--sidebar-text)" }}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
+                style={{
+                  color: isActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)",
+                  fontWeight: isActive ? 600 : 500,
+                  background: isActive ? "var(--sidebar-active-bg)" : "transparent"
+                }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; e.currentTarget.style.borderLeft = "2px solid var(--brand-primary)"; e.currentTarget.style.paddingLeft = "11px"; } }}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderLeft = ""; e.currentTarget.style.paddingLeft = ""; } }}
               >
                 <span className="whitespace-nowrap overflow-hidden text-ellipsis">{sub.label}</span>
               </Link>
@@ -261,8 +266,8 @@ function ExpandableNavSection({
           color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)",
           background: "transparent"
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = "var(--sidebar-hover)"; }}
-        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+        onMouseEnter={e => { e.currentTarget.style.background = "var(--sidebar-hover)"; e.currentTarget.style.borderLeft = "3px solid var(--brand-primary)"; e.currentTarget.style.paddingLeft = "11px"; }}
+        onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderLeft = ""; e.currentTarget.style.paddingLeft = ""; }}
       >
         <div className="flex items-center gap-3">
           <span className={cn("transition-colors shrink-0")} style={{ color: isSectionActive ? "var(--sidebar-text-act)" : "var(--sidebar-heading)" }}>
@@ -295,13 +300,12 @@ function ExpandableNavSection({
                 )}
                 style={{
                   fontSize: "12.5px",
-                  ...(isActive
-                    ? { color: "var(--sidebar-text-act)", fontWeight: 600, background: "var(--sidebar-active-bg)" }
-                    : { color: "var(--sidebar-text)" }
-                  )
+                  color: isActive ? "var(--sidebar-text-act)" : "var(--sidebar-text)",
+                  fontWeight: isActive ? 600 : 500,
+                  background: isActive ? "var(--sidebar-active-bg)" : "transparent"
                 }}
-                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; } }}
-                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; } }}
+                onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text-act)"; e.currentTarget.style.background = "var(--sidebar-hover)"; e.currentTarget.style.borderLeft = "2px solid var(--brand-primary)"; e.currentTarget.style.paddingLeft = "11px"; } }}
+                onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = "var(--sidebar-text)"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.borderLeft = ""; e.currentTarget.style.paddingLeft = ""; } }}
               >
                 <span className="whitespace-nowrap overflow-hidden text-ellipsis">{sub.label}</span>
               </Link>
@@ -771,10 +775,9 @@ export function CrmToggle({ className }: { className?: string }) {
       <div
         className={cn(
           "absolute top-[3px] bottom-[3px] w-[107px] rounded-full transition-all duration-300 ease-out shadow-sm",
-          isServiceWorkspace 
-            ? "left-[calc(50%+1px)] bg-purple-600 shadow-[0_0_8px_rgba(168,85,247,0.4)]" 
-            : "left-[3px] bg-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+          isServiceWorkspace ? "left-[calc(50%+1px)]" : "left-[3px]"
         )}
+        style={{ backgroundColor: "var(--primary)", boxShadow: "0 0 8px var(--primary-ring)" }}
       />
       
       {/* Sales CRM Link */}
@@ -916,6 +919,8 @@ function SidebarContent({
     { href: "/leads", label: "Overview" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
+    { href: "/leads?status=TodaysFollowUp", label: "Today's Follow-up" },
+    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-up" },
     { href: "/leads?status=SQL", label: "SQL" },
     { href: "/leads?status=Overdue", label: "Overdue Leads" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
@@ -924,6 +929,8 @@ function SidebarContent({
     { href: "/leads", label: "Overview" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
+    { href: "/leads?status=TodaysFollowUp", label: "Today's Follow-up" },
+    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-up" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
 
@@ -1355,7 +1362,7 @@ function SidebarContent({
               icon={<LayoutDashboard size={17} />}
               subItems={[
                 { href: "/dashboard", label: "Overview" },
-                ...(isVariant2 && !loading && (user?.role === "Admin" || user?.role === "SalesManager") ? [{ href: "/dashboard/manager", label: "Sales Dashboard" }] : []),
+                ...(isVariant2 && !loading && (user?.role === "Admin" || user?.role === "SalesManager") ? [{ href: "/dashboard/manager", label: "Sales Manager" }] : []),
               ]}
               pathname={pathname}
               onNavClick={onNavClick}
@@ -1371,7 +1378,7 @@ function SidebarContent({
                 {hasPerm("Leads") && <ExpandableNavSection label="Leads" icon={<Users size={17} />} subItems={leadSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Leads"} onToggle={makeToggle("Leads")} onOpen={openSectionLabel("Leads")} />}
                 {hasPerm("Accounts") && <ExpandableNavSection label="Accounts" icon={<BookUser size={17} />} subItems={accountsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Accounts"} onToggle={makeToggle("Accounts")} onOpen={openSectionLabel("Accounts")} />}
                 {hasPerm("Contacts") && <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} onOpen={openSectionLabel("Contacts")} />}
-                {hasPerm("Activities") && <NavLink item={{ href: "/activities", label: "Activities", icon: <Activity size={17} /> }} active={pathname.startsWith("/activities") || pathname === "/timeline"} onClick={onNavClick} collapsed={collapsed} />}
+                {hasPerm("Activities") && <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Activities"} onToggle={makeToggle("Activities")} onOpen={openSectionLabel("Activities")} />}
 
                 {isVariant2 && hasPerm("Customer Visits") && (
                   <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Visits"} onToggle={makeToggle("Customer Visits")} onOpen={openSectionLabel("Customer Visits")} />
@@ -1394,7 +1401,7 @@ function SidebarContent({
                 {isVariant4 && hasPerm("Competitors") && (
                   <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} onOpen={openSectionLabel("Competitors")} />
                 )}
-                {hasPerm("Quotations") && <ExpandableNavSection label="Quotations" icon={<DollarSign size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />}
+                {hasPerm("Quotations") && <ExpandableNavSection label="Quotations" icon={<IndianRupee size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />}
                 {isVariant3 && hasPerm("Negotiations") && (
                   <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} onOpen={openSectionLabel("Negotiations")} />
                 )}

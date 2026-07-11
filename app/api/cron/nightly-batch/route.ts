@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { dispatchNotification } from "@/lib/notifications";
+import { transitionDealStatus } from "@/lib/dealService";
+import { PIPELINE_CLOSED_STAGES } from "@/lib/module-status-config";
 
 // POST /api/cron/nightly-batch
 // Called by external cron scheduler (e.g., Vercel Cron, external scheduler).
@@ -20,6 +23,7 @@ export async function POST(request: Request) {
       accountsInactivated: 0,
       accountsActivated: 0,
       birthdayRemindersSent: 0,
+      posAutoOnHold: 0,
     };
 
     // ─── Job 1: Auto-Inactive Accounts ──────────────────────────────────
@@ -183,6 +187,73 @@ export async function POST(request: Request) {
         },
       });
       results.birthdayRemindersSent++;
+    }
+
+    // ─── Job 4: PO Auto-Aging → OnHold ─────────────────────────────────
+    // Move "New" or "UnderValidation" POs older than 1 day to "OnHold".
+    // Sets onHoldAt, onHoldReason, and notifies the assigned user.
+    const poCutoff = new Date();
+    poCutoff.setDate(poCutoff.getDate() - 1);
+
+    const stalePOs = await prisma.purchaseOrder.findMany({
+      where: {
+        deletedAt: null,
+        status: { in: ["New", "UnderValidation"] },
+        createdAt: { lt: poCutoff },
+      },
+      select: { id: true, poCode: true, assignedUserId: true, status: true, createdAt: true, dealId: true, companyId: true },
+    });
+
+    for (const po of stalePOs) {
+      const ageDays = Math.floor((Date.now() - new Date(po.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const reason = `Auto-held: PO stale for ${ageDays} day(s) without progression (nightly batch)`;
+
+      await prisma.$transaction(async (tx) => {
+        // 1. Move PO to OnHold
+        await tx.purchaseOrder.update({
+          where: { id: po.id },
+          data: {
+            status: "OnHold",
+            onHoldAt: new Date(),
+            onHoldReason: reason,
+          },
+        });
+
+        // 2. Move the associated deal to OnHold (if it has one and it's not already closed)
+        if (po.dealId) {
+          const deal = await tx.deal.findUnique({
+            where: { id: po.dealId },
+            select: { status: true },
+          });
+          if (deal && !PIPELINE_CLOSED_STAGES.includes(deal.status) && deal.status !== "OnHold") {
+            let systemUser = await tx.user.findFirst({ where: { email: "system@suki.com" } });
+            if (!systemUser) {
+              systemUser = await tx.user.findFirst({ where: { role: "Admin" } });
+            }
+            await transitionDealStatus(
+              po.dealId,
+              "OnHold",
+              {
+                actorId: systemUser?.id || "system",
+                reason: `Auto-held: PO ${po.poCode} stale for ${ageDays} day(s)`,
+                companyId: po.companyId || "",
+              },
+              tx
+            );
+          }
+        }
+      });
+
+      if (po.assignedUserId) {
+        await dispatchNotification({
+          userId: po.assignedUserId,
+          title: "PO Auto-OnHold",
+          message: `PO ${po.poCode} has been automatically placed on hold. ${reason}`,
+          type: "purchase_order",
+          link: `/purchase-orders/${po.id}`,
+        });
+      }
+      results.posAutoOnHold++;
     }
 
     return NextResponse.json({

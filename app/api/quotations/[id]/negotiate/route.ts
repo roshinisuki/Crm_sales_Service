@@ -3,19 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 
-const DEFAULT_DISCOUNT_THRESHOLD = 5;
-
-async function getDiscountThreshold(companyId: string): Promise<number> {
-  const config = await prisma.systemConfig.findFirst({
-    where: { key: "approval_matrix_discount_threshold" },
-  });
-  if (config) {
-    const val = parseFloat(config.value);
-    if (!isNaN(val)) return val;
-  }
-  return DEFAULT_DISCOUNT_THRESHOLD;
-}
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -35,6 +22,29 @@ export async function POST(
     },
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
+
+  // If this quotation inherited a negotiationId from a parent revision (clone), check the
+  // linked negotiation's status — block re-negotiation if approval is pending or negotiation is closed.
+  if (existing.negotiationId) {
+    const linkedNeg = await prisma.negotiation.findFirst({
+      where: { id: existing.negotiationId, deletedAt: null },
+      select: { id: true, status: true },
+    });
+    if (linkedNeg) {
+      if (linkedNeg.status === "PendingApproval") {
+        return NextResponse.json(
+          { success: false, message: "Cannot start negotiation while a discount approval is pending. Resolve it in the Approval Center first." },
+          { status: 400 }
+        );
+      }
+      if (linkedNeg.status === "Closed-Success" || linkedNeg.status === "Closed-Failure") {
+        return NextResponse.json(
+          { success: false, message: "This negotiation is already closed." },
+          { status: 400 }
+        );
+      }
+    }
+  }
 
   if (!["Sent", "UnderReview"].includes(existing.status)) {
     return NextResponse.json(
@@ -90,27 +100,55 @@ export async function POST(
         });
       }
 
-      // Calculate costBasisUnitPrice average
+      // Calculate total cost basis of the quotation (sum of item.quantity * item.costBasisUnitPrice)
       let totalCostBasis = 0;
-      let costBasisCount = 0;
       for (const item of existing.items || []) {
         if (item.costBasisUnitPrice != null) {
-          totalCostBasis += Number(item.costBasisUnitPrice);
-          costBasisCount++;
+          totalCostBasis += Number(item.costBasisUnitPrice) * item.quantity;
         }
       }
-      const costBasisAvg = costBasisCount > 0 ? (totalCostBasis / costBasisCount) : null;
+      // Round to 2 decimal places to match Decimal column precision and avoid SQL Server arithmetic overflow
+      totalCostBasis = Math.round(totalCostBasis * 100) / 100;
+      // Safety clamp: Decimal(18,2) max is 9999999999999999.99
+      const MAX_COST_BASIS = 9999999999999999.99;
+      if (totalCostBasis > MAX_COST_BASIS) totalCostBasis = MAX_COST_BASIS;
 
-      // Auto-create a Negotiation record so it appears in the Negotiations module
+      // Clamp overallMarginPercent to Decimal(8,2) max (99999.99)
+      const marginPercent = existing.overallMarginPercent != null ? Number(existing.overallMarginPercent) : null;
+      const clampedMarginPercent = marginPercent != null ? Math.min(marginPercent, 99999.99) : null;
+
+      // Find existing negotiation linked to this quotation — either directly via quotationId,
+      // or inherited via the quotation's negotiationId field (set during clone).
+      // This ensures R2/R3/R4 reuses the same negotiation as R1.
       const existingNeg = await tx.negotiation.findFirst({
-        where: { quotationId: id, deletedAt: null },
-        select: { id: true },
+        where: {
+          OR: [
+            { quotationId: id, deletedAt: null },
+            ...(existing.negotiationId ? [{ id: existing.negotiationId, deletedAt: null }] : []),
+          ],
+        },
+        select: { id: true, quotationId: true, status: true },
       });
 
       let negotiationRecord = existingNeg;
       if (!existingNeg) {
-        const negCount = await tx.negotiation.count({ where: { companyId: user.companyId } });
-        const negotiationCode = `NEG-${String(negCount + 1).padStart(4, "0")}`;
+        let negotiationCode = "";
+        let codeExists = true;
+        let countOffset = 0;
+        while (codeExists) {
+          const negCount = await tx.negotiation.count({ where: { companyId: user.companyId } });
+          negotiationCode = `NEG-${String(negCount + 1 + countOffset).padStart(4, "0")}`;
+          const dup = await tx.negotiation.findFirst({
+            where: { companyId: user.companyId, negotiationCode },
+            select: { id: true },
+          });
+          if (!dup) {
+            codeExists = false;
+          } else {
+            countOffset++;
+          }
+        }
+
         negotiationRecord = await tx.negotiation.create({
           data: {
             negotiationCode,
@@ -121,92 +159,50 @@ export async function POST(
             status: "Active",
             assignedUserId: deal?.assignedUserId || null,
             companyId: user.companyId,
-            costBasisUnitPrice: costBasisAvg,
-            overallMarginPercent: existing.overallMarginPercent,
-            // B.1: Persist form fields from the Start Negotiation modal
+            costBasisUnitPrice: totalCostBasis,
+            overallMarginPercent: clampedMarginPercent,
             customerDemands: body.customerDemands || null,
             internalNotes: body.internalNotes || null,
+            negotiationType: body.negotiationType || null,
+            negotiationReason: body.negotiationReason || null,
           },
         });
-        // Set negotiationId on the root quotation so the negotiation badge shows on R1's page
+        // Set negotiationId on the quotation so the negotiation badge shows
         await tx.quotation.update({
           where: { id },
           data: { negotiationId: negotiationRecord.id },
         });
       } else {
+        // Reuse existing negotiation — update quotationId to point to THIS revision
+        // so discounts land on the correct quotation (R2/R3/R4, not stale R1).
+        // Reset to Active with fresh amounts since this is a new quotation revision.
         await tx.negotiation.update({
           where: { id: existingNeg.id },
           data: {
-            costBasisUnitPrice: costBasisAvg,
-            overallMarginPercent: existing.overallMarginPercent,
-            // B.1: Update form fields if provided on re-entry
+            quotationId: id,
+            initialAmount: existing.finalAmount || existing.totalAmount || 0,
+            costBasisUnitPrice: totalCostBasis,
+            overallMarginPercent: clampedMarginPercent,
+            status: "Active",
+            revisedAmount: null,
+            discountRequested: 0,
+            discountApproved: null,
             ...(body.customerDemands ? { customerDemands: body.customerDemands } : {}),
             ...(body.internalNotes ? { internalNotes: body.internalNotes } : {}),
+            ...(body.negotiationType ? { negotiationType: body.negotiationType } : {}),
+            ...(body.negotiationReason ? { negotiationReason: body.negotiationReason } : {}),
           },
         });
-      }
-
-      // B.1: If the user provided an initial revision, create it now
-      let initialRevisionCreated = false;
-      if (body.initialRevision && body.initialRevision.proposedAmount != null && body.initialRevision.proposedAmount !== "") {
-        const revBody = body.initialRevision;
-        const proposedAmount = parseFloat(revBody.proposedAmount);
-        const discountPercent = revBody.discountPercent ? parseFloat(revBody.discountPercent) : 0;
-        const reason = revBody.reason || null;
-        const baseAmount = existing.finalAmount || existing.totalAmount || 0;
-
-        if (proposedAmount > 0 && proposedAmount <= baseAmount) {
-          const threshold = await getDiscountThreshold(user.companyId!);
-          const requiresApproval = discountPercent > threshold;
-
-          const revision = await tx.negotiationRevision.create({
-            data: {
-              negotiationId: negotiationRecord!.id,
-              revisionNumber: 1,
-              proposedAmount,
-              discountPercent,
-              reason,
-              status: requiresApproval ? "Pending" : "Approved",
-              createdById: user.id,
-            },
+        // Ensure negotiationId is set on the current quotation
+        if (existing.negotiationId !== existingNeg.id) {
+          await tx.quotation.update({
+            where: { id },
+            data: { negotiationId: existingNeg.id },
           });
-          initialRevisionCreated = true;
-
-          // Apply discount to quotation if auto-approved
-          if (!requiresApproval) {
-            const newFinalAmount = baseAmount * (1 - discountPercent / 100);
-            await tx.quotation.update({
-              where: { id },
-              data: { discountPercent, finalAmount: newFinalAmount },
-            });
-            await tx.negotiation.update({
-              where: { id: negotiationRecord!.id },
-              data: { status: "PriceRevision", revisedAmount: proposedAmount, discountRequested: discountPercent },
-            });
-          } else {
-            // Pending approval — still set revisedAmount/discountRequested (C.1 fix)
-            await tx.negotiation.update({
-              where: { id: negotiationRecord!.id },
-              data: { status: "PendingApproval", revisedAmount: proposedAmount, discountRequested: discountPercent },
-            });
-            await tx.approvalHistory.create({
-              data: {
-                approvalType: "Negotiation",
-                entityType: "Negotiation",
-                entityId: negotiationRecord!.id,
-                status: "Pending",
-                discountPercent,
-                remarks: reason,
-                requestedById: user.id,
-                previousStatus: "Active",
-                companyId: user.companyId,
-              },
-            });
-          }
         }
       }
 
-      return { quotation: q, negotiationId: negotiationRecord?.id, initialRevisionCreated };
+      return { quotation: q, negotiationId: negotiationRecord?.id };
     });
 
     await logAudit(user.id, "Quotation", "Negotiate", `Moved quotation ${existing.quotationCode} to UnderReview`, {

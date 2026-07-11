@@ -40,6 +40,14 @@ export async function POST(
 
   if (!rfq) return NextResponse.json({ success: false, message: "RFQ not found" }, { status: 404 });
 
+  // Gate: RFQ status must be CostingCompleted
+  if (rfq.status !== "CostingCompleted") {
+    return NextResponse.json({
+      success: false,
+      message: `Quotation can only be generated when the RFQ status is 'CostingCompleted'. Current status: ${rfq.status}`,
+    }, { status: 400 });
+  }
+
   // 1. Block unless all line items costingStatus = Done
   const pendingItems = rfq.lineItems.filter((item) => item.costingStatus !== "Done");
   if (pendingItems.length > 0) {
@@ -148,11 +156,13 @@ export async function POST(
           ? costing.computedUnitPrice / (1 + costing.marginPercent / 100)
           : costing.computedUnitPrice;
 
-        // Lookup tax_percent from tax_master by product code, default 18%
+        // Lookup tax_percent from tax_master by hsnCode, default 18%
         let taxPercent = 18;
-        if (item.product?.productCode) {
+        let searchHsn = item.product?.hsnCode || null;
+        // fallback to category HSN if not on product (if it existed) - we just use searchHsn
+        if (searchHsn) {
           const taxEntry = await tx.taxMaster.findFirst({
-            where: { hsnCode: item.product.productCode, isActive: true },
+            where: { hsnCode: searchHsn, isActive: true },
           });
           if (taxEntry) taxPercent = taxEntry.taxPercent;
         }

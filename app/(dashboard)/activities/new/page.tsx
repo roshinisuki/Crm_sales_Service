@@ -9,7 +9,7 @@ import { useToast } from "@/components/ToastProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Select } from "@/components/ui/FormField";
 import { SuccessOverlay, SuccessAction } from "@/components/SuccessOverlay";
-import { ArrowLeft, Save, Phone, Video, StickyNote, User, Building2, Mail, Info, Calendar } from "lucide-react";
+import { ArrowLeft, Save, Phone, Video, StickyNote, User, Building2, Mail, Info, Calendar, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 
 type ActivityType = "call" | "meeting" | "note" | "email";
@@ -242,7 +242,7 @@ function NewActivityPageInner() {
               ? `Call recorded & follow-up completed. Outcome: ${callForm.outcome}`
               : `Call recorded: ${callForm.duration} min, Outcome: ${callForm.outcome}`,
             primary: { label: "Create Follow-Up", href: `/follow-up/new?leadId=${leadId}`, icon: <Phone size={16} /> },
-            secondary: { label: "View All Calls", href: "/activities?type=Call" },
+            secondary: { label: "Start Qualification", href: `/leads/${leadId}?tab=bant&action=qualify`, icon: <CheckCircle2 size={16} /> },
             alternate: { label: "Back to Lead", href: `/leads/${leadId}` },
           });
         } else if (activityType === "meeting") {

@@ -20,6 +20,8 @@ const statusConfig: Record<string, { classes: string; dot: string; label?: strin
   Converted:   { classes: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50", dot: "bg-emerald-400" },
   Lost:        { classes: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50",          dot: "bg-rose-400" },
   Active:      { classes: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50", dot: "bg-emerald-400" },
+  ActiveCustomer: { classes: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50", dot: "bg-emerald-400", label: "Active Customer" },
+  "Active Customer": { classes: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50", dot: "bg-emerald-400", label: "Active Customer" },
   Inactive:    { classes: "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800/60 dark:text-slate-400 dark:border-slate-700/50",      dot: "bg-slate-400" },
   Prospect:    { classes: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50",       dot: "bg-amber-400" },
   APPROVED:    { classes: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50", dot: "bg-emerald-400" },
@@ -73,8 +75,10 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, showDot = false, size = "sm", pulse = false, className }: StatusBadgeProps) {
-  const config = statusConfig[status] || fallback;
-  const label = config.label || status;
+  const formatted = status ? (status === "ActiveCustomer" || status === "Active_Customer" ? "Active Customer" : status.replace(/([A-Z])/g, " $1").trim()) : "";
+  const lookupKey = statusConfig[status] ? status : (statusConfig[formatted] ? formatted : status);
+  const config = statusConfig[lookupKey] || fallback;
+  const label = config.label || formatted;
 
   // For Priority badges, use CSS variables for dark mode support
   const isPriority = status === "Low" || status === "Medium" || status === "High";

@@ -54,9 +54,9 @@ export default function RenewalRequestButton({ planName }: { planName: string })
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-xs font-semibold text-slate-650 rounded-xl transition-all shadow-sm"
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[var(--border)] hover:border-[var(--primary)] hover:bg-[var(--surface-2)] text-xs font-semibold text-[var(--text-secondary)] rounded-xl transition-all shadow-sm"
       >
-        <Ico d={icons.refresh} size={13} className="text-slate-500" />
+        <Ico d={icons.refresh} size={13} className="text-[var(--text-muted)]" />
         Request Renewal
       </button>
 
@@ -65,22 +65,22 @@ export default function RenewalRequestButton({ planName }: { planName: string })
         <div className="fixed inset-0 z-50 overflow-y-auto text-left">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div 
-              className="fixed inset-0 transition-opacity bg-slate-900/60 backdrop-blur-sm" 
+              className="fixed inset-0 transition-opacity bg-black/60 backdrop-blur-sm" 
               onClick={() => !isPending && setIsOpen(false)}
             />
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-100">
-              <div className="bg-slate-50 border-b border-slate-150 px-6 py-4 flex items-center justify-between">
+            <div className="inline-block align-bottom bg-[var(--surface)] rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-[var(--border)]">
+              <div className="bg-[var(--surface-2)] border-b border-[var(--border)] px-6 py-4 flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Request Plan Renewal</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Submit a renewal enquiry for {planName}</p>
+                  <h3 className="text-lg font-bold text-[var(--text-primary)]">Request Plan Renewal</h3>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">Submit a renewal enquiry for {planName}</p>
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
                   disabled={isPending}
-                  className="w-8 h-8 rounded-xl bg-slate-200/50 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-xl bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-secondary)] flex items-center justify-center transition-colors"
                 >
                   <Ico d={icons.x} size={16} />
                 </button>
@@ -101,37 +101,37 @@ export default function RenewalRequestButton({ planName }: { planName: string })
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Selected Plan</label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Selected Plan</label>
                   <input
                     type="text"
                     readOnly
                     disabled
                     value={planName}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-sm font-medium text-slate-500 cursor-not-allowed"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-sm font-medium text-[var(--text-muted)] cursor-not-allowed"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Desired Renewal Start Date</label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Desired Renewal Start Date</label>
                   <input
                     type="date"
                     required
                     disabled={isPending}
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/25 focus:border-[#0b1f3a] transition-all bg-white text-sm font-medium text-slate-800"
+                    className="input-field w-full px-4 py-2.5 rounded-xl transition-all"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Special Requests or Notes (Optional)</label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Special Requests or Notes (Optional)</label>
                   <textarea
                     disabled={isPending}
                     rows={3}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Describe any plan modifications, discount requests, or payment queries..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/25 focus:border-[#0b1f3a] transition-all bg-slate-55/30 text-sm font-medium text-slate-800"
+                    className="input-field w-full px-4 py-2.5 rounded-xl transition-all resize-none"
                   />
                 </div>
 
@@ -140,14 +140,14 @@ export default function RenewalRequestButton({ planName }: { planName: string })
                     type="button"
                     disabled={isPending}
                     onClick={() => setIsOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors"
+                    className="px-4 py-2.5 rounded-xl text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-2)] transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isPending}
-                    className="px-5 py-2.5 bg-[#0b1f3a] text-white rounded-xl text-sm font-bold hover:bg-[#16355d] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    className="px-5 py-2.5 bg-[var(--primary)] text-[var(--accent-contrast)] rounded-xl text-sm font-bold hover:bg-[var(--primary-hover)] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                   >
                     {isPending ? (
                       <>

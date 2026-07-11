@@ -203,6 +203,7 @@ const V3_EXTRAS: NavItem[] = [
   { key: 'purchase-orders-approved', label: 'Approved PO', href: '/purchase-orders?status=Approved', iconEmoji: '📋', keywords: ['approved', 'confirmed'], type: 'submodule', parentLabel: 'Purchase Orders', parentKey: 'purchase-orders' },
   { key: 'purchase-orders-rejected', label: 'Rejected PO', href: '/purchase-orders?status=Rejected', iconEmoji: '📋', keywords: ['rejected', 'declined'], type: 'submodule', parentLabel: 'Purchase Orders', parentKey: 'purchase-orders' },
   { key: 'purchase-orders-closed', label: 'Closed PO', href: '/purchase-orders?status=Closed', iconEmoji: '📋', keywords: ['closed', 'completed'], type: 'submodule', parentLabel: 'Purchase Orders', parentKey: 'purchase-orders' },
+  { key: 'purchase-orders-onhold', label: 'On Hold PO', href: '/purchase-orders?status=OnHold', iconEmoji: '📋', keywords: ['on hold', 'hold', 'paused', 'stuck'], type: 'submodule', parentLabel: 'Purchase Orders', parentKey: 'purchase-orders' },
   // V3 approvals sub-modules
   { key: 'approvals-overview', label: 'Approvals Overview', href: '/approvals', iconEmoji: '✔️', keywords: ['all approvals', 'approvals list', 'overview'], type: 'submodule', parentLabel: 'Approval Center', parentKey: 'approvals' },
   { key: 'approvals-quotations', label: 'Quotation Approvals', href: '/approvals?type=Quotation', iconEmoji: '✔️', keywords: ['quotation', 'quote'], type: 'submodule', parentLabel: 'Approval Center', parentKey: 'approvals' },

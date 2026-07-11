@@ -6,7 +6,7 @@ import { useCurrency } from "@/components/CurrencyProvider";
 import { PageShell } from "@/components/ui/PageShell";
 import { SummaryCard } from "@/components/ui/SummaryCard";
 import { 
-  Users, PhoneCall, CheckCircle2, XCircle, Clock, CalendarCheck, AlertCircle, Building, MapPin, ChevronRight, Mail, Map, Navigation, Briefcase, TrendingUp, DollarSign
+  Users, PhoneCall, CheckCircle2, XCircle, Clock, CalendarCheck, AlertCircle, Building, MapPin, ChevronRight, Mail, Map, Navigation, Briefcase, TrendingUp, IndianRupee
 } from "lucide-react";
 
 import InboundCheckInModal from "@/components/InboundCheckInModal";
@@ -116,7 +116,7 @@ export default function ExecutiveDashboard({ dashboardData: data, salesData, use
         <SummaryCard 
           label="Revenue" 
           value={salesData?.kpis?.pipelineRevenue ? formatCurrency(salesData.kpis.pipelineRevenue) : formatCurrency(0)} 
-          icon={<DollarSign size={18} />} 
+          icon={<IndianRupee size={18} />} 
           variant="light" 
           trend={{ value: "-1.5%", up: false }}
           subtitle="Pipeline dropping"

@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "@/lib/ui-utils";
 import { StatusPill } from "@/components/shared/StatusPill";
-import { Mail, Phone, MapPin, Building2, Calendar, User, Briefcase, FileText, DollarSign, Clock, ShieldCheck, Star, Compass } from "lucide-react";
+import { Mail, Phone, MapPin, Building2, Calendar, User, Briefcase, FileText, IndianRupee, Clock, ShieldCheck, Star, Compass } from "lucide-react";
 
 export interface Field {
   label: string;
@@ -25,7 +25,7 @@ const getFieldIcon = (label: string) => {
   if (lower.includes("email")) return <Mail size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;
   if (lower.includes("industry")) return <Building2 size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;
   if (lower.includes("source")) return <Compass size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;
-  if (lower.includes("value")) return <DollarSign size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;
+  if (lower.includes("value")) return <IndianRupee size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;
   if (lower.includes("score")) return <Star size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;
   if (lower.includes("location") || lower.includes("city")) return <MapPin size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;
   if (lower.includes("assigned")) return <User size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />;

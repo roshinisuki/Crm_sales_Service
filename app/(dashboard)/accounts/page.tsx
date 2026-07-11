@@ -28,9 +28,10 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; border: string }
 
 function StatusBadge({ status }: { status: string }) {
   const style = STATUS_STYLES[status] || STATUS_STYLES.Inactive;
+  const label = status === "ActiveCustomer" ? "Active Customer" : status;
   return (
     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${style.bg} ${style.text} ${style.border}`}>
-      {status}
+      {label}
     </span>
   );
 }

@@ -64,6 +64,9 @@ export async function GET(
           },
           orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }],
         },
+        meetingLogs: {
+          orderBy: { attemptNumber: "desc" }
+        },
         _count: { select: { quotations: true, tasks: true } },
       },
     });

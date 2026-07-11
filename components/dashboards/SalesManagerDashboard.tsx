@@ -8,7 +8,7 @@ import { PageShell } from "@/components/ui/PageShell";
 import {
   Users,
   UserCheck,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
@@ -332,7 +332,7 @@ export default function SalesManagerDashboard({ dashboardData, salesData, user, 
             value={openPipelineParsed.end}
             prefix={openPipelineParsed.prefix}
             decimals={openPipelineParsed.decimals}
-            icon={<DollarSign size={18} className="text-emerald-600 dark:text-emerald-400" />}
+            icon={<IndianRupee size={18} className="text-emerald-600 dark:text-emerald-400" />}
             trend={{ value: "Active", up: true }}
             comparison="open deals"
             sparklineData={generateSparkline(openPipelineParsed.end || 100000, "up")}

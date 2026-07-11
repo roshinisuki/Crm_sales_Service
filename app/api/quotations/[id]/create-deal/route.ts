@@ -78,13 +78,7 @@ export async function POST(
       data: { dealId: deal.id },
     });
 
-    // 4. Transition to Won through the centralized state machine
-    // (quotation is already Accepted, so the Won gate will pass)
-    await transitionDealStatus(deal.id, "Won", {
-      actorId: user.id,
-      reason: `Won via quotation ${existing.quotationCode} acceptance (deal created from quotation)`,
-      companyId: user.companyId!,
-    }, tx);
+    // 4. (Removed Deal Won transition; deal is only transitioned to Won upon PO approval)
 
     return deal;
   });

@@ -1,6 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/ui-utils";
+import { FormButton } from "@/components/ui/FormLayout";
+import { Loader2 } from "lucide-react";
 
 export type FeasibilityValue = "Feasible" | "FeasibleWithChanges" | "NotFeasible" | "";
 
@@ -163,14 +165,16 @@ export function TechnicalFeasibilityTable({
                 {/* Save button */}
                 {!readOnly && (
                   <td className="px-2 py-2.5">
-                    <button
+                    <FormButton
                       type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => onSaveRow(row.requirementItemId)}
                       disabled={!row.feasibility || row.saving}
-                      className="px-2 py-1 rounded text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 disabled:opacity-40 transition-colors"
                     >
+                      {row.saving && <Loader2 size={12} className="animate-spin" />}
                       {row.saving ? "Saving…" : "Save"}
-                    </button>
+                    </FormButton>
                   </td>
                 )}
               </tr>
@@ -213,9 +217,17 @@ export function TechnicalFeasibilityTable({
               <input type="text" value={row.confirmedSpec} onChange={(e) => onFieldChange(row.requirementItemId, "confirmedSpec", e.target.value)} placeholder="Confirmed spec" className="w-full px-2 py-1.5 rounded border border-slate-200 text-sm bg-transparent" />
             )}
             {!readOnly && (
-              <button type="button" onClick={() => onSaveRow(row.requirementItemId)} disabled={!row.feasibility || row.saving} className="w-full py-1.5 rounded text-xs font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40">
+              <FormButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => onSaveRow(row.requirementItemId)}
+                disabled={!row.feasibility || row.saving}
+                className="w-full"
+              >
+                {row.saving && <Loader2 size={12} className="animate-spin" />}
                 {row.saving ? "Saving…" : "Save"}
-              </button>
+              </FormButton>
             )}
           </div>
         ))}

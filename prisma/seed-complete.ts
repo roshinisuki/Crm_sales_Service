@@ -122,11 +122,15 @@ async function main() {
   // ─── Pipeline Stages ───────────────────────────────────────────────────────
   const stages = [
     { name: "Qualified", order: 1, probability: 20 },
-    { name: "RequirementGathering", order: 2, probability: 40 },
-    { name: "MeetingScheduled", order: 3, probability: 55 },
-    { name: "DemoConducted", order: 4, probability: 70 },
-    { name: "Rejected", order: 5, probability: 0 },
-    { name: "Lost", order: 6, probability: 0 },
+    { name: "RequirementGathering", order: 2, probability: 35 },
+    { name: "TechnicalDiscussion", order: 3, probability: 50 },
+    { name: "MeetingScheduled", order: 4, probability: 75 },
+    { name: "DemoConducted", order: 5, probability: 85 },
+    { name: "DemoAccepted", order: 6, probability: 100 },
+    { name: "Won", order: 7, probability: 100 },
+    { name: "OnHold", order: 0, probability: 0 },
+    { name: "Rejected", order: 0, probability: 0 },
+    { name: "Lost", order: 0, probability: 0 },
   ];
 
   for (const stage of stages) {
@@ -136,8 +140,8 @@ async function main() {
       create: { stageName: stage.name, displayName: stage.name, displayOrder: stage.order, probabilityPercent: stage.probability, isActive: true },
     });
   }
-  // Deactivate legacy stages that are no longer part of V4 pipeline
-  for (const legacy of ["SalesOpportunity", "ProposalSent", "Negotiation", "Won", "Active", "OnHold"]) {
+  // Deactivate legacy stages that are no longer part of the pipeline
+  for (const legacy of ["SalesOpportunity", "ProposalSent", "Negotiation", "Active"]) {
     await prisma.pipelineStageMaster.updateMany({
       where: { stageName: legacy },
       data: { isActive: false },

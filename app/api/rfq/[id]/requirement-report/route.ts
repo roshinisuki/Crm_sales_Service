@@ -50,6 +50,7 @@ export async function GET(
           select: {
             id: true,
             itemDescription: true,
+            sourceRequirementItemId: true,
             quantity: true,
             displayOrder: true,
           },
@@ -90,19 +91,16 @@ export async function GET(
         dealName: true,
         opportunityCode: true,
         status: true,
-        demoOutcome: true,
-        demoFollowUpDate: true,
-        opportunityDetail: {
+        meetingLogs: {
+          orderBy: { attemptNumber: "desc" },
+          take: 1,
           select: {
-            demoDate: true,
-            demoType: true,
-            demoQuestionsRaised: true,
-            demoRejectionRemarks: true,
-            demoInterestLevel: true,
             meetingDate: true,
             meetingType: true,
-            meetingStatus: true,
-          },
+            outcome: true,
+            notes: true,
+            conductedAt: true,
+          }
         },
         requirementItems: {
           select: {
@@ -133,8 +131,12 @@ export async function GET(
       },
     });
 
-    // Build item description set for cross-reference (no direct FK from requirement item to RFQ line item)
-    const rfqLineItemDescriptions = new Set(rfq.lineItems.map((li) => li.itemDescription));
+    // Cross-reference using the FK
+    const rfqLineItemRequirementIds = new Set(
+      rfq.lineItems
+        .map((li) => li.sourceRequirementItemId)
+        .filter(Boolean) as string[]
+    );
 
     const requirementItems = (opportunity?.requirementItems || []).map((item) => ({
       id: item.id,
@@ -151,7 +153,7 @@ export async function GET(
       reviewedAt: item.technicalNote?.reviewedAt ?? null,
       engineerName: item.technicalNote?.engineer?.name ?? null,
       // Cross-reference: did this item make it into the RFQ?
-      includedInRFQ: rfqLineItemDescriptions.has(item.productName),
+      includedInRFQ: rfqLineItemRequirementIds.has(item.id),
       // True when no technical note OR feasibility is not Feasible/FeasibleWithChanges
       needsFeasibilityReview:
         !item.technicalNote ||
@@ -173,15 +175,11 @@ export async function GET(
               dealName: opportunity.dealName,
               opportunityCode: opportunity.opportunityCode,
               currentStatus: opportunity.status,
-              demoOutcome: opportunity.demoOutcome,
-              demoFollowUpDate: opportunity.demoFollowUpDate,
-              demoDate: opportunity.opportunityDetail?.demoDate ?? null,
-              demoType: opportunity.opportunityDetail?.demoType ?? null,
-              demoNotes: [opportunity.opportunityDetail?.demoQuestionsRaised, opportunity.opportunityDetail?.demoRejectionRemarks].filter(Boolean).join("\n\n") || null,
-              demoInterestLevel: opportunity.opportunityDetail?.demoInterestLevel ?? null,
-              meetingDate: opportunity.opportunityDetail?.meetingDate ?? null,
-              meetingType: opportunity.opportunityDetail?.meetingType ?? null,
-              meetingStatus: opportunity.opportunityDetail?.meetingStatus ?? null,
+              demoOutcome: opportunity.meetingLogs?.[0]?.outcome || null,
+              demoNotes: opportunity.meetingLogs?.[0]?.notes || null,
+              meetingDate: opportunity.meetingLogs?.[0]?.meetingDate?.toISOString() || null,
+              meetingType: opportunity.meetingLogs?.[0]?.meetingType || null,
+              conductedAt: opportunity.meetingLogs?.[0]?.conductedAt?.toISOString() || null,
             }
           : null,
         stageHistory: opportunity?.stageHistories ?? [],

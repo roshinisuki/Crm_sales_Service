@@ -38,8 +38,9 @@ export async function createOrHealRFQ(
     return {
       itemDescription: item.productName,
       productId,
+      sourceRequirementItemId: item.id,
       quantity: item.estimatedQuantity,
-      targetPrice: item.targetPriceMin ? Number(item.targetPriceMin) : null,
+      targetPrice: item.targetPriceMax ? Number(item.targetPriceMax) : (item.targetPriceMin ? Number(item.targetPriceMin) : null),
       requestedDeliveryDate: item.requiredDelivery || null,
       specifications: item.technicalNote?.confirmedSpec || item.specNotes || null,
       notes: item.technicalNote?.toolingRequired ? `Tooling: ${item.technicalNote.toolingRequired}` : null,
@@ -62,7 +63,7 @@ export async function createOrHealRFQ(
 
   const year = new Date().getFullYear();
   const rfqPrefix = `RFQ-${year}-`;
-  const rfqCount = await tx.rFQ.count({ where: { rfqCode: { startsWith: rfqPrefix } } });
+  const rfqCount = await tx.rFQ.count({ where: { rfqCode: { startsWith: rfqPrefix }, companyId } });
   const rfqCode = `${rfqPrefix}${String(rfqCount + 1).padStart(5, "0")}`;
 
   const lineItemsToCreate = await Promise.all(allItems.map((item: any, idx: number) => mapLineItem(item, idx)));

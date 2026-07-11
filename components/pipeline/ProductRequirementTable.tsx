@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Plus, Trash2, Paperclip, AlertCircle, Upload, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
+import { getTodayDateInputValue, isDateInPast } from "@/lib/date-validation";
 
 export interface RequirementItem {
   id?: string; // undefined = unsaved new row
@@ -98,7 +99,7 @@ export function ProductRequirementTable({
 
   const handleSaveRow = async (index: number) => {
     const item = items[index];
-    if (!item.productName.trim() || !item.estimatedQuantity) return;
+    if (!item.productName.trim() || !item.estimatedQuantity || isDateInPast(item.requiredDelivery)) return;
     setSavingIndex(index);
     try {
       await onSaveItem(item, index);
@@ -109,7 +110,7 @@ export function ProductRequirementTable({
 
   const handleSaveRowDirect = async (currentItems: RequirementItem[], index: number) => {
     const item = currentItems[index];
-    if (!item.productName.trim() || !item.estimatedQuantity) return;
+    if (!item.productName.trim() || !item.estimatedQuantity || isDateInPast(item.requiredDelivery)) return;
     setSavingIndex(index);
     try {
       await onSaveItem(item, index);
@@ -194,70 +195,100 @@ export function ProductRequirementTable({
   return (
     <div className="space-y-3">
       {/* ── Desktop table ── */}
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 bg-white dark:bg-slate-900 shadow-sm">
-        <table className="w-full text-sm border-collapse">
+      <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 bg-white dark:bg-slate-900 shadow-sm min-h-[300px] pb-24">
+        <table className="w-full text-sm border-collapse min-w-[1000px] overflow-visible">
+          <colgroup>
+            <col style={{ width: "22%" }} /> {/* Description */}
+            <col style={{ width: "18%" }} /> {/* Product Linked */}
+            <col style={{ width: "10%" }} /> {/* Quantity */}
+            <col style={{ width: "15%" }} /> {/* Target Price */}
+            <col style={{ width: "13%" }} /> {/* Material Spec */}
+            <col style={{ width: "12%" }} /> {/* Delivery Date */}
+            <col style={{ width: "12%" }} /> {/* Attachment */}
+            <col style={{ width: "8%" }} />  {/* Actions */}
+          </colgroup>
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200">
-              {["Product / part", "Qty", "Target price (min–max)", "Material", "Required delivery", "Drawing / attachment", ""].map((h) => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
-                  {h}
-                </th>
-              ))}
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Description</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Product Linked</th>
+              <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Quantity</th>
+              <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Target Price (Min - Max)</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Material Specification</th>
+              <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Requested Delivery Date</th>
+              <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Drawing / Attachment</th>
+              <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap"></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="overflow-visible">
             {items.map((item, idx) => (
               <tr
                 key={item.id || idx}
                 className={cn(
-                  "border-b border-slate-100 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors",
+                  "border-b border-slate-100 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors overflow-visible",
                   idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/20 dark:bg-slate-800/10"
                 )}
               >
-                {/* Product name — searchable autocomplete */}
-                <td className="px-4 py-3 relative">
+                {/* Description — Custom text input */}
+                <td className="px-4 py-3 text-left">
                   {readOnly ? (
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{item.productName || "—"}</span>
+                    <span className="font-semibold text-slate-850 dark:text-slate-200">{item.productName || "—"}</span>
                   ) : (
-                    <div className="relative">
+                    <input
+                      ref={idx === items.length - 1 && item._isNew ? firstInputRef : undefined}
+                      type="text"
+                      value={item.productName}
+                      onChange={(e) => handleFieldChange(idx, "productName", e.target.value)}
+                      onBlur={() => handleBlur(idx)}
+                      placeholder="e.g. Custom EN8 Steel Shaft"
+                      required
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm transition-all shadow-sm"
+                    />
+                  )}
+                </td>
+                {/* Product Linked — Searchable autocomplete dropdown */}
+                {/* Product Linked — Searchable autocomplete dropdown */}
+                <td className="px-4 py-3 text-left relative overflow-visible">
+                  {readOnly ? (
+                    <span className="text-slate-650 dark:text-slate-355">{products.find(p => p.name === item.productName)?.productCode || "Custom / Unlinked"}</span>
+                  ) : (
+                    <div className="relative w-full overflow-visible">
                       <input
-                        ref={idx === items.length - 1 && item._isNew ? firstInputRef : undefined}
                         type="text"
-                        value={item.productName}
+                        value={productSearch[idx] !== undefined ? productSearch[idx] : (products.find(p => p.name === item.productName)?.productCode || "")}
                         onChange={(e) => {
-                          handleFieldChange(idx, "productName", e.target.value);
                           setProductSearch({ ...productSearch, [idx]: e.target.value });
                           setShowDropdown({ ...showDropdown, [idx]: true });
                         }}
                         onFocus={() => {
-                          setProductSearch({ ...productSearch, [idx]: item.productName });
+                          setProductSearch({ ...productSearch, [idx]: productSearch[idx] || "" });
                           setShowDropdown({ ...showDropdown, [idx]: true });
                         }}
                         onBlur={() => {
-                          setTimeout(() => setShowDropdown({ ...showDropdown, [idx]: false }), 200);
-                          handleBlur(idx);
+                          setTimeout(() => setShowDropdown({ ...showDropdown, [idx]: false }), 250);
                         }}
-                        placeholder="Search or type product name…"
-                        required
-                        className="w-full min-w-[180px] px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm transition-all shadow-sm"
+                        placeholder="Search Catalog Product..."
+                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm transition-all shadow-sm"
                       />
                       {showDropdown[idx] && (
-                        <div className="absolute z-30 left-0 top-full mt-1 w-96 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:bg-slate-800 shadow-xl">
-                          {filteredProducts(productSearch[idx] ?? item.productName).length === 0 ? (
+                        <div className="absolute z-50 left-0 top-full mt-1 w-full max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:bg-slate-850 shadow-xl">
+                          {filteredProducts(productSearch[idx] ?? "").length === 0 ? (
                             <div className="px-3 py-2 text-xs text-slate-400">
-                              {products.length === 0 ? "No products in catalogue" : "No match — press Enter to use custom name"}
+                              No matching catalog products
                             </div>
                           ) : (
-                            filteredProducts(productSearch[idx] ?? item.productName).map((p) => (
+                            filteredProducts(productSearch[idx] ?? "").map((p) => (
                               <button
                                 key={p.id}
                                 type="button"
-                                onMouseDown={(e) => { e.preventDefault(); handleProductSelect(idx, p); }}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  handleProductSelect(idx, p);
+                                }}
                                 className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700 last:border-0"
                               >
                                 <div className="flex items-baseline gap-2">
                                   <span className="font-medium text-slate-700 dark:text-slate-200">{p.name}</span>
-                                  {p.productCode && <span className="text-xs text-slate-400">{p.productCode}</span>}
+                                  {p.productCode && <span className="text-xs text-slate-455 font-mono">{p.productCode}</span>}
                                 </div>
                                 {p.category && <span className="text-xs text-slate-400 block">{typeof p.category === "string" ? p.category : p.category.name}</span>}
                               </button>
@@ -268,8 +299,8 @@ export function ProductRequirementTable({
                     </div>
                   )}
                 </td>
-                {/* Qty */}
-                <td className="px-4 py-3">
+                {/* Quantity */}
+                <td className="px-4 py-3 text-right">
                   {readOnly ? (
                     <span className="font-medium text-slate-850 dark:text-slate-200">{item.estimatedQuantity || "—"}</span>
                   ) : (
@@ -280,27 +311,27 @@ export function ProductRequirementTable({
                       onChange={(e) => handleFieldChange(idx, "estimatedQuantity", e.target.value)}
                       onBlur={() => handleBlur(idx)}
                       placeholder="500"
-                      className="w-24 px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm transition-all shadow-sm"
+                      className="w-20 px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm text-right transition-all shadow-sm"
                     />
                   )}
                 </td>
-                {/* Target price */}
-                <td className="px-4 py-3 whitespace-nowrap">
+                {/* Target Price (Min - Max) */}
+                <td className="px-4 py-3 text-center whitespace-nowrap">
                   {readOnly ? (
-                    <span className="text-slate-700 dark:text-slate-350">
+                    <span className="text-slate-700 dark:text-slate-350 font-medium">
                       {item.targetPriceMin || item.targetPriceMax
                         ? `₹ ${item.targetPriceMin || "—"} – ₹ ${item.targetPriceMax || "—"}`
                         : "—"}
                     </span>
                   ) : (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-center gap-1">
                       <input
                         type="number"
                         value={item.targetPriceMin}
                         onChange={(e) => handleFieldChange(idx, "targetPriceMin", e.target.value)}
                         onBlur={() => handleBlur(idx)}
                         placeholder="Min"
-                        className="w-20 px-2 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-xs transition-all shadow-sm"
+                        className="w-16 px-1.5 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-xs text-center transition-all shadow-sm"
                       />
                       <span className="text-slate-400 text-xs">–</span>
                       <input
@@ -309,13 +340,13 @@ export function ProductRequirementTable({
                         onChange={(e) => handleFieldChange(idx, "targetPriceMax", e.target.value)}
                         onBlur={() => handleBlur(idx)}
                         placeholder="Max"
-                        className="w-20 px-2 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-xs transition-all shadow-sm"
+                        className="w-16 px-1.5 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-xs text-center transition-all shadow-sm"
                       />
                     </div>
                   )}
                 </td>
-                {/* Material */}
-                <td className="px-4 py-3">
+                {/* Material Specification */}
+                <td className="px-4 py-3 text-left">
                   {readOnly ? (
                     <span className="text-slate-700 dark:text-slate-300">{item.material || "—"}</span>
                   ) : (
@@ -325,25 +356,34 @@ export function ProductRequirementTable({
                       onChange={(e) => handleFieldChange(idx, "material", e.target.value)}
                       onBlur={() => handleBlur(idx)}
                       placeholder="e.g. EN8 steel"
-                      className="w-full min-w-[120px] px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm transition-all shadow-sm"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm transition-all shadow-sm"
                     />
                   )}
                 </td>
-                {/* Required delivery */}
-                <td className="px-4 py-3">
+                {/* Requested Delivery Date */}
+                <td className="px-4 py-3 text-center">
                   {readOnly ? (
-                    <span className="text-slate-700 dark:text-slate-300">{item.requiredDelivery ? new Date(item.requiredDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-medium">{item.requiredDelivery ? new Date(item.requiredDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span>
                   ) : (
-                    <input
-                      type="date"
-                      value={item.requiredDelivery ? item.requiredDelivery.split("T")[0] : ""}
-                      onChange={(e) => handleFieldChange(idx, "requiredDelivery", e.target.value)}
-                      onBlur={() => handleBlur(idx)}
-                      className="px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm transition-all shadow-sm"
-                    />
+                    <>
+                      <input
+                        type="date"
+                        min={getTodayDateInputValue()}
+                        value={item.requiredDelivery ? item.requiredDelivery.split("T")[0] : ""}
+                        onChange={(e) => handleFieldChange(idx, "requiredDelivery", e.target.value)}
+                        onBlur={() => handleBlur(idx)}
+                        className={cn(
+                          "px-3 py-2 rounded-lg border focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] focus:outline-none bg-white dark:bg-slate-800 text-sm text-center transition-all shadow-sm",
+                          isDateInPast(item.requiredDelivery) ? "border-rose-500" : "border-slate-200"
+                        )}
+                      />
+                      {isDateInPast(item.requiredDelivery) && (
+                        <p className="text-[11px] text-rose-500 mt-1">Required delivery cannot be in the past</p>
+                      )}
+                    </>
                   )}
                 </td>
-                {/* Attachment */}
+                {/* Drawing / Attachment */}
                 <td className="px-4 py-3">
                   {readOnly ? (
                     item.attachmentUrl ? (
@@ -522,7 +562,22 @@ export function ProductRequirementTable({
               <div>
                 <p className="text-slate-400 font-semibold mb-1">Required Delivery</p>
                 {readOnly ? <p className="font-medium text-slate-700">{item.requiredDelivery ? new Date(item.requiredDelivery).toLocaleDateString("en-IN") : "—"}</p> : (
-                  <input type="date" value={item.requiredDelivery ? item.requiredDelivery.split("T")[0] : ""} onChange={(e) => handleFieldChange(idx, "requiredDelivery", e.target.value)} onBlur={() => handleBlur(idx)} className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:outline-none bg-white text-sm shadow-sm" />
+                  <>
+                    <input
+                      type="date"
+                      min={getTodayDateInputValue()}
+                      value={item.requiredDelivery ? item.requiredDelivery.split("T")[0] : ""}
+                      onChange={(e) => handleFieldChange(idx, "requiredDelivery", e.target.value)}
+                      onBlur={() => handleBlur(idx)}
+                      className={cn(
+                        "w-full px-3 py-2 rounded-lg border focus:outline-none bg-white text-sm shadow-sm",
+                        isDateInPast(item.requiredDelivery) ? "border-rose-500" : "border-slate-200"
+                      )}
+                    />
+                    {isDateInPast(item.requiredDelivery) && (
+                      <p className="text-[11px] text-rose-500 mt-1">Required delivery cannot be in the past</p>
+                    )}
+                  </>
                 )}
               </div>
               <div>

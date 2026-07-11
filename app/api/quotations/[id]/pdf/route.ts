@@ -10,8 +10,10 @@ export async function GET(
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const searchParams = request.nextUrl.searchParams;
+  const revParam = searchParams.get("revision");
 
-  const quotation = await prisma.quotation.findFirst({
+  const dbQuotation = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
       customer: { select: { id: true, name: true, customerCode: true, billingAddress: true, gstNumber: true, phone: true, email: true } },
@@ -21,7 +23,37 @@ export async function GET(
     },
   });
 
-  if (!quotation) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
+  if (!dbQuotation) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
+
+  let quotation: any = null;
+  if (revParam) {
+    const revNum = parseInt(revParam);
+    const snapshot = await prisma.quotationRevisionSnapshot.findFirst({
+      where: { quotationId: id, revisionNumber: revNum },
+    });
+    if (snapshot) {
+      try {
+        const snapObj = JSON.parse(snapshot.snapshotJson);
+        quotation = {
+          ...dbQuotation,
+          ...snapObj,
+          // Convert date string if it exists in snapshot
+          createdAt: snapObj.createdAt ? new Date(snapObj.createdAt) : dbQuotation.createdAt,
+          validUntil: snapObj.validUntil ? new Date(snapObj.validUntil) : dbQuotation.validUntil,
+          items: snapObj.items.map((it: any) => ({
+            ...it,
+            product: dbQuotation.items.find(dbi => dbi.description === it.description)?.product || null
+          }))
+        };
+      } catch (err) {
+        console.error("Failed to parse snapshot", err);
+      }
+    }
+  }
+
+  if (!quotation) {
+    quotation = dbQuotation;
+  }
 
   // Fetch company info from SystemConfig
   const [addrConfig, gstinConfig, phoneConfig, emailConfig] = await Promise.all([
@@ -40,7 +72,7 @@ export async function GET(
 
   const formatDate = (d: Date) => d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-  const rowsHtml = quotation.items.map((item, idx) => {
+  const rowsHtml = quotation.items.map((item: any, idx: number) => {
     const lineTotal = item.lineTotal || item.quantity * item.unitPrice * (1 - (item.discountPercent || 0) / 100);
     const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
     return `<tr style="background:${rowBg};">

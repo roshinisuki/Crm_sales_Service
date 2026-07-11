@@ -44,9 +44,9 @@ export const PIPELINE_STAGE_VALUES = [
   "TechnicalDiscussion",   // Promoted from RG checkbox to its own real stage
   "MeetingScheduled",
   "DemoConducted",
-  "ProposalSent",          // Quotation sent to customer
-  "Negotiation",           // Customer negotiating / UnderReview quotation
-  "Won",
+  "DemoAccepted",          // End of forward pipeline
+  "Won",                   // Deal won (PO approved or accepted quotation)
+  "OnHold",                // Deal paused (quotation/PO no response)
   "Rejected",
   "Lost", // terminal — kept for legacy compatibility
 ] as const;
@@ -60,9 +60,9 @@ export const PIPELINE_STAGE_ORDER: Record<string, number> = {
   TechnicalDiscussion:    3,
   MeetingScheduled:       4,
   DemoConducted:          5,
-  ProposalSent:           6,
-  Negotiation:            7,
-  Won:                    8,
+  DemoAccepted:           6,
+  Won:                    7,
+  OnHold:                 0,   // Not a pipeline progression — a pause state
   Rejected:               0,
   Lost:                   0,
 };
@@ -72,17 +72,34 @@ export const PIPELINE_STAGE_PROBABILITY: Record<string, number> = {
   Qualified:              20,
   RequirementGathering:   35,
   TechnicalDiscussion:    50,
-  MeetingScheduled:       60,
-  DemoConducted:          75,
-  ProposalSent:           80,
-  Negotiation:            85,
-  Won:                    100,
+  MeetingScheduled:       75,
+  DemoConducted:          85,
+  DemoAccepted:           100,
+  Won:                   100,
+  OnHold:                 0,
   Rejected:                0,
   Lost:                    0,
 };
 
 /** Terminal stages (no further pipeline progression) */
-export const PIPELINE_CLOSED_STAGES = ["Won", "Rejected", "Lost"];
+export const PIPELINE_CLOSED_STAGES = ["DemoAccepted", "Won", "Lost", "Rejected"];
+
+/** High-level health statuses shown in the Status column */
+export type DealHealthStatus = "Active" | "OnHold" | "Won" | "Lost";
+
+/**
+ * Derive a high-level health status from the deal's pipeline stage.
+ * - Won/DemoAccepted → Won
+ * - Lost/Rejected → Lost
+ * - OnHold → OnHold
+ * - All other stages → Active
+ */
+export function deriveHealthStatus(stage: string): DealHealthStatus {
+  if (["Won", "DemoAccepted"].includes(stage)) return "Won";
+  if (["Lost", "Rejected"].includes(stage)) return "Lost";
+  if (stage === "OnHold") return "OnHold";
+  return "Active";
+}
 
 /** Open stages eligible for overdue computation */
 export const PIPELINE_OPEN_STAGES = ["Qualified", "RequirementGathering", "TechnicalDiscussion", "MeetingScheduled", "DemoConducted"];
@@ -115,19 +132,26 @@ export const PIPELINE_STATUS: StatusOption[] = [
   { label: "Tech. discussion", value: "TechnicalDiscussion" },
   { label: "Meeting scheduled", value: "MeetingScheduled" },
   { label: "Demo conducted", value: "DemoConducted" },
-  { label: "Won", value: "Won" },
+  { label: "Demo accepted", value: "DemoAccepted" },
   { label: "Overdue", value: "overdue" },
   { label: "Rejected", value: "Rejected" },
+  { label: "Lost", value: "Lost" },
 ];
 
 // ─── 2. Deals ─────────────────────────────────────────────────────────────────
 // Backend: Deal.status field
 // API: /api/deals (server action getDealsAction, client-side filter)
 export const DEALS_STATUS: StatusOption[] = [
-  { label: "Active", value: "Active" },
+  { label: "Qualified", value: "Qualified" },
+  { label: "Req. Gathering", value: "RequirementGathering" },
+  { label: "Tech. Discussion", value: "TechnicalDiscussion" },
+  { label: "Meeting Scheduled", value: "MeetingScheduled" },
+  { label: "Demo Conducted", value: "DemoConducted" },
+  { label: "Demo Accepted", value: "DemoAccepted" },
   { label: "On Hold", value: "OnHold" },
   { label: "Won", value: "Won" },
   { label: "Lost", value: "Lost" },
+  { label: "Rejected", value: "Rejected" },
   { label: "At Risk", value: "risk" },
 ];
 
@@ -141,6 +165,7 @@ export const QUOTES_STATUS: StatusOption[] = [
   { label: "Accepted", value: "Accepted" },
   { label: "Rejected", value: "Rejected" },
   { label: "Expired", value: "Expired" },
+  { label: "On Hold", value: "OnHold" },
 ];
 
 // ─── 4. Orders (Purchase Orders) ──────────────────────────────────────────────
@@ -149,6 +174,7 @@ export const QUOTES_STATUS: StatusOption[] = [
 export const ORDERS_STATUS: StatusOption[] = [
   { label: "New", value: "New" },
   { label: "Under Validation", value: "UnderValidation" },
+  { label: "On Hold", value: "OnHold" },
   { label: "Approved", value: "Approved" },
   { label: "Rejected", value: "Rejected" },
   { label: "Closed", value: "Closed" },

@@ -138,7 +138,7 @@ export function CompetitorIntelligenceTab({ entity }: { entity: EntityContext })
   const handleSave = async () => {
     if (!form.competitorId) { toast.error("Please select a competitor."); return; }
     setSaving(true);
-    const data = { ...form, ...entity };
+    const { currentStage, ...data } = { ...form, ...entity };
     let res;
     if (editingId) {
       res = await updateCompetitorInvolvement(editingId, data);

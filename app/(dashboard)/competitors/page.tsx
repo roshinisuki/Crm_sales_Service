@@ -142,7 +142,7 @@ export default function CompetitorsPage() {
 
   return (
     <PageContainer className="space-y-5 p-0">
-      <CompetitorPageHeader title="Competitors" subtitle="Track competitors, their products and win/loss insights">
+      <CompetitorPageHeader title="Competitors Overview" subtitle="Track competitors, their products and win/loss insights">
         {canManage && (
           <button onClick={openNew} className="btn-primary">
             <Plus size={16} /> New Competitor

@@ -97,7 +97,7 @@ function SampleListContent() {
             <Package size={20} className="text-[var(--primary)]" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Sample Management</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Samples Overview</h1>
             <p className="text-sm text-slate-500 mt-0.5">Track product sample requests from customers</p>
           </div>
         </div>

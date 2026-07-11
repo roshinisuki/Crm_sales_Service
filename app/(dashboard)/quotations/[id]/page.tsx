@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { useAuth } from "@/components/AuthProvider";
@@ -11,9 +11,11 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
+import QuotationDetailPageV2 from "@/components/quotations/QuotationDetailPageV2";
 import { cn } from "@/lib/ui-utils";
+import { StatusStepper } from "@/components/ui/StatusStepper";
 import {
-  ChevronRight, ChevronLeft, CheckCircle, Edit, AlertTriangle, Send, Zap, FileCode, Copy, Download, X, XCircle, Check, Plus
+  ChevronRight, ChevronLeft, CheckCircle, Edit, AlertTriangle, Send, FileCode, Copy, Download, X, XCircle, Check, Plus, FileText, MoreVertical
 } from "lucide-react";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -79,17 +81,19 @@ export default function QuotationDetailPage() {
   const [productResults, setProductResults] = useState<any[]>([]);
   const [approvalNotes, setApprovalNotes] = useState("");
   const [revisionModal, setRevisionModal] = useState<{ open: boolean; revisionNumber: number; data: any }>({ open: false, revisionNumber: 0, data: null });
-  // B.1: Start Negotiation modal state
+  // Start Negotiation modal state
   const [showNegotiateModal, setShowNegotiateModal] = useState(false);
   const [negotiateForm, setNegotiateForm] = useState({
     customerDemands: "",
     internalNotes: "",
-    proposedAmount: "",
-    discountPercent: "",
-    reason: "",
+    negotiationType: "Price",
+    negotiationReason: "Customer Request",
   });
   const [negotiating, setNegotiating] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [quotationDocuments, setQuotationDocuments] = useState<any[]>([]);
   const searchParams = useSearchParams();
+  if (searchParams.get("v2") === "1") return <QuotationDetailPageV2 />;
   const { startLoading, stopLoading } = useGlobalLoading();
 
   // Settings configs populated from API response
@@ -124,6 +128,45 @@ export default function QuotationDetailPage() {
       startEdit();
     }
   }, [searchParams, quotation]);
+
+  const loadDocuments = async () => {
+    try {
+      const res = await fetch(`/api/quotations/${id}/generate-pdf`);
+      const data = await res.json();
+      if (data.success) setQuotationDocuments(data.data || []);
+    } catch {}
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, [id]);
+
+  const handleGeneratePdf = async () => {
+    setGeneratingPdf(true);
+    try {
+      const res = await fetch(`/api/quotations/${id}/generate-pdf`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("PDF generated and stored");
+        loadDocuments();
+      } else {
+        toast.error(data.message || "Failed to generate PDF");
+      }
+    } catch {
+      toast.error("Failed to generate PDF");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadDoc = (doc: any) => {
+    const link = document.createElement("a");
+    link.href = doc.fileUrl;
+    link.download = doc.fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const startEdit = () => {
     if (!quotation) return;
@@ -277,15 +320,9 @@ export default function QuotationDetailPage() {
       const payload: any = {
         customerDemands: negotiateForm.customerDemands || undefined,
         internalNotes: negotiateForm.internalNotes || undefined,
+        negotiationType: negotiateForm.negotiationType || undefined,
+        negotiationReason: negotiateForm.negotiationReason || undefined,
       };
-      // Include initial revision if proposedAmount is provided
-      if (negotiateForm.proposedAmount) {
-        payload.initialRevision = {
-          proposedAmount: negotiateForm.proposedAmount,
-          discountPercent: negotiateForm.discountPercent || "0",
-          reason: negotiateForm.reason || undefined,
-        };
-      }
       const res = await fetch(`/api/quotations/${id}/negotiate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -293,7 +330,7 @@ export default function QuotationDetailPage() {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success("Moved to negotiation");
+        toast.success("Negotiation started — status is Active");
         setShowNegotiateModal(false);
         if (data.data?.negotiationId) {
           router.push(`/negotiations/${data.data.negotiationId}`);
@@ -428,29 +465,6 @@ export default function QuotationDetailPage() {
     }
   };
 
-  const [creatingDeal, setCreatingDeal] = useState(false);
-  const handleCreateDeal = async () => {
-    setCreatingDeal(true);
-    try {
-      const res = await fetch(`/api/quotations/${id}/create-deal`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Deal created: ${data.data.dealName}`);
-        loadQuotation();
-      } else {
-        toast.error(data.message || "Failed to create deal");
-      }
-    } catch {
-      toast.error("Failed to create deal");
-    } finally {
-      setCreatingDeal(false);
-    }
-  };
-
   const handleDelete = () => {
     setConfirmState({
       isOpen: true,
@@ -542,6 +556,66 @@ export default function QuotationDetailPage() {
     else overallMarginColor = "text-rose-700 bg-rose-50 border border-rose-100 animate-pulse";
   }
 
+  // Action-bar visibility and primary-button rules
+  const canEdit = quotation.status === "Draft";
+  const canRequestApproval = quotation.status === "Draft" && needsApproval;
+  const canSend = ["Draft", "Approved"].includes(quotation.status);
+  const canNegotiate = ["Sent", "UnderReview"].includes(quotation.status);
+  const canAcceptReject = ["Sent", "UnderReview"].includes(quotation.status);
+  const canCreatePo = quotation.status === "Accepted";
+  const hasChild = quotation.childRevisions && quotation.childRevisions.length > 0;
+  const isNegotiationPriceRevision = quotation.negotiation && quotation.negotiation.status === "PriceRevision";
+  const canClone = !hasChild && (["Rejected", "Expired"].includes(quotation.status) || isNegotiationPriceRevision);
+  const canDelete = canEdit;
+
+  const primaryAction: "send" | "accept" | "createPo" | null =
+    quotation.status === "Draft" && !needsApproval ? "send"
+    : quotation.status === "Approved" ? "send"
+    : ["Sent", "UnderReview"].includes(quotation.status) ? "accept"
+    : quotation.status === "Accepted" ? "createPo"
+    : null;
+
+  function buttonClass({ primary = false, disabled = false }: { primary?: boolean; disabled?: boolean }) {
+    const base = "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors";
+    if (disabled) return `${base} text-[var(--text-muted)] bg-[var(--surface-2)] opacity-60 cursor-not-allowed`;
+    if (primary) return `${base} text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer`;
+    return `${base} text-[var(--text-secondary)] bg-[var(--surface-2)] border border-[var(--border)] hover:bg-[var(--border)] cursor-pointer`;
+  }
+
+  function OverflowMenu() {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      function handleClickOutside(event: MouseEvent) {
+        if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+      }
+      if (open) document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [open]);
+    if (!canClone && !canDelete) return null;
+    return (
+      <div ref={ref} className="relative ml-auto">
+        <button onClick={() => setOpen(!open)} title="More actions" className={buttonClass({})}>
+          <MoreVertical size={15} />
+        </button>
+        {open && (
+          <div className="absolute right-0 mt-2 w-48 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] shadow-lg z-50 py-1">
+            {canClone && (
+              <button onClick={() => { setOpen(false); handleClone(); }} title="Create a new revision of this quotation" className="w-full text-left px-4 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--surface-2)] flex items-center gap-2">
+                <Copy size={14} /> Clone & Revise
+              </button>
+            )}
+            {canDelete && (
+              <button onClick={() => { setOpen(false); handleDelete(); }} title="Delete this quotation" className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-50 flex items-center gap-2">
+                <X size={14} /> Delete
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <PageContainer className="space-y-4 p-0">
       {/* Breadcrumbs — full lineage: RFQ → Quotation → Negotiation */}
@@ -597,97 +671,55 @@ export default function QuotationDetailPage() {
             <p className="text-sm text-slate-500 mt-0.5">Quotation Details</p>
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Edit Mode: show Save/Cancel only */}
           {editMode ? (
             <>
               <button onClick={handleSaveItems} disabled={savingItems} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-50"><CheckCircle size={15} /> {savingItems ? "Saving..." : "Save Changes"}</button>
-              <button onClick={() => setEditMode(false)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer">Cancel</button>
+              <button onClick={() => setEditMode(false)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] bg-[var(--surface-2)] hover:bg-[var(--border)] cursor-pointer">Cancel</button>
             </>
           ) : (
             <>
               {/* Edit Line Items — only in Draft */}
-              <button onClick={startEdit} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be edited" : "Edit line items, prices, and discounts"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-slate-700 bg-slate-100 hover:bg-slate-200" : "text-slate-400 bg-slate-50"}`}><Edit size={15} /> Edit</button>
+              <button onClick={startEdit} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be edited" : "Edit line items, prices, and discounts"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-[var(--text-secondary)] bg-[var(--surface-2)] hover:bg-[var(--border)]" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><Edit size={15} /> Edit</button>
               {/* Request Approval — only in Draft when approval needed */}
-              <button onClick={handleRequestApproval} disabled={quotation.status !== "Draft" || !needsApproval} title={quotation.status !== "Draft" ? "Quotation must be in Draft" : !needsApproval ? "No approval triggers — discount/margin within limits" : "Request manager approval for discount/margin override"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" && needsApproval ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><AlertTriangle size={15} /> Request Approval</button>
+              <button onClick={handleRequestApproval} disabled={quotation.status !== "Draft" || !needsApproval} title={quotation.status !== "Draft" ? "Quotation must be in Draft" : !needsApproval ? "No approval triggers — discount/margin within limits" : "Request manager approval for discount/margin override"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" && needsApproval ? "text-white bg-[var(--status-warning)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><AlertTriangle size={15} /> Request Approval</button>
               {/* Send — available in Draft and Approved */}
-              <button onClick={handleSend} disabled={!["Draft", "Approved"].includes(quotation.status)} title={!["Draft", "Approved"].includes(quotation.status) ? "Quotation must be Draft or Approved to send" : "Send quotation to customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Draft", "Approved"].includes(quotation.status) ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-slate-400 bg-slate-50"}`}><Send size={15} /> Send</button>
+              <button onClick={handleSend} disabled={!["Draft", "Approved"].includes(quotation.status)} title={!["Draft", "Approved"].includes(quotation.status) ? "Quotation must be Draft or Approved to send" : "Send quotation to customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Draft", "Approved"].includes(quotation.status) ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><Send size={15} /> Send</button>
               {/* Negotiate — available in Sent and UnderReview */}
-              <button onClick={handleNegotiate} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent to customer first" : "Move quotation to negotiation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-amber-600 hover:bg-amber-700" : "text-slate-400 bg-slate-50"}`}><AlertTriangle size={15} /> Negotiate</button>
+              <button onClick={() => setShowNegotiateModal(true)} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent to customer first" : "Move quotation to negotiation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-[var(--status-warning)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><AlertTriangle size={15} /> Negotiate</button>
               {/* Mark Accepted — available in Sent and UnderReview */}
-              <button onClick={handleAccept} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as accepted by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Check size={15} /> Accept</button>
+              <button onClick={handleAccept} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as accepted by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-[var(--status-success)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><Check size={15} /> Accept</button>
               {/* Mark Rejected — available in Sent and UnderReview */}
-              <button onClick={handleReject} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as rejected by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-rose-600 hover:bg-rose-700" : "text-slate-400 bg-slate-50"}`}><XCircle size={15} /> Reject</button>
-              {/* Create Deal — only in Accepted without existing deal */}
-              <button onClick={handleCreateDeal} disabled={quotation.status !== "Accepted" || !!quotation.dealId || creatingDeal} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : quotation.dealId ? "Deal already created" : "Create a deal from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" && !quotation.dealId ? "text-white bg-green-600 hover:bg-green-700" : "text-slate-400 bg-slate-50"}`}><Zap size={15} /> {creatingDeal ? "Creating..." : "Create Deal"}</button>
+              <button onClick={handleReject} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as rejected by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-[var(--status-danger)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><XCircle size={15} /> Reject</button>
               {/* Create PO — only in Accepted */}
-              <button onClick={handleCreatePo} disabled={quotation.status !== "Accepted" || creatingPo} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : "Create purchase order from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" ? "text-white bg-blue-600 hover:bg-blue-700" : "text-slate-400 bg-slate-50"}`}><FileCode size={15} /> Create PO</button>
-              {/* Clone & Revise — always available */}
-              <button onClick={handleClone} title="Create a new revision of this quotation" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Copy size={15} /> Clone & Revise</button>
+              <button onClick={handleCreatePo} disabled={quotation.status !== "Accepted" || creatingPo} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : "Create purchase order from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><FileCode size={15} /> Create PO</button>
               {/* PDF — always available */}
-              <button onClick={handleDownloadPdf} title="Download quotation as PDF" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Download size={15} /> PDF</button>
-              {/* Delete — only in Draft */}
-              <button onClick={handleDelete} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be deleted" : "Delete this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-red-600 bg-red-50 hover:bg-red-100" : "text-slate-400 bg-slate-50"}`}><X size={15} /> Delete</button>
+              <button onClick={handleDownloadPdf} title="Open printable quotation view" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] bg-[var(--surface-2)] hover:bg-[var(--border)] cursor-pointer"><Download size={15} /> PDF</button>
+              {/* Generate & Store PDF — always available */}
+              <button onClick={handleGeneratePdf} disabled={generatingPdf} title="Generate and store a PDF document for this revision" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-60"><FileText size={15} /> {generatingPdf ? "Generating..." : "Generate PDF"}</button>
             </>
           )}
         </div>
       </div>
 
       {/* Lifecycle Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center justify-between w-full overflow-x-auto py-1 gap-2">
-          {[
-            { label: "RFQ", key: "rfq", id: quotation.rfq?.id, reached: !!quotation.rfq, active: false },
-            { label: "Quotation", key: "quotation", id: id, reached: true, active: true },
-            { label: "Negotiation", key: "negotiation", id: quotation.negotiation?.id, reached: !!quotation.negotiation, active: false },
-            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(quotation.status), active: false },
-          ].map((step, i, arr) => (
-            <div key={step.key} className="flex items-center flex-1 min-w-0 justify-center">
-              <div
-                onClick={() => {
-                  if (step.id && !step.active) {
-                    if (step.key === "rfq") router.push(`/rfq/${step.id}`);
-                    else if (step.key === "negotiation") router.push(`/negotiations/${step.id}`);
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors truncate",
-                  step.active
-                    ? "bg-[var(--primary)] text-white shadow-sm border border-[var(--primary)]"
-                    : step.reached && step.id
-                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30 cursor-pointer hover:bg-green-100"
-                    : step.reached
-                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30"
-                    : "bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border",
-                    step.active
-                      ? "bg-white text-[var(--primary)] border-white"
-                      : step.reached
-                      ? "bg-success text-white border-success"
-                      : "text-slate-400 border-slate-300"
-                  )}
-                >
-                  {step.reached && !step.active ? <CheckCircle size={10} /> : i + 1}
-                </div>
-                <span className="text-xs font-semibold truncate">{step.label}</span>
-              </div>
-              {i < arr.length - 1 && (
-                <div className={cn("flex-1 h-0.5 min-w-[12px] mx-2", step.reached ? "bg-success" : "bg-slate-200 dark:bg-slate-800")} />
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="crm-card p-4">
+        <StatusStepper
+          steps={[
+            { label: "RFQ", key: "rfq", reached: !!quotation.rfq, active: false, onClick: () => quotation.rfq?.id && router.push(`/rfq/${quotation.rfq.id}`), clickable: !!quotation.rfq?.id },
+            { label: "Quotation", key: "quotation", reached: true, active: true },
+            { label: "Negotiation", key: "negotiation", reached: !!quotation.negotiation, active: false, onClick: () => quotation.negotiation?.id && router.push(`/negotiations/${quotation.negotiation.id}`), clickable: !!quotation.negotiation?.id },
+            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", reached: ["Accepted", "Rejected"].includes(quotation.status), active: false, terminal: quotation.status === "Rejected" ? "danger" : quotation.status === "Accepted" ? "success" : undefined },
+          ]}
+        />
       </div>
 
-      {/* Next Step — single prominent action driven by status */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4 flex items-center justify-between">
+      {/* Next Step — contextual guidance (actions are in the header toolbar above) */}
+      <div className="crm-card p-4 flex items-center justify-between">
         <div>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Step</p>
-          <p className="text-sm text-slate-600 mt-0.5">
+          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Next Step</p>
+          <p className="text-sm text-[var(--text-secondary)] mt-0.5">
             {quotation.status === "Draft" && (needsApproval ? "Manager approval required before sending to customer" : "Review line items and send to customer") }
             {quotation.status === "PendingApproval" && "Awaiting approval from manager — check Approval Center"}
             {quotation.status === "Approved" && "Quotation approved — ready to send to customer"}
@@ -697,31 +729,6 @@ export default function QuotationDetailPage() {
             {quotation.status === "Rejected" && "Quotation rejected — clone & revise to create a new version"}
             {quotation.status === "Expired" && "Quotation expired — clone & revise with updated validity"}
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {quotation.status === "Draft" && !editMode && (
-            needsApproval
-              ? <button onClick={handleRequestApproval} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Request Approval →</button>
-              : <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.send} size={16} /> Send to Customer →</button>
-          )}
-          {quotation.status === "Approved" && (
-            <button onClick={handleSend} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.send} size={16} /> Send to Customer →</button>
-          )}
-          {quotation.status === "Sent" && (
-            <button onClick={() => setShowNegotiateModal(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Start Negotiation →</button>
-          )}
-          {quotation.status === "UnderReview" && quotation.negotiationId && (
-            <button onClick={() => router.push(`/negotiations/${quotation.negotiationId}`)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.alert} size={16} /> Open Negotiation →</button>
-          )}
-          {quotation.status === "UnderReview" && !quotation.negotiationId && (
-            <button onClick={() => setShowNegotiateModal(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 cursor-pointer"><Ico d={icons.alert} size={16} /> Start Negotiation →</button>
-          )}
-          {quotation.status === "Accepted" && !quotation.dealId && (
-            <button onClick={handleCreateDeal} disabled={creatingDeal} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-50"><Ico d={icons.deal} size={16} /> {creatingDeal ? "Creating..." : "Create Deal →"}</button>
-          )}
-          {(quotation.status === "Rejected" || quotation.status === "Expired") && (
-            <button onClick={handleClone} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.copy} size={16} /> Clone & Revise →</button>
-          )}
         </div>
       </div>
 
@@ -740,12 +747,12 @@ export default function QuotationDetailPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {!latestApproval || latestApproval.status !== "Pending" ? (
-              <button onClick={handleRequestApproval} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer transition-colors shadow-sm whitespace-nowrap">Request Approval</button>
+              <button onClick={handleRequestApproval} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[var(--status-warning)] hover:opacity-90 cursor-pointer transition-colors shadow-sm whitespace-nowrap">Request Approval</button>
             ) : (
               <span className="text-xs font-bold text-amber-700 uppercase bg-amber-100 px-2.5 py-1 rounded">Approval Pending</span>
             )}
             {user?.role === "Admin" && latestApproval?.status === "Pending" && (
-              <button onClick={() => handleApprovalDecision("Approved")} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-green-600 hover:bg-green-700 cursor-pointer transition-colors shadow-sm whitespace-nowrap">Approve Now</button>
+              <button onClick={() => handleApprovalDecision("Approved")} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[var(--status-success)] hover:opacity-90 cursor-pointer transition-colors shadow-sm whitespace-nowrap">Approve Now</button>
             )}
           </div>
         </div>
@@ -764,55 +771,41 @@ export default function QuotationDetailPage() {
           {isApprover && (
             <div className="flex items-center gap-2 flex-wrap">
               <input type="text" placeholder="Notes (optional)" value={approvalNotes} onChange={(e) => setApprovalNotes(e.target.value)} className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-xs w-40" />
-              <button onClick={() => handleApprovalDecision("Approved")} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-green-600 hover:bg-green-700 cursor-pointer transition-colors shadow-sm">Approve</button>
-              <button onClick={() => handleApprovalDecision("Rejected")} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-red-600 hover:bg-red-700 cursor-pointer transition-colors shadow-sm">Reject</button>
+              <button onClick={() => handleApprovalDecision("Approved")} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[var(--status-success)] hover:opacity-90 cursor-pointer transition-colors shadow-sm">Approve</button>
+              <button onClick={() => handleApprovalDecision("Rejected")} className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-[var(--status-danger)] hover:opacity-90 cursor-pointer transition-colors shadow-sm">Reject</button>
             </div>
           )}
         </div>
       )}
 
       {/* Workflow Stepper */}
-      <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
-        <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto">
-          {[
-            { key: "Draft", label: "Draft", icon: icons.edit },
-            { key: "Approved", label: "Approved", icon: icons.check },
-            { key: "Sent", label: "Sent", icon: icons.send },
-            { key: "UnderReview", label: "Negotiation", icon: icons.alert },
-            { key: "Accepted", label: "Accepted", icon: icons.check },
-            { key: "Deal/PO", label: "Deal / PO", icon: icons.deal },
-          ].map((stage, idx, arr) => {
+      <div className="crm-card p-4">
+        <StatusStepper
+          compact
+          steps={[
+            "Draft", "Approved", "Sent", "UnderReview", "Accepted", "Deal/PO"
+          ].map((key, idx) => {
             const order = ["Draft", "Approved", "Sent", "UnderReview", "Accepted", "Deal/PO"];
             const currentIdx = order.indexOf(quotation.status === "Rejected" || quotation.status === "Expired" ? "Accepted" : quotation.status);
-            const stageIdx = order.indexOf(stage.key);
+            const stageIdx = idx;
             const isDone = stageIdx < currentIdx;
-            const isCurrent = stage.key === quotation.status || (stage.key === "Deal/PO" && quotation.status === "Accepted" && quotation.dealId);
+            const isCurrent = key === quotation.status || (key === "Deal/PO" && quotation.status === "Accepted" && quotation.dealId);
             const isRejected = quotation.status === "Rejected";
-
-            return (
-              <div key={stage.key} className="flex items-center flex-shrink-0">
-                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
-                  isCurrent ? "bg-[var(--primary)] text-white shadow-md scale-105" :
-                  isDone ? "bg-green-50 text-green-700 border border-green-200" :
-                  isRejected && stageIdx >= currentIdx ? "bg-red-50 text-red-400 border border-red-100" :
-                  "bg-slate-50 text-slate-400 border border-slate-100"
-                }`}>
-                  <Ico d={stage.icon} size={14} />
-                  <span className="whitespace-nowrap">{stage.label}</span>
-                  {isCurrent && <span className="w-2 h-2 rounded-full bg-white animate-pulse" />}
-                </div>
-                {idx < arr.length - 1 && (
-                  <div className={`w-4 sm:w-8 h-0.5 mx-0.5 ${isDone ? "bg-green-300" : "bg-slate-200"}`} />
-                )}
-              </div>
-            );
+            const labelMap: Record<string,string> = { Draft: "Draft", Approved: "Approved", Sent: "Sent", UnderReview: "Negotiation", Accepted: "Accepted", "Deal/PO": "Deal / PO" };
+            return {
+              label: labelMap[key],
+              key,
+              reached: isDone || isCurrent,
+              active: isCurrent,
+              terminal: isRejected && stageIdx >= currentIdx ? "danger" as const : undefined,
+            };
           })}
-        </div>
+        />
         {quotation.status === "Rejected" && (
-          <p className="text-xs text-red-600 font-medium mt-2 flex items-center gap-1"><Ico d={icons.x} size={12} /> Quotation rejected — use Clone &amp; Revise to create a new revision</p>
+          <p className="text-xs text-[var(--status-danger-text)] font-medium mt-2 flex items-center gap-1"><Ico d={icons.x} size={12} /> Quotation rejected — use Clone &amp; Revise to create a new revision</p>
         )}
         {quotation.status === "Expired" && (
-          <p className="text-xs text-gray-500 font-medium mt-2 flex items-center gap-1"><Ico d={icons.clock} size={12} /> Quotation expired — use Clone &amp; Revise to create a new revision with updated validity</p>
+          <p className="text-xs text-[var(--text-muted)] font-medium mt-2 flex items-center gap-1"><Ico d={icons.clock} size={12} /> Quotation expired — use Clone &amp; Revise to create a new revision with updated validity</p>
         )}
       </div>
 
@@ -1182,7 +1175,17 @@ export default function QuotationDetailPage() {
                     <span className="text-slate-700 dark:text-slate-300 font-medium ml-1">{new Date(rev.createdAt).toLocaleString()}</span>
                     <span className="text-slate-400">by {rev.createdBy?.name || "—"}</span>
                   </div>
-                  <button onClick={() => { try { const snap = JSON.parse(rev.snapshotJson); setRevisionModal({ open: true, revisionNumber: rev.revisionNumber, data: snap }); } catch { toast.error("Failed to load snapshot"); } }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 cursor-pointer">View Snapshot</button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => { try { const snap = JSON.parse(rev.snapshotJson); setRevisionModal({ open: true, revisionNumber: rev.revisionNumber, data: snap }); } catch { toast.error("Failed to load snapshot"); } }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 cursor-pointer">View Snapshot</button>
+                    <a
+                      href={`/api/quotations/${id}/pdf?revision=${rev.revisionNumber}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+                    >
+                      Download PDF
+                    </a>
+                  </div>
                 </div>
               ))
             ) : (
@@ -1234,8 +1237,37 @@ export default function QuotationDetailPage() {
 
       {/* Documents Tab */}
       {activeTab === "documents" && (
-        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-          <EntityDocumentTab entityType="Quotation" entityId={quotation.id} defaultDocumentType="Quotation" />
+        <div className="space-y-4">
+          {/* Generated PDFs */}
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Generated PDFs</h2>
+              <button onClick={handleGeneratePdf} disabled={generatingPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer disabled:opacity-60"><FileText size={15} /> {generatingPdf ? "Generating..." : "Generate PDF"}</button>
+            </div>
+            {quotationDocuments.length > 0 ? (
+              <div className="space-y-2">
+                {quotationDocuments.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <FileText size={20} className="text-indigo-600" />
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">{doc.fileName}</p>
+                        <p className="text-xs text-slate-400">R{doc.revisionNumber} · {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(0)} KB` : "—"} · {new Date(doc.generatedAt).toLocaleString("en-IN")}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => handleDownloadDoc(doc)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Download size={14} /> Download</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-slate-400 italic text-sm">No PDFs generated yet. Click "Generate PDF" to create one for this revision.</p>
+            )}
+          </div>
+          {/* Uploaded Documents */}
+          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">Uploaded Documents</h2>
+            <EntityDocumentTab entityType="Quotation" entityId={quotation.id} defaultDocumentType="Quotation" />
+          </div>
         </div>
       )}
 
@@ -1357,6 +1389,37 @@ export default function QuotationDetailPage() {
             </div>
 
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Negotiation Type</label>
+                  <select
+                    value={negotiateForm.negotiationType}
+                    onChange={(e) => setNegotiateForm({ ...negotiateForm, negotiationType: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                  >
+                    <option value="Price">Price</option>
+                    <option value="Terms">Terms</option>
+                    <option value="Scope">Scope</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Negotiation Reason</label>
+                  <select
+                    value={negotiateForm.negotiationReason}
+                    onChange={(e) => setNegotiateForm({ ...negotiateForm, negotiationReason: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+                  >
+                    <option value="Customer Request">Customer Request</option>
+                    <option value="Competitor Match">Competitor Match</option>
+                    <option value="Volume Discount">Volume Discount</option>
+                    <option value="Strategic Deal">Strategic Deal</option>
+                    <option value="Budget Constraint">Budget Constraint</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Customer Demands</label>
                 <textarea
@@ -1379,46 +1442,9 @@ export default function QuotationDetailPage() {
                 />
               </div>
 
-              <div className="border-t border-slate-200 pt-4">
-                <p className="text-sm font-semibold text-slate-700 mb-2">Initial Price Revision <span className="text-slate-400 font-normal">(optional)</span></p>
-                <p className="text-xs text-slate-400 mb-3">If you already know the customer's ask, enter it here to create the first revision immediately.</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Proposed Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={negotiateForm.proposedAmount}
-                      onChange={(e) => setNegotiateForm({ ...negotiateForm, proposedAmount: e.target.value })}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">Discount %</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={negotiateForm.discountPercent}
-                      onChange={(e) => setNegotiateForm({ ...negotiateForm, discountPercent: e.target.value })}
-                      placeholder="0"
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-slate-400 mt-1.5">Discounts above {discountThreshold}% require approval.</p>
-                <div className="mt-2">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Reason</label>
-                  <input
-                    type="text"
-                    value={negotiateForm.reason}
-                    onChange={(e) => setNegotiateForm({ ...negotiateForm, reason: e.target.value })}
-                    placeholder="Why this revision?"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
-                  />
-                </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+                The negotiation will start in <strong>Active</strong> status with no revisions yet.
+                You can propose a price revision from the Negotiation detail page after starting.
               </div>
             </div>
 

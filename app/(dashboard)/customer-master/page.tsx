@@ -31,14 +31,15 @@ const icons = {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    ActiveCustomer: "bg-emerald-100 text-emerald-800 border-emerald-200",
-    Prospect: "bg-amber-100 text-amber-800 border-amber-200",
-    Renewed: "bg-blue-100 text-blue-800 border-blue-200",
-    Churned: "bg-rose-100 text-rose-800 border-rose-200",
+    ActiveCustomer: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    Prospect: "bg-amber-50 text-amber-700 border-amber-200",
+    Renewed: "bg-blue-50 text-blue-700 border-blue-200",
+    Churned: "bg-rose-50 text-rose-700 border-rose-200",
   };
+  const label = status === "ActiveCustomer" ? "Active Customer" : status;
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${styles[status] || "bg-gray-100 text-gray-800"}`}>
-      {status}
+    <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${styles[status] || "bg-slate-50 text-slate-650 border-slate-200"}`}>
+      {label}
     </span>
   );
 }
@@ -286,7 +287,7 @@ export default function CustomerMasterPage() {
       {/* Header Area */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 style={{ fontSize: "22px", fontWeight: 500, color: "var(--text-primary)" }}>Customer Master</h1>
+          <h1 style={{ fontSize: "22px", fontWeight: 500, color: "var(--text-primary)" }}>Accounts Overview</h1>
           <p style={{ fontSize: "13px", color: "var(--text-secondary)", marginTop: "4px" }}>Manage and track your active customers and prospects.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

@@ -3,8 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
+import { transitionDealStatus } from "@/lib/dealService";
 
-const VALID_STATUSES = ["New", "UnderValidation", "Approved", "Rejected", "Closed"];
+const VALID_STATUSES = ["New", "UnderValidation", "OnHold", "Approved", "Rejected", "Closed"];
 
 export async function GET(
   request: NextRequest,
@@ -141,8 +142,18 @@ export async function PUT(
       updateData.approvedAt = new Date();
       updateData.rejectionReason = null;
     }
-    if (body.status === "Rejected" && body.rejectionReason) {
+    if (body.status === "Rejected") {
+      if (!body.rejectionReason || !body.rejectionReason.trim()) {
+        return NextResponse.json({ success: false, message: "Rejection reason is required when rejecting a purchase order" }, { status: 400 });
+      }
       updateData.rejectionReason = body.rejectionReason;
+    }
+    if (body.status === "OnHold") {
+      updateData.onHoldAt = new Date();
+      updateData.onHoldReason = body.onHoldReason || null;
+    }
+    if (body.status === "UnderValidation" && existing.status === "OnHold") {
+      updateData.onHoldReason = null;
     }
     if (body.status === "Closed" && !existing.actualDelivery) {
       updateData.actualDelivery = new Date();
@@ -162,6 +173,15 @@ export async function PUT(
       items: { include: { product: { select: { id: true, name: true, productCode: true, unit: true } } } },
     },
   });
+
+  if (body.status === "Approved" && purchaseOrder.dealId) {
+    await transitionDealStatus(purchaseOrder.dealId, "Won", {
+      actorId: user.id,
+      reason: `Won via PO ${purchaseOrder.poCode} approval`,
+      companyId: user.companyId!,
+      skipQuotationGate: true,
+    });
+  }
 
   if (body.status && body.status !== existing.status) {
     await logAudit(user.id, "PurchaseOrder", "StatusChange", `PO ${existing.poCode} status: ${existing.status} → ${body.status}`, {

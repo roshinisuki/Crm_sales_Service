@@ -195,6 +195,30 @@ export async function POST(
           data: { costingStatus: status },
         });
       }
+
+      // Auto-transition RFQ to CostingCompleted if all items are Done
+      const allLineItems = await tx.rFQLineItem.findMany({
+        where: { rfqId: id },
+        select: { costingStatus: true },
+      });
+
+      const allDone = allLineItems.length > 0 && allLineItems.every(li => li.costingStatus === "Done");
+      if (allDone && rfq.status === "CostingPending") {
+        await tx.rFQ.update({
+          where: { id },
+          data: { status: "CostingCompleted" },
+        });
+
+        await tx.rFQStatusHistory.create({
+          data: {
+            rfqId: id,
+            fromStatus: rfq.status,
+            toStatus: "CostingCompleted",
+            changedById: user.id,
+            notes: "Auto-transitioned: All line items have been costed.",
+          },
+        });
+      }
     });
 
     // Notify assigned sales executive

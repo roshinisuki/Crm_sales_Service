@@ -8,6 +8,7 @@ import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { cn } from "@/lib/ui-utils";
+import { StatusStepper } from "@/components/ui/StatusStepper";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { ChevronRight, ChevronLeft, CheckCircle, Plus } from "lucide-react";
 
@@ -140,12 +141,12 @@ export default function NegotiationDetailPage() {
     }
 
     const executeChange = async () => {
-      if (newStatus === "Closed-Success") startLoading("Closing negotiation successfully...", "check");
+      if (newStatus === "Closed-Success") startLoading("Closing negotiation successfully...", "pulse");
       setSaving(true);
       try {
         const payload: any = { status: newStatus };
-        if (newStatus === "Closed-Success" && negotiation.revisedAmount) {
-          payload.finalAmount = negotiation.revisedAmount;
+        if (newStatus === "Closed-Success") {
+          payload.finalAmount = negotiation.revisedAmount || negotiation.initialAmount;
         }
         const res = await fetch(`/api/negotiations/${id}`, {
           method: "PUT",
@@ -293,7 +294,7 @@ export default function NegotiationDetailPage() {
 
   const canRevise = ["Active", "PriceRevision"].includes(negotiation.status);
   const isClosed = ["Closed-Success", "Closed-Failure"].includes(negotiation.status);
-  const canRequestApproval = ["CommercialDiscussion", "PriceRevision"].includes(negotiation.status);
+  const canRequestApproval = negotiation.status === "CommercialDiscussion";
   const canResumeRevision = negotiation.status === "CommercialDiscussion";
 
   // B.6: Auto-calculate discount from proposedAmount vs current amount
@@ -343,9 +344,35 @@ export default function NegotiationDetailPage() {
             <button
               onClick={handleRequestApproval}
               disabled={requestingApproval}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors cursor-pointer disabled:opacity-60"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--status-warning)] hover:opacity-90 transition-colors cursor-pointer disabled:opacity-60"
             >
               {requestingApproval ? "Requesting..." : "Request Approval"}
+            </button>
+          )}
+          {!isClosed && (
+            <>
+              <button
+                onClick={() => handleStatusChange("Closed-Success")}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--status-success)] hover:opacity-90 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                🤝 Accept & Close
+              </button>
+              <button
+                onClick={() => handleStatusChange("Closed-Failure")}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--status-danger)] hover:opacity-90 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                ❌ Reject & Close
+              </button>
+            </>
+          )}
+          {negotiation.status === "Closed-Success" && (
+            <button
+              onClick={() => router.push(`/purchase-orders/new?customerId=${negotiation.customerId}&negotiationId=${negotiation.id}&quotationId=${negotiation.quotationId || ""}`)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
+            >
+              📋 Create PO
             </button>
           )}
         </div>
@@ -380,61 +407,38 @@ export default function NegotiationDetailPage() {
         </div>
       )}
 
-      {/* Stage Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center justify-between w-full overflow-x-auto py-1 gap-2">
-          {[
-            { label: "RFQ", key: "rfq", id: negotiation.quotation?.rfq?.id, reached: !!negotiation.quotation?.rfq, active: false },
-            { label: "Quotation", key: "quotation", id: negotiation.quotation?.id, reached: !!negotiation.quotation, active: false },
-            { label: "Negotiation", key: "negotiation", id: id, reached: true, active: true },
-            { label: "Revision", key: "revision", id: null, reached: (negotiation.revisions?.length || 0) > 0, active: false },
-            { label: negotiation.status === "Closed-Success" ? "Closed-Success" : negotiation.status === "Closed-Failure" ? "Closed-Failure" : "Closed", key: "outcome", id: null, reached: ["Closed-Success", "Closed-Failure"].includes(negotiation.status), active: false },
-          ].map((step, i, arr) => (
-            <div key={step.key} className="flex items-center flex-1 min-w-0 justify-center">
-              <div
-                onClick={() => {
-                  if (step.id && !step.active) {
-                    if (step.key === "rfq") router.push(`/rfq/${step.id}`);
-                    else if (step.key === "quotation") router.push(`/quotations/${step.id}`);
-                  }
-                }}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors truncate",
-                  step.active
-                    ? "bg-[var(--primary)] text-white shadow-sm border border-[var(--primary)]"
-                    : step.reached && step.id
-                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30 cursor-pointer hover:bg-green-100"
-                    : step.reached
-                    ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30"
-                    : "bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border",
-                    step.active
-                      ? "bg-white text-[var(--primary)] border-white"
-                      : step.reached
-                      ? "bg-success text-white border-success"
-                      : "text-slate-400 border-slate-300"
-                  )}
-                >
-                  {step.reached && !step.active ? <CheckCircle size={10} /> : i + 1}
-                </div>
-                <span className="text-xs font-semibold truncate">{step.label}</span>
-              </div>
-              {i < arr.length - 1 && (
-                <div className={cn("flex-1 h-0.5 min-w-[12px] mx-2", step.reached ? "bg-success" : "bg-slate-200 dark:bg-slate-800")} />
-              )}
+      {/* Approval Confirmation Alert */}
+      {(() => {
+        const approvedRev = negotiation.revisions?.find((r: any) => r.status === "Approved");
+        if (!approvedRev) return null;
+        return (
+          <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 rounded-xl p-4 flex items-center gap-3 text-xs text-emerald-800 dark:text-emerald-400 font-semibold animate-fadeIn shadow-sm">
+            <span className="text-base">✅</span>
+            <div>
+              <p>Revision R{approvedRev.revisionNumber} approved by {negotiation.approvedBy?.name || "System"} on {new Date(negotiation.updatedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}.</p>
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-500 font-normal mt-0.5">The revised price of {formatCurrency(approvedRev.proposedAmount)} has been applied to the quotation.</p>
             </div>
-          ))}
-        </div>
+          </div>
+        );
+      })()}
+
+      {/* Stage Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
+      <div className="crm-card p-4">
+        <StatusStepper
+          steps={[
+            { label: "RFQ", key: "rfq", reached: !!negotiation.quotation?.rfq, active: false, onClick: () => negotiation.quotation?.rfq?.id && router.push(`/rfq/${negotiation.quotation.rfq.id}`), clickable: !!negotiation.quotation?.rfq?.id },
+            { label: "Quotation", key: "quotation", reached: !!negotiation.quotation, active: false, onClick: () => negotiation.quotation?.id && router.push(`/quotations/${negotiation.quotation.id}`), clickable: !!negotiation.quotation?.id },
+            { label: "Negotiation", key: "negotiation", reached: true, active: true },
+            { label: "Revision", key: "revision", reached: (negotiation.revisions?.length || 0) > 0, active: false },
+            { label: negotiation.status === "Closed-Success" ? "Closed-Success" : negotiation.status === "Closed-Failure" ? "Closed-Failure" : "Closed", key: "outcome", reached: ["Closed-Success", "Closed-Failure"].includes(negotiation.status), active: false, terminal: negotiation.status === "Closed-Failure" ? "danger" : negotiation.status === "Closed-Success" ? "success" : undefined },
+          ]}
+        />
       </div>
 
       {/* Status flow bar — sequential enforcement */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center justify-between w-full overflow-x-auto py-1 gap-2">
-          {ALL_STATUSES.map((s, idx, arr) => {
+      <div className="crm-card p-4">
+        <StatusStepper
+          steps={ALL_STATUSES.map((s, idx) => {
             const isCurrent = negotiation.status === s;
             const allowed = STATUS_FLOW[negotiation.status] || [];
             const isAllowed = allowed.includes(s);
@@ -442,56 +446,19 @@ export default function NegotiationDetailPage() {
             const statusIdx = ALL_STATUSES.indexOf(negotiation.status);
             const stepIdx = idx;
             const isCompleted = stepIdx < statusIdx || (negotiation.status === "Closed-Success" && s === "Closed-Success") || (negotiation.status === "Closed-Failure" && s === "Closed-Failure");
-            const isFuture = stepIdx > statusIdx;
             const isClickable = !isClosed && !isCurrent && isAllowed;
-            const tooltip = isCurrent
-              ? "Current status"
-              : isClosed
-              ? "Negotiation is closed"
-              : isClickable
-              ? `Click to transition to ${s}`
-              : `Must go through adjacent step: ${allowed.join(" or ")}`;
-
-            return (
-              <div key={s} className="flex items-center flex-1 min-w-0 justify-center">
-                <button
-                  type="button"
-                  disabled={saving || isClosed || (!isCurrent && !isAllowed)}
-                  onClick={() => handleStatusChange(s)}
-                  title={tooltip}
-                  className={cn(
-                    "flex items-center gap-2 rounded-lg px-2.5 py-1.5 transition-colors truncate",
-                    isCurrent
-                      ? "bg-[var(--primary)] text-white shadow-sm border border-[var(--primary)]"
-                      : isCompleted
-                      ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400 border border-green-200 dark:border-green-900/30 cursor-pointer hover:bg-green-100"
-                      : isClickable
-                      ? "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 cursor-pointer"
-                      : "bg-slate-50 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border",
-                      isCurrent
-                        ? "bg-white text-[var(--primary)] border-white"
-                        : isCompleted
-                        ? "bg-success text-white border-success"
-                        : "text-slate-400 border-slate-300"
-                    )}
-                  >
-                    {isCompleted ? <CheckCircle size={10} /> : idx + 1}
-                  </div>
-                  <span className="text-xs font-semibold truncate">{s}</span>
-                </button>
-                {idx < arr.length - 1 && (
-                  <div className={cn("flex-1 h-0.5 min-w-[12px] mx-2", isCompleted ? "bg-success" : "bg-slate-200 dark:bg-slate-850")} />
-                )}
-              </div>
-            );
+            return {
+              label: s,
+              key: s,
+              reached: isCompleted || isCurrent,
+              active: isCurrent,
+              onClick: () => isClickable && handleStatusChange(s),
+              clickable: isClickable,
+              terminal: s === "Closed-Failure" && isCompleted ? "danger" as const : s === "Closed-Success" && isCompleted ? "success" as const : undefined,
+            };
           })}
-        </div>
-        <p className="text-[10px] text-slate-400 mt-2 font-medium">Status transitions are sequential. Only reachable adjacent statuses are active; non-adjacent steps are disabled-with-tooltip.</p>
+        />
+        <p className="text-[10px] text-[var(--text-muted)] mt-2 font-medium">Status transitions are sequential. Only reachable adjacent statuses are active; non-adjacent steps are disabled-with-tooltip.</p>
       </div>
 
       {/* Tabs */}
@@ -523,6 +490,7 @@ export default function NegotiationDetailPage() {
               <Field label="Revised Amount" value={negotiation.revisedAmount ? formatCurrency(negotiation.revisedAmount) : "—"} />
               <Field label="Final Amount" value={negotiation.finalAmount ? formatCurrency(negotiation.finalAmount) : "—"} />
               <Field label="Discount Requested" value={negotiation.discountRequested ? `${negotiation.discountRequested}%` : "—"} />
+              <Field label="Discount Approved" value={negotiation.discountApproved ? `${negotiation.discountApproved}%` : "—"} />
               <Field label="Quotation" value={negotiation.quotation ? negotiation.quotation.quotationCode : "—"} />
               <Field label="RFQ" value={negotiation.quotation?.rfq ? negotiation.quotation.rfq.rfqCode : "—"} />
               <Field label="Deal" value={negotiation.deal ? negotiation.deal.dealName : "—"} />
@@ -650,16 +618,19 @@ export default function NegotiationDetailPage() {
                       const cumulativeDiscount = negotiation.initialAmount > 0
                         ? ((negotiation.initialAmount - r.proposedAmount) / negotiation.initialAmount) * 100
                         : 0;
-                      // Margin: use negotiation's overallMarginPercent as baseline, compute revised margin if available
-                      const baseMargin = Number(negotiation.overallMarginPercent) || 0;
-                      const revisedMargin = baseMargin > 0 && negotiation.initialAmount > 0
-                        ? baseMargin * (r.proposedAmount / negotiation.initialAmount)
+                      // Margin: use cost-based formula
+                      const costBasis = Number(negotiation.costBasisUnitPrice) || 0;
+                      const revisedMargin = costBasis > 0 && r.proposedAmount > 0
+                        ? ((r.proposedAmount - costBasis) / r.proposedAmount) * 100
                         : null;
-                      const prevMargin = idx === 0 ? baseMargin : (baseMargin * (negotiation.revisions[idx - 1].proposedAmount / negotiation.initialAmount));
-                      const marginDelta = revisedMargin != null ? revisedMargin - prevMargin : null;
+                      const prevProposed = idx === 0 ? negotiation.initialAmount : negotiation.revisions[idx - 1].proposedAmount;
+                      const prevMargin = costBasis > 0 && prevProposed > 0
+                        ? ((prevProposed - costBasis) / prevProposed) * 100
+                        : null;
+                      const marginDelta = revisedMargin != null && prevMargin != null ? revisedMargin - prevMargin : null;
                       return (
                         <tr key={r.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50">
-                          <td className="crm-td font-semibold text-slate-700 dark:text-slate-200">R{r.revisionNumber + 1} <span className="text-[9px] text-slate-400 font-normal">(#{r.revisionNumber})</span></td>
+                          <td className="crm-td font-semibold text-slate-700 dark:text-slate-200">R{r.revisionNumber} <span className="text-[9px] text-slate-400 font-normal">(#{r.revisionNumber})</span></td>
                           <td className="crm-td text-right font-medium text-slate-700 dark:text-slate-200">{formatCurrency(r.proposedAmount)}</td>
                           <td className={cn("crm-td text-right font-semibold", amountDelta < 0 ? "text-rose-600" : "text-emerald-600")}>
                             {amountDelta < 0 ? "" : "+"}{formatCurrency(amountDelta)}
@@ -718,8 +689,9 @@ export default function NegotiationDetailPage() {
                 <p className="text-[10px] text-slate-450 italic text-center py-4">No revisions logged yet.</p>
               ) : (
                 negotiation.revisions?.map((r: any, idx: number) => {
-                  const revisedMargin = Number(negotiation.overallMarginPercent) > 0 && negotiation.initialAmount > 0
-                    ? Number(negotiation.overallMarginPercent) * (r.proposedAmount / negotiation.initialAmount)
+                  const costBasis = Number(negotiation.costBasisUnitPrice) || 0;
+                  const revisedMargin = costBasis > 0 && r.proposedAmount > 0
+                    ? ((r.proposedAmount - costBasis) / r.proposedAmount) * 100
                     : null;
                   const barWidth = Math.max(10, Math.min(100, (r.proposedAmount / negotiation.initialAmount) * 100));
                   const cumulativeDiscount = negotiation.initialAmount > 0
@@ -728,14 +700,14 @@ export default function NegotiationDetailPage() {
                   return (
                     <div key={r.id} className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">R{r.revisionNumber + 1}</span>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">R{r.revisionNumber}</span>
                         <span className="text-xs font-semibold text-slate-850 dark:text-slate-200">{formatCurrency(r.proposedAmount)}</span>
                       </div>
                       <div className="flex justify-between text-[10px] text-slate-450 mb-1">
                         <span>Round: {r.discountPercent || 0}% | Cum: {cumulativeDiscount.toFixed(1)}%</span>
                         <span className={cn(
                           "font-bold",
-                          revisedMargin != null && revisedMargin < Number(negotiation.overallMarginPercent) ? "text-rose-500" : "text-emerald-500"
+                          revisedMargin != null && revisedMargin < (Number(negotiation.overallMarginPercent) || 0) ? "text-rose-500" : "text-emerald-500"
                         )}>
                           Margin: {revisedMargin != null ? `${revisedMargin.toFixed(1)}%` : "—"}
                         </span>

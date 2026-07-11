@@ -75,7 +75,7 @@ export default function ForecastListPage() {
   return (
     <PageContainer className="space-y-4 p-0">
       <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-slate-800">Forecasting</h1><p className="text-sm text-slate-500 mt-0.5">Manage forecast targets and track achievement</p></div>
+        <div><h1 className="text-2xl font-bold text-slate-800">Forecast Overview</h1><p className="text-sm text-slate-500 mt-0.5">Manage forecast targets and track achievement</p></div>
         <div className="flex gap-2">
           <button onClick={() => router.push("/forecast/target-vs-achievement")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Ico d={icons.chart} size={16} /> Target vs Achievement</button>
           <button onClick={() => router.push("/forecast/new")} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"><Ico d={icons.plus} size={16} /> Add Forecast Entry</button>

@@ -93,6 +93,7 @@ model User {
   requestedQuotationApprovals QuotationApproval[]         @relation("RequestedQuotationApprovals")
   quotationRevisionAuthors    QuotationApproval[]         @relation("QuotationRevisionAuthors")
   createdRevisionSnapshots    QuotationRevisionSnapshot[] @relation("CreatedRevisionSnapshots")
+  quotationDocuments         QuotationDocument[]         @relation("QuotationDocumentsGenerated")
   changedQuotationStatuses    QuotationStatusHistory[]    @relation("ChangedQuotationStatus")
   exportedReports             ReportExportLog[]           @relation("ExportedReports")
   createdReportSchedules      ReportSchedule[]            @relation("CreatedReportSchedules")
@@ -508,6 +509,7 @@ model FollowUp {
   nextFollowupId    String?
   entityType        String?
   entityId          String?
+  stageAtCreation   String?
   communicationLogs CommunicationLog[]
   assignedUser      User               @relation("AssignedFollowUps", fields: [assignedUserId], references: [id], onUpdate: NoAction)
   company           Company?           @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -584,10 +586,8 @@ model Deal {
   lostReasonRefId        String?
   opportunityCode        String?
   probabilityPercent     Int                          @default(20)
-  demoOutcome            String? // "Accepted" | "Rejected" | "Follow-up needed" | null — set when DemoConducted stage transitions
   stageEnteredAt         DateTime? // Timestamp when current stage was entered — for per-stage overdue computation
   rejectedReason         String?                      @db.NVarChar(Max) // Reason for rejection (distinct from lostReason)
-  demoFollowUpDate       DateTime? // V2: Follow-up date when demoOutcome is "Follow-up needed"
   approvalHistory        ApprovalHistory[]
   linkedVisits           CustomerVisit[]              @relation("VisitLinkedOpportunity")
   assignedUser           User?                        @relation(fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -600,6 +600,7 @@ model Deal {
   negotiations           Negotiation[]
   opportunityContacts    OpportunityContact[]
   opportunityDetail      OpportunityDetail?
+  meetingLogs            MeetingLog[]                 @relation("DealMeetingLogs")
   requirementItems       OpportunityRequirementItem[] @relation("DealRequirementItems")
   proposals              Proposal[]
   purchaseOrders         PurchaseOrder[]
@@ -639,34 +640,8 @@ model OpportunityDetail {
   expectedGoLive          DateTime?
   currentVendor           String?
   competitorsEvaluated    String?   @db.NVarChar(Max)
-  proposedSolution        String?   @db.NVarChar(Max)
-  scopeClassification     String?
-  estimatedDuration       String?
-  developmentEffort       String?
-  implementationEffort    String?
-  supportRequirements     String?
-  meetingType             String?
-  meetingMode             String?
-  meetingDate             DateTime?
-  meetingStatus           String?
-  meetingDuration         Int?
-  meetingParticipants     String?   @db.NVarChar(Max)
-  meetingLocation         String?   @db.NVarChar(Max)
-  meetingAgenda           String?   @db.NVarChar(Max)
-  meetingOutcome          String?   @db.NVarChar(Max)
-  nextFollowUpDate        DateTime?
-  demoType                String?
-  demoDate                DateTime?
-  demoPresenter           String?
-  demoDuration            Int?
-  demoAttendees           String?   @db.NVarChar(Max)
-  demoCustomerRating      String?
-  demoInterestLevel       String?
-  demoQuestionsRaised     String?   @db.NVarChar(Max)
-  demoRejectionReason     String?
-  demoRejectionRemarks    String?   @db.NVarChar(Max)
-  demoCompetitorName      String?
-  demoFollowUpDate        DateTime?
+
+
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   apiThirdPartyReqs       String?   @db.NVarChar(Max)
@@ -675,13 +650,10 @@ model OpportunityDetail {
   businessGoals           String?   @db.NVarChar(Max)
   businessNeed            String?   @db.NVarChar(Max)
   buyingAuthorityNotes    String?   @db.NVarChar(Max)
-  commercialRisks         String?   @db.NVarChar(Max)
   companyName             String?
-  competitorInfo          String?   @db.NVarChar(Max)
   contactPerson           String?
   customizationNeeded     String?   @db.NVarChar(Max)
   dataMigrationRequired   String?
-  discountRequested       Float?
   email                   String?
   employeeCount           Int?
   existingSoftwareStack   String?   @db.NVarChar(Max)
@@ -694,16 +666,12 @@ model OpportunityDetail {
   itTeamNotes             String?   @db.NVarChar(Max)
   licenseCount            Int?
   managementNotes         String?   @db.NVarChar(Max)
-  negotiationNotes        String?   @db.NVarChar(Max)
   nextSteps               String?   @db.NVarChar(Max)
   numberOfUsers           Int?
   objections              String?   @db.NVarChar(Max)
-  paymentTerms            String?
   phone                   String?
   presalesNotes           String?   @db.NVarChar(Max)
-  pricingModel            String?
   probability             Int?
-  proposalValue           Float?
   reportingRequirements   String?   @db.NVarChar(Max)
   requiredDepartments     String?   @db.NVarChar(Max)
   risksBlockers           String?   @db.NVarChar(Max)
@@ -733,6 +701,28 @@ model OpportunityDetail {
   deal                    Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
 }
 
+// ─── Meeting Log (replaces flat meeting fields) ─────────────────────────────────
+model MeetingLog {
+  id              String    @id @default(cuid())
+  dealId          String
+  deal            Deal      @relation("DealMeetingLogs", fields: [dealId], references: [id], onDelete: Cascade)
+  attemptNumber   Int       @default(1)
+  meetingDate     DateTime?
+  meetingType     String?
+  meetingMode     String?
+  participants    String?   @db.NVarChar(Max)
+  agenda          String?   @db.NVarChar(Max)
+  conductedAt     DateTime?
+  outcome         String?   // "Accepted", "Rejected", "Follow-up needed"
+  notes           String?   @db.NVarChar(Max) // Demo feedback or meeting outcome notes
+  rejectionReason String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([dealId])
+  @@index([meetingDate])
+}
+
 // ─── Manufacturing Pipeline — Product Requirement Items ─────────────────────
 // One row per product per deal, capturing manufacturing-specific requirement data.
 // Created during Requirement Gathering stage; referenced in Technical Discussion.
@@ -752,6 +742,7 @@ model OpportunityRequirementItem {
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
   technicalNote     OpportunityTechnicalNote?
+  rfqLineItems      RFQLineItem[]
 
   @@index([dealId])
 }
@@ -1318,6 +1309,9 @@ model RFQ {
   customerDueDate        DateTime?
   priority               String                  @default("Normal")
   opportunityId          String?
+  templateFileName       String?
+  templateFileUrl        String?
+  templateParsedAt       DateTime?
   revisedAt              DateTime?
   revisedById            String?
   quotations             Quotation[]
@@ -1359,7 +1353,7 @@ model Quotation {
   totalAmount              Float                       @default(0)
   discountPercent          Float                       @default(0)
   finalAmount              Float                       @default(0)
-  overallMarginPercent     Decimal?                    @db.Decimal(5, 2)
+  overallMarginPercent     Decimal?                    @db.Decimal(8, 2)
   termsAndConditions       String?                     @db.NVarChar(Max)
   sentAt                   DateTime?
   acceptedAt               DateTime?
@@ -1400,6 +1394,7 @@ model Quotation {
   revisionSnapshots        QuotationRevisionSnapshot[]
   quotationStatusHistories QuotationStatusHistory[]
   competitorInvolvements   CompetitorInvolvement[]     @relation("CompetitorInvolvementQuotation")
+  documents                QuotationDocument[]
 
   @@index([customerId])
   @@index([status])
@@ -1427,7 +1422,7 @@ model QuotationItem {
   taxPercent         Float                     @default(18)
   unit               String?
   costBasisUnitPrice Decimal?                  @db.Decimal(12, 2)
-  marginPercent      Decimal?                  @db.Decimal(5, 2)
+  marginPercent      Decimal?                  @db.Decimal(8, 2)
   priceSource        String                    @default("RFQCosting")
   quantityBreakId    String?
   product            Product?                  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1544,6 +1539,8 @@ model Negotiation {
   discountApproved       Float?
   customerDemands        String?                 @db.NVarChar(Max)
   internalNotes          String?                 @db.NVarChar(Max)
+  negotiationType        String?
+  negotiationReason      String?
   discussionNotes        String?                 @db.NVarChar(Max)
   outcome                String?
   closedAt               DateTime?
@@ -1552,8 +1549,8 @@ model Negotiation {
   companyId              String?
   deletedAt              DateTime?
   deletedById            String?
-  costBasisUnitPrice     Decimal?                @db.Decimal(12, 2)
-  overallMarginPercent   Decimal?                @db.Decimal(5, 2)
+  costBasisUnitPrice     Decimal?                @db.Decimal(18, 2)
+  overallMarginPercent   Decimal?                @db.Decimal(8, 2)
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   approvedBy             User?                   @relation("ApprovedNegotiations", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1609,6 +1606,7 @@ model PurchaseOrder {
   totalAmount         Float               @default(0)
   discountPercent     Float               @default(0)
   finalAmount         Float               @default(0)
+  taxAmount           Float               @default(0)
   paymentTerms        String?
   deliveryTerms       String?
   shippingAddress     String?             @db.NVarChar(Max)
@@ -1631,6 +1629,8 @@ model PurchaseOrder {
   approvedAt          DateTime?
   approvedById        String?
   rejectionReason     String?             @db.NVarChar(Max)
+  onHoldAt            DateTime?
+  onHoldReason        String?             @db.NVarChar(Max)
   approvedBy          User?               @relation("ApprovedPurchaseOrders", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   assignedUser        User?               @relation("AssignedPurchaseOrders", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   company             Company?            @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1659,6 +1659,9 @@ model PurchaseOrderItem {
   quantity        Float
   unitPrice       Float
   totalPrice      Float
+  discountPercent Float         @default(0)
+  taxPercent      Float         @default(18)
+  lineTotal       Float         @default(0)
   notes           String?
   product         Product?      @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
@@ -2018,6 +2021,8 @@ model RFQLineItem {
   needsFeasibilityReview Boolean                   @default(false)
   createdAt             DateTime                   @default(now())
   updatedAt             DateTime                   @updatedAt
+  sourceRequirementItemId String?
+  sourceRequirementItem OpportunityRequirementItem?  @relation(fields: [sourceRequirementItemId], references: [id], onDelete: SetNull)
   product               Product?                   @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   rfq                   RFQ                        @relation(fields: [rfqId], references: [id], onDelete: Cascade)
   costingSheets         RFQCostingSheet[]
@@ -2125,6 +2130,24 @@ model QuotationApproval {
   @@index([approverId])
   @@index([requestedById])
   @@index([revisionAuthorId])
+}
+
+model QuotationDocument {
+  id             String   @id @default(uuid())
+  quotationId    String
+  revisionNumber Int
+  fileName       String
+  fileUrl        String   @db.NVarChar(Max)
+  fileSize       Int?
+  generatedById  String
+  generatedAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  quotation      Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  generatedBy    User      @relation("QuotationDocumentsGenerated", fields: [generatedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([quotationId])
+  @@index([revisionNumber])
 }
 
 model OpportunityContact {

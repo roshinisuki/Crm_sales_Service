@@ -4,8 +4,8 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
 
-const VALID_STATUSES = ["New", "UnderReview", "CostingPending", "QuotationCreated", "Closed"];
-const RFQ_STATUS_ORDER = ["New", "UnderReview", "CostingPending", "QuotationCreated", "Closed"];
+const VALID_STATUSES = ["New", "UnderReview", "CostingPending", "CostingCompleted", "QuotationCreated", "Closed"];
+const RFQ_STATUS_ORDER = ["New", "UnderReview", "CostingPending", "CostingCompleted", "QuotationCreated", "Closed"];
 
 export async function GET(
   request: NextRequest,
@@ -73,6 +73,37 @@ export async function PUT(
         { success: false, message: `Cannot skip RFQ statuses. Move to ${RFQ_STATUS_ORDER[currentIndex + 1]} first.` },
         { status: 400 }
       );
+    }
+
+    if (newIndex < currentIndex) {
+      // Backward move — block if quotations exist
+      const existingQuotes = await prisma.quotation.findMany({
+        where: { rfqId: id, deletedAt: null },
+        select: { id: true },
+      });
+      if (existingQuotes.length > 0) {
+        return NextResponse.json(
+          { success: false, message: "Cannot move RFQ backward — quotations already generated from this RFQ" },
+          { status: 400 }
+        );
+      }
+      // Block if any line items have costing sheets (prevent stale costing)
+      const lineItemsWithCosting = await prisma.rFQLineItem.count({
+        where: { rfqId: id, costingSheets: { some: {} } },
+      });
+      if (lineItemsWithCosting > 0 && !["SalesManager", "Admin"].includes(user.role)) {
+        return NextResponse.json(
+          { success: false, message: "Backward status change requires Manager approval — costing data exists" },
+          { status: 403 }
+        );
+      }
+      // If moving back past CostingPending, invalidate costing statuses on line items
+      if (newIndex < RFQ_STATUS_ORDER.indexOf("CostingPending")) {
+        await prisma.rFQLineItem.updateMany({
+          where: { rfqId: id },
+          data: { costingStatus: "Pending" },
+        });
+      }
     }
 
     // BRD validation: RFQ cannot be marked Closed if a Quotation is in Draft

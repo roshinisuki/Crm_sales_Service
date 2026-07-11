@@ -69,6 +69,9 @@ async function main() {
   await prisma.cRMDocument.deleteMany({});
   await prisma.approvalRequest.deleteMany({});
   await prisma.productSpecification.deleteMany({});
+  await prisma.bOMItem.deleteMany({});
+  await prisma.routingOperation.deleteMany({});
+  await prisma.materialRate.deleteMany({});
   await prisma.product.deleteMany({});
   await prisma.productCategory.deleteMany({});
   await prisma.proposalVersion.deleteMany({});
@@ -116,7 +119,7 @@ async function main() {
 
   // ---- Users ----
   console.log("Seeding users...");
-  const passwordHash = await bcrypt.hash("password123", 10);
+  const passwordHash = await bcrypt.hash("Password@123", 10);
   const usersData = [
     { email: "admin@sukisoftware.com", name: "System Admin", role: "Admin" },
     { email: "lead@sukisoftware.com", name: "Vikram Iyer", role: "SalesManager" },

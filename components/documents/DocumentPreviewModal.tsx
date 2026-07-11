@@ -79,7 +79,7 @@ export default function DocumentPreviewModal({ document: doc, isOpen, onClose, o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm" onClick={onClose}>
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={e => e.stopPropagation()}

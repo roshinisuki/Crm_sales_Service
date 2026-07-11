@@ -21,6 +21,33 @@ export async function POST(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
+  // 1. Guard: block if already cloned (has child revision)
+  const childCount = await prisma.quotation.count({
+    where: { parentQuotationId: id, deletedAt: null },
+  });
+  if (childCount > 0) {
+    return NextResponse.json({ success: false, message: "This quotation has already been cloned/revised" }, { status: 400 });
+  }
+
+  // 2. Guard: allowed statuses are Rejected, Expired, or approved price negotiation (PriceRevision)
+  let negotiationApproved = false;
+  if (existing.negotiationId) {
+    const neg = await prisma.negotiation.findUnique({
+      where: { id: existing.negotiationId },
+      select: { status: true },
+    });
+    if (neg && neg.status === "PriceRevision") {
+      negotiationApproved = true;
+    }
+  }
+  const allowedStatuses = ["Rejected", "Expired"];
+  if (!allowedStatuses.includes(existing.status) && !negotiationApproved) {
+    return NextResponse.json({
+      success: false,
+      message: "Quotations can only be cloned/revised if they are Rejected, Expired, or have an approved price negotiation."
+    }, { status: 400 });
+  }
+
   try {
     const result = await prisma.$transaction(async (tx) => {
       // 1. Snapshot current revision
@@ -66,15 +93,17 @@ export async function POST(
         },
       });
 
-      // 2. Generate new quotation code
-      const year = new Date().getFullYear();
-      const yearCount = await tx.quotation.count({
-        where: {
-          companyId: user.companyId,
-          quotationCode: { startsWith: `QT-${year}-` },
-        },
+      // 2. Generate new quotation code: baseCode-R{num}
+      const baseCode = existing.quotationCode.includes("-R") ? existing.quotationCode.split("-R")[0] : existing.quotationCode;
+      const newCode = `${baseCode}-R${existing.revisionNumber + 1}`;
+
+      const codeDup = await tx.quotation.findFirst({
+        where: { companyId: user.companyId, quotationCode: newCode },
+        select: { id: true },
       });
-      const newCode = `QT-${year}-${String(yearCount + 1).padStart(5, "0")}`;
+      if (codeDup) {
+        throw new Error(`Quotation revision ${newCode} already exists`);
+      }
 
       // 3. Create new quotation (clone)
       const newQuotation = await tx.quotation.create({

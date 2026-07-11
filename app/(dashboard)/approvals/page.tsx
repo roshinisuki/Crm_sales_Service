@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
@@ -47,6 +47,7 @@ export default function ApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user } = useAuth();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState(searchParams.get("type") || "");
@@ -109,7 +110,11 @@ export default function ApprovalsPage() {
         toast.success(`Approval ${actionModal.action}d successfully`);
         setActionModal(null);
         setRemarks("");
-        loadApprovals();
+        if (actionModal.approval.approvalType === "Negotiation" && actionModal.action === "approve") {
+          router.push(`/negotiations/${actionModal.approval.entityId}`);
+        } else {
+          loadApprovals();
+        }
       } else {
         toast.error(data.message || "Failed to update approval");
       }

@@ -149,6 +149,7 @@ export async function PUT(
               sourceId: deal.id,
               autoCreated: true,
               companyId: user.companyId,
+              stageAtCreation: "Deal",
             }
           });
         }

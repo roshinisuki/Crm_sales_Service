@@ -6,6 +6,7 @@ import { logAudit } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { validateNotInPast } from "@/lib/date-validation";
 import { buildScope, checkRecordScope } from "@/lib/scopes";
 
 const createSchema = z.object({
@@ -218,6 +219,7 @@ export async function getFollowUpsAction(params?: {
 
     const whereClause = {
       ...scope,
+      stageAtCreation: { not: "Lead" },
       AND: [
         params?.assignedUserId ? { assignedUserId: params.assignedUserId } : {},
         params?.status ? { status: params.status as any } : {},
@@ -260,6 +262,28 @@ export async function getFollowUpsAction(params?: {
   }
 }
 
+/**
+ * Determines the stageAtCreation discriminator ("Lead" or "Deal") based on
+ * the qualification status of the related lead or customer at creation time.
+ * Unqualified lead statuses map to "Lead"; everything else maps to "Deal".
+ */
+export async function getStageAtCreation(
+  prismaTx: any,
+  leadId?: string | null,
+  customerId?: string | null
+): Promise<string> {
+  if (leadId) {
+    const lead = await prismaTx.lead.findUnique({
+      where: { id: leadId },
+      select: { status: true },
+    });
+    if (lead && ["New", "Contacted", "Duplicate", "Lost"].includes(lead.status)) {
+      return "Lead";
+    }
+  }
+  return "Deal";
+}
+
 export async function createFollowUpAction(data: any) {
   try {
     const userPayload = await verifyAuth();
@@ -290,6 +314,11 @@ export async function createFollowUpAction(data: any) {
     }
 
     const validated = parsedInput.data;
+
+    const dateValidationError = validateNotInPast(validated.nextMeetingDate, "Follow-up date");
+    if (dateValidationError) {
+      return { success: false, message: dateValidationError };
+    }
 
     // Check if Executive is trying to assign to someone else
     if (userPayload.role === "SalesExecutive" && validated.assignedUserId !== userPayload.id) {
@@ -325,6 +354,13 @@ export async function createFollowUpAction(data: any) {
       }
     }
 
+    // Resolve stageAtCreation discriminator based on lead qualification status
+    const stageAtCreation = await getStageAtCreation(
+      prisma,
+      validated.leadId || null,
+      validated.customerId || null
+    );
+
     const followUp = await prisma.followUp.create({
       data: {
         customerId: validated.customerId || null,
@@ -344,6 +380,7 @@ export async function createFollowUpAction(data: any) {
         type: validated.type || null,
         status: "Pending",
         companyId: userPayload.companyId,
+        stageAtCreation,
       },
       include: {
         customer: { select: { id: true, name: true, customerCode: true } },
@@ -501,7 +538,7 @@ export async function completeFollowUpWithStatusAction(data: {
       },
     });
 
-    // Create another follow-up if requested
+    // Create another follow-up if requested (inherit stageAtCreation from original)
     if (nextMeetingDate) {
       await prisma.followUp.create({
         data: {
@@ -520,6 +557,7 @@ export async function completeFollowUpWithStatusAction(data: {
           priority: nextMeetingPriority || "Medium",
           sourceType: "MANUAL",
           companyId: userPayload.companyId,
+          stageAtCreation: followUp.stageAtCreation || "Deal",
         },
       });
     }
@@ -808,6 +846,11 @@ export async function rescheduleFollowUpAction(data: {
     const { id, nextMeetingDate, remarks } = data;
     if (!id || !nextMeetingDate) return { success: false, message: "ID and new date are required" };
 
+    const dateValidationError = validateNotInPast(nextMeetingDate, "Follow-up date");
+    if (dateValidationError) {
+      return { success: false, message: dateValidationError };
+    }
+
     const followUp = await prisma.followUp.findUnique({
       where: { id },
     });
@@ -962,10 +1005,11 @@ export async function getFollowUpsSummaryAction() {
     endOfToday.setHours(23, 59, 59, 999);
 
     const [total, pending, overdue, completedToday, dueToday, upcoming] = await Promise.all([
-      // Total active follow-ups (excluding Cancelled)
+      // Total active follow-ups (excluding Cancelled, excluding Lead-stage)
       prisma.followUp.count({
         where: {
           ...scope,
+          stageAtCreation: { not: "Lead" },
           status: { in: ["Pending", "Completed", "Overdue"] },
         },
       }),
@@ -973,6 +1017,7 @@ export async function getFollowUpsSummaryAction() {
       prisma.followUp.count({
         where: {
           ...scope,
+          stageAtCreation: { not: "Lead" },
           status: "Pending",
         },
       }),
@@ -980,6 +1025,7 @@ export async function getFollowUpsSummaryAction() {
       prisma.followUp.count({
         where: {
           ...scope,
+          stageAtCreation: { not: "Lead" },
           status: "Overdue",
         },
       }),
@@ -987,6 +1033,7 @@ export async function getFollowUpsSummaryAction() {
       prisma.followUp.count({
         where: {
           ...scope,
+          stageAtCreation: { not: "Lead" },
           status: "Completed",
           completedAt: { gte: startOfToday, lte: endOfToday },
         },
@@ -995,6 +1042,7 @@ export async function getFollowUpsSummaryAction() {
       prisma.followUp.count({
         where: {
           ...scope,
+          stageAtCreation: { not: "Lead" },
           nextMeetingDate: { gte: startOfToday, lte: endOfToday },
           status: { in: ["Pending", "Overdue"] },
         },
@@ -1003,6 +1051,7 @@ export async function getFollowUpsSummaryAction() {
       prisma.followUp.count({
         where: {
           ...scope,
+          stageAtCreation: { not: "Lead" },
           nextMeetingDate: { gt: endOfToday },
           status: "Pending",
         },
@@ -1058,6 +1107,10 @@ export async function updateFollowUpAction(id: string, data: {
 
     const updateData: any = {};
     if (data.nextMeetingDate !== undefined) {
+      const dateValidationError = validateNotInPast(data.nextMeetingDate, "Follow-up date");
+      if (dateValidationError) {
+        return { success: false, message: dateValidationError };
+      }
       updateData.nextMeetingDate = new Date(data.nextMeetingDate);
       updateData.dueDate = updateData.nextMeetingDate;
     }

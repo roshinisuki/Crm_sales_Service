@@ -77,13 +77,17 @@ export function GenerateQuotationModal({
             // Retrieve threshold (default to 15)
             let threshold = 15.0;
             try {
-              // We'll read from system configs or fallback
-              const cRes = await fetch("/api/system-configs").then((r) => r.json()).catch(() => null);
-              if (cRes?.success && Array.isArray(cRes.data)) {
-                const floorConfig = cRes.data.find((c: any) => c.key === "rfq_margin_floor_percent");
-                if (floorConfig) {
-                  threshold = parseFloat(floorConfig.value);
+              const cRes = await fetch("/api/system-configs");
+              if (cRes.ok) {
+                const cData = await cRes.json();
+                if (cData?.success && Array.isArray(cData.data)) {
+                  const floorConfig = cData.data.find((c: any) => c.key === "rfq_margin_floor_percent");
+                  if (floorConfig) threshold = parseFloat(floorConfig.value);
                 }
+              } else if (cRes.status === 401) {
+                setErrorMsg("Session expired. Please refresh the page and try again.");
+                setLoading(false);
+                return;
               }
             } catch {}
             setMarginFloor(threshold);

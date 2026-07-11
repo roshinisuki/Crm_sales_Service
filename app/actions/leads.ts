@@ -430,6 +430,7 @@ export async function createLeadAction(data: {
         assignedUserId: assignedUserId || userPayload.id,
         sourceType: "AUTO",
         companyId: userPayload.companyId,
+        stageAtCreation: "Lead",
       },
     }).catch(() => {}); // Non-blocking
 
@@ -1217,7 +1218,7 @@ export async function convertLeadToDealAction(
         data: { status: "Converted" }
       });
 
-      // 3. Create the Deal (starts at Qualified stage, not Active)
+      // 3. Create the Deal (starts at Qualified stage)
       const deal = await tx.deal.create({
         data: {
           dealName,
@@ -1226,6 +1227,7 @@ export async function convertLeadToDealAction(
           expectedCloseDate: new Date(expectedCloseDate),
           assignedUserId: lead.assignedUserId || userPayload.id,
           status: "Qualified",
+          stageEnteredAt: new Date(),
           companyId: userPayload.companyId,
         }
       });
@@ -1582,6 +1584,7 @@ export async function convertLeadV2Action(
           expectedCloseDate: new Date(data.opportunity.expectedCloseDate),
           assignedUserId: resolvedOwnerId,
           status: "Qualified",
+          stageEnteredAt: new Date(),
           companyId: userPayload.companyId,
           // V2 fields
           opportunityCode,

@@ -10,11 +10,13 @@ import { Modal } from "@/components/ui/Modal";
 import { CollapsibleSection } from "@/components/ui/CollapsibleSection";
 import { FormField, Input, Textarea, Select } from "@/components/ui/FormField";
 import { formatDate, cn } from "@/lib/ui-utils";
+import { getTodayDateInputValue, getTodayDatetimeLocalInputValue, validateNotInPast } from "@/lib/date-validation";
+import { StatusStepper } from "@/components/ui/StatusStepper";
 import {
   ArrowLeft, CheckCircle, XCircle,
   ChevronRight, Save, AlertTriangle, Calendar, CalendarClock, Clock,
   Edit3, FileText, MessageSquare, Zap, Swords, FolderOpen, Briefcase, History,
-  Search, TrendingUp, User, Users,
+  Search, TrendingUp, User, Users, Info,
 } from "lucide-react";
 import { CompetitorIntelligenceTab } from "@/components/competitor-intelligence/CompetitorIntelligenceTab";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
@@ -32,8 +34,7 @@ const STAGE_DISPLAY_LABELS: Record<string, string> = {
   RequirementGathering: "Requirement gathering",
   TechnicalDiscussion:  "Technical discussion",
   MeetingScheduled:     "Meeting scheduled",
-  DemoConducted:        "Demo conducted",
-  Won:                  "Won",
+  DemoAccepted:        "Demo accepted",
   Rejected:             "Rejected",
   Lost:                 "Lost",
 };
@@ -47,12 +48,11 @@ const STAGE_PILL: Record<string, string> = {
     "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800/50",
   MeetingScheduled:
     "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/50",
-  DemoConducted:
+  DemoAccepted:
     "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/50",
   Lost: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/50",
   Rejected:
     "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800/50",
-  Won: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/50",
 };
 
 const STAGE_FILTERS = [
@@ -61,7 +61,7 @@ const STAGE_FILTERS = [
   { label: "Req. gathering", value: "RequirementGathering" },
   { label: "Tech. discussion", value: "TechnicalDiscussion" },
   { label: "Meeting scheduled", value: "MeetingScheduled" },
-  { label: "Demo conducted", value: "DemoConducted" },
+  { label: "Demo accepted", value: "DemoAccepted" },
   { label: "Rejected", value: "Rejected" },
   { label: "Lost", value: "Lost" },
 ];
@@ -95,9 +95,7 @@ const STAGE_LABELS: Record<string, string> = {
   RequirementGathering: "Requirement gathering",
   TechnicalDiscussion:  "Technical discussion",
   MeetingScheduled:     "Meeting scheduled",
-  DemoConducted:        "Demo conducted",
-  ProposalSent:         "Proposal sent",
-  Negotiation:          "Negotiation",
+  DemoAccepted:         "Demo accepted",
   Won:                  "Won",
   Lost:                 "Lost",
   Rejected:             "Rejected",
@@ -121,7 +119,7 @@ const STAGE_REQUIRED_FIELDS: Record<string, { field: string; label: string }[]> 
     { field: "meetingType", label: "Meeting / demo type" },
     { field: "meetingStatus", label: "Outcome / status" },
   ],
-  DemoConducted: [
+  DemoAccepted: [
     { field: "demoDate", label: "Demo date" },
     { field: "demoType", label: "Demo type" },
     { field: "demoInterestLevel", label: "Interest level" },
@@ -605,8 +603,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [sampleForm, setSampleForm] = useState({ productId: "", quantity: "1", specifications: "" });
   const [sampleSaving, setSampleSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
-  // Demo outcome form state (MeetingScheduled -> DemoConducted transition)
-  const [demoOutcomeChoice, setDemoOutcomeChoice] = useState<"Accepted" | "Follow-up needed" | "Rejected" | "">("");
+  // Demo outcome form state (MeetingScheduled -> DemoAccepted transition)
+  const [demoOutcomeChoice, setDemoOutcomeChoice] = useState<"Accepted" | "Follow-up needed" | "Rejected" | "Reschedule" | "">("");
   const [demoNotes, setDemoNotes] = useState("");
   const [demoFollowUpDate, setDemoFollowUpDate] = useState("");
   const [demoRejectionReason, setDemoRejectionReason] = useState("");
@@ -653,8 +651,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     }
   }, [id]);
 
-  const fetchDeal = useCallback(async () => {
-    setLoading(true);
+  const fetchDeal = useCallback(async (silent = false, resetForm = true) => {
+    if (!silent) setLoading(true);
     setFetchError(null);
     try {
       const res = await fetch(`/api/opportunities/${id}`);
@@ -686,7 +684,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         return "";
       };
 
-      setRgForm({
+      if (resetForm) {
+        setRgForm({
         // Customer details — auto-fill from lead/customer/contact
         companyName:      autoFill(d.companyName, lead?.companyName || lead?.name, cust.name),
         industry:         autoFill(d.industry, lead?.industryType, cust.industryType),
@@ -718,34 +717,17 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         // Internal notes (consolidated)
         additionalNotes:  d.additionalNotes || d.internalSalesNotes || "",
         internalSalesNotes: d.internalSalesNotes || "",
-        // Meeting Scheduled
-        meetingType:      d.meetingType || "",
-        meetingMode:      d.meetingMode || "",
-        meetingDate:      d.meetingDate ? d.meetingDate.split("T")[0] : "",
-        meetingStatus:    d.meetingStatus || "",
-        meetingDuration:  d.meetingDuration || "",
-        meetingParticipants: d.meetingParticipants || "",
-        meetingLocation:  d.meetingLocation || "",
-        meetingAgenda:    d.meetingAgenda || "",
-        meetingOutcome:   d.meetingOutcome || "",
-        nextFollowUpDate: d.nextFollowUpDate ? d.nextFollowUpDate.split("T")[0] : "",
-        // Demo Conducted
-        demoType:         d.demoType || "",
-        demoDate:         d.demoDate ? d.demoDate.split("T")[0] : "",
-        demoPresenter:    d.demoPresenter || "",
-        demoDuration:     d.demoDuration || "",
-        demoAttendees:    d.demoAttendees || "",
-        demoCustomerRating: d.demoCustomerRating || "",
-        demoInterestLevel: d.demoInterestLevel || "",
-        demoQuestionsRaised: d.demoQuestionsRaised || "",
-        demoRejectionReason: d.demoRejectionReason || "",
-        demoRejectionRemarks: d.demoRejectionRemarks || "",
-        demoCompetitorName: d.demoCompetitorName || "",
+        // Meeting Scheduled (from MeetingLog)
+        meetingType:      json.data.meetingLogs?.[0]?.meetingType || "",
+        meetingMode:      json.data.meetingLogs?.[0]?.meetingMode || "",
+        meetingDate:      json.data.meetingLogs?.[0]?.meetingDate ? json.data.meetingLogs[0].meetingDate.split("T")[0] : "",
+        meetingParticipants: json.data.meetingLogs?.[0]?.participants || "",
+        meetingAgenda:    json.data.meetingLogs?.[0]?.agenda || "",
         // V2: Sample management
         requiresSamples:  d.requiresSamples || "",
         sampleStatus:     d.sampleStatus || "",
-        demoFollowUpDate: d.demoFollowUpDate ? d.demoFollowUpDate.split("T")[0] : "",
       });
+      }
       // V5: Lead verified (Qualified stage) — separate from businessNeed to avoid key collision
       setLeadVerified(d.leadVerified ?? false);
       // V5: Technical Discussion form
@@ -888,7 +870,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     if (res.ok) {
       toast.success("Opportunity updated");
       setShowEditModal(false);
-      fetchDeal();
+      fetchDeal(true, false);
     } else {
       const json = await res.json();
       toast.error(json.message || "Failed to update");
@@ -1131,7 +1113,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       const json = await res.json();
       if (res.ok && json.success) {
         toast.success("Product requirement saved");
-        await fetchDeal();
+        await fetchDeal(true, false);
       } else {
         toast.error(json.message || "Failed to save product requirement");
       }
@@ -1151,7 +1133,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       });
       if (res.ok) {
         toast.success("Product requirement deleted");
-        await fetchDeal();
+        await fetchDeal(true, false);
       } else {
         const json = await res.json().catch(() => ({}));
         toast.error(json.message || "Failed to delete product requirement");
@@ -1183,7 +1165,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
       if (res.ok) {
         toast.success("Technical feasibility updated");
-        await fetchDeal();
+        await fetchDeal(true, false);
       } else {
         const json = await res.json().catch(() => ({}));
         toast.error(json.message || "Failed to save technical feasibility");
@@ -1216,39 +1198,21 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     if (res.ok) {
       const stageLabel = STAGE_LABELS[viewingStage || deal.status] || "Stage";
       toast.success(`${stageLabel} details saved`);
-      fetchDeal();
+      fetchDeal(true, false);
     } else {
       const json = await res.json().catch(() => ({}));
       toast.error(json.message || "Failed to save details");
     }
   };
 
-  // Meeting: "Mark as Conducted" — saves meetingStatus=Held without changing pipeline stage
+  // Meeting: "Mark as Conducted" — saves meeting details and advances pipeline stage to DemoConducted
   const handleMarkConducted = async () => {
     if (!rgForm.meetingType || !rgForm.meetingDate) {
       toast.error("Please fill Meeting Type and Meeting Date before marking as conducted");
       setRgAttempted(true);
       return;
     }
-    setRgSaving(true);
-    try {
-      const res = await fetch(`/api/opportunities/${id}/details`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...rgForm, leadVerified, ...tdForm, meetingStatus: "Held" }),
-      });
-      if (res.ok) {
-        toast.success("Meeting marked as conducted — record outcome below");
-        await fetchDeal();
-      } else {
-        const json = await res.json().catch(() => ({}));
-        toast.error(json.message || "Failed to update meeting status");
-      }
-    } catch {
-      toast.error("Failed to update meeting status");
-    } finally {
-      setRgSaving(false);
-    }
+    await handleSaveAndMove("DemoConducted");
   };
 
   const handleStepClick = (stageKey: string, state: StepState) => {
@@ -1272,7 +1236,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     setRgSaving(false);
     if (res.ok) {
       toast.success(`${STAGE_LABELS[viewingStage] || viewingStage} details updated`);
-      fetchDeal();
+      fetchDeal(true, false);
     } else {
       const json = await res.json().catch(() => ({}));
       toast.error(json.message || "Failed to save details");
@@ -1316,7 +1280,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       Qualified: "Qualified Details",
       RequirementGathering: "Requirement Gathering",
       MeetingScheduled: "Meeting Details",
-      DemoConducted: "Demo Details",
+      DemoAccepted: "Demo Details",
       Rejected: "Rejection Details",
       Lost: "Opportunity Summary",
     };
@@ -1328,18 +1292,18 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       <div className="p-6 border-t border-slate-100">
         <div className="max-w-4xl mx-auto">
         {isReviewingCompleted && (
-          <div className="bg-[#EFF6FF] border border-[#93C5FD] rounded-lg px-3.5 py-2.5 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="bg-[#EFF6FF] dark:bg-blue-950/30 border border-[#93C5FD] dark:border-blue-900/60 rounded-lg px-3.5 py-2.5 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-              <span className="text-[13px] text-[#1D4ED8]">
+              <span className="text-[13px] text-[#1D4ED8] dark:text-blue-400">
                 📋 Reviewing completed stage: <strong>{STAGE_LABELS[effectiveStage] || effectiveStage}</strong>
               </span>
-              <span className="text-[11px] text-[#3B82F6]">
+              <span className="text-[11px] text-[#3B82F6] dark:text-blue-550">
                 You can edit and save changes. This will not affect the current stage.
               </span>
             </div>
             <button
               onClick={() => setViewingStage(null)}
-              className="text-xs text-[#2563EB] underline bg-transparent border-none cursor-pointer text-left sm:text-right"
+              className="text-xs text-[#2563EB] dark:text-blue-400 underline bg-transparent border-none cursor-pointer text-left sm:text-right"
             >
               Back to current stage →
             </button>
@@ -1357,12 +1321,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           <div className="space-y-4">
             {/* V2: Inline Sample Management Panel */}
             {rgForm.requiresSamples === "yes" && (
-              <div className="border-2 border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
-                <div className="px-4 py-3 bg-amber-100/50 border-b border-amber-200">
-                  <h4 className="text-sm font-bold text-amber-800 flex items-center gap-2">
+              <div className="border-2 border-[var(--primary)]/20 dark:border-[var(--primary)]/30 rounded-xl overflow-hidden bg-[var(--primary)]/[0.03] dark:bg-[var(--primary)]/[0.05]">
+                <div className="px-4 py-3 bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 border-b border-[var(--primary)]/20 dark:border-[var(--primary)]/30">
+                  <h4 className="text-sm font-bold text-[var(--primary)] flex items-center gap-2">
                     📦 Sample Management
                   </h4>
-                  <p className="text-xs text-amber-700 mt-0.5">Opportunity is held at Qualified until sample is resolved</p>
+                  <p className="text-xs text-[var(--primary)]/80 dark:text-[var(--primary)]/75 mt-0.5">Opportunity is held at Qualified until sample is resolved</p>
                 </div>
                 <div className="p-4 space-y-4">
                   {/* No sample yet — show creation form */}
@@ -1420,7 +1384,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                               }
                             }}
                             disabled={sampleSaving}
-                            className="w-full px-4 py-2 rounded-lg text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 transition-colors disabled:opacity-50"
+                            className="w-full px-4 py-2 rounded-lg text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50"
                           >
                             {sampleSaving ? "Creating..." : "Create Sample Request"}
                           </button>
@@ -1441,23 +1405,23 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   {linkedSample && (
                     <div className="space-y-3">
                       {/* Sample info card */}
-                      <div className="bg-white rounded-lg border border-slate-200 p-3 flex items-center justify-between">
+                      <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 p-3 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <div>
-                            <p className="text-sm font-bold text-slate-800">{linkedSample.sampleCode}</p>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{linkedSample.sampleCode}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
                               {linkedSample.product ? `${linkedSample.product.productCode} - ${linkedSample.product.name}` : "—"}
                               {" · Qty: "}{linkedSample.quantity}
                             </p>
                           </div>
                           <span className={cn(
                             "inline-block px-2.5 py-0.5 rounded-full text-xs font-medium",
-                            linkedSample.status === "New" && "bg-blue-100 text-blue-700",
-                            linkedSample.status === "UnderReview" && "bg-amber-100 text-amber-700",
-                            linkedSample.status === "SentToCustomer" && "bg-purple-100 text-purple-700",
-                            linkedSample.status === "Approved" && "bg-green-100 text-green-700",
-                            linkedSample.status === "Rejected" && "bg-red-100 text-red-700",
-                            linkedSample.status === "Revision" && "bg-orange-100 text-orange-700",
+                            linkedSample.status === "New" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                            linkedSample.status === "UnderReview" && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                            linkedSample.status === "SentToCustomer" && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+                            linkedSample.status === "Approved" && "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                            linkedSample.status === "Rejected" && "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                            linkedSample.status === "Revision" && "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
                           )}>
                             {linkedSample.status}
                           </span>
@@ -1483,7 +1447,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                 });
                                 if (res.ok) { toast.success("Sample moved to Under Review"); fetchLinkedSample(); }
                               }}
-                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 dark:bg-amber-950/20 dark:text-amber-400 dark:border-amber-900/50 dark:hover:bg-amber-950/40 transition-colors"
                             >
                               → Under Review
                             </button>
@@ -1498,7 +1462,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                 });
                                 if (res.ok) { toast.success("Sample sent to customer"); fetchLinkedSample(); }
                               }}
-                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 transition-colors"
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/50 dark:hover:bg-purple-950/40 transition-colors"
                             >
                               → Sent to Customer
                             </button>
@@ -1533,7 +1497,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                     fetchLinkedSample();
                                   }
                                 }}
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 transition-colors"
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/50 dark:hover:bg-green-950/40 transition-colors"
                               >
                                 ✓ Approve Sample → Advance to RG
                               </button>
@@ -1560,7 +1524,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                     fetchLinkedSample();
                                   }
                                 }}
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors"
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/50 dark:hover:bg-red-950/40 transition-colors"
                               >
                                 ✗ Reject Sample → Move to Rejected
                               </button>
@@ -1789,7 +1753,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   <FormField label="Payment Terms"><Input value={rgForm.paymentTerms || ""} onChange={(e) => setRgForm({ ...rgForm, paymentTerms: e.target.value })} /></FormField>
                   <FormField label="Timeline"><Input value={rgForm.timeline || ""} onChange={(e) => setRgForm({ ...rgForm, timeline: e.target.value })} /></FormField>
                   <FormField label="Procurement Process"><Textarea rows={2} value={rgForm.procurementProcess || ""} onChange={(e) => setRgForm({ ...rgForm, procurementProcess: e.target.value })} /></FormField>
-                  <FormField label="Expected Go-Live Date"><Input type="date" value={rgForm.expectedGoLive || ""} onChange={(e) => setRgForm({ ...rgForm, expectedGoLive: e.target.value })} /></FormField>
+                  <FormField label="Expected Go-Live Date" error={validateNotInPast(rgForm.expectedGoLive, "Expected Go-Live Date") || ""}>
+                    <Input type="date" min={getTodayDateInputValue()} value={rgForm.expectedGoLive || ""} onChange={(e) => setRgForm({ ...rgForm, expectedGoLive: e.target.value })} />
+                  </FormField>
                   <FormField label="Current Vendor"><Input value={rgForm.currentVendor || ""} onChange={(e) => setRgForm({ ...rgForm, currentVendor: e.target.value })} /></FormField>
                   <FormField label="Competitors Evaluated"><Textarea rows={2} value={rgForm.competitorsEvaluated || ""} onChange={(e) => setRgForm({ ...rgForm, competitorsEvaluated: e.target.value })} /></FormField>
                   <FormField label="Competitor Info"><Textarea rows={2} value={rgForm.competitorInfo || ""} onChange={(e) => setRgForm({ ...rgForm, competitorInfo: e.target.value })} /></FormField>
@@ -1823,14 +1789,49 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
         {effectiveStage === "TechnicalDiscussion" && (
           <div className="space-y-6">
+            {/* Follow-up Banner */}
+            {(() => {
+              const logs = deal?.meetingLogs || [];
+              const lastConductedLog = logs.find((l: any) => l.conductedAt && l.outcome === "Follow-up needed");
+              if (!lastConductedLog) return null;
+
+              const nextPendingLog = logs.find((l: any) => !l.conductedAt && l.attemptNumber > lastConductedLog.attemptNumber);
+              const followUpDate = nextPendingLog?.meetingDate
+                ? new Date(nextPendingLog.meetingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                : "Not scheduled yet";
+
+              return (
+                <div className="border border-amber-200 rounded-xl p-4 bg-amber-50/50 dark:bg-amber-950/10 dark:border-amber-900/30 flex gap-3 items-start animate-fadeIn">
+                  <div className="p-2 rounded-lg bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+                    <Info size={16} />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-amber-800 dark:text-amber-400">Follow-up Requested (Attempt #{lastConductedLog.attemptNumber})</h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      This opportunity was reverted back to Technical Discussion.
+                    </p>
+                    <p className="text-xs font-semibold text-amber-800 dark:text-amber-400">
+                      Scheduled Follow-up Date: {followUpDate}
+                    </p>
+                    {lastConductedLog.notes && (
+                      <div className="mt-2 text-xs bg-white dark:bg-slate-800/80 p-2.5 rounded border border-amber-100 dark:border-amber-900/30 text-slate-750 italic leading-relaxed">
+                        Feedback notes: "{lastConductedLog.notes}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="border border-slate-200 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
               <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 text-sm font-bold text-slate-700 flex items-center justify-between">
                 <span>Discussion Header Details</span>
               </div>
               <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField label="Discussion Date">
+                <FormField label="Discussion Date" error={validateNotInPast(tdForm.tdDiscussionDate, "Discussion Date") || ""}>
                   <Input
                     type="date"
+                    min={getTodayDateInputValue()}
                     value={tdForm.tdDiscussionDate}
                     onChange={(e) => setTdForm({ ...tdForm, tdDiscussionDate: e.target.value })}
                     readOnly={isReviewingCompleted || !canEditOpportunity(user, deal)}
@@ -1885,10 +1886,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         )}
 
         {effectiveStage === "MeetingScheduled" && (() => {
-          const meetingStatus = rgForm.meetingStatus || "";
-          const isScheduled = meetingStatus === "" || meetingStatus === "Scheduled";
-          const isConducted = meetingStatus === "Held" || meetingStatus === "Completed";
-          const hasOutcome = !!deal.demoOutcome;
+          const activeLog = deal?.meetingLogs?.[0];
+          const isConducted = !!activeLog?.conductedAt;
+          const isScheduled = !isConducted;
+          const hasOutcome = !!activeLog?.outcome;
           const meetingDateFormatted = rgForm.meetingDate
             ? new Date(rgForm.meetingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
             : "—";
@@ -1908,37 +1909,18 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             });
             if (res.ok) {
               toast.success("Assigned executive updated");
-              fetchDeal();
+              const json = await res.json().catch(() => ({}));
+              if (json.success && json.data) {
+                setDeal((prev: any) => ({
+                  ...prev,
+                  assignedUserId: json.data.assignedUserId,
+                  assignedUser: json.data.assignedUser,
+                }));
+              }
             } else {
               const json = await res.json().catch(() => ({}));
               toast.error(json.message || "Failed to assign executive");
             }
-          };
-
-          const handleDemoSubmit = () => {
-            if (!demoOutcomeChoice) {
-              toast.error("Please select a Demo Outcome");
-              return;
-            }
-            if (demoOutcomeChoice === "Follow-up needed" && !demoFollowUpDate) {
-              toast.error("Next Follow-up Date is required for Follow-up Needed");
-              return;
-            }
-            if (demoOutcomeChoice === "Rejected" && !demoRejectionReason.trim()) {
-              toast.error("Rejection Reason is required");
-              return;
-            }
-            // Pass demo fields via extraFields so they are saved atomically with rgForm
-            handleSaveAndMove("DemoConducted", {
-              demoOutcome: demoOutcomeChoice,
-              ...(demoOutcomeChoice === "Follow-up needed" && demoFollowUpDate ? { demoFollowUpDate } : {}),
-              ...(demoOutcomeChoice === "Rejected" ? { rejectedReason: demoRejectionReason } : {}),
-              extraFields: {
-                meetingOutcome: demoNotes,
-                demoRejectionReason: demoOutcomeChoice === "Rejected" ? demoRejectionReason : null,
-                demoRejectionRemarks: demoOutcomeChoice === "Rejected" ? demoRejectionRemarks : null,
-              },
-            });
           };
 
           return (
@@ -1955,7 +1937,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                       hasOutcome ? "bg-green-100 text-green-700" :
                       "bg-slate-200 text-slate-600"
                     )}>
-                      {hasOutcome ? `Demo ${deal.demoOutcome}` : meetingStatus}
+                      {hasOutcome ? `Demo ${activeLog?.outcome}` : (isConducted ? "Held" : "Scheduled")}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
@@ -1996,8 +1978,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                         <option value="Solution Review">Solution Review</option>
                       </Select>
                     </FormField>
-                    <FormField label="Meeting Date" required error={rgAttempted && !rgForm.meetingDate ? "Required" : ""}>
-                      <Input type="date" value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} className={cn(rgAttempted && !rgForm.meetingDate && "border-rose-500")} />
+                    <FormField label="Meeting Date" required error={rgAttempted && !rgForm.meetingDate ? "Required" : validateNotInPast(rgForm.meetingDate, "Meeting Date") || ""}>
+                      <Input type="date" min={getTodayDateInputValue()} value={rgForm.meetingDate || ""} onChange={(e) => setRgForm({ ...rgForm, meetingDate: e.target.value })} className={cn((rgAttempted && !rgForm.meetingDate || validateNotInPast(rgForm.meetingDate)) && "border-rose-500")} />
                       {rgForm.meetingDate && (
                         <span className="text-xs text-slate-500 mt-1 block">
                           {(() => {
@@ -2054,154 +2036,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     <FormField label="Participants"><Input value={rgForm.meetingParticipants || ""} onChange={(e) => setRgForm({ ...rgForm, meetingParticipants: e.target.value })} /></FormField>
                     <FormField label="Agenda"><Textarea rows={2} value={rgForm.meetingAgenda || ""} onChange={(e) => setRgForm({ ...rgForm, meetingAgenda: e.target.value })} /></FormField>
                   </div>
+                  {/* Meeting Log / Demo UI is now handled in the DemoConducted stage */}
                 </details>
-              )}
-
-              {/* ─── Container 2: Demo Outcome Panel (appears after meeting is conducted) ─── */}
-              {isConducted && !hasOutcome && (
-                <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/30">
-                  <div className="px-4 py-3 bg-amber-100/60 text-sm font-bold text-amber-800 flex items-center gap-2">
-                    <CheckCircle size={15} /> Meeting Conducted — Enter Demo Details
-                  </div>
-                  <div className="p-4 space-y-4">
-                    {/* Demo Specific Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-amber-200/50">
-                      <FormField label="Demo Date" required error={rgAttempted && !rgForm.demoDate ? "Required" : ""}>
-                        <Input type="date" value={rgForm.demoDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoDate: e.target.value })} className={cn(rgAttempted && !rgForm.demoDate && "border-rose-500")} />
-                      </FormField>
-                      <FormField label="Demo Type" required error={rgAttempted && !rgForm.demoType ? "Required" : ""}>
-                        <Select value={rgForm.demoType || ""} onChange={(e) => setRgForm({ ...rgForm, demoType: e.target.value })} className={cn(rgAttempted && !rgForm.demoType && "border-rose-500")}>
-                          <option value="">Select...</option>
-                          <option value="Product Tour">Product Tour</option>
-                          <option value="Technical Deep Dive">Technical Deep Dive</option>
-                          <option value="Executive Overview">Executive Overview</option>
-                          <option value="Other">Other</option>
-                        </Select>
-                      </FormField>
-                      <FormField label="Interest Level" required error={rgAttempted && !rgForm.demoInterestLevel ? "Required" : ""}>
-                        <Select value={rgForm.demoInterestLevel || ""} onChange={(e) => setRgForm({ ...rgForm, demoInterestLevel: e.target.value })} className={cn(rgAttempted && !rgForm.demoInterestLevel && "border-rose-500")}>
-                          <option value="">Select...</option>
-                          <option value="High">High</option>
-                          <option value="Medium">Medium</option>
-                          <option value="Low">Low</option>
-                        </Select>
-                      </FormField>
-                    </div>
-
-                    {/* Required: Demo Outcome selector */}
-                    <FormField label="Demo Outcome" required>
-                      <Select
-                        value={demoOutcomeChoice}
-                        onChange={(e) => setDemoOutcomeChoice(e.target.value as any)}
-                      >
-                        <option value="">Select outcome...</option>
-                        <option value="Accepted">Accepted</option>
-                        <option value="Follow-up needed">Follow-up Needed</option>
-                        <option value="Rejected">Rejected</option>
-                      </Select>
-                    </FormField>
-
-                    {/* Conditional fields: Accepted */}
-                    {demoOutcomeChoice === "Accepted" && (
-                      <div className="space-y-4 pl-4 border-l-2 border-green-200">
-                        <FormField label="Outcome Notes (optional)">
-                          <Textarea rows={3} value={demoNotes} onChange={(e) => setDemoNotes(e.target.value)} placeholder="What happened in the demo? Customer reactions, key takeaways..." />
-                        </FormField>
-                      </div>
-                    )}
-
-                    {/* Conditional fields: Follow-up Needed */}
-                    {demoOutcomeChoice === "Follow-up needed" && (
-                      <div className="space-y-4 pl-4 border-l-2 border-amber-200">
-                        <FormField label="Next Follow-up Date" required error={!demoFollowUpDate ? "Required" : ""}>
-                          <Input type="date" value={demoFollowUpDate} onChange={(e) => setDemoFollowUpDate(e.target.value)} className={cn(!demoFollowUpDate && "border-rose-500")} />
-                        </FormField>
-                        <FormField label="Outcome Notes (optional)">
-                          <Textarea rows={3} value={demoNotes} onChange={(e) => setDemoNotes(e.target.value)} placeholder="What happened in the demo? Why is a follow-up needed?" />
-                        </FormField>
-                      </div>
-                    )}
-
-                    {/* Conditional fields: Rejected */}
-                    {demoOutcomeChoice === "Rejected" && (
-                      <div className="space-y-4 pl-4 border-l-2 border-orange-200">
-                        <FormField label="Rejection Reason" required error={!demoRejectionReason.trim() ? "Required" : ""}>
-                          <Select
-                            value={demoRejectionReason}
-                            onChange={(e) => setDemoRejectionReason(e.target.value)}
-                            className={cn(!demoRejectionReason.trim() && "border-rose-500")}
-                          >
-                            <option value="">Select reason...</option>
-                            <option value="Price too high">Price too high</option>
-                            <option value="Went with competitor">Went with competitor</option>
-                            <option value="No budget">No budget</option>
-                            <option value="Not interested">Not interested</option>
-                            <option value="Product doesn't meet needs">Product doesn't meet needs</option>
-                            <option value="Timing not right">Timing not right</option>
-                            <option value="Other">Other</option>
-                          </Select>
-                        </FormField>
-                        <FormField label="Rejection Remarks (optional)">
-                          <Textarea rows={2} value={demoRejectionRemarks} onChange={(e) => setDemoRejectionRemarks(e.target.value)} placeholder="Additional context on why the demo was rejected..." />
-                        </FormField>
-                      </div>
-                    )}
-
-                    {/* Save & Move button */}
-                    <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-amber-200">
-                      <button
-                        onClick={handleDemoSubmit}
-                        disabled={stageMoving || !demoOutcomeChoice}
-                        className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors disabled:opacity-50 flex items-center gap-2"
-                      >
-                        {stageMoving ? "Saving..." : "Save Details & Move to Demo Conducted"} <ChevronRight size={16} />
-                      </button>
-                      {!demoOutcomeChoice && (
-                        <span className="text-xs text-slate-500">Select a demo outcome to proceed</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* State: Outcome already set — read-only summary */}
-              {hasOutcome && (
-                <div className={cn(
-                  "rounded-xl p-4 flex items-center gap-3",
-                  deal.demoOutcome === "Accepted" ? "bg-green-50 border border-green-200" :
-                  deal.demoOutcome === "Follow-up needed" ? "bg-amber-50 border border-amber-200" :
-                  "bg-orange-50 border border-orange-200"
-                )}>
-                  {deal.demoOutcome === "Accepted" ? (
-                    <CheckCircle size={20} className="text-green-600 shrink-0" />
-                  ) : deal.demoOutcome === "Follow-up needed" ? (
-                    <AlertTriangle size={20} className="text-amber-600 shrink-0" />
-                  ) : (
-                    <XCircle size={20} className="text-orange-600 shrink-0" />
-                  )}
-                  <div>
-                    <p className={cn(
-                      "text-sm font-bold",
-                      deal.demoOutcome === "Accepted" ? "text-green-800" :
-                      deal.demoOutcome === "Follow-up needed" ? "text-amber-800" :
-                      "text-orange-800"
-                    )}>
-                      Demo {deal.demoOutcome}
-                    </p>
-                    <p className={cn(
-                      "text-xs mt-0.5",
-                      deal.demoOutcome === "Accepted" ? "text-green-600" :
-                      deal.demoOutcome === "Follow-up needed" ? "text-amber-600" :
-                      "text-orange-600"
-                    )}>
-                      {deal.demoOutcome === "Accepted"
-                        ? "RFQ will be auto-created. Opportunity proceeds to Demo Conducted stage."
-                        : deal.demoOutcome === "Follow-up needed"
-                        ? `Follow-up pending${deal.demoFollowUpDate ? ` on ${new Date(deal.demoFollowUpDate).toLocaleDateString("en-IN")}` : ""}.`
-                        : "The customer rejected the demo. Opportunity will be moved to Rejected."}
-                    </p>
-                  </div>
-                </div>
               )}
             </div>
           );
@@ -2286,7 +2122,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                          to_stage: "DemoConducted",
+                          to_stage: "DemoAccepted",
                           demoOutcome: "Accepted",
                         }),
                       });
@@ -2380,7 +2216,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                         <button
                           onClick={() => {
                             if (!canChangeStage(user, deal)) return;
-                            handleSaveAndMove("DemoConducted", {
+                            handleSaveAndMove("DemoAccepted", {
                               demoOutcome: "Accepted",
                               extraFields: { meetingOutcome: rgForm.meetingOutcome },
                             });
@@ -2397,7 +2233,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                               toast.error("Please select a Rejection Reason first");
                               return;
                             }
-                            handleSaveAndMove("DemoConducted", {
+                            handleSaveAndMove("Rejected", {
                               demoOutcome: "Rejected",
                               rejectedReason: demoRejectionReason,
                               extraFields: {
@@ -2444,7 +2280,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 </div>
               )}
 
-              {/* Edge case: DemoConducted stage but no outcome set — show outcome selection */}
+              {/* Edge case: DemoAccepted stage but no outcome set — show outcome selection */}
               {!outcome && (
                 <div className="border border-amber-200 rounded-xl overflow-hidden bg-amber-50/20 dark:bg-amber-950/5 dark:border-amber-900/30">
                   <div className="px-4 py-3 bg-amber-100/50 border-b border-amber-200 dark:border-amber-900/30 text-xs font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2 uppercase tracking-wider">
@@ -2455,8 +2291,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                       This demo has been conducted but the final outcome is not yet recorded. Please select the customer's decision below to update the status and unlock next actions.
                     </p>
 
-                    {/* Three Toggle Buttons for Outcome Choice */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                     {/* Four Toggle Buttons for Outcome Choice */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <button
                         type="button"
                         onClick={() => setDemoOutcomeChoice("Accepted")}
@@ -2485,6 +2321,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                       </button>
                       <button
                         type="button"
+                        onClick={() => setDemoOutcomeChoice("Reschedule")}
+                        className={cn(
+                          "py-3 px-4 rounded-xl border text-xs font-bold text-center transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm cursor-pointer",
+                          demoOutcomeChoice === "Reschedule"
+                            ? "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/20 dark:border-blue-900/30 dark:text-blue-400"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400"
+                        )}
+                      >
+                        <CalendarClock size={18} />
+                        <span>Reschedule Demo</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setDemoOutcomeChoice("Rejected")}
                         className={cn(
                           "py-3 px-4 rounded-xl border text-xs font-bold text-center transition-all flex flex-col items-center justify-center gap-1.5 shadow-sm cursor-pointer",
@@ -2506,7 +2355,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                         </FormField>
                         <div className="flex justify-end">
                           <button
-                            onClick={() => handleSaveAndMove("DemoConducted", {
+                            onClick={() => handleSaveAndMove("DemoAccepted", {
                               demoOutcome: "Accepted",
                               extraFields: { meetingOutcome: rgForm.meetingOutcome },
                             })}
@@ -2522,8 +2371,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     {demoOutcomeChoice === "Follow-up needed" && (
                       <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 animate-fadeIn">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField label="Follow-up Date" required>
-                            <Input type="date" value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
+                          <FormField label="Follow-up Date" required error={validateNotInPast(rgForm.demoFollowUpDate, "Follow-up Date") || ""}>
+                            <Input type="date" min={getTodayDateInputValue()} value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
                           </FormField>
                           <FormField label="Outcome Notes">
                             <Textarea rows={2} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} placeholder="Reason for follow-up or topics to cover..." />
@@ -2536,7 +2385,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                 toast.error("Please set a Demo Follow-up Date first");
                                 return;
                               }
-                              handleSaveAndMove("DemoConducted", {
+                              handleSaveAndMove("TechnicalDiscussion", {
                                 demoOutcome: "Follow-up needed",
                                 demoFollowUpDate: rgForm.demoFollowUpDate,
                                 extraFields: { meetingOutcome: rgForm.meetingOutcome },
@@ -2546,6 +2395,37 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                             className="px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-sm"
                           >
                             <Calendar size={14} /> Set Follow-up Date
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {demoOutcomeChoice === "Reschedule" && (
+                      <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 animate-fadeIn">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <FormField label="New Rescheduled Meeting Date" required error={validateNotInPast(rgForm.demoFollowUpDate, "New Rescheduled Meeting Date") || ""}>
+                            <Input type="date" min={getTodayDateInputValue()} value={rgForm.demoFollowUpDate || ""} onChange={(e) => setRgForm({ ...rgForm, demoFollowUpDate: e.target.value })} />
+                          </FormField>
+                          <FormField label="Reschedule Reason / Remarks">
+                            <Textarea rows={2} value={rgForm.meetingOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, meetingOutcome: e.target.value })} placeholder="Reason for rescheduling (e.g. customer no-show)..." />
+                          </FormField>
+                        </div>
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => {
+                              if (!rgForm.demoFollowUpDate) {
+                                toast.error("Please set a new rescheduled date first");
+                                return;
+                              }
+                              handleSaveAndMove("MeetingScheduled", {
+                                demoFollowUpDate: rgForm.demoFollowUpDate,
+                                extraFields: { meetingOutcome: rgForm.meetingOutcome },
+                              });
+                            }}
+                            disabled={stageMoving}
+                            className="px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-sm"
+                          >
+                            <CalendarClock size={14} /> Confirm Reschedule & Revert Stage
                           </button>
                         </div>
                       </div>
@@ -2580,7 +2460,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                 toast.error("Please select a Rejection Reason first");
                                 return;
                               }
-                              handleSaveAndMove("DemoConducted", {
+                              handleSaveAndMove("Rejected", {
                                 demoOutcome: "Rejected",
                                 rejectedReason: demoRejectionReason,
                                 extraFields: {
@@ -2623,56 +2503,41 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           );
         })()}
 
-        {effectiveStage === "ProposalSent" && (
-          <div className="space-y-4">
-            <ProposalQuotationGuide
-              opportunityId={id}
-              linkedQuotations={linkedQuotations}
-              loading={linkedQuotationsLoading}
-              formatCurrency={formatCurrency}
-              onRefresh={fetchLinkedQuotations}
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField label="Proposed Solution" className="md:col-span-2"><Textarea rows={4} value={rgForm.proposedSolution || ""} onChange={(e) => setRgForm({ ...rgForm, proposedSolution: e.target.value })} /></FormField>
-              <FormField label="Scope Classification"><Input value={rgForm.scopeClassification || ""} onChange={(e) => setRgForm({ ...rgForm, scopeClassification: e.target.value })} /></FormField>
-              <FormField label="Estimated Duration"><Input value={rgForm.estimatedDuration || ""} onChange={(e) => setRgForm({ ...rgForm, estimatedDuration: e.target.value })} /></FormField>
-              <FormField label="Development Effort"><Input value={rgForm.developmentEffort || ""} onChange={(e) => setRgForm({ ...rgForm, developmentEffort: e.target.value })} /></FormField>
-              <FormField label="Implementation Effort"><Input value={rgForm.implementationEffort || ""} onChange={(e) => setRgForm({ ...rgForm, implementationEffort: e.target.value })} /></FormField>
-              <FormField label="Support Requirements" className="md:col-span-2"><Textarea rows={3} value={rgForm.supportRequirements || ""} onChange={(e) => setRgForm({ ...rgForm, supportRequirements: e.target.value })} /></FormField>
-            </div>
-          </div>
-        )}
 
-        {effectiveStage === "Negotiation" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="Final Discussed Budget"><Input type="number" value={rgForm.finalDiscussedBudget || ""} onChange={(e) => setRgForm({ ...rgForm, finalDiscussedBudget: e.target.value })} /></FormField>
-            <FormField label="Pricing Model">
-              <Select value={rgForm.pricingModel || ""} onChange={(e) => setRgForm({ ...rgForm, pricingModel: e.target.value })}>
-                <option value="">Select...</option>
-                <option value="Per Unit">Per Unit</option>
-                <option value="Fixed Price">Fixed Price</option>
-                <option value="Cost Plus">Cost Plus</option>
-                <option value="Milestone-based">Milestone-based</option>
-              </Select>
-            </FormField>
-            <FormField label="Payment Terms"><Input value={rgForm.paymentTerms || ""} onChange={(e) => setRgForm({ ...rgForm, paymentTerms: e.target.value })} /></FormField>
-            <FormField label="Competitor Info"><Input value={rgForm.competitorInfo || ""} onChange={(e) => setRgForm({ ...rgForm, competitorInfo: e.target.value })} /></FormField>
-            <FormField label="Commercial Risks"><Textarea rows={2} value={rgForm.commercialRisks || ""} onChange={(e) => setRgForm({ ...rgForm, commercialRisks: e.target.value })} /></FormField>
-            <FormField label="Discount Requested"><Input type="number" value={rgForm.discountRequested || ""} onChange={(e) => setRgForm({ ...rgForm, discountRequested: e.target.value })} /></FormField>
-            <FormField label="Proposal Value"><Input type="number" value={rgForm.proposalValue || ""} onChange={(e) => setRgForm({ ...rgForm, proposalValue: e.target.value })} /></FormField>
-            <FormField label="Negotiation Notes" className="md:col-span-2"><Textarea rows={4} value={rgForm.negotiationNotes || ""} onChange={(e) => setRgForm({ ...rgForm, negotiationNotes: e.target.value })} /></FormField>
-          </div>
-        )}
 
-        {(effectiveStage === "Won" || effectiveStage === "Lost") && (
+        {(effectiveStage === "DemoAccepted" || effectiveStage === "Lost" || effectiveStage === "Rejected") && (
           <div className="text-sm text-slate-600">
-            <p>This opportunity is closed as <strong>{effectiveStage}</strong>. Details are read-only.</p>
+            <p>This opportunity is closed as <strong>{STAGE_DISPLAY_LABELS[effectiveStage] || effectiveStage}</strong>. Details are read-only.</p>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-slate-50 rounded-lg p-3"><span className="text-xs text-slate-500">Deal Value</span><p className="font-bold text-slate-800">{formatCurrency(deal.dealValue)}</p></div>
               <div className="bg-slate-50 rounded-lg p-3"><span className="text-xs text-slate-500">Customer</span><p className="font-bold text-slate-800">{deal.customer?.name}</p></div>
               <div className="bg-slate-50 rounded-lg p-3"><span className="text-xs text-slate-500">Expected Close</span><p className="font-bold text-slate-800">{deal.expectedCloseDate ? formatDate(deal.expectedCloseDate) : "—"}</p></div>
               <div className="bg-slate-50 rounded-lg p-3"><span className="text-xs text-slate-500">Assigned To</span><p className="font-bold text-slate-800">{deal.assignedUser?.name || "Unassigned"}</p></div>
             </div>
+            
+            {effectiveStage === "DemoAccepted" && (
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => {
+                    const existingRfqId = deal.rfqs?.[0]?.id;
+                    if (existingRfqId) {
+                      router.push(`/rfq/${existingRfqId}`);
+                    } else {
+                      router.push(`/rfq/new?opportunityId=${deal.id}`);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
+                >
+                  {deal.rfqs?.[0]?.id ? "View RFQ →" : "Create RFQ →"}
+                </button>
+                <button
+                  onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-blue-50 transition-colors shadow-sm"
+                >
+                  Direct Quotation
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -2735,7 +2600,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               let hasNotFeasible = false;
               let notFeasibleNames: string[] = [];
 
-              if (deal.status === "RequirementGathering") {
+              if (deal.status === "Qualified") {
+                if (rgForm.requiresSamples === "yes" && rgForm.sampleStatus !== "approved") {
+                  blockingReasons.push("Sample must be approved by the customer to advance to Requirement Gathering.");
+                }
+              } else if (deal.status === "RequirementGathering") {
                 const missing = (STAGE_REQUIRED_FIELDS.RequirementGathering || []).filter((r) => {
                   const val = (rgForm as any)[r.field];
                   return !val || (typeof val === "string" && val.trim() === "");
@@ -2993,10 +2862,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s.key === deal.status);
   const hasAcceptedQuotation = deal.quotations?.some((q: any) => q.status === "Accepted");
-  const isTerminalStage = deal.status === "Won" || deal.status === "Lost" || deal.status === "Rejected";
+  const isTerminalStage = deal.status === "DemoAccepted" || deal.status === "Lost" || deal.status === "Rejected";
   const isValidStage = currentStageIndex !== -1 || isTerminalStage;
   const progressPercent = isTerminalStage
-    ? (deal.status === "Won" ? 100 : 0)
+    ? (deal.status === "DemoAccepted" ? 100 : 0)
     : Math.round(((currentStageIndex + 1) / PIPELINE_STAGES.length) * 100);
 
   const summaryRows: { label: string; value: React.ReactNode }[] = [
@@ -3169,7 +3038,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   <Calendar size={15} /> Add Follow-Up
                 </button>
               )}
-              {user?.role !== "Customer" && ["ProposalSent", "Negotiation"].includes(deal.status) && (
+              {user?.role !== "Customer" && deal.status === "DemoAccepted" && (
                 <button
                   onClick={() => router.push(`/rfq/new?opportunityId=${deal.id}`)}
                   className="h-9 flex items-center justify-center px-4 bg-card text-text-secondary border border-border text-xs font-bold rounded-lg hover:bg-card-hover transition-colors gap-1.5"
@@ -3177,7 +3046,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   <MessageSquare size={15} /> Create RFQ
                 </button>
               )}
-              {user?.role !== "Customer" && ["ProposalSent", "Negotiation"].includes(deal.status) && (
+              {user?.role !== "Customer" && deal.status === "DemoAccepted" && (
                 <button
                   onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
                   className="h-9 flex items-center justify-center px-4 bg-card text-text-secondary border border-border text-xs font-bold rounded-lg hover:bg-card-hover transition-colors gap-1.5"
@@ -3207,52 +3076,23 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
             {/* Interactive pipeline stepper — completed and active stages are clickable for review/edit */}
             <div className="mb-6 px-4 py-3 bg-page-bg rounded-xl border border-border">
-              <div className="flex items-center gap-1 overflow-x-auto">
-                {PIPELINE_STAGES.map((stage, idx) => {
+              <StatusStepper
+                compact
+                steps={PIPELINE_STAGES.map((stage, idx) => {
                   const stepState = getStepState(stage.key, deal.status);
                   const isTerminal = deal.status === "Lost" || deal.status === "Rejected";
                   const isClickable = stepState === "completed" || stepState === "active";
-                  const tooltip = getStepTooltip(stage.key, stepState, STAGE_LABELS[deal.status] || deal.status);
-                  const isViewing = viewingStage === stage.key;
-                  return (
-                    <div key={stage.key} className="flex items-center shrink-0">
-                      <div
-                        onClick={() => isClickable && handleStepClick(stage.key, stepState)}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg px-2 py-1 transition-colors",
-                          isClickable ? "cursor-pointer hover:bg-card-hover" : "cursor-default",
-                          stepState === "active" && "bg-card shadow-sm border border-border",
-                          isViewing && "bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]/30"
-                        )}
-                        title={tooltip}
-                      >
-                        <div
-                          className={cn(
-                            "w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold border-2 transition-all bg-page-bg",
-                            stepState === "completed" && "bg-success text-white border-success",
-                            stepState === "active" && "bg-[var(--primary)] text-white border-[var(--primary)] ring-2 ring-[var(--primary)]/20",
-                            stepState === "future" && "text-text-muted border-border",
-                            isTerminal && (deal.status === "Rejected" ? "bg-warning-bg text-warning-text border-warning-border" : "bg-danger-bg text-danger-text border-danger-border")
-                          )}
-                        >
-                          {stepState === "completed" ? <CheckCircle size={12} /> : idx + 1}
-                        </div>
-                        <span
-                          className={cn(
-                            "text-xs font-semibold whitespace-nowrap",
-                            stepState === "active" ? "text-[var(--primary)]" : stepState === "completed" ? "text-success" : isTerminal ? (deal.status === "Rejected" ? "text-warning-text" : "text-danger-text") : "text-text-muted"
-                          )}
-                        >
-                          {stage.label}
-                        </span>
-                      </div>
-                      {idx < PIPELINE_STAGES.length - 1 && (
-                        <div className={cn("w-8 h-0.5 mx-1", stepState === "completed" ? "bg-success" : "bg-border")} />
-                      )}
-                    </div>
-                  );
+                  return {
+                    label: stage.label,
+                    key: stage.key,
+                    reached: stepState === "completed" || stepState === "active",
+                    active: stepState === "active",
+                    onClick: () => isClickable && handleStepClick(stage.key, stepState),
+                    clickable: isClickable,
+                    terminal: isTerminal && stepState === "active" ? (deal.status === "Rejected" ? "warning" as const : "danger" as const) : undefined,
+                  };
                 })}
-              </div>
+              />
             </div>
 
             {renderStageForm()}
@@ -3478,8 +3318,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           <FormField label="Title">
             <Input value={followUpForm.title} onChange={(e) => setFollowUpForm({ ...followUpForm, title: e.target.value })} placeholder="e.g. Call back customer" />
           </FormField>
-          <FormField label="Due Date & Time" required>
-            <Input type="datetime-local" value={followUpForm.nextMeetingDate} onChange={(e) => setFollowUpForm({ ...followUpForm, nextMeetingDate: e.target.value })} />
+          <FormField label="Due Date & Time" required error={validateNotInPast(followUpForm.nextMeetingDate, "Due Date & Time") || ""}>
+            <Input type="datetime-local" min={getTodayDatetimeLocalInputValue()} value={followUpForm.nextMeetingDate} onChange={(e) => setFollowUpForm({ ...followUpForm, nextMeetingDate: e.target.value })} />
           </FormField>
           <FormField label="Priority">
             <Select value={followUpForm.priority} onChange={(e) => setFollowUpForm({ ...followUpForm, priority: e.target.value })}>
@@ -3533,9 +3373,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 onChange={(e) => setEditForm({ ...editForm, dealValue: parseFloat(e.target.value) || 0 })}
               />
             </FormField>
-            <FormField label="Expected Close Date">
+            <FormField label="Expected Close Date" error={validateNotInPast(editForm.expectedCloseDate, "Expected Close Date") || ""}>
               <Input
                 type="date"
+                min={getTodayDateInputValue()}
                 value={editForm.expectedCloseDate || ""}
                 onChange={(e) => setEditForm({ ...editForm, expectedCloseDate: e.target.value })}
               />
@@ -3748,7 +3589,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   {deal.status === "Qualified" && "📋 Gather requirements to advance"}
                   {deal.status === "RequirementGathering" && "📅 Schedule a meeting or demo"}
                   {deal.status === "MeetingScheduled" && "🎯 Conduct the meeting/demo"}
-                  {deal.status === "DemoConducted" && "💼 Create and send a quotation"}
+                  {deal.status === "DemoAccepted" && "💼 Create and send a quotation"}
                 </p>
                 <p className="text-[11px] text-text-muted">
                   {deal.status === "Qualified" &&
@@ -3757,7 +3598,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     "Fill meeting details and move to Meeting Scheduled."}
                   {deal.status === "MeetingScheduled" &&
                     "Record meeting outcome and advance to Demo Conducted."}
-                  {deal.status === "DemoConducted" &&
+                  {deal.status === "DemoAccepted" &&
                     "Use the Quotation section to create an offer for the customer."}
                 </p>
               </div>

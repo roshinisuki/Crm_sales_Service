@@ -122,6 +122,94 @@ export default function EntityDocumentTab({
     }
   };
 
+  if (uploadOpen) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {/* Left column: file list / sidebar */}
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div>
+              <span className="font-bold text-sm text-slate-700">Documents</span>
+              <span className="ml-2 text-xs text-slate-400">
+                {docs.length} file{docs.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-6 text-sm text-slate-400">Loading documents…</div>
+          ) : docs.length === 0 ? (
+            <div className="text-center py-8 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+              <div className="text-2xl mb-1">📂</div>
+              <div className="font-medium text-xs text-slate-600">No documents attached</div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2 max-h-[450px] overflow-y-auto pr-1">
+              {docs.map(doc => (
+                <div
+                  key={doc.id}
+                  className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors text-xs"
+                >
+                  <span className="text-lg flex-shrink-0">{getFileIcon(doc.name)}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-slate-800 truncate" title={doc.name}>{doc.name}</div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {formatSize(doc.fileSize)} · v{doc.version ?? 1}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button onClick={() => setPreviewDoc(doc)} className="p-1 rounded-md hover:bg-slate-100 text-slate-500" title="Preview">
+                      <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+                    {canDelete(doc) && (
+                      <button onClick={() => handleDelete(doc.id)} className="p-1 rounded-md hover:bg-red-50 text-red-500" title="Delete">
+                        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18 M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2 M10 11v6 M14 11v6" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right column: upload form */}
+        <div>
+          <UploadDocumentModal
+            isOpen={uploadOpen}
+            onClose={() => setUploadOpen(false)}
+            onSuccess={(doc) => { setDocs(prev => [doc, ...prev]); setUploadOpen(false); }}
+            defaultEntityType={entityType}
+            defaultEntityId={entityId}
+            defaultDocumentType={defaultDocumentType}
+            allowedDocumentTypes={allowedDocumentTypes}
+            inline={true}
+          />
+        </div>
+
+        <DocumentPreviewModal
+          document={previewDoc}
+          isOpen={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+          onDelete={handleDelete}
+        />
+
+        <ConfirmModal
+          isOpen={confirmState.isOpen}
+          title={confirmState.title}
+          message={confirmState.message}
+          onConfirm={confirmState.action}
+          onCancel={() => setConfirmState({ ...confirmState, isOpen: false })}
+          isDestructive
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">

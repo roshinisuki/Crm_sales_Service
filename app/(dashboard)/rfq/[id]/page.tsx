@@ -13,6 +13,7 @@ import { formatDate, formatDateTime, cn } from "@/lib/ui-utils";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { CostingDetailsPanel } from "@/components/rfq/CostingDetailsPanel";
 import { GenerateQuotationModal } from "@/components/rfq/GenerateQuotationModal";
+import { StatusStepper } from "@/components/ui/StatusStepper";
 import {
   CheckCircle, Clock, FileText, Calculator, ArrowRight,
   AlertTriangle, Trash2, Plus, Pencil, RotateCcw, Link2, DollarSign, Percent, Download
@@ -22,7 +23,7 @@ const STATUS_STEPS = [
   { key: "New", label: "New", icon: FileText },
   { key: "UnderReview", label: "Under Review", icon: Clock },
   { key: "CostingPending", label: "Costing Pending", icon: Calculator },
-  { key: "QuotationCreated", label: "Quotation Created", icon: CheckCircle },
+  { key: "CostingCompleted", label: "Costing Completed", icon: CheckCircle },
   { key: "Closed", label: "Closed", icon: CheckCircle },
 ];
 
@@ -30,6 +31,7 @@ const statusStyles: Record<string, { badge: string; dot: string; step: string }>
   New: { badge: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500", step: "bg-blue-500" },
   UnderReview: { badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500", step: "bg-amber-500" },
   CostingPending: { badge: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500", step: "bg-orange-500" },
+  CostingCompleted: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", step: "bg-emerald-500" },
   QuotationCreated: { badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500", step: "bg-emerald-500" },
   Closed: { badge: "bg-slate-100 text-slate-600 border-slate-200", dot: "bg-slate-400", step: "bg-slate-400" },
 };
@@ -230,15 +232,15 @@ export default function RFQDetailPage() {
   const [assignCostingUser, setAssignCostingUser] = useState("");
   const [assigning, setAssigning] = useState(false);
 
-  // Generate quotation checklist modal
-  const [showGenQuoteModal, setShowGenQuoteModal] = useState(false);
-
   // Line item form
   const [showLineItemModal, setShowLineItemModal] = useState(false);
   const [editingLineItemId, setEditingLineItemId] = useState<string | null>(null);
   const [lineItemForm, setLineItemForm] = useState({ item_description: "", product_id: "", quantity: "1", unit: "Pcs", target_price: "", delivery_date: "", specifications: "", quantity_breaks: "" });
   const [savingLineItem, setSavingLineItem] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
+
+  // Generate Quotation modal
+  const [showQuotationModal, setShowQuotationModal] = useState(false);
 
   // Edit RFQ modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -592,53 +594,62 @@ export default function RFQDetailPage() {
 
         {/* Lifecycle Stepper — RFQ → Quotation → Negotiation → Won/Lost */}
         <div className="crm-card p-4">
-          <div className="flex items-center gap-1 overflow-x-auto">
-            {[
-              { label: "RFQ", key: "rfq", id: id, reached: true, current: true },
-              { label: "Quotation", key: "quotation", id: rfq.quotations?.[0]?.id, reached: rfq.quotations?.length > 0 },
-              { label: "Negotiation", key: "negotiation", id: rfq.quotations?.[0]?.negotiationId, reached: !!rfq.quotations?.[0]?.negotiationId },
-              { label: "Won/Lost", key: "outcome", id: null, reached: ["Accepted", "Rejected"].includes(rfq.quotations?.[0]?.status) },
-            ].map((step, i, arr) => (
-              <div key={step.key} className="flex items-center shrink-0">
-                <div
-                  onClick={() => {
-                    if (step.id && !step.current) {
-                      if (step.key === "quotation") router.push(`/quotations/${step.id}`);
-                      else if (step.key === "negotiation") router.push(`/negotiations/${step.id}`);
-                    }
-                  }}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                    step.current
-                      ? "bg-[var(--primary)] text-white"
-                      : step.reached
-                      ? "bg-green-50 text-green-700 cursor-pointer hover:bg-green-100 dark:bg-green-950/30 dark:text-green-300"
-                      : "bg-slate-50 text-slate-400 dark:bg-slate-800/50"
-                  }`}
-                >
-                  {step.reached && !step.current && <CheckCircle size={12} />}
-                  {step.label}
-                </div>
-                {i < arr.length - 1 && <div className={`w-6 h-0.5 mx-1 ${step.reached ? "bg-green-300" : "bg-slate-200"}`} />}
-              </div>
-            ))}
-          </div>
+          <StatusStepper
+            compact
+            steps={[
+              { label: "RFQ", key: "rfq", reached: true, active: true },
+              { label: "Quotation", key: "quotation", reached: rfq.quotations?.length > 0, active: false, onClick: () => rfq.quotations?.[0]?.id && router.push(`/quotations/${rfq.quotations[0].id}`), clickable: !!rfq.quotations?.[0]?.id },
+              { label: "Negotiation", key: "negotiation", reached: !!rfq.quotations?.[0]?.negotiationId, active: false, onClick: () => rfq.quotations?.[0]?.negotiationId && router.push(`/negotiations/${rfq.quotations[0].negotiationId}`), clickable: !!rfq.quotations?.[0]?.negotiationId },
+              { label: "Won/Lost", key: "outcome", reached: ["Accepted", "Rejected"].includes(rfq.quotations?.[0]?.status), active: false, terminal: rfq.quotations?.[0]?.status === "Rejected" ? "danger" : rfq.quotations?.[0]?.status === "Accepted" ? "success" : undefined },
+            ]}
+          />
         </div>
 
         {/* Next Step Button — single prominent action driven by status */}
         <div className="crm-card p-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Next Step</p>
-            {rfq.status === "QuotationCreated" || rfq.status === "Closed" ? (
-              <p className="text-sm text-slate-600 mt-0.5">RFQ workflow complete — view the linked quotation below</p>
-            ) : pendingItemsCount > 0 ? (
-              <p className="text-sm text-slate-600 mt-0.5">Cost all {pendingItemsCount} pending line item(s) to enable quotation generation</p>
-            ) : rfq.lineItems?.length === 0 ? (
-              <p className="text-sm text-slate-600 mt-0.5">Add at least one line item to proceed</p>
+            {rfq.status === "New" ? (
+              <p className="text-sm text-slate-600 mt-0.5">Move RFQ to Under Review to evaluate specs and requirements</p>
+            ) : rfq.status === "UnderReview" ? (
+              <p className="text-sm text-slate-600 mt-0.5">Assign a costing engineer to start pricing evaluation</p>
+            ) : rfq.status === "CostingPending" ? (
+              pendingItemsCount > 0 ? (
+                <p className="text-sm text-slate-600 mt-0.5">Cost all {pendingItemsCount} pending line item(s) to complete costing</p>
+              ) : (
+                <p className="text-sm text-slate-600 mt-0.5">All items costed. RFQ is ready for quotation</p>
+              )
+            ) : rfq.status === "CostingCompleted" ? (
+              <p className="text-sm text-slate-600 mt-0.5">Costing is complete — proceed to Quotations to generate the customer proposal</p>
             ) : (
-              <p className="text-sm text-slate-600 mt-0.5">All items costed — ready to generate quotation</p>
+              <p className="text-sm text-slate-600 mt-0.5">RFQ workflow complete</p>
             )}
           </div>
           <div className="flex items-center gap-2">
+            {rfq.status === "New" && (
+              <button
+                onClick={() => handleStatusChange("UnderReview")}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer transition-all"
+              >
+                Start Review <ArrowRight size={16} />
+              </button>
+            )}
+            {rfq.status === "UnderReview" && (
+              <button
+                onClick={() => setShowAssignModal(true)}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer transition-all"
+              >
+                Assign Costing Owner <ArrowRight size={16} />
+              </button>
+            )}
+            {rfq.status === "CostingCompleted" && (
+              <button
+                onClick={() => setShowQuotationModal(true)}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 cursor-pointer transition-all animate-pulse"
+              >
+                Go to Quotations <ArrowRight size={16} />
+              </button>
+            )}
             {/* Download Requirement Report — available from status New onward */}
             {rfq.opportunityId && (
               <button
@@ -649,24 +660,6 @@ export default function RFQDetailPage() {
               >
                 <Download size={14} className="text-slate-500" />
                 <span>{downloadingReport ? "Generating..." : "Download Report"}</span>
-              </button>
-            )}
-            {rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
-              <button
-                onClick={() => {
-                  if (rfq.lineItems?.length === 0) {
-                    toast.error("Add at least one line item first");
-                  } else if (pendingItemsCount > 0) {
-                    toast.error(`${pendingItemsCount} item(s) still need costing`);
-                  } else {
-                    setShowGenQuoteModal(true);
-                  }
-                }}
-                disabled={rfq.lineItems?.length === 0 || pendingItemsCount > 0}
-                title={rfq.lineItems?.length === 0 ? "Add line items first" : pendingItemsCount > 0 ? `${pendingItemsCount} item(s) need costing` : "Generate quotation from costing"}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-              >
-                <ArrowRight size={16} /> Generate Quotation →
               </button>
             )}
             {rfq.quotations?.length > 0 && (
@@ -947,23 +940,6 @@ export default function RFQDetailPage() {
           )}
         </div>
 
-        {/* Assign Costing Button — visible when UnderReview and no costing owner */}
-        {rfq.status === "UnderReview" && !rfq.costingOwnerId && (
-          <div className="crm-card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Assign Costing Owner</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Assign a costing engineer to proceed with costing</p>
-              </div>
-              <button
-                onClick={() => setShowAssignModal(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer"
-              >
-                <Calculator size={16} /> Assign Costing
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Status History */}
         {rfq.rfqStatusHistories && rfq.rfqStatusHistories.length > 0 && (
@@ -1001,39 +977,6 @@ export default function RFQDetailPage() {
             allowedDocumentTypes={["Drawing", "TechnicalSpec", "Other"]}
           />
         </div>
-
-        {/* Generate Quotation Button */}
-        {rfq.lineItems && rfq.lineItems.length > 0 && rfq.status !== "QuotationCreated" && rfq.status !== "Closed" && (
-          <div className="crm-card p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Generate Quotation</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Create a quotation from this RFQ with the latest costing</p>
-              </div>
-              <button
-                onClick={() => setShowGenQuoteModal(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer animate-pulse"
-              >
-                <ArrowRight size={16} /> Generate Quotation
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Linked Quotations */}
-        {rfq.quotations && rfq.quotations.length > 0 && (
-          <div className="crm-card p-6">
-            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3">Linked Quotations</h3>
-            <div className="space-y-2">
-              {rfq.quotations.map((q: any) => (
-                <button key={q.id} onClick={() => router.push(`/quotations/${q.id}`)} className="flex items-center justify-between w-full p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer">
-                  <span className="text-sm font-medium text-slate-700">{q.quotationCode}</span>
-                  <span className="text-sm text-slate-500">₹{q.finalAmount?.toFixed(2) || "0"} · {q.status}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Slide-over panel costing details */}
@@ -1050,19 +993,6 @@ export default function RFQDetailPage() {
           loadCostingSheets();
         }}
       />
-
-      {/* Generate Quotation Checklist Modal */}
-      <GenerateQuotationModal
-        isOpen={showGenQuoteModal}
-        onClose={() => setShowGenQuoteModal(false)}
-        rfqId={id}
-        userRole={user?.role}
-        onSuccess={(quotationId, quotationCode) => {
-          toast.success(`Quotation ${quotationCode} generated successfully!`);
-          router.push(`/quotations/${quotationId}`);
-        }}
-      />
-
       {/* Assign Costing Modal */}
       <Modal
         open={showAssignModal}
@@ -1267,6 +1197,19 @@ export default function RFQDetailPage() {
         onConfirm={confirmState.action}
         onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })}
         isDestructive={true}
+      />
+
+      <GenerateQuotationModal
+        isOpen={showQuotationModal}
+        onClose={() => setShowQuotationModal(false)}
+        rfqId={id}
+        userRole={user?.role}
+        onSuccess={(quotationId, quotationCode) => {
+          setShowQuotationModal(false);
+          toast.success(`Quotation ${quotationCode} generated successfully`);
+          loadRFQ();
+          router.push(`/quotations/${quotationId}`);
+        }}
       />
     </PageShell>
   );

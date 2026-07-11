@@ -62,9 +62,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, message: "At least one line item is required" }, { status: 400 });
   }
 
-  // Auto-generate poCode
-  const count = await prisma.purchaseOrder.count({ where: { companyId: user.companyId } });
-  const poCode = `PO-${String(count + 1).padStart(4, "0")}`;
+  // Auto-generate poCode using MAX-based sequential numbering to avoid race conditions
+  const lastPO = await prisma.purchaseOrder.findFirst({
+    where: { companyId: user.companyId },
+    orderBy: { poCode: "desc" },
+    select: { poCode: true },
+  });
+  let poSeq = 1;
+  if (lastPO?.poCode) {
+    const match = lastPO.poCode.match(/PO-(\d+)/);
+    if (match) poSeq = parseInt(match[1], 10) + 1;
+  }
+  const poCode = `PO-${String(poSeq).padStart(4, "0")}`;
 
   // Calculate totals from items
   let totalAmount = 0;
@@ -97,7 +106,7 @@ export async function POST(request: NextRequest) {
       dealId: body.dealId || null,
       status: "New",
       poNumber: body.poNumber || null,
-      poDate: body.poDate ? new Date(body.poDate) : null,
+      poDate: body.poDate ? new Date(body.poDate) : new Date(),
       expectedDelivery: body.expectedDelivery ? new Date(body.expectedDelivery) : null,
       totalAmount,
       discountPercent,

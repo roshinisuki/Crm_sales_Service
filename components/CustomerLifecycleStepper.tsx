@@ -53,10 +53,10 @@ export default function CustomerLifecycleStepper({ currentStage }: { currentStag
                   className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 shadow-sm",
                     isDone
-                      ? "bg-[var(--primary)] text-white shadow-emerald-100"
+                      ? "bg-[var(--primary)] text-[var(--accent-contrast)]"
                       : isActive
-                      ? "bg-[var(--primary)] text-white ring-4 ring-orange-100 scale-105"
-                      : "bg-slate-100 text-slate-400"
+                      ? "bg-[var(--primary)] text-[var(--accent-contrast)] ring-4 ring-[var(--accent-soft)] scale-105"
+                      : "bg-[var(--surface-2)] text-[var(--text-muted)]"
                   )}
                 >
                   {isDone ? <Check size={14} strokeWidth={3} /> : i + 1}
@@ -64,7 +64,7 @@ export default function CustomerLifecycleStepper({ currentStage }: { currentStag
                 <span
                   className={cn(
                     "text-[10px] font-bold mt-2 text-center whitespace-nowrap tracking-tight max-w-[80px] truncate",
-                    isDone ? "text-emerald-700" : isActive ? "text-slate-900 font-extrabold" : "text-slate-400"
+                    isDone ? "text-[var(--status-success-text)]" : isActive ? "text-[var(--text-primary)] font-extrabold" : "text-[var(--text-muted)]"
                   )}
                 >
                   {stage}
@@ -76,7 +76,7 @@ export default function CustomerLifecycleStepper({ currentStage }: { currentStag
                 <div
                   className={cn(
                     "flex-1 h-0.5 -mt-6 rounded-full mx-1 transition-all duration-300",
-                    isDone ? "bg-emerald-500" : "bg-slate-200"
+                    isDone ? "bg-[var(--status-success)]" : "bg-[var(--border)]"
                   )}
                 />
               )}

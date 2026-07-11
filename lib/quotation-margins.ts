@@ -67,12 +67,19 @@ export function applyDiscountToQuotationItems(
   subtotal: number;
 } {
   const finalAmount = headerTotalAmount * (1 - discountPercent / 100);
-  const ratio = headerTotalAmount > 0 ? finalAmount / headerTotalAmount : 1;
 
   const updatedItems = items.map((item) => {
-    const newUnitPrice = item.unitPrice * ratio;
-    const newTotalPrice = item.totalPrice * ratio;
-    const newLineTotal = newTotalPrice * (1 + item.taxPercent / 100);
+    // Reconstruct the original undiscounted price
+    const currentDiscount = item.discountPercent || 0;
+    const divisor = 1 - (currentDiscount / 100);
+    const originalUnitPrice = divisor > 0 ? item.unitPrice / divisor : item.unitPrice;
+    const originalTotalPrice = divisor > 0 ? item.totalPrice / divisor : item.totalPrice;
+
+    // Apply the new discount percent to the original price
+    const newUnitPrice = originalUnitPrice * (1 - discountPercent / 100);
+    const newTotalPrice = originalTotalPrice * (1 - discountPercent / 100);
+    const newLineTotal = newTotalPrice; // pre-tax!
+
     return {
       id: item.id,
       unitPrice: Math.round(newUnitPrice * 100) / 100,

@@ -313,7 +313,7 @@ function VisitsListContent() {
 
   return (
     <PageShell
-      title="Customer Visits"
+      title="Customer Visits Overview"
       subtitle="Field sales tracking with GPS check-in and visit compliance."
       breadcrumb={breadcrumb}
       action={

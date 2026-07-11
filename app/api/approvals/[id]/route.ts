@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { dispatchNotification } from "@/lib/notifications";
 import { applyDiscountToQuotationItems } from "@/lib/quotation-margins";
+import { transitionDealStatus } from "@/lib/dealService";
 
 // Approve / Reject an approval request
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -75,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // PO Approval side effect
   if (approval.approvalType === "PO" && approval.entityType === "PurchaseOrder") {
     if (action === "approve") {
-      await prisma.purchaseOrder.update({
+      const po = await prisma.purchaseOrder.update({
         where: { id: approval.entityId! },
         data: {
           status: "Approved",
@@ -84,6 +85,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           rejectionReason: null,
         },
       });
+      if (po.dealId) {
+        await transitionDealStatus(po.dealId, "Won", {
+          actorId: user.id,
+          reason: `Won via PO ${po.poCode} approval from Approval Center`,
+          companyId: user.companyId!,
+          skipQuotationGate: true,
+        });
+      }
     } else {
       await prisma.purchaseOrder.update({
         where: { id: approval.entityId! },
@@ -127,6 +136,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           approvedById: user.id,
         },
       });
+
+      // Calculate cumulative discount relative to initialAmount
+      const cumulativeDiscount = updatedNegotiation.initialAmount > 0 && pendingRevision
+        ? ((updatedNegotiation.initialAmount - pendingRevision.proposedAmount) / updatedNegotiation.initialAmount) * 100
+        : approval.discountPercent;
+
       // Apply the approved discount to the underlying Quotation
       if (updatedNegotiation.quotationId) {
         const rootQuotation = await prisma.quotation.findFirst({
@@ -134,20 +149,64 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           include: { items: true },
         });
         if (rootQuotation) {
+          // Create a snapshot of the quotation before applying the new discount
+          const snapshotJson = JSON.stringify({
+            quotationCode: rootQuotation.quotationCode,
+            revisionNumber: rootQuotation.revisionNumber,
+            status: rootQuotation.status,
+            validUntil: rootQuotation.validUntil,
+            subtotal: rootQuotation.subtotal,
+            taxAmount: rootQuotation.taxAmount,
+            totalAmount: rootQuotation.totalAmount,
+            discountPercent: rootQuotation.discountPercent,
+            finalAmount: rootQuotation.finalAmount,
+            termsAndConditions: rootQuotation.termsAndConditions,
+            paymentTerms: rootQuotation.paymentTerms,
+            deliveryTerms: rootQuotation.deliveryTerms,
+            freightTerms: rootQuotation.freightTerms,
+            leadTimeDays: rootQuotation.leadTimeDays,
+            overallMarginPercent: rootQuotation.overallMarginPercent ? Number(rootQuotation.overallMarginPercent) : null,
+            items: rootQuotation.items.map((it) => ({
+              description: it.description,
+              quantity: it.quantity,
+              unitPrice: it.unitPrice,
+              discountPercent: it.discountPercent,
+              taxPercent: it.taxPercent,
+              lineTotal: it.lineTotal,
+              hsn: it.hsn,
+              unit: it.unit,
+              notes: it.notes,
+              costBasisUnitPrice: it.costBasisUnitPrice ? Number(it.costBasisUnitPrice) : null,
+              marginPercent: it.marginPercent ? Number(it.marginPercent) : null,
+              priceSource: it.priceSource,
+              quantityBreakId: it.quantityBreakId,
+            })),
+          });
+
+          await prisma.quotationRevisionSnapshot.create({
+            data: {
+              quotationId: rootQuotation.id,
+              revisionNumber: rootQuotation.revisionNumber,
+              snapshotJson,
+              createdById: user.id,
+            },
+          });
+
           const totalAmount = rootQuotation.totalAmount || 0;
-          // C.3/C.4: Recalculate line items + tax proportionally
+          // C.3/C.4: Recalculate line items + tax proportionally using cumulativeDiscount
           const recalc = applyDiscountToQuotationItems(
             rootQuotation.items.map(i => ({ id: i.id, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice, taxPercent: i.taxPercent, discountPercent: i.discountPercent })),
             totalAmount,
-            approval.discountPercent
+            cumulativeDiscount
           );
           await prisma.quotation.update({
             where: { id: rootQuotation.id },
             data: {
-              discountPercent: approval.discountPercent,
+              discountPercent: cumulativeDiscount,
               finalAmount: recalc.finalAmount,
               taxAmount: recalc.taxAmount,
               subtotal: recalc.subtotal,
+              status: "Draft", // Reset to Draft!
             },
           });
           // Update each line item
@@ -166,9 +225,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
             data: {
               quotationId: rootQuotation.id,
               fromStatus: rootQuotation.status,
-              toStatus: rootQuotation.status,
+              toStatus: "Draft", // Reset to Draft!
               changedById: user.id,
-              notes: `Discount of ${approval.discountPercent}% applied via approved negotiation revision`,
+              notes: `Discount of ${cumulativeDiscount.toFixed(2)}% applied via approved negotiation revision. Quotation reset to Draft.`,
             },
           });
         }

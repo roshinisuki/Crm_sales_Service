@@ -73,13 +73,6 @@ export async function checkLoginType(email: string) {
       return { success: false, message: "No account found with this email." };
     }
 
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      return {
-        success: false,
-        message: "Account temporarily locked. Try again later.",
-      };
-    }
-
     // Domain validation for internal roles
     if (requiresInternalEmail(user.role) && !isInternalEmail(normalizedEmail)) {
       return {
@@ -125,50 +118,13 @@ export async function loginWithPassword(email: string, password: string, remembe
 
     // Block if isFirstLogin=true removed as per request to bypass OTP setup for all roles.
 
-    // Check account lock
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      return {
-        success: false,
-        message: "Account locked due to too many failed attempts. Try again later.",
-      };
-    }
-
     // Verify password
     if (!user.passwordHash) {
       return { success: false, message: "Invalid email or password." };
     }
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      const newAttempts = (user.loginAttempts || 0) + 1;
-      const lockData =
-        newAttempts >= 5
-          ? {
-              loginAttempts: 0,
-              lockedUntil: new Date(Date.now() + 15 * 60 * 1000),
-            }
-          : { loginAttempts: newAttempts };
-
-      await prisma.user.update({ where: { id: user.id }, data: lockData });
-      await logAudit(user.id, "AUTH", "LOGIN_FAILED", `Failed login attempt ${newAttempts} for ${user.email}`);
-
-      // On 5th failure: notify account locked
-      if (newAttempts >= 5) {
-        // Notify all admins about the lockout
-        const admins = await prisma.user.findMany({
-          where: { role: "Admin", isActive: true },
-          select: { id: true },
-        });
-        for (const admin of admins) {
-          await dispatchNotification({
-            userId: admin.id,
-            title: "Account Locked",
-            message: `Account ${user.email} has been locked due to 5 failed login attempts.`,
-            type: "security",
-            link: "/settings/users",
-          }).catch(() => {});
-        }
-      }
-
+      await logAudit(user.id, "AUTH", "LOGIN_FAILED", `Failed login attempt for ${user.email}`);
       return { success: false, message: "Invalid email or password." };
     }
 
@@ -177,7 +133,7 @@ export async function loginWithPassword(email: string, password: string, remembe
     // Reset lockout + update lastLogin
     await prisma.user.update({
       where: { id: user.id },
-      data: { loginAttempts: 0, lockedUntil: null, lastLoginAt: new Date(), rememberMe },
+      data: { lastLoginAt: new Date(), rememberMe },
     });
 
     // Fetch company variant for the auth cookie
@@ -658,6 +614,12 @@ export async function updateCompanyVariantAction(variant: number) {
       where: { id: userPayload.companyId },
       data: { variant: validVariant },
     });
+
+    // Re-issue JWT cookie with the new variant so verifyAuth() sees it on reload
+    await issueAuthCookie(
+      { id: userPayload.id, email: userPayload.email, role: userPayload.role, companyId: userPayload.companyId, variant: validVariant },
+      true
+    );
 
     return { success: true, message: `Company switched to Variant ${validVariant}` };
   } catch (error) {

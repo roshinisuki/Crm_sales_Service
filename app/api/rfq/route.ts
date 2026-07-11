@@ -115,15 +115,7 @@ export async function POST(request: NextRequest) {
     if (diffDays <= 3) priority = "Urgent";
   }
 
-  // Generate RFQ code: RFQ-YYYY-NNNNN
   const year = new Date().getFullYear();
-  const yearCount = await prisma.rFQ.count({
-    where: {
-      companyId: user.companyId,
-      rfqCode: { startsWith: `RFQ-${year}-` },
-    },
-  });
-  const rfqCode = `RFQ-${year}-${String(yearCount + 1).padStart(5, "0")}`;
 
   // Validate line items if provided and not linking opportunity
   const lineItems = body.line_items || [];
@@ -144,6 +136,14 @@ export async function POST(request: NextRequest) {
 
   // Create RFQ with line items and status history in a transaction
   const rfq = await prisma.$transaction(async (tx) => {
+    const yearCount = await tx.rFQ.count({
+      where: {
+        companyId: user.companyId,
+        rfqCode: { startsWith: `RFQ-${year}-` },
+      },
+    });
+    const rfqCode = `RFQ-${year}-${String(yearCount + 1).padStart(5, "0")}`;
+
     const created = await tx.rFQ.create({
       data: {
         rfqCode,
@@ -160,6 +160,9 @@ export async function POST(request: NextRequest) {
         assignedUserId: body.assignedUserId || user.id,
         notes: body.notes || null,
         opportunityId: opportunityId,
+        templateFileName: body.templateFileName || null,
+        templateFileUrl: body.templateFileUrl || null,
+        templateParsedAt: body.templateFileName ? new Date() : null,
         status: "New",
         companyId: user.companyId,
       },
@@ -237,7 +240,7 @@ export async function POST(request: NextRequest) {
     await dispatchNotification({
       userId: body.assignedUserId,
       title: "New RFQ Assigned",
-      message: `RFQ ${rfqCode} has been assigned to you.${priority === "Urgent" ? " — URGENT" : ""}`,
+      message: `RFQ ${rfq.rfqCode} has been assigned to you.${priority === "Urgent" ? " — URGENT" : ""}`,
       type: "rfq",
       link: `/rfq/${rfq.id}`,
     });
@@ -258,16 +261,16 @@ export async function POST(request: NextRequest) {
       await dispatchNotificationsToMany({
         userIds: notifyIds,
         title: "URGENT RFQ Received",
-        message: `URGENT RFQ ${rfqCode} received — customer due date is within 3 days.`,
+        message: `URGENT RFQ ${rfq.rfqCode} received — customer due date is within 3 days.`,
         type: "rfq",
         link: `/rfq/${rfq.id}`,
       });
     }
   }
 
-  await logAudit(user.id, "RFQ", "Create", `Created RFQ ${rfqCode} (Priority: ${priority})`, {
+  await logAudit(user.id, "RFQ", "Create", `Created RFQ ${rfq.rfqCode} (Priority: ${priority})`, {
     resourceId: rfq.id,
-    newState: { rfqCode, priority, status: "New", customerId },
+    newState: { rfqCode: rfq.rfqCode, priority, status: "New", customerId },
     context: extractAuditContext(request),
     severity: "INFO",
   });

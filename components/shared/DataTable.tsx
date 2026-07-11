@@ -25,9 +25,10 @@ interface DataTableProps<T> {
   };
   onSort?: (key: string, direction: "asc" | "desc") => void;
   defaultSortKey?: string;
+  onRowClick?: (row: T) => void;
 }
 
-export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey }: DataTableProps<T>) {
+export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey, onRowClick }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -95,7 +96,8 @@ export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey
               data.map((row, rowIdx) => (
                 <tr
                   key={rowIdx}
-                  className="crm-tr group"
+                  className={cn("crm-tr group", onRowClick && "table-row-clickable")}
+                  onClick={() => onRowClick && onRowClick(row)}
                 >
                   {columns.map((col, colIdx) => (
                     <td
@@ -105,6 +107,18 @@ export function DataTable<T>({ data, columns, pagination, onSort, defaultSortKey
                         "crm-td",
                         col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
                       )}
+                      onClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (
+                          target.closest("button") ||
+                          target.closest("a") ||
+                          target.closest("input") ||
+                          target.closest("select") ||
+                          target.closest(".row-action-btn")
+                        ) {
+                          e.stopPropagation();
+                        }
+                      }}
                     >
                       {col.cell ? col.cell(row) : col.accessorKey ? (row as any)[col.accessorKey] : null}
                     </td>

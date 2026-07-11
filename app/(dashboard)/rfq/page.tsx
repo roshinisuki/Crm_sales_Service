@@ -185,7 +185,7 @@ function RFQListContent() {
 
   return (
     <PageShell
-      title="Requests"
+      title="RFQ Overview"
       subtitle="Manage Request for Quotations"
       action={
         <div className="flex gap-2">

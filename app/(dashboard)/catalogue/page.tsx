@@ -56,7 +56,7 @@ export default function CatalogueLandingPage() {
 
   return (
     <PageShell
-      title="Product Catalogue"
+      title="Product Catalogue Overview"
       subtitle="Overview of your product categories, specifications, and collateral."
     >
       {loading ? null : (

@@ -35,6 +35,7 @@ const V2_TABS = [
   { key: "", label: "Leads Overview" },
   { key: "New", label: "New" },
   { key: "TodayFollowUp", label: "Follow-Up Due" },
+  { key: "TodaysFollowUp", label: "Today's Follow-up" },
   { key: "UpcomingFollowUp", label: "Upcoming Follow-ups" },
   { key: "SQL", label: "SQL" },
   { key: "Overdue", label: "Overdue" },
@@ -143,6 +144,9 @@ export default function LeadsPage() {
     if (statusParam === "TodayFollowUp") {
       setActiveTab("TodayFollowUp");
       setStatusFilter("");
+    } else if (statusParam === "TodaysFollowUp") {
+      setActiveTab("TodaysFollowUp");
+      setStatusFilter("");
     } else if (statusParam === "UpcomingFollowUp") {
       setActiveTab("UpcomingFollowUp");
       setStatusFilter("");
@@ -205,19 +209,21 @@ export default function LeadsPage() {
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return leads.filter(l => {
       // V2 Tab filter
-      if (activeTab === "TodayFollowUp") {
-        // Today's Follow Up: leads with a pending follow-up scheduled for today,
-        // excluding terminal statuses (Converted/Lost)
+      if (activeTab === "TodayFollowUp" || activeTab === "TodaysFollowUp") {
+        // Follow-Up Due / Today's Follow-up: leads with a pending follow-up scheduled for today,
+        // excluding terminal statuses (Converted/Lost) and only counting Lead-stage follow-ups
         if (l.status === "Lost" || l.status === "Converted") return false;
         const hasTodayFU = (l as any).followUps?.some((f: any) =>
-          f.status === "Pending" && new Date(f.nextMeetingDate) >= startOfToday &&
+          f.status === "Pending" && f.stageAtCreation === "Lead" &&
+          new Date(f.nextMeetingDate) >= startOfToday &&
           new Date(f.nextMeetingDate) < new Date(startOfToday.getTime() + 86400000)
         );
         if (!hasTodayFU) return false;
       } else if (activeTab === "UpcomingFollowUp") {
         if (l.status === "Lost" || l.status === "Converted") return false;
         const hasUpcomingFU = (l as any).followUps?.some((f: any) =>
-          (f.status === "Pending" || f.status === "Scheduled") && new Date(f.nextMeetingDate) >= startOfToday
+          (f.status === "Pending" || f.status === "Scheduled") && f.stageAtCreation === "Lead" &&
+          new Date(f.nextMeetingDate) >= startOfToday
         );
         if (!hasUpcomingFU) return false;
       } else if (activeTab === "Overdue") {
@@ -226,7 +232,7 @@ export default function LeadsPage() {
         // OR its first-response SLA has breached, and it is not in a terminal status.
         if (l.status === "Lost" || l.status === "Converted" || l.status === "Duplicate") return false;
         const hasOverdueFU = (l as any).followUps?.some((f: any) =>
-          f.status === "Pending" && new Date(f.nextMeetingDate) <= now
+          f.status === "Pending" && f.stageAtCreation === "Lead" && new Date(f.nextMeetingDate) <= now
         );
         if (!hasOverdueFU && !isSlaBreached(l, now)) return false;
       } else if (activeTab === "Duplicate") {
@@ -248,7 +254,7 @@ export default function LeadsPage() {
         if (l.status === "Lost" || l.status === "Converted") return false;
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const hasDueFollowUp = (l as any).followUps?.some((f: any) =>
-          f.status === "Pending" && new Date(f.nextMeetingDate) >= startOfToday
+          f.status === "Pending" && f.stageAtCreation === "Lead" && new Date(f.nextMeetingDate) >= startOfToday
         );
         if (!hasDueFollowUp) return false;
       }
@@ -274,7 +280,7 @@ export default function LeadsPage() {
 
   const sortedAndFiltered = useMemo(() => {
     let result = filtered;
-    if (activeTab === "UpcomingFollowUp" || activeTab === "TodayFollowUp") {
+    if (activeTab === "UpcomingFollowUp" || activeTab === "TodayFollowUp" || activeTab === "TodaysFollowUp") {
       result = [...filtered].sort((a: any, b: any) => {
         const aPending = a.followUps?.filter((f: any) => f.status === "Pending" || f.status === "Scheduled");
         const bPending = b.followUps?.filter((f: any) => f.status === "Pending" || f.status === "Scheduled");
@@ -299,7 +305,8 @@ export default function LeadsPage() {
   const kpiNew          = leads.filter(l => l.status === "New").length;
   const kpiTodayFU      = leads.filter(l =>
     (l as any).followUps?.some((f: any) =>
-      f.status === "Pending" && new Date(f.nextMeetingDate) >= startOfToday &&
+      f.status === "Pending" && f.stageAtCreation === "Lead" &&
+      new Date(f.nextMeetingDate) >= startOfToday &&
       new Date(f.nextMeetingDate) < new Date(startOfToday.getTime() + 86400000)
     )
   ).length;
@@ -307,7 +314,7 @@ export default function LeadsPage() {
   const kpiOverdue       = leads.filter(l => {
     if (l.status === "Lost" || l.status === "Converted" || l.status === "Duplicate") return false;
     const hasOverdueFU = (l as any).followUps?.some((f: any) =>
-      f.status === "Pending" && new Date(f.nextMeetingDate) <= now
+      f.status === "Pending" && f.stageAtCreation === "Lead" && new Date(f.nextMeetingDate) <= now
     );
     return hasOverdueFU || isSlaBreached(l, now);
   }).length;
@@ -477,7 +484,7 @@ export default function LeadsPage() {
 
   return (
     <PageShell
-      title="Leads"
+      title="Leads Overview"
       subtitle="Manage and track your sales pipeline"
       action={
         <div className="flex items-center gap-2.5">
@@ -523,7 +530,7 @@ export default function LeadsPage() {
           subtitle="Scheduled for today"
           icon={<CalendarClock size={20} />}
           variant="light"
-          isActive={activeTab === "TodayFollowUp"}
+          isActive={activeTab === "TodayFollowUp" || activeTab === "TodaysFollowUp"}
           onClick={() => handleTabClick("TodayFollowUp")}
         />
         <SummaryCard
@@ -681,13 +688,13 @@ export default function LeadsPage() {
                          activeTab === "Duplicate" ? <Copy size={28} className="text-slate-300 dark:text-slate-600" /> :
                          activeTab === "Overdue" ? <AlertTriangle size={28} className="text-slate-300 dark:text-slate-600" /> :
                          activeTab === "SQL" ? <CheckCircle size={28} className="text-slate-300 dark:text-slate-600" /> :
-                         activeTab === "TodayFollowUp" || activeTab === "UpcomingFollowUp" ? <CalendarClock size={28} className="text-slate-300 dark:text-slate-600" /> :
+                         activeTab === "TodayFollowUp" || activeTab === "TodaysFollowUp" || activeTab === "UpcomingFollowUp" ? <CalendarClock size={28} className="text-slate-300 dark:text-slate-600" /> :
                          <Users size={28} className="text-slate-300 dark:text-slate-600" />}
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">
                           {activeTab === "New" ? "No new leads awaiting contact" :
-                           activeTab === "TodayFollowUp" ? "No follow-ups due today" :
+                           activeTab === "TodayFollowUp" || activeTab === "TodaysFollowUp" ? "No follow-ups due today" :
                            activeTab === "UpcomingFollowUp" ? "No upcoming follow-ups scheduled" :
                            activeTab === "SQL" ? "No Sales Qualified Leads yet" :
                            activeTab === "Overdue" ? "No overdue leads — all caught up!" :
@@ -696,7 +703,7 @@ export default function LeadsPage() {
                            "No leads found"}
                         </p>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                          {activeTab === "TodayFollowUp" || activeTab === "UpcomingFollowUp" ? "Check back tomorrow or view All Leads" :
+                          {activeTab === "TodayFollowUp" || activeTab === "TodaysFollowUp" || activeTab === "UpcomingFollowUp" ? "Check back tomorrow or view All Leads" :
                            activeTab === "SQL" ? "Qualify leads via BANT checklist to promote" :
                            activeTab === "Duplicate" ? "Duplicates are auto-detected on phone match" :
                            "Try adjusting your filters or add a new lead"}

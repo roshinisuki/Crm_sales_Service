@@ -166,6 +166,7 @@ export async function POST(request: NextRequest) {
         sourceId: deal.id,
         autoCreated: true,
         companyId: user.companyId,
+        stageAtCreation: "Deal",
       },
     });
 

@@ -11,6 +11,7 @@ import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { ArrowLeft, Pencil, Trash2, CheckCircle2, XCircle, ArrowRight, Package, Clock, Send, RotateCw, Calendar, User, Mail, Phone, FileText, Truck, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StatusStepper } from "@/components/ui/StatusStepper";
  
 const statusConfig: Record<string, { color: string; bg: string; border: string; icon: any; label: string }> = {
   New:           { color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-200",    icon: Package,      label: "New" },
@@ -295,22 +296,22 @@ export default function SampleDetailPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/samples")} className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer transition-colors">
+          <button onClick={() => router.push("/samples")} className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-[var(--text-secondary)] cursor-pointer transition-colors">
             <ArrowLeft size={18} />
           </button>
           <div className="w-10 h-10 rounded-xl bg-[var(--primary)]/10 flex items-center justify-center shrink-0">
             <Package size={20} className="text-[var(--primary)]" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">{sample.sampleCode}</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Sample Request Details</p>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)]">{sample.sampleCode}</h1>
+            <p className="text-sm text-[var(--text-secondary)] mt-0.5">Sample Request Details</p>
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setEditing(!editing)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
+          <button onClick={() => setEditing(!editing)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] bg-[var(--surface-2)] hover:bg-[var(--border)] transition-colors cursor-pointer">
             <Pencil size={15} /> {editing ? "Cancel Edit" : "Edit"}
           </button>
-          <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer">
+          <button onClick={handleDelete} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-[var(--status-danger-text)] bg-[var(--status-danger-bg)] hover:opacity-80 transition-colors cursor-pointer">
             <Trash2 size={15} /> Delete
           </button>
         </div>
@@ -318,42 +319,21 @@ export default function SampleDetailPage() {
  
       {/* Status Progress Stepper */}
       <div className="crm-card p-5">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {STAGES.map((stage, idx) => {
-            const isDone = idx < currentStageIdx;
-            const isActive = idx === currentStageIdx;
+        <StatusStepper
+          steps={STAGES.map((stage) => {
+            const stageIdx = STAGES.indexOf(stage);
+            const isActive = stageIdx === currentStageIdx;
+            const isDone = stageIdx < currentStageIdx;
             const isRejected = sample.status === "Rejected";
-            const stageCfg = statusConfig[stage];
-            const StageIcon = stageCfg.icon;
-            return (
-              <div key={stage} className="flex items-center flex-1 last:flex-none">
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all",
-                    isDone ? "bg-emerald-500 text-white" :
-                    isActive && !isRejected ? cn(stageCfg.bg, stageCfg.color, "ring-2 ring-offset-2 ring-current") :
-                    isActive && isRejected ? "bg-red-500 text-white" :
-                    "bg-slate-100 text-slate-400"
-                  )}>
-                    {isDone ? <CheckCircle2 size={16} /> : <StageIcon size={15} />}
-                  </div>
-                  <span className={cn(
-                    "text-xs font-semibold hidden sm:inline whitespace-nowrap",
-                    isActive ? stageCfg.color : isDone ? "text-emerald-600" : "text-slate-400"
-                  )}>
-                    {stageCfg.label}
-                  </span>
-                </div>
-                {idx < STAGES.length - 1 && (
-                  <div className={cn(
-                    "flex-1 h-0.5 mx-1.5 sm:mx-2 rounded-full transition-all",
-                    isDone ? "bg-emerald-400" : "bg-slate-200"
-                  )} />
-                )}
-              </div>
-            );
+            return {
+              label: statusConfig[stage]?.label || stage,
+              key: stage,
+              reached: isDone || isActive,
+              active: isActive,
+              terminal: isRejected && isActive ? "danger" as const : undefined,
+            };
           })}
-        </div>
+        />
  
         {/* Workflow Action Panel */}
         <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[var(--card)] overflow-hidden flex flex-col shadow-sm">

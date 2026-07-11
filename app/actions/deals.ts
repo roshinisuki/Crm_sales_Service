@@ -7,6 +7,7 @@ import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notific
 import { revalidatePath } from "next/cache";
 import { buildScope, checkRecordScope } from "@/lib/scopes";
 import { transitionDealStatus } from "@/lib/dealService";
+import { deriveHealthStatus } from "@/lib/module-status-config";
 
 export async function getDealsAction(params?: { search?: string; status?: string }) {
   try {
@@ -53,6 +54,7 @@ export async function getDealsAction(params?: { search?: string; status?: string
 
     const serialized = deals.map((d) => ({
       ...d,
+      healthStatus: deriveHealthStatus(d.status),
       createdAt: d.createdAt.toISOString(),
       updatedAt: d.updatedAt.toISOString(),
       expectedCloseDate: d.expectedCloseDate.toISOString(),
@@ -139,8 +141,6 @@ export async function getDealByIdAction(id: string) {
       opportunityDetail: deal.opportunityDetail ? {
         ...deal.opportunityDetail,
         expectedGoLive: deal.opportunityDetail.expectedGoLive?.toISOString() || null,
-        meetingDate: deal.opportunityDetail.meetingDate?.toISOString() || null,
-        demoDate: deal.opportunityDetail.demoDate?.toISOString() || null,
         createdAt: deal.opportunityDetail.createdAt?.toISOString() || null,
         updatedAt: deal.opportunityDetail.updatedAt?.toISOString() || null
       } : null
@@ -191,11 +191,12 @@ export async function createDealAction(data: {
       ? userPayload.id
       : assignedUserId || null;
 
-    // Use same logic as POST /api/opportunities - always start at Qualified
-    const initialStage = status || "Qualified";
+    // Validate and normalize the initial stage
+    const { normalizeStage, PIPELINE_STAGE_PROBABILITY } = await import("@/lib/module-status-config");
+    const initialStage = normalizeStage(status || "Qualified") || "Qualified";
 
-    // Get probability from PipelineStageMaster
-    let probabilityPercent = 20;
+    // Get probability from canonical map (fallback to DB, then default)
+    let probabilityPercent = PIPELINE_STAGE_PROBABILITY[initialStage] ?? 20;
     const stageMaster = await prisma.pipelineStageMaster.findFirst({
       where: { stageName: initialStage, isActive: true },
     });
@@ -224,6 +225,7 @@ export async function createDealAction(data: {
           status: initialStage,
           opportunityCode,
           probabilityPercent,
+          stageEnteredAt: new Date(),
           companyId: userPayload.companyId,
         },
       });
@@ -254,6 +256,7 @@ export async function createDealAction(data: {
           sourceId: deal.id,
           autoCreated: true,
           companyId: userPayload.companyId,
+          stageAtCreation: "Deal",
         },
       });
 
@@ -472,13 +475,7 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
     const details = currentDeal.opportunityDetail;
     const currentStatus = currentDeal.status;
 
-    // MeetingScheduled: only validate required fields for stage transition
-    // Required: meetingDate, meetingType, meetingStatus
-    if (status === "MeetingScheduled" && currentStatus === "MeetingScheduled") {
-      if (!details || !details.meetingDate || !details.meetingType || !details.meetingStatus) {
-        throw new Error("Validation Failed: Must complete required Meeting fields (Date, Type, Status).");
-      }
-    }
+
     // TechnicalDiscussion: requires at least one product requirement item
     if (status === "TechnicalDiscussion") {
       const reqItemCount = await prisma.opportunityRequirementItem.count({
@@ -488,11 +485,7 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
         throw new Error("Validation Failed: Must add at least one product requirement before entering Technical Discussion.");
       }
     }
-    if (status === "ProposalSent") {
-      if (!details || !details.proposedSolution) {
-        throw new Error("Validation Failed: Must fill in Proposed Solution before sending proposal.");
-      }
-    }
+    // No proposedSolution check needed here since Proposals are generated from Quotes.
     // Negotiation: no pre-validation needed - negotiation details are filled AFTER entering this stage
     // (expectedBudget, commercialTerms, negotiationNotes are all filled during negotiation)
 
@@ -500,7 +493,7 @@ export async function updateDealStatusAction(id: string, status: string, lostRea
     const { normalizeStage } = await import("@/lib/module-status-config");
     const normalizedStatus = normalizeStage(status);
     if (!normalizedStatus) {
-      return { success: false, message: `Invalid stage "${status}". Valid stages: Qualified, RequirementGathering, TechnicalDiscussion, MeetingScheduled, DemoConducted, Won, Lost, Rejected` };
+      return { success: false, message: `Invalid stage "${status}". Valid stages: Qualified, RequirementGathering, TechnicalDiscussion, MeetingScheduled, DemoConducted, DemoAccepted, Won, OnHold, Lost, Rejected` };
     }
 
     // Use centralized transitionDealStatus for all status changes
@@ -662,12 +655,8 @@ export async function requestDiscountAction(_data: {
         },
       });
 
-      // Transition deal status (approval workflow disabled in V1 — kept as Active)
-      await transitionDealStatus(dealId, "Active", {
-        actorId: userPayload!.id,
-        reason: `Discount of ${discountPercent}% requested`,
-        companyId: userPayload!.companyId!,
-      });
+      // Discount request does not change pipeline stage — keep current stage
+      // (removed transitionDealStatus to "Active" which is no longer a valid stage)
 
       // Create entry in ApprovalHistory, store previous status for rollback
       await prisma.approvalHistory.create({
@@ -806,12 +795,8 @@ export async function resolveDiscountAction(data: {
         },
       });
 
-      // Advance deal to Active after approval
-      await transitionDealStatus(dealId, "Active", {
-        actorId: userPayload.id,
-        reason: `Discount of ${deal.discountPercent}% approved`,
-        companyId: userPayload.companyId!,
-      });
+      // Discount approval does not change pipeline stage — keep current stage
+      // (removed transitionDealStatus to "Active" which is no longer a valid stage)
 
       // Find pending ApprovalHistory and update
       const pendingApproval = await prisma.approvalHistory.findFirst({

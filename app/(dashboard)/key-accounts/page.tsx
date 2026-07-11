@@ -216,7 +216,7 @@ export default function KeyAccountsPage() {
 
   return (
     <PageContainer className="space-y-5 p-0">
-      <AnalyticsPageHeader title="Key Accounts" subtitle="Strategic customer accounts with dedicated management">
+      <AnalyticsPageHeader title="Key Accounts Overview" subtitle="Strategic customer accounts with dedicated management">
         <div className="flex items-center gap-3">
           <Link href="/key-accounts/revenue-potential" className="text-[13px] text-[var(--accent)] hover:underline">Revenue view →</Link>
           {canManage && (

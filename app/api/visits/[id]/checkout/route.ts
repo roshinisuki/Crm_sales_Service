@@ -112,6 +112,7 @@ export async function POST(
           entityId: visit.id,
           priority: "Medium",
           companyId: user.companyId,
+          stageAtCreation: "Deal",
         },
       });
     }

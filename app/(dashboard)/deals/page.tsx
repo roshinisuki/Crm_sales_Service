@@ -17,16 +17,16 @@ import { Modal } from "@/components/ui/Modal";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Pagination, usePagination } from "@/components/ui/Pagination";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
-import { DEALS_STATUS } from "@/lib/module-status-config";
+import { DEALS_STATUS, PIPELINE_STAGE_VALUES, deriveHealthStatus } from "@/lib/module-status-config";
 import { getInitials, getAvatarColor, formatDate, cn } from "@/lib/ui-utils";
 import { Plus, Search, Download, Eye, Pencil, Trash2, Briefcase, TrendingUp, CheckCircle, XCircle, PauseCircle } from "lucide-react";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { CRMSpinner } from "@/components/CRMSpinner";
-const STAGES = ["Active", "OnHold", "Won", "Lost"];
+const STAGES = [...PIPELINE_STAGE_VALUES];
 const emptyForm = {
   id: "", dealName: "", customerId: "", dealValue: "",
-  expectedCloseDate: "", assignedUserId: "", notes: "", status: "Active",
-  originalStatus: "Active",
+  expectedCloseDate: "", assignedUserId: "", notes: "", status: "Qualified",
+  originalStatus: "Qualified",
 };
 
 function DealsPageContent() {
@@ -72,11 +72,11 @@ function DealsPageContent() {
   // ── KPI ───────────────────────────────────────────────────────────────────
 
   const kpiTotal  = deals.length;
-  const kpiOpen   = deals.filter(d => !["Won", "Lost", "OnHold"].includes(d.status)).length;
-  const kpiOnHold = deals.filter(d => d.status === "OnHold").length;
-  const kpiWon    = deals.filter(d => d.status === "Won").length;
-  const kpiLost   = deals.filter(d => d.status === "Lost").length;
-  const kpiValue  = deals.filter(d => d.status === "Won").reduce((s, d) => s + d.dealValue, 0);
+  const kpiOpen   = deals.filter(d => deriveHealthStatus(d.status) === "Active").length;
+  const kpiOnHold = deals.filter(d => deriveHealthStatus(d.status) === "OnHold").length;
+  const kpiWon    = deals.filter(d => deriveHealthStatus(d.status) === "Won").length;
+  const kpiLost   = deals.filter(d => deriveHealthStatus(d.status) === "Lost").length;
+  const kpiValue  = deals.filter(d => deriveHealthStatus(d.status) === "Won").reduce((s, d) => s + d.dealValue, 0);
 
   // ── Filter ────────────────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ function DealsPageContent() {
       const matchSearch = !q || d.dealName.toLowerCase().includes(q) || d.customer?.name?.toLowerCase().includes(q);
       let matchStatus = !statusFilter || d.status === statusFilter;
       if (statusFilter === "risk") {
-        const isOpen = !["Won", "Lost", "OnHold"].includes(d.status);
+        const isOpen = deriveHealthStatus(d.status) === "Active";
         const isOverdue = d.expectedCloseDate && new Date(d.expectedCloseDate) < new Date();
         const isStale = new Date(d.updatedAt) < sevenDaysAgo;
         matchStatus = isOpen && (isOverdue || isStale);
@@ -158,7 +158,8 @@ function DealsPageContent() {
   };
 
   const handleToggleHold = async (d: any) => {
-    const nextStatus = d.status === "OnHold" ? "Active" : "OnHold";
+    // Toggle: if OnHold, resume to Qualified (the default entry stage); otherwise move to OnHold
+    const nextStatus = d.status === "OnHold" ? "Qualified" : "OnHold";
     const res = await updateDealStatusAction(d.id, nextStatus);
     if (res.success) {
       toast.success(nextStatus === "OnHold" ? "Deal put on hold." : "Deal resumed.");
@@ -187,7 +188,7 @@ function DealsPageContent() {
 
   return (
     <PageShell
-      title="Deals"
+      title="Deals Overview"
       subtitle="Track and manage your sales deals"
       action={
         <div className="flex items-center gap-2">
@@ -275,13 +276,13 @@ function DealsPageContent() {
                   <td className="crm-td"><StatusBadge status={d.status} /></td>
                   <td className="crm-td text-slate-500 text-sm">{d.assignedUser?.name || "—"}</td>
                   <td className="crm-td text-slate-500 text-xs whitespace-nowrap">{formatDate(d.expectedCloseDate)}</td>
-                  <td className="crm-td"><StatusBadge status={d.status} /></td>
+                  <td className="crm-td"><StatusBadge status={deriveHealthStatus(d.status)} /></td>
                   {currentUser?.role !== "Customer" && (
                     <td className="crm-td text-right" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button onClick={() => router.push(`/deals/${d.id}`)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><Eye size={14} /></button>
                         <button onClick={() => openEdit(d)} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Pencil size={13} /></button>
-                        {["Admin", "SalesManager"].includes(currentUser?.role || "") && !["Won", "Lost"].includes(d.status) && (
+                        {["Admin", "SalesManager"].includes(currentUser?.role || "") && !["Won", "Lost", "Rejected", "DemoAccepted"].includes(d.status) && (
                           <button
                             onClick={() => handleToggleHold(d)}
                             title={d.status === "OnHold" ? "Resume Deal" : "Put On Hold"}
@@ -352,7 +353,7 @@ function DealsPageContent() {
             </FormField>
             <FormField label="Stage" required>
               <Select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
-                {STAGES.map(s => <option key={s} value={s}>{s === "OnHold" ? "On Hold" : s}</option>)}
+                {STAGES.map(s => <option key={s} value={s}>{s === "OnHold" ? "On Hold" : s === "RequirementGathering" ? "Requirement Gathering" : s === "TechnicalDiscussion" ? "Technical Discussion" : s === "MeetingScheduled" ? "Meeting Scheduled" : s === "DemoConducted" ? "Demo Conducted" : s === "DemoAccepted" ? "Demo Accepted" : s}</option>)}
               </Select>
             </FormField>
             <FormField label="Assigned To" required>

@@ -6,6 +6,7 @@ import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notific
 import { createOrHealRFQ } from "@/lib/rfqService";
 import { normalizeStage, PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 import { transitionDealStatus } from "@/lib/dealService";
+import { validateNotInPast } from "@/lib/date-validation";
 
 
 // POST /api/opportunities/[id]/stage-change
@@ -25,6 +26,13 @@ export async function POST(
   const { id } = await params;
   const body = await request.json();
   const { to_stage, notes, demoOutcome, rejectedReason, demoFollowUpDate, force } = body;
+
+  if (demoFollowUpDate !== undefined && demoFollowUpDate !== null && demoFollowUpDate !== "") {
+    const validationError = validateNotInPast(demoFollowUpDate, "Follow-up date");
+    if (validationError) {
+      return NextResponse.json({ success: false, message: validationError }, { status: 400 });
+    }
+  }
 
   if (!to_stage) {
     return NextResponse.json({ success: false, message: "to_stage is required" }, { status: 400 });
@@ -60,9 +68,9 @@ export async function POST(
   const currentStage = deal.status;
   const targetStage = normalizedStage;
 
-  // No-op if same stage — UNLESS setting demoOutcome on DemoConducted
+  // No-op if same stage — UNLESS setting demoOutcome on DemoAccepted
   if (currentStage === targetStage) {
-    if (demoOutcome && targetStage === "DemoConducted") {
+    if (demoOutcome && targetStage === "DemoAccepted") {
       const updated = await prisma.deal.update({
         where: { id },
         data: {
@@ -190,43 +198,34 @@ export async function POST(
   }
 
   // ─── Stage Gate: Meeting Scheduled → Demo Conducted ─────────────────────────
-  if (currentStage === "MeetingScheduled") {
-    const d = deal.opportunityDetail || {};
-    const meetingMandatory = [
-      { key: "meetingDate", label: "Meeting date" },
-      { key: "meetingType", label: "Meeting type" },
-      { key: "meetingStatus", label: "Outcome / status" },
-    ];
-    const missing = meetingMandatory.filter((f) => {
-      const val = (d as any)[f.key];
-      return val === null || val === undefined || (typeof val === "string" && val.trim() === "");
+  if (currentStage === "MeetingScheduled" && targetStage === "DemoConducted") {
+    // Ensure there is a pending MeetingLog with a date
+    const pendingLog = await prisma.meetingLog.findFirst({
+      where: { dealId: id, conductedAt: null },
+      orderBy: { attemptNumber: "desc" },
     });
-    if (missing.length > 0) {
+    if (!pendingLog || !pendingLog.meetingDate) {
       return NextResponse.json(
-        { success: false, message: `Cannot advance. Please fill: ${missing.map((m) => m.label).join(", ")}.` },
+        { success: false, message: "Cannot advance. Please schedule a meeting date first." },
         { status: 400 }
       );
     }
   }
 
-  // ─── Validate demoOutcome ────────────────────────────────────────────────────
-  if (targetStage === "DemoConducted" && !demoOutcome) {
-    return NextResponse.json(
-      { success: false, message: "demoOutcome (Accepted/Rejected/Follow-up needed) is required when moving to Demo conducted" },
-      { status: 400 }
-    );
-  }
-  if (demoOutcome && !["Accepted", "Rejected", "Follow-up needed"].includes(demoOutcome)) {
-    return NextResponse.json(
-      { success: false, message: "demoOutcome must be 'Accepted', 'Rejected', or 'Follow-up needed'" },
-      { status: 400 }
-    );
-  }
-  if (demoOutcome === "Follow-up needed" && !demoFollowUpDate) {
-    return NextResponse.json(
-      { success: false, message: "demoFollowUpDate is required when demoOutcome is 'Follow-up needed'" },
-      { status: 400 }
-    );
+  // ─── Validate demoOutcome (When leaving DemoConducted) ──────────────────────
+  if (currentStage === "DemoConducted") {
+    if (!demoOutcome) {
+      return NextResponse.json(
+        { success: false, message: "demoOutcome (Accepted/Rejected/Follow-up needed) is required to complete Demo Conducted" },
+        { status: 400 }
+      );
+    }
+    if (!["Accepted", "Rejected", "Follow-up needed"].includes(demoOutcome)) {
+      return NextResponse.json(
+        { success: false, message: "demoOutcome must be 'Accepted', 'Rejected', or 'Follow-up needed'" },
+        { status: 400 }
+      );
+    }
   }
 
   // ─── Validate rejectedReason ─────────────────────────────────────────────────
@@ -256,15 +255,71 @@ export async function POST(
       where: { id },
       data: {
         probabilityPercent: newProbability,
-        ...(targetStage === "DemoConducted" && demoOutcome ? { demoOutcome } : {}),
-        ...(targetStage === "DemoConducted" && demoOutcome === "Follow-up needed" && demoFollowUpDate
-          ? { demoFollowUpDate: new Date(demoFollowUpDate) }
-          : {}),
         ...(targetStage === "Rejected" && rejectedReason ? { rejectedReason } : {}),
       },
     });
 
-    // 2. Perform the transition central state machine
+    // 1b. Update MeetingLog state based on transition
+    if (currentStage === "MeetingScheduled" && targetStage === "DemoConducted") {
+      // Mark the meeting as conducted
+      const pendingLog = await tx.meetingLog.findFirst({
+        where: { dealId: id, conductedAt: null },
+        orderBy: { attemptNumber: "desc" },
+      });
+      if (pendingLog) {
+        await tx.meetingLog.update({
+          where: { id: pendingLog.id },
+          data: { conductedAt: new Date() },
+        });
+      }
+    } else if (currentStage === "DemoConducted" && targetStage === "MeetingScheduled") {
+      const activeLog = await tx.meetingLog.findFirst({
+        where: { dealId: id },
+        orderBy: { attemptNumber: "desc" },
+      });
+      if (activeLog) {
+        await tx.meetingLog.update({
+          where: { id: activeLog.id },
+          data: {
+            conductedAt: null,
+            outcome: null,
+            notes: notes || null,
+            meetingDate: demoFollowUpDate ? new Date(demoFollowUpDate) : activeLog.meetingDate,
+          },
+        });
+      }
+    } else if (currentStage === "DemoConducted" && demoOutcome) {
+      // Record the outcome on the active meeting log
+      const activeLog = await tx.meetingLog.findFirst({
+        where: { dealId: id },
+        orderBy: { attemptNumber: "desc" },
+      });
+      if (activeLog) {
+        await tx.meetingLog.update({
+          where: { id: activeLog.id },
+          data: {
+            outcome: demoOutcome,
+            notes: notes || undefined,
+            rejectionReason: rejectedReason || undefined,
+          },
+        });
+
+        if (demoOutcome === "Follow-up needed") {
+          const attemptNumber = activeLog.attemptNumber + 1;
+          await tx.meetingLog.create({
+            data: {
+              dealId: id,
+              attemptNumber,
+              meetingDate: demoFollowUpDate ? new Date(demoFollowUpDate) : null,
+              meetingType: activeLog.meetingType,
+              meetingMode: activeLog.meetingMode,
+              participants: activeLog.participants,
+              agenda: `Follow-up discussion. Previous notes: ${notes || ""}`.trim(),
+            },
+          });
+        }
+      }
+    }    // 2. Perform the transition central state machine
     const transitionRes = await transitionDealStatus(
       id,
       targetStage,
@@ -286,6 +341,7 @@ export async function POST(
       MeetingScheduled: "Confirm attendee list and meeting agenda",
       RequirementGathering: "Schedule discovery call",
       DemoConducted: "Follow up on demo outcome and next steps",
+      DemoAccepted: "Create and review RFQ",
       Rejected: "Internal review: understand rejection reasons and lessons learned",
       Lost: "Internal review: analyse loss reasons and improvement areas",
     };
@@ -306,6 +362,7 @@ export async function POST(
           sourceId: deal.id,
           autoCreated: true,
           companyId: user.companyId,
+          stageAtCreation: "Deal",
         },
       });
     }

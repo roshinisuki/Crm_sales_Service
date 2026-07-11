@@ -27,9 +27,13 @@ export type LeadSource = "Website" | "Facebook" | "Instagram" | "LinkedIn" | "Re
 export type OpportunityStage =
   | "Qualified"
   | "RequirementGathering"
+  | "TechnicalDiscussion"
   | "MeetingScheduled"
   | "DemoConducted"
+  | "DemoAccepted"
+  | "Won"
+  | "OnHold"
   | "Rejected"
   | "Lost";
 
-export type DealStatus = "Active" | "Won" | "Lost";
+export type DealStatus = OpportunityStage;

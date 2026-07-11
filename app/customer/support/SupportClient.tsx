@@ -90,41 +90,41 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Support & IT Requests</h1>
-          <p className="text-slate-500 mt-1">Submit tickets to resolve IT issues or ask queries.</p>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Support & IT Requests</h1>
+          <p className="text-[var(--text-secondary)] mt-1">Submit tickets to resolve IT issues or ask queries.</p>
         </div>
         <button
           onClick={() => setIsOpen(true)}
-          className="inline-flex items-center gap-2 bg-[#0b1f3a] text-white px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#16355d] transition-all shadow-sm"
+          className="inline-flex items-center gap-2 bg-[var(--primary)] text-[var(--accent-contrast)] px-4 py-2.5 rounded-xl font-semibold text-sm hover:bg-[var(--primary-hover)] transition-all shadow-sm"
         >
           <Ico d={icons.plus} size={16} />
           New Ticket
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] shadow-sm overflow-hidden">
         {tickets.length === 0 ? (
           <div className="p-12 text-center">
-            <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-12 h-12 bg-[var(--surface-2)] text-[var(--text-muted)] rounded-full flex items-center justify-center mx-auto mb-4">
               <Ico d={icons.chat} size={24} />
             </div>
-            <h3 className="text-slate-700 font-semibold mb-1">No support tickets</h3>
-            <p className="text-sm text-slate-500 max-w-sm mx-auto">
+            <h3 className="text-[var(--text-primary)] font-semibold mb-1">No support tickets</h3>
+            <p className="text-sm text-[var(--text-secondary)] max-w-sm mx-auto">
               If you have any technical queries or issues with  SUKI  CRM portal, create a new support ticket.
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-150">
+          <div className="divide-y divide-[var(--border)]">
             {tickets.map(ticket => {
               const { subject: parsedSubject, description: parsedDesc } = parseSupportTicket(ticket.meetingSummary);
               const outcome = ticket.outcome || "Enquired to IT";
               
               return (
-                <div key={ticket.id} className="p-6 hover:bg-slate-50 transition-colors">
+                <div key={ticket.id} className="p-6 hover:bg-[var(--surface-2)] transition-colors">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
-                        <h3 className="font-bold text-slate-800 text-base">{parsedSubject}</h3>
+                        <h3 className="font-bold text-[var(--text-primary)] text-base">{parsedSubject}</h3>
                         {outcome === "Resolved" ? (
                           <span className="inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Resolved
@@ -139,11 +139,11 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-slate-600 line-clamp-2">{parsedDesc}</p>
+                      <p className="text-sm text-[var(--text-secondary)] line-clamp-2">{parsedDesc}</p>
                     </div>
                     <div className="text-left sm:text-right shrink-0">
-                      <p className="text-xs text-slate-400 font-medium">Submitted on</p>
-                      <p className="text-sm text-slate-700 font-medium mt-0.5">
+                      <p className="text-xs text-[var(--text-muted)] font-medium">Submitted on</p>
+                      <p className="text-sm text-[var(--text-primary)] font-medium mt-0.5">
                         {new Date(ticket.createdAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -160,19 +160,19 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div 
-              className="fixed inset-0 transition-opacity bg-slate-900/60 backdrop-blur-sm" 
+              className="fixed inset-0 transition-opacity bg-black/60 backdrop-blur-sm"
               onClick={() => !isPending && setIsOpen(false)}
             />
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-slate-100">
-              <div className="bg-slate-50 border-b border-slate-150 px-6 py-4 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-slate-900">New Support Ticket</h3>
+            <div className="inline-block align-bottom bg-[var(--surface)] rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-[var(--border)]">
+              <div className="bg-[var(--surface-2)] border-b border-[var(--border)] px-6 py-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-[var(--text-primary)]">New Support Ticket</h3>
                 <button
                   onClick={() => setIsOpen(false)}
                   disabled={isPending}
-                  className="w-8 h-8 rounded-xl bg-slate-200/50 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-xl bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--text-secondary)] flex items-center justify-center transition-colors"
                 >
                   <Ico d={icons.x} size={16} />
                 </button>
@@ -193,7 +193,7 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Subject / Issue Title</label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Subject / Issue Title</label>
                   <input
                     type="text"
                     required
@@ -201,18 +201,18 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
                     value={subject}
                     onChange={(e) => setSubject(e.target.value)}
                     placeholder="e.g. Cannot download invoice reports"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/25 focus:border-[#0b1f3a] transition-all bg-slate-55/30 text-sm font-medium text-slate-800"
+                    className="input-field w-full px-4 py-2.5 rounded-xl transition-all"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5 col-span-2">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Severity Level</label>
+                    <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Severity Level</label>
                     <select
                       disabled={isPending}
                       value={severity}
                       onChange={(e) => setSeverity(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/25 focus:border-[#0b1f3a] transition-all bg-white text-sm font-medium text-slate-850"
+                      className="select-field w-full px-4 py-2.5 rounded-xl transition-all"
                     >
                       <option value="Low">Low (General Query)</option>
                       <option value="Medium">Medium (Workflow Issue)</option>
@@ -223,7 +223,7 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Detailed Description</label>
+                  <label className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wide">Detailed Description</label>
                   <textarea
                     required
                     disabled={isPending}
@@ -231,7 +231,7 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Describe exactly what happened, and any steps to reproduce the issue..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0b1f3a]/25 focus:border-[#0b1f3a] transition-all bg-slate-55/30 text-sm font-medium text-slate-800"
+                    className="input-field w-full px-4 py-2.5 rounded-xl transition-all resize-none"
                   />
                 </div>
 
@@ -240,14 +240,14 @@ export default function SupportClient({ initialTickets }: { initialTickets: Tick
                     type="button"
                     disabled={isPending}
                     onClick={() => setIsOpen(false)}
-                    className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-500 hover:bg-slate-100 transition-colors"
+                    className="px-4 py-2.5 rounded-xl text-sm font-semibold text-[var(--text-secondary)] hover:bg-[var(--surface-2)] transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isPending}
-                    className="px-5 py-2.5 bg-[#0b1f3a] text-white rounded-xl text-sm font-bold hover:bg-[#16355d] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    className="px-5 py-2.5 bg-[var(--primary)] text-[var(--accent-contrast)] rounded-xl text-sm font-bold hover:bg-[var(--primary-hover)] transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
                   >
                     {isPending ? (
                       <>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { validateNotInPast } from "@/lib/date-validation";
 import { getFollowUpsAction, createFollowUpAction } from "@/app/actions/followUps";
 
 export async function GET(request: Request) {
@@ -43,13 +44,13 @@ export async function POST(request: Request) {
 
     const body = await request.json();
 
-    // Validate: scheduled_datetime > NOW() (400 if past)
+    // Validate: scheduled date is not in the past (today is allowed)
     const scheduledDatetime = body.scheduled_datetime || body.nextMeetingDate || body.scheduledTime;
     if (scheduledDatetime) {
-      const scheduled = new Date(scheduledDatetime);
-      if (scheduled <= new Date()) {
+      const validationError = validateNotInPast(scheduledDatetime, "Follow-up date");
+      if (validationError) {
         return NextResponse.json(
-          { success: false, message: "Scheduled datetime must be in the future" },
+          { success: false, message: validationError },
           { status: 400 }
         );
       }

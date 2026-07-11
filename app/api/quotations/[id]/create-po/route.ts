@@ -86,11 +86,7 @@ export async function POST(
   // Auto-fetch shipping address from customer if not in quotation
   const shippingAddress = existing.customer?.shippingAddress || existing.customer?.billingAddress || null;
 
-  // Auto-generate poCode
-  const count = await prisma.purchaseOrder.count({ where: { companyId: user.companyId } });
-  const poCode = `PO-${String(count + 1).padStart(4, "0")}`;
-
-  // Map quotation items → PO items (only fields that exist in PurchaseOrderItem schema)
+  // Map quotation items → PO items
   const items = existing.items.map((it) => ({
     productId: it.productId || null,
     description: it.description || "",
@@ -98,6 +94,9 @@ export async function POST(
     unitPrice: it.unitPrice,
     totalPrice: it.totalPrice || it.quantity * it.unitPrice,
     notes: it.notes || null,
+    discountPercent: it.discountPercent || 0,
+    taxPercent: it.taxPercent || 18,
+    lineTotal: it.lineTotal || it.totalPrice,
   }));
 
   // Compute totals including tax (tax stored at PO header level via taxAmount)
@@ -111,6 +110,34 @@ export async function POST(
   const finalAmount = totalAmount - discountAmount + taxAmount;
 
   const result = await prisma.$transaction(async (tx) => {
+    // Auto-generate poCode using MAX-based sequential numbering to avoid race conditions
+    let poCode = "";
+    let codeExists = true;
+    let seqOffset = 0;
+    while (codeExists) {
+      const lastPO = await tx.purchaseOrder.findFirst({
+        where: { companyId: user.companyId },
+        orderBy: { poCode: "desc" },
+        select: { poCode: true },
+      });
+      let poSeq = 1;
+      if (lastPO?.poCode) {
+        const match = lastPO.poCode.match(/PO-(\d+)/);
+        if (match) poSeq = parseInt(match[1], 10) + 1;
+      }
+      poSeq += seqOffset;
+      poCode = `PO-${String(poSeq).padStart(4, "0")}`;
+      const dup = await tx.purchaseOrder.findFirst({
+        where: { companyId: user.companyId, poCode },
+        select: { id: true },
+      });
+      if (!dup) {
+        codeExists = false;
+      } else {
+        seqOffset++;
+      }
+    }
+
     // 1. Create the Purchase Order
     const purchaseOrder = await tx.purchaseOrder.create({
       data: {
@@ -125,6 +152,7 @@ export async function POST(
         expectedDelivery: computedExpectedDelivery,
         totalAmount,
         discountPercent,
+        taxAmount,
         finalAmount,
         paymentTerms: existing.paymentTerms || null,
         deliveryTerms: existing.deliveryTerms || null,
@@ -141,15 +169,17 @@ export async function POST(
       },
     });
 
-    return purchaseOrder;
+    return { purchaseOrder, poCode };
   });
+
+  const { purchaseOrder, poCode } = result;
 
   await logAudit(
     user.id,
     "PurchaseOrder",
     "Create",
-    `Created purchase order ${poCode} from quotation ${existing.quotationCode} (Value: ${result.finalAmount})`,
-    { resourceId: result.id, newState: { poCode, quotationId: id, totalAmount, finalAmount, status: "New" } }
+    `Created purchase order ${poCode} from quotation ${existing.quotationCode} (Value: ${purchaseOrder.finalAmount})`,
+    { resourceId: purchaseOrder.id, newState: { poCode, quotationId: id, totalAmount, finalAmount, status: "New" } }
   );
 
   // Notify assigned executive if different from creator
@@ -159,7 +189,7 @@ export async function POST(
       title: "New Purchase Order Assigned",
       message: `You have been assigned PO ${poCode} from quotation ${existing.quotationCode}.`,
       type: "Order",
-      link: `/purchase-orders/${result.id}`,
+      link: `/purchase-orders/${purchaseOrder.id}`,
     });
   }
 
@@ -175,13 +205,13 @@ export async function POST(
       title: "New Purchase Order Created",
       message: `${user.email} created PO ${poCode} from accepted quotation ${existing.quotationCode}.`,
       type: "Order",
-      link: `/purchase-orders/${result.id}`,
+      link: `/purchase-orders/${purchaseOrder.id}`,
     });
   }
 
   return NextResponse.json({
     success: true,
-    data: result,
+    data: purchaseOrder,
     message: `Purchase order ${poCode} created from quotation`,
   });
 }

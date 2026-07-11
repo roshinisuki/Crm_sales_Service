@@ -30,6 +30,13 @@ export async function GET() {
     let closedCount = 0;
     const notifications: Promise<void>[] = [];
 
+    // Get or create system user
+    let systemUser = await prisma.user.findFirst({ where: { email: "system@suki.com" } });
+    if (!systemUser) {
+      systemUser = await prisma.user.findFirst({ where: { role: "Admin" } });
+    }
+    const changedById = systemUser?.id || undefined;
+
     for (const rfq of staleRfqs) {
       // Only auto-close if no quotation is Accepted or Draft
       const hasActiveQuotation = rfq.quotations.some(
@@ -46,9 +53,10 @@ export async function GET() {
         await tx.rFQStatusHistory.create({
           data: {
             rfqId: rfq.id,
-            fromStatus: "QuotationCreated",
+            fromStatus: "CostingCompleted",
             toStatus: "Closed",
-            notes: "Auto-closed: no customer response for 30 days post Quotation Created",
+            changedById,
+            notes: "Auto-closed: no customer response for 30 days post Costing Completed",
           },
         });
       });

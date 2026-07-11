@@ -45,10 +45,9 @@ function CrmToggle({ className }: { className?: string }) {
       <div
         className={cn(
           "absolute top-[3px] bottom-[3px] w-[116px] rounded-full transition-all duration-300 ease-out shadow-sm",
-          isServiceWorkspace 
-            ? "left-[calc(50%+1px)] bg-purple-600 shadow-[0_0_8px_rgba(168,85,247,0.4)]" 
-            : "left-[3px] bg-blue-600 shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+          isServiceWorkspace ? "left-[calc(50%+1px)]" : "left-[3px]"
         )}
+        style={{ backgroundColor: "var(--primary)", boxShadow: "0 0 8px var(--primary-ring)" }}
       />
       
       {/* Sales CRM Link */}

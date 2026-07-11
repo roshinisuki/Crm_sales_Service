@@ -77,9 +77,11 @@ export function getLeadWorkflowActions(state: WorkflowState): WorkflowActions {
   if (leadStatus === "Contacted" && !hasPendingFollowUp && !hasCompletedFollowUp) {
     return {
       stage: "Contacted",
-      stageDescription: "Keep the conversation going — schedule a follow-up call or meeting to maintain engagement.",
+      stageDescription: "Keep the conversation going — schedule a follow-up call or meeting, or start qualification.",
       primary: { id: "create-followup", label: "Create Follow-Up", variant: "primary", icon: "CalendarClock" },
-      secondary: [],
+      secondary: [
+        { id: "start-qualification", label: "Start Qualification", variant: "secondary", icon: "CheckCircle2" },
+      ],
       danger: { id: "mark-lost", label: "Mark Lost", variant: "danger", icon: "XCircle" },
     };
   }

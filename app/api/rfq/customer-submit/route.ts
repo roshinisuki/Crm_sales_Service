@@ -92,6 +92,9 @@ export async function POST(request: NextRequest) {
             requestedDeliveryDate: li.delivery_date ? new Date(li.delivery_date) : null,
             specifications: li.specifications || null,
             displayOrder: i,
+            quantityBreaks: {
+              create: [{ quantity: parseFloat(li.quantity) || 1 }],
+            },
           },
         });
       }

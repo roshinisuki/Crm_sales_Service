@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { revalidatePath } from "next/cache";
+import { validateNotInPast } from "@/lib/date-validation";
 
 export async function PATCH(
   request: Request,
@@ -28,6 +29,10 @@ export async function PATCH(
 
     const data: any = {};
     if (body.nextMeetingDate !== undefined) {
+      const validationError = validateNotInPast(body.nextMeetingDate, "Follow-up date");
+      if (validationError) {
+        return NextResponse.json({ success: false, message: validationError }, { status: 400 });
+      }
       data.nextMeetingDate = new Date(body.nextMeetingDate);
       data.dueDate = data.nextMeetingDate;
     }
@@ -108,6 +113,10 @@ export async function PUT(
       return NextResponse.json({ success: true, data: updated });
     } else if (action === "reschedule" || body.nextMeetingDate) {
       // Reschedule
+      const validationError = validateNotInPast(body.nextMeetingDate, "Follow-up date");
+      if (validationError) {
+        return NextResponse.json({ success: false, message: validationError }, { status: 400 });
+      }
       const targetDate = new Date(body.nextMeetingDate);
       const now = new Date();
       const isFuture = targetDate > now;
@@ -132,6 +141,10 @@ export async function PUT(
       // General update
       const data: any = {};
       if (body.nextMeetingDate !== undefined) {
+        const validationError = validateNotInPast(body.nextMeetingDate, "Follow-up date");
+        if (validationError) {
+          return NextResponse.json({ success: false, message: validationError }, { status: 400 });
+        }
         data.nextMeetingDate = new Date(body.nextMeetingDate);
         data.dueDate = data.nextMeetingDate;
       }

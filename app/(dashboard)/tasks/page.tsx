@@ -88,7 +88,7 @@ function TasksPageContent() {
 
   return (
     <PageShell
-      title="Planner"
+      title="Tasks Overview"
       subtitle="Create, assign, and track tasks across your team."
       action={
         <Link href="/tasks/new" className="btn-primary text-xs flex items-center gap-2">

@@ -102,7 +102,7 @@ function SalesPipelineListContent() {
 
   return (
     <PageShell
-      title="Pipeline"
+      title="Sales Pipeline Overview"
       subtitle="Track and manage your opportunities through the sales cycle."
       action={
         <div className="flex items-center gap-3">

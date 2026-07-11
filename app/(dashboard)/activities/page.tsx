@@ -127,7 +127,7 @@ export default function ActivitiesPage() {
 
   return (
     <PageShell
-      title="Activities"
+      title="Activities Overview"
       subtitle="Calls, meetings, and notes across your pipeline."
       action={
         <Link href="/activities/new" className="btn-primary text-xs flex items-center gap-2">

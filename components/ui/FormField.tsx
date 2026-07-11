@@ -32,9 +32,15 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function Input({ className, ...props }: InputProps) {
+  const isDate = props.type === "date";
+  const isEmptyDate = isDate && !props.value;
   return (
     <input
-      className={cn("input-field", className)}
+      className={cn(
+        "input-field",
+        isEmptyDate && "text-slate-400 dark:text-slate-500",
+        className
+      )}
       {...props}
     />
   );
@@ -59,9 +65,14 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export function Select({ className, children, ...props }: SelectProps) {
+  const isEmpty = !props.value;
   return (
     <select
-      className={cn("select-field", className)}
+      className={cn(
+        "select-field",
+        isEmpty ? "text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-slate-100",
+        className
+      )}
       {...props}
     >
       {children}

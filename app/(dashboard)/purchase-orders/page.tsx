@@ -8,6 +8,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import PageContainer from "@/components/PageContainer";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
 import { ORDERS_STATUS } from "@/lib/module-status-config";
+import { useAuth } from "@/components/AuthProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -26,6 +27,7 @@ const icons = {
 const statusColors: Record<string, string> = {
   New: "bg-slate-100 text-slate-700",
   UnderValidation: "bg-amber-100 text-amber-700",
+  OnHold: "bg-orange-100 text-orange-700",
   Approved: "bg-blue-100 text-blue-700",
   Rejected: "bg-red-100 text-red-700",
   Closed: "bg-green-100 text-green-700",
@@ -37,7 +39,7 @@ const erpStatusColors: Record<string, string> = {
   Failed: "bg-red-100 text-red-700",
 };
 
-const statusOptions = ["New", "UnderValidation", "Approved", "Rejected", "Closed"];
+const statusOptions = ["New", "UnderValidation", "OnHold", "Approved", "Rejected", "Closed"];
 
 function PurchaseOrderListContent() {
   const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
@@ -46,6 +48,8 @@ function PurchaseOrderListContent() {
   const router = useRouter();
   const toast = useToast();
   const { formatCurrency } = useCurrency();
+  const { user } = useAuth();
+  const canSyncErp = ["Admin", "SalesManager", "SuperAdmin"].includes(user?.role ?? "");
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
   const [syncingId, setSyncingId] = useState<string | null>(null);
 
@@ -129,7 +133,7 @@ function PurchaseOrderListContent() {
     <PageContainer className="space-y-4 p-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Orders</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Purchase Orders Overview</h1>
           <p className="text-sm text-slate-500 mt-0.5">Create POs, validate, approve, and sync to ERP</p>
         </div>
         <button
@@ -186,7 +190,11 @@ function PurchaseOrderListContent() {
                 </td></tr>
               ) : (
                 filtered.map((p: any) => (
-                  <tr key={p.id} className="crm-tr">
+                  <tr
+                    key={p.id}
+                    className="crm-tr table-row-clickable"
+                    onClick={() => router.push(`/purchase-orders/${p.id}?status=${p.status}`)}
+                  >
                     <td className="crm-td font-medium text-foreground">
                       {p.poCode}
                       {p.poNumber && <div className="text-xs text-muted-foreground">{p.poNumber}</div>}
@@ -205,9 +213,9 @@ function PurchaseOrderListContent() {
                     </td>
                     <td className="crm-td text-foreground">{p._count?.items || 0}</td>
                     <td className="crm-td text-muted-foreground">{p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString() : "—"}</td>
-                    <td className="crm-td text-right">
+                    <td className="crm-td text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
-                        {p.status === "Approved" && p.erpSyncStatus !== "Synced" && (
+                        {p.status === "Approved" && p.erpSyncStatus !== "Synced" && canSyncErp && (
                           <button
                             onClick={() => handleSyncErp(p.id)}
                             disabled={syncingId === p.id}

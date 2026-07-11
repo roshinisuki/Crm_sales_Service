@@ -459,6 +459,7 @@ export async function promoteVisitorToCustomerAction(id: string) {
           sourceType: "VISIT_CHECKOUT",
           autoCreated: true,
           companyId: userPayload.companyId,
+          stageAtCreation: "Deal",
         },
       });
 

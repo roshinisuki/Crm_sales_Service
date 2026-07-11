@@ -89,7 +89,7 @@ function ContactsPageContent() {
 
   return (
     <PageShell
-      title="Directory"
+      title="Contacts Overview"
       subtitle="Manage contacts linked to customers and leads."
       action={
         <Link href="/contacts/new" className="btn-primary text-xs flex items-center gap-2">

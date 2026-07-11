@@ -141,10 +141,12 @@ export function FormActions({
    ────────────────────────────────────────────────────────────────────────────── */
 interface FormButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "danger";
+  size?: "sm" | "md";
 }
 
 export function FormButton({
   variant = "primary",
+  size = "md",
   className,
   children,
   ...props
@@ -157,9 +159,13 @@ export function FormButton({
     danger:
       "form-btn-danger",
   };
+  const sizeMap = {
+    sm: "px-2.5 py-1 text-xs rounded-md",
+    md: "",
+  };
   return (
     <button
-      className={cn("form-btn", variantMap[variant], className)}
+      className={cn("form-btn", variantMap[variant], sizeMap[size], className)}
       {...props}
     >
       {children}

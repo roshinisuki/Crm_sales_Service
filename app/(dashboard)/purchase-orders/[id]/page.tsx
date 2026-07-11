@@ -7,6 +7,7 @@ import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
+import { useAuth } from "@/components/AuthProvider";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -25,6 +26,7 @@ const icons = {
 const statusColors: Record<string, string> = {
   New: "bg-slate-100 text-slate-700",
   UnderValidation: "bg-amber-100 text-amber-700",
+  OnHold: "bg-orange-100 text-orange-700",
   Approved: "bg-blue-100 text-blue-700",
   Rejected: "bg-red-100 text-red-700",
   Closed: "bg-green-100 text-green-700",
@@ -59,6 +61,8 @@ export default function PurchaseOrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const { startLoading, stopLoading } = useGlobalLoading();
+  const { user } = useAuth();
+  const canApproveDirectly = ["Admin", "SalesManager", "SuperAdmin"].includes(user?.role ?? "");
 
   // Validation checklist state
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
@@ -105,14 +109,23 @@ export default function PurchaseOrderDetailPage() {
     loadPo();
   }, [id]);
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string, rejectionReason?: string) => {
     if (!po || newStatus === po.status) return;
     setSaving(true);
     try {
+      const payload: any = { status: newStatus };
+      if (newStatus === "Rejected") {
+        if (!rejectionReason || !rejectionReason.trim()) {
+          toast.error("Rejection reason is required");
+          setSaving(false);
+          return;
+        }
+        payload.rejectionReason = rejectionReason;
+      }
       const res = await fetch(`/api/purchase-orders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (data.success) {
@@ -178,6 +191,32 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
+  const handleRequestApproval = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/approvals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approvalType: "PO",
+          entityType: "PurchaseOrder",
+          entityId: id,
+          remarks: `Requesting approval for PO ${po?.poCode}`,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Approval request submitted");
+      } else {
+        toast.error(data.message || "Failed to request approval");
+      }
+    } catch {
+      toast.error("Failed to request approval");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSyncErp = async () => {
     setSyncing(true);
     startLoading("Syncing with SUKI ERP...", "handshake");
@@ -203,9 +242,12 @@ export default function PurchaseOrderDetailPage() {
 
   const isClosed = po.status === "Closed";
   const isRejected = po.status === "Rejected";
+  const isOnHold = po.status === "OnHold";
   const readOnly = isClosed || isRejected;
   const allChecked = checklistItems.every((it) => checklist[it.key]);
-  const canApprove = po.status === "UnderValidation" && allChecked;
+  const canApprove = po.status === "UnderValidation" && allChecked && canApproveDirectly;
+  const canRequestApproval = (po.status === "UnderValidation" || po.status === "OnHold") && !canApproveDirectly;
+  const canResumeFromHold = isOnHold;
 
   return (
     <PageContainer className="space-y-4 p-0">
@@ -231,21 +273,36 @@ export default function PurchaseOrderDetailPage() {
       {/* Status flow bar */}
       <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-4">
         <div className="flex flex-wrap gap-2">
-          {["New", "UnderValidation", "Approved", "Rejected", "Closed"].map((s) => (
-            <button
-              key={s}
-              disabled={saving || readOnly}
-              onClick={() => handleStatusChange(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                po.status === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
+          {["New", "UnderValidation", "OnHold", "Approved", "Rejected", "Closed"].map((s) => {
+            const isApproveAction = s === "Approved";
+            const isRestricted = isApproveAction && !canApproveDirectly;
+            const isRejectAction = s === "Rejected";
+            return (
+              <button
+                key={s}
+                disabled={saving || readOnly || isRestricted}
+                onClick={() => {
+                  if (isRejectAction) {
+                    const reason = window.prompt("Enter rejection reason:");
+                    if (reason) handleStatusChange("Rejected", reason);
+                  } else {
+                    handleStatusChange(s);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  po.status === s ? "bg-[var(--primary)] text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                {s}
+              </button>
+            );
+          })}
         </div>
         {!canApprove && po.status === "UnderValidation" && (
           <p className="text-xs text-amber-600 mt-2">Complete all validation checklist items before approving.</p>
+        )}
+        {isOnHold && po.onHoldReason && (
+          <p className="text-xs text-orange-600 mt-2">On Hold: {po.onHoldReason}</p>
         )}
       </div>
 
@@ -431,6 +488,16 @@ export default function PurchaseOrderDetailPage() {
                   Approve PO
                 </button>
               )}
+              {canRequestApproval && allChecked && (
+                <button onClick={handleRequestApproval} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-60">
+                  Request Approval
+                </button>
+              )}
+              {canResumeFromHold && (
+                <button onClick={() => handleStatusChange("UnderValidation")} disabled={saving} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 transition-colors cursor-pointer disabled:opacity-60">
+                  Resume Validation
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -451,7 +518,7 @@ export default function PurchaseOrderDetailPage() {
                 {po.erpReferenceNumber && <p className="text-xs text-slate-600 mt-1">ERP Reference: {po.erpReferenceNumber}</p>}
                 {po.erpSyncedAt && <p className="text-xs text-slate-600">Synced At: {new Date(po.erpSyncedAt).toLocaleString()}</p>}
               </div>
-              {po.status === "Approved" && po.erpSyncStatus !== "Synced" && (
+              {po.status === "Approved" && po.erpSyncStatus !== "Synced" && canApproveDirectly && (
                 <button
                   onClick={handleSyncErp}
                   disabled={syncing}

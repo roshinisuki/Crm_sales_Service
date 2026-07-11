@@ -175,7 +175,7 @@ export default function DocumentsListPage() {
             </svg>
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Document Management</h1>
+            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Documents Overview</h1>
             <p className="text-sm text-[var(--text-secondary)] mt-0.5">Manage all your business documents in one place</p>
           </div>
         </div>

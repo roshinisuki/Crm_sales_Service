@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { validateNotInPast } from "@/lib/date-validation";
 
 // PUT /api/opportunities/[id]/details
 // Upserts OpportunityDetail for a deal (requirement gathering data)
@@ -20,6 +21,13 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
+
+  if (body.meetingDate !== undefined && body.meetingDate !== null && body.meetingDate !== "") {
+    const validationError = validateNotInPast(body.meetingDate, "Meeting date");
+    if (validationError) {
+      return NextResponse.json({ success: false, message: validationError }, { status: 400 });
+    }
+  }
 
   const deal = await prisma.deal.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
@@ -50,25 +58,16 @@ export async function PUT(
     "existingSoftwareStack", "securityCompliance", "userRolesPermissions",
     "reportingRequirements", "dataMigrationRequired", "customizationNeeded",
     "apiThirdPartyReqs", "technicalConstraints", "itTeamNotes",
-    "expectedBudget", "finalDiscussedBudget", "pricingModel", "licenseCount",
-    "paymentTerms", "billingCycle", "competitorInfo", "commercialRisks",
-    "discountRequested", "proposalValue", "negotiationNotes", "probability",
+    "expectedBudget", "finalDiscussedBudget", "licenseCount",
+    "billingCycle", "probability",
     "internalSalesNotes", "presalesNotes", "objections",
     "followUpSummary", "risksBlockers", "nextSteps", "managementNotes",
     "companyName", "industry", "contactPerson", "email", "phone",
     "employeeCount", "approvalProcess", "buyingAuthorityNotes",
     "requirementCompletedAt",
-    // Meeting Scheduled
-    "meetingType", "meetingMode", "meetingDate", "meetingStatus", "meetingDuration",
-    "meetingParticipants", "meetingLocation", "meetingAgenda", "meetingOutcome", "nextFollowUpDate",
-    // Demo Conducted
-    "demoType", "demoDate", "demoPresenter", "demoDuration", "demoAttendees",
-    "demoCustomerRating", "demoInterestLevel", "demoQuestionsRaised",
-    "demoRejectionReason", "demoRejectionRemarks", "demoCompetitorName",
-    "demoFollowUpDate",
-    // Proposal Sent
-    "proposedSolution", "scopeClassification", "estimatedDuration", "developmentEffort",
-    "implementationEffort", "supportRequirements",
+    // Meeting Scheduled fields (now intercepted and saved to MeetingLog)
+    "meetingType", "meetingMode", "meetingDate", "meetingParticipants", "meetingAgenda",
+    // Proposal Sent (fields removed from DB)
     // V2: Sample management + technical discussion
     "requiresSamples", "sampleStatus",
     "techDiscussionDate", "techDiscussionAttendees", "techDiscussionQuestions", "techDiscussionConfirmed",
@@ -82,14 +81,17 @@ export async function PUT(
       // Parse numeric fields
       if (["userCountSales", "userCountManagers", "userCountAdmins", "numberOfUsers", "licenseCount", "probability", "employeeCount", "meetingDuration", "demoDuration"].includes(key)) {
         data[key] = body[key] !== null && body[key] !== "" ? parseInt(body[key]) || null : null;
-      } else if (["expectedBudget", "finalDiscussedBudget", "discountRequested", "proposalValue"].includes(key)) {
+      } else if (["expectedBudget", "finalDiscussedBudget"].includes(key)) {
         data[key] = body[key] !== null && body[key] !== "" ? parseFloat(body[key]) || null : null;
-      } else if (["expectedGoLive", "meetingDate", "demoDate", "nextFollowUpDate", "requirementCompletedAt", "techDiscussionDate", "demoFollowUpDate", "tdDiscussionDate"].includes(key)) {
+      } else if (["expectedGoLive", "requirementCompletedAt", "techDiscussionDate", "tdDiscussionDate"].includes(key)) {
         data[key] = body[key] ? new Date(body[key]) : null;
       } else if (["techDiscussionConfirmed", "leadVerified"].includes(key)) {
         data[key] = Boolean(body[key]);
       } else {
-        data[key] = body[key];
+        // Do not add meeting fields to OpportunityDetail `data` payload
+        if (!["meetingDate", "meetingType", "meetingMode", "meetingParticipants", "meetingAgenda"].includes(key)) {
+          data[key] = body[key];
+        }
       }
     }
   }
@@ -102,6 +104,47 @@ export async function PUT(
         update: data,
         create: { dealId: id, ...data },
       });
+
+      // Handle MeetingLog updates
+      const hasMeetingFields = ["meetingDate", "meetingType", "meetingMode", "meetingParticipants", "meetingAgenda"].some(k => body[k] !== undefined);
+      
+      if (hasMeetingFields) {
+        // Find the active (unconducted) MeetingLog, or create one if none exists
+        const pendingLog = await tx.meetingLog.findFirst({
+          where: { dealId: id, conductedAt: null },
+          orderBy: { attemptNumber: "desc" },
+        });
+
+        const meetingData = {
+          meetingDate: body.meetingDate ? new Date(body.meetingDate) : null,
+          meetingType: body.meetingType !== undefined ? body.meetingType : undefined,
+          meetingMode: body.meetingMode !== undefined ? body.meetingMode : undefined,
+          participants: body.meetingParticipants !== undefined ? body.meetingParticipants : undefined,
+          agenda: body.meetingAgenda !== undefined ? body.meetingAgenda : undefined,
+        };
+
+        if (pendingLog) {
+          await tx.meetingLog.update({
+            where: { id: pendingLog.id },
+            data: meetingData,
+          });
+        } else {
+          // Determine attempt number
+          const lastLog = await tx.meetingLog.findFirst({
+            where: { dealId: id },
+            orderBy: { attemptNumber: "desc" },
+          });
+          const attemptNumber = lastLog ? lastLog.attemptNumber + 1 : 1;
+
+          await tx.meetingLog.create({
+            data: {
+              dealId: id,
+              attemptNumber,
+              ...meetingData,
+            },
+          });
+        }
+      }
 
       if (body.syncToProfile === true) {
         if (deal.customerId) {

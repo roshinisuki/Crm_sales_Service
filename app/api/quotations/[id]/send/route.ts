@@ -133,31 +133,11 @@ export async function POST(
           customerId: existing.customerId,
           companyId: user.companyId,
           notes: `Auto-generated follow up for quotation ${existing.quotationCode} sent to ${existing.customer?.name || "Customer"}.`,
+          stageAtCreation: "Deal",
         },
       });
 
-      // 4. If linked to an opportunity, transition deal to ProposalSent
-      if (existing.dealId) {
-        const deal = await tx.deal.findUnique({
-          where: { id: existing.dealId },
-          select: { id: true, status: true },
-        });
-        if (deal && !["Won", "Lost", "Rejected"].includes(deal.status)) {
-          await tx.deal.update({
-            where: { id: deal.id },
-            data: { status: "ProposalSent" },
-          });
-          await tx.dealStageHistory.create({
-            data: {
-              dealId: deal.id,
-              fromStatus: deal.status,
-              toStatus: "ProposalSent",
-              changedById: user.id,
-              outcomeNotes: `Quotation ${existing.quotationCode} sent to customer`,
-            },
-          });
-        }
-      }
+
 
       return q;
     });

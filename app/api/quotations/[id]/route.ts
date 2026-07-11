@@ -36,6 +36,7 @@ export async function GET(
       },
       deal: { select: { id: true, dealName: true, status: true, opportunityCode: true } },
       negotiation: { select: { id: true, negotiationCode: true, status: true } },
+      childRevisions: { select: { id: true, quotationCode: true } },
       items: {
         include: {
           product: { select: { id: true, name: true, productCode: true, unit: true, basePrice: true, hsnCode: true } },
@@ -51,6 +52,25 @@ export async function GET(
 
   if (!quotation) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
+  const rootId = quotation.parentQuotationId || quotation.id;
+  const allSnapshots = await prisma.quotationRevisionSnapshot.findMany({
+    where: {
+      quotation: {
+        OR: [
+          { id: rootId },
+          { parentQuotationId: rootId }
+        ]
+      }
+    },
+    include: { createdBy: { select: { id: true, name: true } } },
+    orderBy: { revisionNumber: "desc" }
+  });
+
+  const quotationWithAllSnapshots = {
+    ...quotation,
+    revisionSnapshots: allSnapshots
+  };
+
   const [discountConfig, floorConfig] = await Promise.all([
     prisma.systemConfig.findFirst({ where: { key: "approval_matrix_discount_threshold" } }),
     prisma.systemConfig.findFirst({ where: { key: "quotation_margin_floor_percent" } }),
@@ -60,7 +80,7 @@ export async function GET(
 
   return NextResponse.json({
     success: true,
-    data: quotation,
+    data: quotationWithAllSnapshots,
     config: { discountThreshold, marginFloor },
   });
 }

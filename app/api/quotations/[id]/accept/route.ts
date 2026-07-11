@@ -63,21 +63,38 @@ export async function POST(
         });
       }
 
-      // 3. If opportunity_id: transition deal to Won via centralized state machine
-      if (existing.dealId) {
-        const deal = await tx.deal.findUnique({
-          where: { id: existing.dealId },
-          select: { id: true, status: true, dealName: true },
+      // 3. Auto-create a linked Deal at DemoAccepted if none exists.
+      //    The deal is later transitioned to Won when its linked PO is approved.
+      if (!existing.dealId) {
+        const dealName = `${existing.customer?.name || "Customer"} — ${existing.quotationCode}`;
+        const deal = await tx.deal.create({
+          data: {
+            dealName,
+            customerId: existing.customerId,
+            dealValue: existing.finalAmount,
+            expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            status: "DemoAccepted",
+            probabilityPercent: 100,
+            companyId: user.companyId,
+            assignedUserId: existing.assignedUserId || user.id,
+            notes: `Auto-created from Quotation ${existing.quotationCode} on acceptance`,
+          },
         });
 
-        if (deal && deal.status !== "Won") {
-          // Use transitionDealStatus for proper history, audit, customer sync, notifications
-          await transitionDealStatus(deal.id, "Won", {
-            actorId: user.id,
-            reason: `Won via quotation ${existing.quotationCode} acceptance`,
-            companyId: user.companyId!,
-          }, tx);
-        }
+        await tx.dealStageHistory.create({
+          data: {
+            dealId: deal.id,
+            fromStatus: null,
+            toStatus: "DemoAccepted",
+            changedById: user.id,
+            outcomeNotes: `Auto-created from Quotation ${existing.quotationCode}`,
+          },
+        });
+
+        await tx.quotation.update({
+          where: { id: existing.id },
+          data: { dealId: deal.id },
+        });
       }
 
       // 4. Customer status sync is handled by transitionDealStatus on Won

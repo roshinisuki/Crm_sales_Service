@@ -563,6 +563,8 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
       setFuModal(true);
     } else if (actionParam === "convert") {
       openConvertV2();
+    } else if (actionParam === "qualify") {
+      setQualModalOpen(true);
     }
   }, [searchParams, lead]);
 
@@ -906,13 +908,17 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               <span className="text-[11px] font-mono font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded">{lead.leadCode}</span>
               <StatusBadge status={lead.status} showDot size="md" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-6 gap-y-3 mt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-x-6 gap-y-3 mt-3">
               {lead.email && (
                 <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
                   <Mail size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
                   <span className="truncate" title={lead.email}>{lead.email}</span>
                 </div>
               )}
+              <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
+                <Phone size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
+                <span className="truncate" title={lead.phone || "Not provided"}>{lead.phone || "—"}</span>
+              </div>
               <div className="flex items-center gap-2 text-[14px] text-slate-600 dark:text-slate-350 min-w-0">
                 <Building2 size={16} className="text-[#6B7280] shrink-0" strokeWidth={2} />
                 <span className="truncate" title={lead.companyName || lead.leadSource || "-"}>
@@ -980,6 +986,7 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
               { label: "Company", value: lead.companyName || "-", truncate: true },
               { label: "Designation", value: lead.designation || "-", truncate: true },
               { label: "Email", value: lead.email || "-", truncate: true },
+              { label: "Phone", value: lead.phone || "-", truncate: true },
               { label: "Industry", value: lead.industryType || "-" },
               { label: "Lead Source", value: lead.leadSource || "-" },
               { label: "Est. Value", value: lead.estimatedValue ? `Rs.${lead.estimatedValue.toLocaleString("en-IN")}` : "-" },

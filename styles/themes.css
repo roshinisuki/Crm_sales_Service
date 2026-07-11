@@ -65,7 +65,7 @@
   --table-selected-bg: var(--accent-soft);
   --table-row-alt-bg: var(--surface-2);
 
-  --sidebar-hover: color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover: rgba(255, 255, 255, 0.22);
   --sidebar-active: var(--brand-primary);
   --sidebar-active-bg: var(--brand-primary);
 
@@ -111,7 +111,7 @@
   --table-selected-bg: var(--accent-soft);
   --table-row-alt-bg: var(--surface-2);
 
-  --sidebar-hover: color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover: rgba(255, 255, 255, 0.22);
   --sidebar-active: var(--brand-primary);
   --sidebar-active-bg: var(--brand-primary);
 
@@ -157,7 +157,7 @@
   --table-selected-bg: var(--accent-soft);
   --table-row-alt-bg: var(--surface-2);
 
-  --sidebar-hover: color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover: rgba(255, 255, 255, 0.22);
   --sidebar-active: var(--brand-primary);
   --sidebar-active-bg: var(--brand-primary);
 
@@ -203,7 +203,7 @@
   --table-selected-bg: var(--accent-soft);
   --table-row-alt-bg: var(--surface-2);
 
-  --sidebar-hover: color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover: rgba(255, 255, 255, 0.22);
   --sidebar-active: var(--brand-primary);
   --sidebar-active-bg: var(--brand-primary);
 
@@ -281,6 +281,23 @@
   --info:               var(--status-info);
   --info-bg:            rgba(59,130,246,0.2);
 
+  /* Dark mode overrides for semantic status tokens used directly by components */
+  --status-success-bg:    rgba(16,185,129,0.2);
+  --status-success-text:  #6EE7B7;
+  --status-success-border:rgba(16,185,129,0.4);
+
+  --status-danger-bg:     rgba(239,68,68,0.2);
+  --status-danger-text:   #FCA5A5;
+  --status-danger-border: rgba(239,68,68,0.4);
+
+  --status-warning-bg:    rgba(245,158,11,0.2);
+  --status-warning-text:  #FCD34D;
+  --status-warning-border:rgba(245,158,11,0.4);
+
+  --status-info-bg:       rgba(59,130,246,0.2);
+  --status-info-text:     #93C5FD;
+  --status-info-border:   rgba(59,130,246,0.4);
+
   --card-shadow:        0 1px 2px 0 rgba(0,0,0,0.5);
   --card-shadow-md:     0 4px 6px -1px rgba(0,0,0,0.5);
 
@@ -322,7 +339,7 @@
 
   --text-on-brand:        #1A1A1A;
 
-  --sidebar-hover:        color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover:        rgba(255, 255, 255, 0.22);
   --sidebar-active:       var(--brand-primary);
   --sidebar-active-bg:    var(--brand-primary);
 
@@ -351,7 +368,7 @@
 
   --text-on-brand:        #1A1A1A;
 
-  --sidebar-hover:        color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover:        rgba(255, 255, 255, 0.22);
   --sidebar-active:       var(--brand-primary);
   --sidebar-active-bg:    var(--brand-primary);
 
@@ -380,7 +397,7 @@
 
   --text-on-brand:        #1A1A1A;
 
-  --sidebar-hover:        color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover:        rgba(255, 255, 255, 0.22);
   --sidebar-active:       var(--brand-primary);
   --sidebar-active-bg:    var(--brand-primary);
 
@@ -409,7 +426,7 @@
 
   --text-on-brand:        #1A1A1A;
 
-  --sidebar-hover:        color-mix(in srgb, var(--brand-primary) 15%, transparent);
+  --sidebar-hover:        rgba(255, 255, 255, 0.22);
   --sidebar-active:       var(--brand-primary);
   --sidebar-active-bg:    var(--brand-primary);
 

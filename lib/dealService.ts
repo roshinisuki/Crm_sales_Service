@@ -16,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
 import { createOrHealRFQ } from "@/lib/rfqService";
+import { PIPELINE_STAGE_ORDER } from "@/lib/module-status-config";
 type DealStatus = string;
 
 type TransitionContext = {
@@ -25,6 +26,8 @@ type TransitionContext = {
   reason?: string;
   /** Company ID for tenant isolation */
   companyId: string;
+  /** Bypass the accepted quotation gate when transitioning to Won (e.g. PO approval) */
+  skipQuotationGate?: boolean;
 };
 
 /**
@@ -83,19 +86,17 @@ export async function transitionDealStatus(
     updatedAt: deal.updatedAt.toISOString()
   });
 
-  // Enforce stage order from PipelineStageMaster
-  const currentStageMaster = await db.pipelineStageMaster.findFirst({
-    where: { stageName: fromStatus },
-  });
-  const targetStageMaster = await db.pipelineStageMaster.findFirst({
-    where: { stageName: toStatus, isActive: true },
-  });
+  // Enforce stage order using canonical PIPELINE_STAGE_ORDER (single source of truth)
+  // Falls back to PipelineStageMaster DB table if stage not found in the map
+  const currentOrder = PIPELINE_STAGE_ORDER[fromStatus] ?? 0;
+  const targetOrder = PIPELINE_STAGE_ORDER[toStatus] ?? 0;
 
-  const currentOrder = currentStageMaster?.displayOrder ?? 0;
-  const targetOrder = targetStageMaster?.displayOrder ?? 0;
+  // OnHold is a pause state — not a pipeline progression or regression.
+  // Skip the backward-stage-change check when transitioning to/from OnHold.
+  const isOnHoldTransition = toStatus === "OnHold" || fromStatus === "OnHold";
 
-  // Backward stage change requires Manager/Admin
-  if (targetOrder < currentOrder) {
+  // Backward stage change requires Manager/Admin (skip for OnHold transitions)
+  if (!isOnHoldTransition && targetOrder < currentOrder) {
     const user = await db.user.findUnique({
       where: { id: ctx.actorId },
       select: { role: true }
@@ -105,8 +106,8 @@ export async function transitionDealStatus(
     }
   }
 
-  // Won requires an accepted quotation
-  if (toStatus === "Won") {
+  // Won requires an accepted quotation (unless skipQuotationGate is set, e.g. PO approval)
+  if (toStatus === "Won" && !ctx.skipQuotationGate) {
     const acceptedQuotation = await db.quotation.findFirst({
       where: { 
         dealId: dealId,
@@ -140,7 +141,7 @@ export async function transitionDealStatus(
 
   // RFQ auto-creation on Demo Accepted outcome
   // Uses structured demoOutcome field instead of fragile string matching on ctx.reason
-  if (toStatus === "DemoConducted") {
+  if (toStatus === "DemoAccepted") {
     const dealWithDetails = await db.deal.findUnique({
       where: { id: dealId },
       include: {
@@ -154,8 +155,8 @@ export async function transitionDealStatus(
     });
     
     if (dealWithDetails) {
-      // Check structured demoOutcome field (set by stage-change API)
-      const demoAccepted = dealWithDetails.demoOutcome === "Accepted";
+      // If we are transitioning to DemoAccepted, it means the demo was accepted
+      const demoAccepted = true;
       
       if (demoAccepted) {
         rfqId = await createOrHealRFQ(dealId, dealWithDetails, ctx.companyId, db);

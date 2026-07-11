@@ -153,3 +153,7 @@ vite.config.ts.timestamp-*
 
 # Runtime uploads (user/test uploaded files)
 /public/uploads/
+
+# Scratch / debug artifacts
+scratch/
+tsc_errors*.txt

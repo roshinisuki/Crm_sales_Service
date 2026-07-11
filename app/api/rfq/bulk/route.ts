@@ -45,17 +45,37 @@ export async function POST(request: NextRequest) {
       affectedCount = result.count;
     } else if (action === "status") {
       if (!value) return NextResponse.json({ success: false, message: "Status value is required" }, { status: 400 });
-      const validStatuses = ["New", "UnderReview", "CostingPending", "QuotationCreated", "Closed"];
+      const validStatuses = ["New", "UnderReview", "CostingPending", "CostingCompleted", "Closed"];
       if (!validStatuses.includes(value)) {
         return NextResponse.json({ success: false, message: "Invalid status" }, { status: 400 });
       }
+      const targetIdx = validStatuses.indexOf(value);
+      const skipped: string[] = [];
+      const eligible: string[] = [];
+
+      for (const rfq of rfqs) {
+        const currentIdx = validStatuses.indexOf(rfq.status);
+        if (targetIdx > currentIdx + 1) {
+          skipped.push(`${rfq.rfqCode} (${rfq.status} → ${value})`);
+        } else {
+          eligible.push(rfq.id);
+        }
+      }
+
+      if (eligible.length === 0) {
+        return NextResponse.json({
+          success: false,
+          message: `All selected RFQs would skip statuses. Skipped: ${skipped.join(", ")}`,
+        }, { status: 400 });
+      }
+
       const result = await prisma.rFQ.updateMany({
-        where: { id: { in: rfq_ids }, deletedAt: null },
+        where: { id: { in: eligible }, deletedAt: null },
         data: { status: value },
       });
       // Create status history entries
       for (const rfq of rfqs) {
-        if (rfq.status !== value) {
+        if (eligible.includes(rfq.id) && rfq.status !== value) {
           await prisma.rFQStatusHistory.create({
             data: {
               rfqId: rfq.id,

@@ -50,9 +50,17 @@ export async function GET(
       where: { productId: lineItem.productId, companyId: user.companyId },
     });
     if (boms.length > 0) {
+      const now = new Date();
       for (const bom of boms) {
         const materials = await prisma.materialRate.findMany({
-          where: { materialCode: bom.materialCode, companyId: user.companyId },
+          where: { 
+            materialCode: bom.materialCode, 
+            companyId: user.companyId,
+            validFrom: { lte: now },
+            OR: [{ validTo: null }, { validTo: { gte: now } }],
+          },
+          orderBy: { validFrom: "desc" },
+          take: 1,
         });
         const rate = materials[0];
         if (rate) {
@@ -68,9 +76,17 @@ export async function GET(
       orderBy: { sequence: "asc" },
     });
     if (ops.length > 0) {
+      const now = new Date();
       for (const op of ops) {
         const rates = await prisma.laborRate.findMany({
-          where: { workCenter: op.workCenter, companyId: user.companyId },
+          where: { 
+            workCenter: op.workCenter, 
+            companyId: user.companyId,
+            validFrom: { lte: now },
+            OR: [{ validTo: null }, { validTo: { gte: now } }],
+          },
+          orderBy: { validFrom: "desc" },
+          take: 1,
         });
         const rate = rates[0];
         if (rate) {

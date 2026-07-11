@@ -5,7 +5,7 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
 import { revalidatePath } from "next/cache";
-import { getFollowUpsAction } from "@/app/actions/followUps";
+import { getFollowUpsAction, getStageAtCreation } from "@/app/actions/followUps";
 import { buildScope, checkRecordScope } from "@/lib/scopes";
 
 // ═══════════════════════════════════════════════════════════════
@@ -597,6 +597,7 @@ export async function checkOutInboundAction(data: {
           sourceId: visit.id,
           autoCreated: true,
           companyId: userPayload.companyId,
+          stageAtCreation: "Deal",
         }
       });
     }
@@ -847,6 +848,7 @@ export async function checkOutOutboundAction(data: {
 
     // Create follow-up reminder if next date is provided
     if (nextMeetingDate) {
+      const stageAtCreation = await getStageAtCreation(prisma, visit.leadId || null, visit.customerId || null);
       await prisma.followUp.create({
         data: {
           customerId: visit.customerId || null,
@@ -862,6 +864,7 @@ export async function checkOutOutboundAction(data: {
           sourceId: visit.id,
           autoCreated: true,
           companyId: userPayload.companyId,
+          stageAtCreation,
         }
       });
     }
