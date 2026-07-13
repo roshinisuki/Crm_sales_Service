@@ -513,6 +513,8 @@ async function main() {
         status: fu.status,
         companyId: defaultCompany.id,
         updatedAt: now,
+        type: "Call",
+        sourceType: "AUTO",
       },
     });
   }

@@ -157,3 +157,5 @@ vite.config.ts.timestamp-*
 # Scratch / debug artifacts
 scratch/
 tsc_errors*.txt
+
+backup/
