@@ -132,7 +132,7 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
     });
   }
 
-  // 7. Seed Service Status (lifecycle statuses)
+  // 7. Seed Service Status (lifecycle statuses) — one set per module
   console.log("Seeding Service Statuses...");
   const serviceStatuses = [
     { name: "New", color: "var(--brand-primary, #FF6901)", order: 1, allowedTransitions: '["Assigned", "Closed"]' },
@@ -142,17 +142,21 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
     { name: "Resolved", color: "#10B981", order: 5, allowedTransitions: '["Closed", "In Progress"]' },
     { name: "Closed", color: "#6B7280", order: 6, allowedTransitions: '["New"]' }
   ];
-  for (const stat of serviceStatuses) {
-    await prisma.serviceStatus.create({
-      data: {
-        id: uuidv4(),
-        name: stat.name,
-        color: stat.color,
-        order: stat.order,
-        allowedTransitions: stat.allowedTransitions,
-        isActive: true
-      }
-    });
+  const statusModules = ["request", "complaint", "defect", "installation", "visit", "warranty", "amc"];
+  for (const module of statusModules) {
+    for (const stat of serviceStatuses) {
+      await prisma.serviceStatus.create({
+        data: {
+          id: uuidv4(),
+          name: stat.name,
+          module,
+          color: stat.color,
+          order: stat.order,
+          allowedTransitions: stat.allowedTransitions,
+          isActive: true
+        }
+      });
+    }
   }
 
   // 8. Seed Service Teams (6 teams)
@@ -179,7 +183,7 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
     createdTeams.push(team);
   }
 
-  // 9. Seed Service Engineers (18 engineers)
+  // 9. Seed Service Engineers (6 engineers)
   console.log("Seeding Service Engineers...");
   const specializations = [
     "Compressor Diagnostics",
@@ -189,7 +193,7 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
     "Air System Commissioning",
     "Pressure Telemetry Testing"
   ];
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 6; i++) {
     const userIndex = i % users.length;
     const teamIndex = i % createdTeams.length;
     const spec = specializations[i % specializations.length];
@@ -204,7 +208,7 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
     });
   }
 
-  // 10. Seed Customer Assets (60 customer assets)
+  // 10. Seed Customer Assets (10 customer assets)
   console.log("Seeding Customer Assets...");
   const products = [
     "Air Compressor AC-400",
@@ -214,16 +218,14 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
     "High Flow Filtration Unit FU-15",
     "Calibration Pressure Vessel PV-45"
   ];
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 10; i++) {
     const customer = customers[i % customers.length];
     const serial = `SN-${2026000 + i}`;
     const prod = products[i % products.length];
 
-    // Compute dates
     const purchaseDate = new Date();
-    purchaseDate.setMonth(purchaseDate.getMonth() - (i % 24)); // purchased up to 2 years ago
+    purchaseDate.setMonth(purchaseDate.getMonth() - (i % 24));
 
-    // Half under warranty, half under AMC
     const warrantyExpiry = new Date(purchaseDate);
     warrantyExpiry.setFullYear(warrantyExpiry.getFullYear() + 1);
 
@@ -239,7 +241,7 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
         purchaseDate,
         warrantyExpiryDate: i % 2 === 0 ? warrantyExpiry : null,
         amcExpiryDate: i % 2 !== 0 ? amcExpiry : null,
-        status: i % 15 === 0 ? "Expired" : "Active"
+        status: i % 5 === 0 ? "Expired" : "Active"
       }
     });
   }

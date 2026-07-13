@@ -1,20 +1,25 @@
 "use client";
  
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { serviceModulesConfig } from "@/lib/config/serviceModuleConfig";
 import ServiceModuleListPage from "@/components/shared/ServiceModuleListPage";
 import ServiceModuleDetailPage from "@/components/shared/ServiceModuleDetailPage";
 import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
+import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
+import { Calendar, HelpCircle, Search as SearchIcon, Wrench, CheckCircle, RotateCcw } from "lucide-react";
  
 export default function ServiceDefectsPage() {
   const config = serviceModulesConfig.defects;
+  const router = useRouter();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refData, setRefData] = useState<any>({});
- 
+  const [kpiFilter, setKpiFilter] = useState("");
+
   // Interactive Modal States
   const [isCorrectiveOpen, setIsCorrectiveOpen] = useState(false);
   const [correctiveAction, setCorrectiveAction] = useState("");
@@ -209,6 +214,39 @@ export default function ServiceDefectsPage() {
     }
   };
  
+  // KPI computations from live data
+  const kpiStats = useMemo(() => {
+    const monthAgo = new Date();
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    return {
+      total: data.length,
+      underInvestigation: data.filter(d => d.status === "Under Investigation" || d.status === "Investigating").length,
+      awaitingCorrective: data.filter(d => d.status === "Corrective Action" || d.status === "Awaiting Corrective Action").length,
+      closedThisMonth: data.filter(d => {
+        if (d.status !== "Closed") return false;
+        const updated = new Date(d.updatedAt || d.closedAt || d.createdAt);
+        return updated >= monthAgo;
+      }).length,
+      reopened: data.filter(d => d.status === "Reopened").length,
+    };
+  }, [data]);
+
+  const kpiFilterMap: Record<string, (d: any) => boolean> = {
+    "Total Defects": () => true,
+    "Under Investigation": (d) => d.status === "Under Investigation" || d.status === "Investigating",
+    "Awaiting Corrective Action": (d) => d.status === "Corrective Action" || d.status === "Awaiting Corrective Action",
+    "Closed This Month": (d) => {
+      const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+      return d.status === "Closed" && new Date(d.updatedAt || d.closedAt || d.createdAt) >= monthAgo;
+    },
+    "Reopened": (d) => d.status === "Reopened",
+  };
+
+  const filteredKpiData = useMemo(() => {
+    if (!kpiFilter) return data;
+    return data.filter(d => kpiFilterMap[kpiFilter]?.(d) ?? true);
+  }, [data, kpiFilter]);
+
   const handleCreateNew = async (formData: any) => {
     try {
       const createdById = "user-1";
@@ -257,7 +295,17 @@ export default function ServiceDefectsPage() {
           onBack={() => setSelectedRow(null)}
           onStatusTransition={handleStatusTransition}
           onTriggerAction={handleTriggerAction}
-          customWidgets={<LinkedVisitsPanel visits={selectedRow.visits} />}
+          customWidgets={
+            <div className="space-y-4">
+              <button
+                onClick={() => router.push(`/service/visits?customerId=${selectedRow.customerId || ""}&customerAssetId=${selectedRow.customerAssetId || ""}&sourceType=defect&sourceId=${selectedRow.id}`)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold transition-colors"
+              >
+                <Calendar size={14} /> Log Service Visit
+              </button>
+              <LinkedVisitsPanel visits={selectedRow.visits} />
+            </div>
+          }
         />
       ) : isFormOpen ? (
         <div className="py-6">
@@ -269,14 +317,23 @@ export default function ServiceDefectsPage() {
           />
         </div>
       ) : (
-        <ServiceModuleListPage 
-          config={config} 
-          data={data} 
-          loading={loading}
-          onRefresh={fetchData}
-          onCreateNew={() => setIsFormOpen(true)}
-          onRowClick={(row) => setSelectedRow(row)}
-        />
+        <div className="space-y-4">
+          <ServiceKPIGrid>
+            <ServiceKPICard label="Total Defects" value={kpiStats.total} icon={<HelpCircle size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Defects"} />
+            <ServiceKPICard label="Under Investigation" value={kpiStats.underInvestigation} icon={<SearchIcon size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Under Investigation"} />
+            <ServiceKPICard label="Awaiting Corrective Action" value={kpiStats.awaitingCorrective} icon={<Wrench size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Awaiting Corrective Action"} />
+            <ServiceKPICard label="Closed This Month" value={kpiStats.closedThisMonth} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Closed This Month"} />
+            <ServiceKPICard label="Reopened" value={kpiStats.reopened} icon={<RotateCcw size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Reopened"} />
+          </ServiceKPIGrid>
+          <ServiceModuleListPage
+            config={config}
+            data={filteredKpiData}
+            loading={loading}
+            onRefresh={fetchData}
+            onCreateNew={() => setIsFormOpen(true)}
+            onRowClick={(row) => setSelectedRow(row)}
+          />
+        </div>
       )}
  
       {/* Log Corrective Action Modal */}

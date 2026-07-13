@@ -1,63 +1,79 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { WarrantyAMCContextCard, AssetHistoryPanel } from "@/components/shared/ServiceComponents";
-import { Search, Plus, Filter, HardDrive, RefreshCw } from "lucide-react";
+import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
+import { Search, Plus, Filter, HardDrive, RefreshCw, Calendar, ChevronLeft, Package, AlertCircle, CheckCircle, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
 
-// Mock customer assets data
-const mockAssets: any[] = [
-  {
-    id: "asset-1",
-    serialNumber: "SN-98273-A",
-    productName: "Heavy Duty Air Compressor v4",
-    customer: { name: "Apex Engineering Solutions" },
-    purchaseDate: "2025-01-15",
-    warrantyExpiryDate: "2027-01-15",
-    amcExpiryDate: "2028-01-15",
-    status: "Active",
-    history: [
-      { id: "h-1", type: "Installation", description: "Completed initial commissioning and load testing.", date: "2025-01-16", engineerName: "Ramesh Sharma" },
-      { id: "h-2", type: "Preventative Maintenance", description: "Replaced air filters and check lubrication.", date: "2025-06-15", engineerName: "Suresh Patel" }
-    ]
-  },
-  {
-    id: "asset-2",
-    serialNumber: "SN-10293-B",
-    productName: "Hydraulic Press Pump H-200",
-    customer: { name: "Vertex Manufacturing Corp" },
-    purchaseDate: "2024-05-10",
-    warrantyExpiryDate: "2025-05-10",
-    amcExpiryDate: "2026-05-10",
-    status: "Active",
-    history: [
-      { id: "h-3", type: "Installation", description: "Commissioned hydraulic lines and calibrated pressure sensors.", date: "2024-05-12", engineerName: "Suresh Patel" },
-      { id: "h-4", type: "Repair", description: "Fixed oil valve gasket leak.", date: "2026-07-08", engineerName: "Ramesh Sharma" }
-    ]
-  },
-  {
-    id: "asset-3",
-    serialNumber: "SN-44392-C",
-    productName: "Pneumatic Valve Module X-100",
-    customer: { name: "Aero Engine Corp" },
-    purchaseDate: "2024-03-12",
-    warrantyExpiryDate: "2025-03-12",
-    amcExpiryDate: "2024-03-12",
-    status: "Expired",
-    history: [
-      { id: "h-5", type: "Installation", description: "Installed valve assembly.", date: "2024-03-15", engineerName: "Unassigned" }
-    ]
-  }
-];
-
 export default function CustomerAssetsPage() {
-  const [data, setData] = useState<any[]>(mockAssets);
+  const router = useRouter();
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
+  const [assetVisits, setAssetVisits] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [kpiFilter, setKpiFilter] = useState("");
+
+  const fetchAssets = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter !== "All") params.set("status", statusFilter);
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      const res = await fetch(`/api/service/assets?${params.toString()}`);
+      const json = await res.json();
+      if (json.success) {
+        setData(json.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch customer assets:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, searchQuery]);
+
+  useEffect(() => {
+    fetchAssets();
+  }, [fetchAssets]);
+
+  // Fetch visits when an asset is selected
+  useEffect(() => {
+    if (selectedAsset) {
+      fetch(`/api/service/visits?customerAssetId=${selectedAsset.id}`)
+        .then(res => res.ok ? res.json() : [])
+        .then(json => setAssetVisits(json))
+        .catch(() => setAssetVisits([]));
+    } else {
+      setAssetVisits([]);
+    }
+  }, [selectedAsset]);
+
+  // KPI computations from live data
+  const kpiStats = useMemo(() => {
+    const now = new Date();
+    return {
+      total: data.length,
+      newlyOnboarded: data.filter(d => !d.serialNumber || d.serialNumber === "" || d.installationStatus === "Pending").length,
+      installedActive: data.filter(d => d.status === "Active" || d.installationStatus === "Installed").length,
+      underWarranty: data.filter(d => d.warrantyExpiryDate && new Date(d.warrantyExpiryDate) > now).length,
+      underAMC: data.filter(d => d.amcExpiryDate && new Date(d.amcExpiryDate) > now).length,
+    };
+  }, [data]);
+
+  const kpiFilterMap: Record<string, (d: any) => boolean> = {
+    "Total Assets": () => true,
+    "Newly Onboarded": (d) => !d.serialNumber || d.serialNumber === "" || d.installationStatus === "Pending",
+    "Installed & Active": (d) => d.status === "Active" || d.installationStatus === "Installed",
+    "Under Warranty": (d) => d.warrantyExpiryDate && new Date(d.warrantyExpiryDate) > new Date(),
+    "Under AMC": (d) => d.amcExpiryDate && new Date(d.amcExpiryDate) > new Date(),
+  };
 
   const filteredData = data.filter(item => {
+    if (kpiFilter && kpiFilterMap[kpiFilter] && !kpiFilterMap[kpiFilter](item)) return false;
     if (statusFilter !== "All" && item.status !== statusFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -72,8 +88,9 @@ export default function CustomerAssetsPage() {
   const columns: ColumnDef<any>[] = [
     { header: "Serial Number", accessorKey: "serialNumber" },
     { header: "Product Name", accessorKey: "productName" },
-    { header: "Customer", cell: (row) => <span>{row.customer.name}</span> },
-    { header: "Purchase Date", cell: (row) => <span>{new Date(row.purchaseDate).toLocaleDateString()}</span> },
+    { header: "Customer", cell: (row) => <span>{row.customer?.name || "-"}</span> },
+    { header: "Purchase Date", cell: (row) => <span>{row.purchaseDate ? new Date(row.purchaseDate).toLocaleDateString() : "-"}</span> },
+    { header: "Originating PO", cell: (row) => <span className="text-[10px] font-mono">{row.purchaseOrder?.poCode || "-"}</span> },
     { 
       header: "Status", 
       cell: (row) => (
@@ -112,13 +129,67 @@ export default function CustomerAssetsPage() {
           <span className="text-[10px] font-mono tracking-wider text-[var(--text-muted)]">{selectedAsset.serialNumber}</span>
           <h2 className="text-xl font-black text-[var(--text-primary)]">{selectedAsset.productName}</h2>
           <p className="text-xs text-[var(--text-secondary)]">
-            Assigned Customer: <span className="text-[var(--text-primary)] font-semibold">{selectedAsset.customer.name}</span>
+            Assigned Customer: <span className="text-[var(--text-primary)] font-semibold">{selectedAsset.customer?.name || "N/A"}</span>
           </p>
+          {selectedAsset.purchaseOrder?.poCode && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Originating PO: <span className="text-[var(--text-primary)] font-mono font-semibold">{selectedAsset.purchaseOrder.poCode}</span>
+            </p>
+          )}
+          {selectedAsset.deal?.opportunityCode && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Originating Opportunity: <span className="text-[var(--text-primary)] font-mono font-semibold">{selectedAsset.deal.opportunityCode}</span>
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-6">
             <AssetHistoryPanel events={selectedAsset.history || []} />
+
+ {/* Service Visits Section */}
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 space-y-4 backdrop-blur-md">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)]">Service Visits</h3>
+                <button
+                  onClick={() => router.push(`/service/visits?customerId=${selectedAsset.customerId || ""}&customerAssetId=${selectedAsset.id}`)}
+                  className="flex items-center gap-1 px-3 py-1 bg-brand hover:bg-brand-hover text-white rounded-lg text-[10px] font-bold transition-colors"
+                >
+                  <Calendar size={12} /> Log Visit
+                </button>
+              </div>
+              {assetVisits.length === 0 ? (
+                <p className="text-xs text-[var(--text-muted)] py-4 text-center">No service visits logged for this asset yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {assetVisits.map((v: any) => {
+                    const statusName = v.status?.name || "Unknown";
+                    const isOverdue = (statusName === "Scheduled" || statusName === "Assigned") && v.scheduledDate && new Date(v.scheduledDate) < new Date();
+                    const liveStatus = isOverdue ? "Overdue" : statusName;
+                    return (
+                      <div key={v.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2">
+                        <div className="flex items-center gap-3">
+                          <div className="text-xs">
+                            <div className="font-bold text-[var(--text-primary)]">
+                              {v.scheduledDate ? new Date(v.scheduledDate).toLocaleDateString() : "Unscheduled"}
+                            </div>
+                            <div className="text-[10px] text-[var(--text-secondary)]">{v.engineer?.user?.name || "Unassigned"}</div>
+                          </div>
+                        </div>
+                        <span className={cn(
+                          "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                          liveStatus === "Overdue" ? "bg-red-500/10 text-red-500 border-red-500/20" :
+                          liveStatus === "Completed" || liveStatus === "Closed" ? "bg-green-500/10 text-green-500 border-green-500/20" :
+                          "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                        )}>
+                          {liveStatus}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -140,7 +211,22 @@ export default function CustomerAssetsPage() {
           <h1 className="text-xl font-black text-[var(--text-primary)]">Customer Assets (Installed Products)</h1>
           <p className="text-xs text-[var(--text-muted)]">Trace registered product serial numbers, warranty, and AMC coverages.</p>
         </div>
+        <button
+          onClick={fetchAssets}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
       </div>
+
+      <ServiceKPIGrid>
+        <ServiceKPICard label="Total Assets" value={kpiStats.total} icon={<Package size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Assets"} />
+        <ServiceKPICard label="Newly Onboarded" value={kpiStats.newlyOnboarded} icon={<AlertCircle size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Newly Onboarded"} />
+        <ServiceKPICard label="Installed & Active" value={kpiStats.installedActive} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Installed & Active"} />
+        <ServiceKPICard label="Under Warranty" value={kpiStats.underWarranty} icon={<ShieldCheck size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Under Warranty"} />
+        <ServiceKPICard label="Under AMC" value={kpiStats.underAMC} icon={<ShieldCheck size={20} className="text-cyan-500" />} color="bg-cyan-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Under AMC"} />
+      </ServiceKPIGrid>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[var(--surface)] border border-[var(--border)] p-3 rounded-xl backdrop-blur-md">
         <div className="relative md:col-span-2">

@@ -17,7 +17,8 @@ import {
   CheckSquare, Settings, LogOut, Menu, X, TrendingUp, Building,
   ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo,
   Package, FileText, IndianRupee, MessageSquare, Clock, Target, Layers, MapPin, Search,
-  Swords, Crown, Globe, Trophy, Wrench, ShieldAlert, Hammer, LifeBuoy, AlertTriangle, HelpCircle, Calendar
+  Swords, Crown, Globe, Trophy, Wrench, ShieldAlert, Hammer, LifeBuoy, AlertTriangle, HelpCircle, Calendar,
+  HardDrive
 } from "lucide-react";
 
 // ─── Nav definitions ─────────────────────────────────────────────────────────
@@ -1021,6 +1022,10 @@ function SidebarContent({
     { href: "/deals?status=Lost", label: "Lost Deals" },
   ];
 
+  const customerAssetSubItems = [
+    { href: "/customer-assets", label: "Overview" },
+  ];
+
   const reportsSubItemsV3 = isVariant3 ? [
     { href: "/reports/samples", label: "Sample Report" },
     { href: "/reports/negotiations", label: "Negotiation Report" },
@@ -1412,6 +1417,9 @@ function SidebarContent({
                 {isVariant2 && hasPerm("Deals") && (
                   <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Deals"} onToggle={makeToggle("Deals")} onOpen={openSectionLabel("Deals")} />
                 )}
+                {isVariant2 && (
+                  <ExpandableNavSection label="Customer Assets" icon={<HardDrive size={17} />} subItems={customerAssetSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Assets"} onToggle={makeToggle("Customer Assets")} onOpen={openSectionLabel("Customer Assets")} />
+                )}
                 {hasPerm("Tasks") && <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} onOpen={openSectionLabel("Tasks")} />}
                 {hasPerm("Follow Ups") && <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} onOpen={openSectionLabel("Follow Ups")} />}
 
@@ -1549,6 +1557,7 @@ const PATH_MODULE_MAP: Record<string, string> = {
   "/negotiations": "Negotiations",
   "/purchase-orders": "Purchase Orders",
   "/deals": "Deals",
+  "/customer-assets": "Customer Assets",
   "/tasks": "Tasks",
   "/follow-up": "Follow Ups",
   "/documents": "Documents",

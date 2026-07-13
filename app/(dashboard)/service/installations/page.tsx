@@ -1,11 +1,13 @@
 "use client";
  
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { serviceModulesConfig } from "@/lib/config/serviceModuleConfig";
 import ServiceModuleListPage from "@/components/shared/ServiceModuleListPage";
 import ServiceModuleDetailPage from "@/components/shared/ServiceModuleDetailPage";
 import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
+import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
+import { Hammer, Calendar, Clock, CheckCircle, AlertTriangle } from "lucide-react";
  
 export default function ServiceInstallationsPage() {
   const config = serviceModulesConfig.installations;
@@ -14,7 +16,8 @@ export default function ServiceInstallationsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refData, setRefData] = useState<any>({});
- 
+  const [kpiFilter, setKpiFilter] = useState("");
+
   // Interactive Modal States
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [startDate, setStartDate] = useState("");
@@ -228,6 +231,39 @@ export default function ServiceInstallationsPage() {
     }
   };
  
+  // KPI computations from live data
+  const kpiStats = useMemo(() => {
+    const monthAgo = new Date();
+    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    return {
+      total: data.length,
+      scheduled: data.filter(d => d.status === "Scheduled" || d.status === "New" || d.status === "Assigned").length,
+      inProgress: data.filter(d => d.status === "In Progress").length,
+      completedThisMonth: data.filter(d => {
+        if (d.status !== "Completed" && d.status !== "Closed") return false;
+        const updated = new Date(d.updatedAt || d.closedAt || d.createdAt);
+        return updated >= monthAgo;
+      }).length,
+      failedNeedsFollowup: data.filter(d => d.status === "Failed" || d.status === "Needs Follow-up" || d.status === "Scheduled").length,
+    };
+  }, [data]);
+
+  const kpiFilterMap: Record<string, (d: any) => boolean> = {
+    "Total Installations": () => true,
+    "Scheduled": (d) => d.status === "Scheduled" || d.status === "New" || d.status === "Assigned",
+    "In Progress": (d) => d.status === "In Progress",
+    "Completed This Month": (d) => {
+      const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
+      return (d.status === "Completed" || d.status === "Closed") && new Date(d.updatedAt || d.closedAt || d.createdAt) >= monthAgo;
+    },
+    "Failed/Needs Follow-up": (d) => d.status === "Failed" || d.status === "Needs Follow-up",
+  };
+
+  const filteredKpiData = useMemo(() => {
+    if (!kpiFilter) return data;
+    return data.filter(d => kpiFilterMap[kpiFilter]?.(d) ?? true);
+  }, [data, kpiFilter]);
+
   const handleCreateNew = async (formData: any) => {
     try {
       const createdById = "user-1";
@@ -286,14 +322,23 @@ export default function ServiceInstallationsPage() {
           />
         </div>
       ) : (
-        <ServiceModuleListPage 
-          config={config} 
-          data={data} 
-          loading={loading}
-          onRefresh={fetchData}
-          onCreateNew={() => setIsFormOpen(true)}
-          onRowClick={(row) => setSelectedRow(row)}
-        />
+        <div className="space-y-4">
+          <ServiceKPIGrid>
+            <ServiceKPICard label="Total Installations" value={kpiStats.total} icon={<Hammer size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Installations"} />
+            <ServiceKPICard label="Scheduled" value={kpiStats.scheduled} icon={<Calendar size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Scheduled"} />
+            <ServiceKPICard label="In Progress" value={kpiStats.inProgress} icon={<Clock size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "In Progress"} />
+            <ServiceKPICard label="Completed This Month" value={kpiStats.completedThisMonth} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Completed This Month"} />
+            <ServiceKPICard label="Failed/Needs Follow-up" value={kpiStats.failedNeedsFollowup} icon={<AlertTriangle size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Failed/Needs Follow-up"} />
+          </ServiceKPIGrid>
+          <ServiceModuleListPage
+            config={config}
+            data={filteredKpiData}
+            loading={loading}
+            onRefresh={fetchData}
+            onCreateNew={() => setIsFormOpen(true)}
+            onRowClick={(row) => setSelectedRow(row)}
+          />
+        </div>
       )}
  
       {/* Start Installation Modal */}

@@ -11,11 +11,22 @@ export async function GET(request: Request) {
       prisma.customerAsset.findMany({ select: { id: true, productName: true, serialNumber: true, customerId: true } }),
       prisma.serviceCategory.findMany({ select: { id: true, name: true } }),
       prisma.priorityLevel.findMany({ select: { id: true, name: true, color: true } }),
-      prisma.serviceStatus.findMany({ 
-        where: moduleName ? { module: moduleName } : undefined,
-        select: { id: true, name: true, color: true },
-        orderBy: { order: "asc" }
-      }),
+      (async () => {
+        const statusSelect = { id: true, name: true, color: true } as const;
+        let statuses = await prisma.serviceStatus.findMany({
+          where: moduleName ? { module: moduleName } : undefined,
+          select: statusSelect,
+          orderBy: { order: "asc" }
+        });
+        // Fallback: if no module-specific statuses, return all active statuses
+        if (statuses.length === 0) {
+          statuses = await prisma.serviceStatus.findMany({
+            select: statusSelect,
+            orderBy: { order: "asc" }
+          });
+        }
+        return statuses;
+      })(),
       prisma.serviceTeam.findMany({ select: { id: true, name: true } }),
       prisma.serviceEngineer.findMany({ 
         select: { id: true, teamId: true, user: { select: { name: true } } } 

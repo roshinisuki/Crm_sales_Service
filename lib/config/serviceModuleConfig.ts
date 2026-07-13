@@ -11,6 +11,8 @@ export interface FieldDef {
   required?: boolean;
   options?: { value: string; label: string }[];
   relationModel?: string; // e.g. 'Customer', 'ServiceTeam', 'User'
+  dependsOn?: string; // field id whose value filters this field's options (e.g. "customerId")
+  placeholderWhenEmpty?: string; // placeholder shown when dependsOn field is not yet selected
 }
 
 export interface ColumnDef {
@@ -103,7 +105,7 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     ],
     formFields: [
       { id: "customerId", label: "Customer", type: "relation", relationModel: "Customer", required: true },
-      { id: "assetId", label: "Customer Asset", type: "relation", relationModel: "CustomerAsset", required: true },
+      { id: "assetId", label: "Customer Asset", type: "relation", relationModel: "CustomerAsset", required: true, dependsOn: "customerId", placeholderWhenEmpty: "Select a customer first" },
       { id: "title", label: "Subject", type: "text", required: true },
       { id: "description", label: "Description", type: "textarea" },
       { id: "priorityId", label: "Priority Level", type: "relation", relationModel: "PriorityLevel", required: true },
@@ -170,7 +172,7 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     ],
     formFields: [
       { id: "customerId", label: "Customer", type: "relation", relationModel: "Customer", required: true },
-      { id: "assetId", label: "Customer Asset", type: "relation", relationModel: "CustomerAsset" },
+      { id: "assetId", label: "Customer Asset", type: "relation", relationModel: "CustomerAsset", dependsOn: "customerId", placeholderWhenEmpty: "Select a customer first" },
       { id: "complaintTypeId", label: "Complaint Type", type: "relation", relationModel: "ComplaintType", required: true },
       { id: "details", label: "Complaint Details", type: "textarea", required: true },
       { id: "priorityId", label: "Priority", type: "relation", relationModel: "PriorityLevel", required: true },
@@ -289,7 +291,7 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     ],
     formFields: [
       { id: "customerId", label: "Customer", type: "relation", relationModel: "Customer", required: true },
-      { id: "assetId", label: "Customer Asset", type: "relation", relationModel: "CustomerAsset", required: true },
+      { id: "assetId", label: "Customer Asset", type: "relation", relationModel: "CustomerAsset", required: true, dependsOn: "customerId", placeholderWhenEmpty: "Select a customer first" },
       { id: "teamId", label: "Service Team", type: "relation", relationModel: "ServiceTeam" },
       { id: "engineerId", label: "Service Engineer", type: "relation", relationModel: "ServiceEngineer" },
       { id: "notes", label: "Installation Notes", type: "textarea" },
@@ -361,14 +363,16 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     ],
     statusOrder: ["Scheduled", "Completed", "Overdue"],
     allowedTransitions: {
-      Scheduled: ["Completed", "Overdue"],
-      Completed: ["Scheduled"],
-      Overdue: ["Completed", "Scheduled"],
+      Scheduled: ["Completed"],
+      Completed: [],
+      Overdue: ["Completed"],
     },
     listColumns: [
       { id: "visitDate", label: "Visit Date", type: "date" },
       { id: "customerId", label: "Customer", type: "relation", relationKey: "customer.name" },
+      { id: "assetId", label: "Asset", type: "relation", relationKey: "customerAsset.productName" },
       { id: "engineerId", label: "Engineer", type: "relation", relationKey: "engineer.user.name" },
+      { id: "source", label: "Source", type: "text" },
       { id: "status", label: "Status", type: "badge" },
     ],
     filterDefinitions: [
@@ -376,17 +380,19 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
         { value: "Scheduled", label: "Scheduled" },
         { value: "Completed", label: "Completed" },
         { value: "Overdue", label: "Overdue" }
-      ]}
+      ]},
+      { id: "engineerId", label: "Engineer", type: "select", options: [] },
     ],
     formFields: [
       { id: "customerId", label: "Customer", type: "relation", relationModel: "Customer", required: true },
+      { id: "assetId", label: "Customer Asset", type: "relation", relationModel: "CustomerAsset", required: true, dependsOn: "customerId", placeholderWhenEmpty: "Select a customer first" },
       { id: "engineerId", label: "Service Engineer", type: "relation", relationModel: "ServiceEngineer", required: true },
       { id: "visitDate", label: "Visit Date", type: "date", required: true },
-      { id: "notes", label: "Notes", type: "textarea" },
+      { id: "notes", label: "Purpose / Notes", type: "textarea" },
     ],
     detailSections: [
-      { id: "general", title: "Visit Information", fields: ["visitDate", "status", "notes"] },
-      { id: "assignments", title: "Engineer", fields: ["engineerId", "customerId"] }
+      { id: "general", title: "Visit Information", fields: ["visitDate", "status", "notes", "outcomeNotes"] },
+      { id: "assignments", title: "Engineer & Customer", fields: ["engineerId", "customerId", "assetId"] }
     ],
     allowedActions: [
       { id: "complete", label: "Mark Completed", variant: "success", requiredStatus: ["Scheduled", "Overdue"] },

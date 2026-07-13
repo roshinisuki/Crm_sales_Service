@@ -155,6 +155,7 @@ model Customer {
   installations          Installation[]
   warrantyClaims         WarrantyClaim[]
   amcContracts           AMCContract[]
+  serviceVisits           ServiceVisit[]
   convertedFromLead      String?
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
@@ -608,6 +609,7 @@ model Deal {
   rfqs                   RFQ[]                        @relation("OpportunityRFQs")
   tasks                  Task[]
   competitorInvolvements CompetitorInvolvement[]      @relation("CompetitorInvolvementDeal")
+  customerAssets         CustomerAsset[]               @relation("CustomerAssetDeal")
 
   @@index([customerId])
   @@index([assignedUserId])
@@ -1227,6 +1229,7 @@ model Product {
   samples            SampleRequest[]
   bomItems           BOMItem[]
   routingOperations  RoutingOperation[]
+  customerAssets     CustomerAsset[]       @relation("CustomerAssetProduct")
 
   @@unique([companyId, productCode])
   @@index([companyId])
@@ -1641,6 +1644,7 @@ model PurchaseOrder {
   negotiation         Negotiation?        @relation(fields: [negotiationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   quotation           Quotation?          @relation(fields: [quotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   items               PurchaseOrderItem[]
+  customerAssets      CustomerAsset[]   @relation("CustomerAssetPO")
 
   @@index([customerId])
   @@index([negotiationId])
@@ -2482,13 +2486,24 @@ model CustomerAsset {
   status             String           @default("Active")
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
+  purchaseOrderId    String?
+  productId          String?
+  dealId             String?
   customer           Customer         @relation("CustomerAssets", fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  purchaseOrder      PurchaseOrder?   @relation("CustomerAssetPO", fields: [purchaseOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  product            Product?         @relation("CustomerAssetProduct", fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deal               Deal?            @relation("CustomerAssetDeal", fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   ServiceRequest     ServiceRequest[]
   Complaint          Complaint[]
   Defect             Defect[]
   Installation       Installation[]
   WarrantyClaim      WarrantyClaim[]
   AMCContract        AMCContract[]
+  ServiceVisit       ServiceVisit[]
+
+  @@index([purchaseOrderId])
+  @@index([productId])
+  @@index([dealId])
 }
 
 model MaterialRate {
@@ -2730,6 +2745,12 @@ model ServiceVisit {
   scheduledDate DateTime?
   checkInTime   DateTime?
   checkOutTime  DateTime?
+  outcomeNotes  String?   @db.NVarChar(Max)
+  completedAt   DateTime?
+
+  // Direct customer/asset link (for standalone visits not tied to a source record)
+  customerId      String?
+  customerAssetId String?
 
   // Link back to source record using separate nullable FKs
   requestId      String?
@@ -2743,6 +2764,8 @@ model ServiceVisit {
 
   status       ServiceStatus   @relation(fields: [statusId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   engineer     ServiceEngineer @relation(fields: [engineerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customer     Customer?       @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  customerAsset CustomerAsset? @relation(fields: [customerAssetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   request      ServiceRequest? @relation(fields: [requestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   complaint    Complaint?      @relation(fields: [complaintId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   defect       Defect?         @relation(fields: [defectId], references: [id], onDelete: NoAction, onUpdate: NoAction)

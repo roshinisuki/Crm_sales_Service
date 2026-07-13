@@ -17,7 +17,7 @@ import { getInitials, getAvatarColor, formatDateTime, cn } from "@/lib/ui-utils"
 import { FieldGrid } from "@/components/shared/FieldGrid";
 import { CompactUserAvatar } from "@/components/shared/UserAvatar";
 import { StatusPill } from "@/components/shared/StatusPill";
-import { ArrowLeft, Briefcase, User, CalendarClock, DollarSign, History, AlertCircle, Percent, Check, X } from "lucide-react";
+import { ArrowLeft, Briefcase, User, CalendarClock, DollarSign, History, AlertCircle, Percent, Check, X, HardDrive, ExternalLink } from "lucide-react";
 
 export default function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -30,6 +30,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const [deal, setDeal] = useState<any>(null);
   useSyncUrlParam(deal?.status, "status");
   const [loading, setLoading] = useState(true);
+  const [resultingAssets, setResultingAssets] = useState<any[]>([]);
   
   // Discount Modal State
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -56,6 +57,15 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   }, [dealId, router, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (deal?.status === "Won") {
+      fetch(`/api/service/assets?dealId=${dealId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(json => setResultingAssets(json?.data || []))
+        .catch(() => {});
+    }
+  }, [deal?.status, dealId]);
 
   const handleRequestDiscount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,6 +253,41 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
           <div>
             <NotePanel entityType="DEAL" entityId={deal.id} />
           </div>
+
+          {/* Resulting Assets */}
+          {deal.status === "Won" && resultingAssets.length > 0 && (
+            <div className="crm-card p-5">
+              <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-4">
+                <HardDrive size={16} className="text-slate-400" />
+                Resulting Assets ({resultingAssets.length})
+              </h3>
+              <p className="text-xs text-slate-500 mb-3">Assets generated from this deal via Purchase Order acceptance.</p>
+              <div className="space-y-2">
+                {resultingAssets.map((asset: any) => (
+                  <div
+                    key={asset.id}
+                    onClick={() => router.push("/service/assets")}
+                    className="flex items-center justify-between p-3 bg-slate-50 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">{asset.productName || asset.product?.name || "Unknown Product"}</p>
+                      <p className="text-xs text-slate-500">
+                        Serial: {asset.serialNumber || "Pending"} • PO: {asset.purchaseOrder?.poNumber || asset.purchaseOrder?.poCode || "—"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        asset.status === "Active" ? "bg-green-50 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"
+                      }`}>
+                        {asset.status}
+                      </span>
+                      <ExternalLink size={12} className="text-slate-400" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column */}

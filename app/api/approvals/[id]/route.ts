@@ -4,6 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import { dispatchNotification } from "@/lib/notifications";
 import { applyDiscountToQuotationItems } from "@/lib/quotation-margins";
 import { transitionDealStatus } from "@/lib/dealService";
+import { createCustomerAssetsFromPO } from "@/lib/service-handoff";
 
 // Approve / Reject an approval request
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -92,6 +93,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           companyId: user.companyId!,
           skipQuotationGate: true,
         });
+      }
+      // Sales → Service handoff: auto-create CustomerAsset records
+      try {
+        await createCustomerAssetsFromPO(po.id, user.id);
+      } catch (err) {
+        console.error(`[service-handoff] Failed to create CustomerAssets for PO ${po.poCode} via Approval Center:`, err);
       }
     } else {
       await prisma.purchaseOrder.update({

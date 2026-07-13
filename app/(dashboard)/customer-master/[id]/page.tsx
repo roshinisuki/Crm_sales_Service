@@ -67,6 +67,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [executives, setExecutives] = useState<any[]>([]);
+  const [customerAssets, setCustomerAssets] = useState<any[]>([]);
 
   // Call Logger Widget State
   const [callNotes, setCallNotes] = useState("");
@@ -112,9 +113,22 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
     }
   };
 
+  const loadCustomerAssets = async () => {
+    try {
+      const res = await fetch(`/api/service/assets?customerId=${customerId}`);
+      if (res.ok) {
+        const json = await res.json();
+        setCustomerAssets(json.data || json || []);
+      }
+    } catch (e) {
+      console.error("Failed to load customer assets:", e);
+    }
+  };
+
   useEffect(() => {
     loadCustomer();
     loadExecutives();
+    loadCustomerAssets();
   }, [customerId]);
 
   const handleStatusChange = async (newStatus: string) => {
@@ -526,6 +540,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
           { id: "quotations", label: `Quotations (${customer.quotations?.length || 0})` },
           { id: "rfqs", label: `RFQs (${customer.rfqs?.length || 0})` },
           { id: "visits", label: `Visits (${(customer.customerVisits?.length || 0)})` },
+          { id: "assets", label: `Customer Assets (${customerAssets.length})` },
           { id: "documents", label: "Documents" },
           { id: "timeline", label: "Activity Timeline" },
         ].map((tab) => (
@@ -687,6 +702,75 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
               </div>
             ) : (
               <p className="text-sm text-slate-500 italic">No active opportunities.</p>
+            )}
+          </div>
+        )}
+
+        {activeTab === "assets" && (
+          <div className="crm-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-slate-700">Customer Assets ({customerAssets.length})</h3>
+              <button
+                onClick={() => router.push(`/customer-assets?customerId=${customerId}`)}
+                className="text-xs font-bold text-blue-500 hover:text-blue-600 hover:underline"
+              >
+                View All
+              </button>
+            </div>
+            {customerAssets.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-slate-400">
+                      <th className="text-left py-2 px-3 font-semibold">Product</th>
+                      <th className="text-left py-2 px-3 font-semibold">Serial Number</th>
+                      <th className="text-left py-2 px-3 font-semibold">Originating PO</th>
+                      <th className="text-left py-2 px-3 font-semibold">Purchase Date</th>
+                      <th className="text-left py-2 px-3 font-semibold">Warranty</th>
+                      <th className="text-left py-2 px-3 font-semibold">AMC</th>
+                      <th className="text-left py-2 px-3 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerAssets.map((asset: any) => {
+                      const now = new Date();
+                      const warrantyActive = asset.warrantyExpiryDate && new Date(asset.warrantyExpiryDate) > now;
+                      const amcActive = asset.amcExpiryDate && new Date(asset.amcExpiryDate) > now;
+                      return (
+                        <tr key={asset.id} className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer" onClick={() => router.push("/service/assets")}>
+                          <td className="py-2.5 px-3 font-medium text-slate-700">{asset.productName || asset.product?.name || "—"}</td>
+                          <td className="py-2.5 px-3 font-mono text-slate-600">{asset.serialNumber || "—"}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{asset.purchaseOrder?.poNumber || asset.purchaseOrder?.poCode || "—"}</td>
+                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{asset.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString() : "—"}</td>
+                          <td className="py-2.5 px-3">
+                            {asset.warrantyExpiryDate ? (
+                              <span className={`font-bold ${warrantyActive ? "text-green-600" : "text-red-500"}`}>
+                                {warrantyActive ? "Active" : "Expired"}
+                              </span>
+                            ) : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {asset.amcExpiryDate ? (
+                              <span className={`font-bold ${amcActive ? "text-green-600" : "text-red-500"}`}>
+                                {amcActive ? "Active" : "Expired"}
+                              </span>
+                            ) : <span className="text-slate-400">—</span>}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              asset.status === "Active" ? "bg-green-50 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"
+                            }`}>
+                              {asset.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 italic py-4 text-center">No customer assets found. Assets are created automatically when a Purchase Order is accepted in Service CRM.</p>
             )}
           </div>
         )}

@@ -9,7 +9,7 @@ interface ServiceModuleFormProps {
   initialData?: any;
   onSubmit: (formData: Record<string, any>) => void;
   onCancel: () => void;
-  relationsData?: Record<string, { value: string; label: string }[]>; // Holds data for selector inputs e.g. Customer lists
+  relationsData?: Record<string, { value: string; label: string; [key: string]: any }[]>; // Holds data for selector inputs e.g. Customer lists
 }
 
 export default function ServiceModuleForm({
@@ -28,7 +28,16 @@ export default function ServiceModuleForm({
   });
 
   const handleChange = (fieldId: string, value: any) => {
-    setFormData(prev => ({ ...prev, [fieldId]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [fieldId]: value };
+      // Clear any fields that depend on this field when its value changes
+      config.formFields.forEach(f => {
+        if (f.dependsOn === fieldId) {
+          next[f.id] = "";
+        }
+      });
+      return next;
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -51,7 +60,17 @@ export default function ServiceModuleForm({
         <div className="grid grid-cols-1 gap-4 max-h-[60vh] overflow-y-auto pr-1">
           {config.formFields.map(f => {
             const isRelation = f.type === "relation";
-            const options = isRelation ? (relationsData[f.relationModel || ""] || []) : (f.options || []);
+            const rawOptions = isRelation ? (relationsData[f.relationModel || ""] || []) : (f.options || []);
+
+            // If this field depends on another field, filter options by the parent's selected value
+            const parentValue = f.dependsOn ? formData[f.dependsOn] : undefined;
+            const isDisabled = f.dependsOn ? !parentValue : false;
+            const options = f.dependsOn
+              ? rawOptions.filter((opt: any) => opt[f.dependsOn!] === parentValue)
+              : rawOptions;
+            const placeholder = isDisabled
+              ? (f.placeholderWhenEmpty || `Select ${f.label.toLowerCase()}...`)
+              : `Select ${f.label}...`;
 
             return (
               <div key={f.id} className="space-y-1.5">
@@ -70,12 +89,13 @@ export default function ServiceModuleForm({
                   />
                 ) : f.type === "select" || isRelation ? (
                   <select
-                    required={f.required}
+                    required={f.required && !isDisabled}
                     value={formData[f.id] || ""}
                     onChange={e => handleChange(f.id, e.target.value)}
-                    className="w-full text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors"
+                    disabled={isDisabled}
+                    className="w-full text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">Select {f.label}...</option>
+                    <option value="">{placeholder}</option>
                     {options.map(opt => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}

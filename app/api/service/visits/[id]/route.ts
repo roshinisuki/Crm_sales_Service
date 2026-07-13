@@ -10,6 +10,8 @@ export async function GET(request: Request, { params }: { params: any }) {
         engineer: { include: { user: true } },
         status: true,
         createdBy: true,
+        customer: { select: { id: true, name: true } },
+        customerAsset: { select: { id: true, productName: true, serialNumber: true } },
         request: { include: { customer: true, customerAsset: true } },
         complaint: { include: { customer: true, customerAsset: true } },
         defect: { include: { customer: true, customerAsset: true } },
@@ -47,6 +49,10 @@ export async function PATCH(request: Request, { params }: { params: any }) {
     if (body.checkInTime !== undefined) updateData.checkInTime = body.checkInTime ? new Date(body.checkInTime) : null;
     if (body.checkOutTime !== undefined) updateData.checkOutTime = body.checkOutTime ? new Date(body.checkOutTime) : null;
     if (body.notes !== undefined) updateData.notes = body.notes;
+    if (body.customerId !== undefined) updateData.customerId = body.customerId || null;
+    if (body.customerAssetId !== undefined) updateData.customerAssetId = body.customerAssetId || null;
+    if (body.outcomeNotes !== undefined) updateData.outcomeNotes = body.outcomeNotes;
+    if (body.completedAt !== undefined) updateData.completedAt = body.completedAt ? new Date(body.completedAt) : null;
 
     const updated = await prisma.serviceVisit.update({
       where: { id },
@@ -55,6 +61,8 @@ export async function PATCH(request: Request, { params }: { params: any }) {
         engineer: { include: { user: true } },
         status: true,
         createdBy: true,
+        customer: { select: { id: true, name: true } },
+        customerAsset: { select: { id: true, productName: true, serialNumber: true } },
         request: { include: { customer: true, customerAsset: true } },
         complaint: { include: { customer: true, customerAsset: true } },
         defect: { include: { customer: true, customerAsset: true } },

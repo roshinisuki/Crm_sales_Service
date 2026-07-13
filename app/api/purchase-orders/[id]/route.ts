@@ -4,6 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
 import { transitionDealStatus } from "@/lib/dealService";
+import { createCustomerAssetsFromPO } from "@/lib/service-handoff";
 
 const VALID_STATUSES = ["New", "UnderValidation", "OnHold", "Approved", "Rejected", "Closed"];
 
@@ -181,6 +182,15 @@ export async function PUT(
       companyId: user.companyId!,
       skipQuotationGate: true,
     });
+  }
+
+  // Sales → Service handoff: auto-create CustomerAsset records when PO is Approved
+  if (body.status === "Approved" && existing.status !== "Approved") {
+    try {
+      await createCustomerAssetsFromPO(id, user.id);
+    } catch (err) {
+      console.error(`[service-handoff] Failed to create CustomerAssets for PO ${existing.poCode}:`, err);
+    }
   }
 
   if (body.status && body.status !== existing.status) {

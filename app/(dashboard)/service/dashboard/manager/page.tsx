@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import { ServiceKpiCard, ServiceQueueCard } from "@/components/shared/ServiceComponents";
+import React, { useState, useEffect } from "react";
+import { ServiceQueueCard } from "@/components/shared/ServiceComponents";
+import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { 
   Users, BarChart2, CheckCircle2, ShieldAlert, 
   HelpCircle, Sparkles, AlertTriangle, Hammer, Inbox 
 } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
-import { mockRequests, mockComplaints, mockInstallations } from "@/lib/config/serviceSeedMockData";
 
 // Derived engineer workload status from seed data
 const mockWorkloads = [
@@ -21,7 +21,52 @@ const mockWorkloads = [
 ];
 
 export default function ManagerServiceDashboardPage() {
-  const [workloads] = useState<any[]>(mockWorkloads);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [complaints, setComplaints] = useState<any[]>([]);
+  const [defects, setDefects] = useState<any[]>([]);
+  const [installations, setInstallations] = useState<any[]>([]);
+  const [visits, setVisits] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [reqsRes, compRes, defRes, instRes, visRes] = await Promise.all([
+          fetch("/api/service/requests"),
+          fetch("/api/service/complaints"),
+          fetch("/api/service/defects"),
+          fetch("/api/service/installations"),
+          fetch("/api/service/visits"),
+        ]);
+        if (reqsRes.ok) setRequests(await reqsRes.json());
+        if (compRes.ok) setComplaints(await compRes.json());
+        if (defRes.ok) setDefects(await defRes.json());
+        if (instRes.ok) setInstallations(await instRes.json());
+        if (visRes.ok) setVisits(await visRes.json());
+      } catch (err) {
+        console.error("Dashboard fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const allTickets = [...requests, ...complaints, ...defects];
+  const openTickets = allTickets.filter(t => t.status?.name !== "Closed" && t.status?.name !== "Resolved").length;
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const escalationsThisWeek = complaints.filter(c => {
+    const created = new Date(c.createdAt || c.created);
+    return created >= weekAgo && (c.status?.name === "Escalated" || c.status?.name === "Escalated to Defect");
+  }).length + defects.filter(d => new Date(d.createdAt || d.created) >= weekAgo).length;
+  const overdueVisits = visits.filter(v => {
+    const statusName = v.status?.name || "Unknown";
+    return (statusName === "Scheduled" || statusName === "Assigned") && v.scheduledDate && new Date(v.scheduledDate) < new Date();
+  }).length;
+  const slaCompliance = allTickets.length > 0
+    ? Math.round((allTickets.filter(t => t.status?.name === "Closed" || t.status?.name === "Resolved").length / allTickets.length) * 100)
+    : 0;
 
   const workloadColumns: ColumnDef<any>[] = [
     { header: "Engineer", accessorKey: "name" },
@@ -40,9 +85,6 @@ export default function ManagerServiceDashboardPage() {
     }
   ];
 
-  const openBacklog = mockRequests.filter(r => r.status !== "Closed").length;
-  const criticalBacklog = mockRequests.filter(r => r.priority === "Critical" && r.status !== "Closed").length;
-
   return (
     <div className="space-y-6">
       {/* Title */}
@@ -52,36 +94,16 @@ export default function ManagerServiceDashboardPage() {
       </div>
 
       {/* KPI summaries */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <ServiceKpiCard 
-          title="Team Open Backlog" 
-          value={`${openBacklog} Requests`} 
-          change="3 new today" 
-          isPositive={false} 
-          icon={<Inbox size={18} />} 
-        />
-        <ServiceKpiCard 
-          title="SLA Compliance Rate" 
-          value="98.2%" 
-          change="+1.5%" 
-          isPositive={true} 
-          icon={<CheckCircle2 size={18} />} 
-        />
-        <ServiceKpiCard 
-          title="Escalated Tickets" 
-          value={`${criticalBacklog}`} 
-          change="0 unresolved" 
-          isPositive={criticalBacklog === 0} 
-          icon={<ShieldAlert size={18} />} 
-        />
-        <ServiceKpiCard 
-          title="Active Field Engineers" 
-          value="18 Registered" 
-          change="6 Allocated" 
-          isPositive={true} 
-          icon={<Users size={18} />} 
-        />
-      </div>
+      {loading ? (
+        <div className="p-4 text-center text-sm text-[var(--text-muted)] animate-pulse">Loading KPIs...</div>
+      ) : (
+        <ServiceKPIGrid>
+          <ServiceKPICard label="Total Open Tickets" value={openTickets} icon={<Inbox size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={() => {}} active={false} />
+          <ServiceKPICard label="Team SLA Compliance %" value={slaCompliance} icon={<CheckCircle2 size={20} className="text-green-500" />} color="bg-green-500/10" onClick={() => {}} active={false} />
+          <ServiceKPICard label="Escalations This Week" value={escalationsThisWeek} icon={<ShieldAlert size={20} className="text-red-500" />} color="bg-red-500/10" onClick={() => {}} active={false} />
+          <ServiceKPICard label="Overdue Visits" value={overdueVisits} icon={<AlertTriangle size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={() => {}} active={false} />
+        </ServiceKPIGrid>
+      )}
 
       {/* Operations Queue Grid */}
       <div className="space-y-3">
@@ -89,17 +111,17 @@ export default function ManagerServiceDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <ServiceQueueCard 
             title="Service Requests" 
-            count={mockRequests.length} 
+            count={requests.length} 
             icon={<Inbox size={20} className="text-blue-400" />} 
           />
           <ServiceQueueCard 
             title="Pneumatic Complaints" 
-            count={mockComplaints.length} 
+            count={complaints.length} 
             icon={<AlertTriangle size={20} className="text-amber-400" />} 
           />
           <ServiceQueueCard 
             title="Pending Installations" 
-            count={mockInstallations.length} 
+            count={installations.length} 
             icon={<Hammer size={20} className="text-green-400" />} 
           />
         </div>
@@ -113,7 +135,7 @@ export default function ManagerServiceDashboardPage() {
             Engineer Workload & Allocation
           </h3>
           <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)]">
-            <DataTable data={workloads} columns={workloadColumns} />
+            <DataTable data={mockWorkloads} columns={workloadColumns} />
           </div>
         </div>
 

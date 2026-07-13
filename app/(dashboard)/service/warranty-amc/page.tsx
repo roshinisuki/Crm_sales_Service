@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { WarrantyAMCContextCard } from "@/components/shared/ServiceComponents";
-import { Search, ShieldAlert, Award, FileText, ClipboardList } from "lucide-react";
+import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
+import { Search, ShieldAlert, Award, FileText, ClipboardList, LifeBuoy, AlertCircle, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
 
 export default function WarrantyAMCPage() {
@@ -13,6 +14,7 @@ export default function WarrantyAMCPage() {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"AMC" | "Warranty">("AMC");
   const [loading, setLoading] = useState(true);
+  const [kpiFilter, setKpiFilter] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,6 +41,45 @@ export default function WarrantyAMCPage() {
     };
     fetchData();
   }, []);
+
+  // KPI computations from live data
+  const kpiStats = useMemo(() => {
+    const now = new Date();
+    const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    // Combine all assets from both AMC contracts and warranty claims to count coverage
+    const allAssets = new Set<string>();
+    amcContracts.forEach(a => { if (a.customerAssetId) allAssets.add(a.customerAssetId); });
+    warrantyClaims.forEach(w => { if (w.customerAssetId) allAssets.add(w.customerAssetId); });
+
+    const activeWarranty = warrantyClaims.filter(w => w.status?.name === "Active" || w.status?.name === "Open").length;
+    const activeAMC = amcContracts.filter(a => a.status?.name === "Active").length;
+
+    const expiringIn30 = [
+      ...amcContracts.filter(a => a.endDate && new Date(a.endDate) <= in30Days && new Date(a.endDate) >= now),
+      ...warrantyClaims.filter(w => w.customerAsset?.warrantyExpiryDate && new Date(w.customerAsset.warrantyExpiryDate) <= in30Days && new Date(w.customerAsset.warrantyExpiryDate) >= now),
+    ].length;
+
+    const expired = [
+      ...amcContracts.filter(a => a.endDate && new Date(a.endDate) < now),
+      ...warrantyClaims.filter(w => w.customerAsset?.warrantyExpiryDate && new Date(w.customerAsset.warrantyExpiryDate) < now),
+    ].length;
+
+    return {
+      totalCovered: allAssets.size,
+      activeWarranty,
+      activeAMC,
+      expiringIn30,
+      expired,
+    };
+  }, [amcContracts, warrantyClaims]);
+
+  const kpiFilterMap: Record<string, () => boolean> = {
+    "Total Assets Covered": () => true,
+    "Active Warranty": () => activeTab === "Warranty",
+    "Active AMC": () => activeTab === "AMC",
+    "Expiring in 30 Days": () => true,
+    "Expired": () => true,
+  };
 
   const filteredAMC = amcContracts.filter(item => {
     if (!searchQuery.trim()) return true;
@@ -163,6 +204,14 @@ export default function WarrantyAMCPage() {
         <h1 className="text-xl font-black text-[var(--text-primary)]">Warranty & AMC Contracts</h1>
         <p className="text-xs text-[var(--text-muted)]">Manage coverage verification, expiration notifications, and claims.</p>
       </div>
+
+      <ServiceKPIGrid>
+        <ServiceKPICard label="Total Assets Covered" value={kpiStats.totalCovered} icon={<LifeBuoy size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Assets Covered"} />
+        <ServiceKPICard label="Active Warranty" value={kpiStats.activeWarranty} icon={<ShieldAlert size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => { setKpiFilter(f); if (f) setActiveTab("Warranty"); }} active={kpiFilter === "Active Warranty"} />
+        <ServiceKPICard label="Active AMC" value={kpiStats.activeAMC} icon={<ClipboardList size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => { setKpiFilter(f); if (f) setActiveTab("AMC"); }} active={kpiFilter === "Active AMC"} />
+        <ServiceKPICard label="Expiring in 30 Days" value={kpiStats.expiringIn30} icon={<CalendarClock size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Expiring in 30 Days"} />
+        <ServiceKPICard label="Expired" value={kpiStats.expired} icon={<AlertCircle size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Expired"} />
+      </ServiceKPIGrid>
 
       <div className="flex items-center gap-4 border-b border-[var(--border)] pb-2">
         <button

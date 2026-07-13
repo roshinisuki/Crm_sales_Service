@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ServiceKpiCard, ServiceQueueCard, SLACountdownBadge } from "@/components/shared/ServiceComponents";
+import { ServiceQueueCard, SLACountdownBadge } from "@/components/shared/ServiceComponents";
+import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { 
   Inbox, FileText, CheckCircle, Clock, AlertTriangle, 
@@ -72,36 +73,12 @@ export default function MyServiceDashboardPage() {
       {loading ? (
         <div className="p-4 text-center text-sm text-[var(--text-muted)] animate-pulse">Loading KPIs...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <ServiceKpiCard 
-            title="Assigned Requests" 
-            value={requests.length} 
-            change="" 
-            isPositive={true} 
-            icon={<Inbox size={18} />} 
-          />
-          <ServiceKpiCard 
-            title="Today's Visits" 
-            value={visits.length} 
-            change="" 
-            isPositive={true} 
-            icon={<Calendar size={18} />} 
-          />
-          <ServiceKpiCard 
-            title="Open Complaints" 
-            value={complaints.length} 
-            change="" 
-            isPositive={true} 
-            icon={<AlertTriangle size={18} />} 
-          />
-          <ServiceKpiCard 
-            title="SLA Met Rate" 
-            value="N/A" 
-            change="Computed" 
-            isPositive={true} 
-            icon={<TrendingUp size={18} />} 
-          />
-        </div>
+        <ServiceKPIGrid>
+          <ServiceKPICard label="My Open Tickets" value={requests.length + complaints.length} icon={<Inbox size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={() => {}} active={false} />
+          <ServiceKPICard label="My SLA Breaches" value={requests.filter(r => r.status?.name !== "Closed" && r.status?.name !== "Resolved").length} icon={<AlertTriangle size={20} className="text-red-500" />} color="bg-red-500/10" onClick={() => {}} active={false} />
+          <ServiceKPICard label="My Pending Visits Today" value={visits.filter(v => v.status?.name === "Scheduled" || v.status?.name === "Assigned").length} icon={<Calendar size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={() => {}} active={false} />
+          <ServiceKPICard label="My Completed This Week" value={visits.filter(v => v.status?.name === "Completed").length} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={() => {}} active={false} />
+        </ServiceKPIGrid>
       )}
 
       {/* Dashboard Grid layout */}

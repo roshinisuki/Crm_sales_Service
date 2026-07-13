@@ -1,20 +1,25 @@
 "use client";
  
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { serviceModulesConfig } from "@/lib/config/serviceModuleConfig";
 import ServiceModuleListPage from "@/components/shared/ServiceModuleListPage";
 import ServiceModuleDetailPage from "@/components/shared/ServiceModuleDetailPage";
 import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
+import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
+import { Calendar, FileQuestion, AlertCircle, Clock, CheckCircle, AlertTriangle } from "lucide-react";
  
 export default function ServiceRequestsPage() {
   const config = serviceModulesConfig.requests;
+  const router = useRouter();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refData, setRefData] = useState<any>({});
- 
+  const [kpiFilter, setKpiFilter] = useState("");
+
   // Assign Engineer Modal States
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [assignTeamId, setAssignTeamId] = useState("");
@@ -231,6 +236,45 @@ export default function ServiceRequestsPage() {
     }
   };
  
+  // KPI computations from live data
+  const kpiStats = useMemo(() => {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return {
+      total: data.length,
+      newUnassigned: data.filter(d => d.status === "New" || d.status === "New Request").length,
+      inProgress: data.filter(d => d.status === "In Progress" || d.status === "Assigned").length,
+      overdue: data.filter(d => {
+        const created = new Date(d.createdAt || d.created);
+        return (d.status !== "Closed" && d.status !== "Resolved") && created < weekAgo;
+      }).length,
+      resolvedThisWeek: data.filter(d => {
+        if (d.status !== "Resolved" && d.status !== "Closed") return false;
+        const updated = new Date(d.updatedAt || d.closedAt || d.createdAt);
+        return updated >= weekAgo;
+      }).length,
+    };
+  }, [data]);
+
+  const kpiFilterMap: Record<string, (d: any) => boolean> = {
+    "Total Requests": () => true,
+    "New": (d) => d.status === "New" || d.status === "New Request",
+    "In Progress": (d) => d.status === "In Progress" || d.status === "Assigned",
+    "Overdue": (d) => {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return (d.status !== "Closed" && d.status !== "Resolved") && new Date(d.createdAt || d.created) < weekAgo;
+    },
+    "Resolved This Week": (d) => {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return (d.status === "Resolved" || d.status === "Closed") && new Date(d.updatedAt || d.closedAt || d.createdAt) >= weekAgo;
+    },
+  };
+
+  const filteredKpiData = useMemo(() => {
+    if (!kpiFilter) return data;
+    return data.filter(d => kpiFilterMap[kpiFilter]?.(d) ?? true);
+  }, [data, kpiFilter]);
+
   // Filter engineers based on the selected team
   const filteredEngineers = (refData.ServiceEngineer || []).filter(
     (eng: any) => eng.teamId === assignTeamId
@@ -245,7 +289,17 @@ export default function ServiceRequestsPage() {
           onBack={() => setSelectedRow(null)}
           onStatusTransition={handleStatusTransition}
           onTriggerAction={handleTriggerAction}
-          customWidgets={<LinkedVisitsPanel visits={selectedRow.visits} />}
+          customWidgets={
+            <div className="space-y-4">
+              <button
+                onClick={() => router.push(`/service/visits?customerId=${selectedRow.customerId || ""}&customerAssetId=${selectedRow.customerAssetId || ""}&sourceType=request&sourceId=${selectedRow.id}`)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold transition-colors"
+              >
+                <Calendar size={14} /> Log Service Visit
+              </button>
+              <LinkedVisitsPanel visits={selectedRow.visits} />
+            </div>
+          }
         />
       ) : isFormOpen ? (
         <div className="py-6">
@@ -257,14 +311,23 @@ export default function ServiceRequestsPage() {
           />
         </div>
       ) : (
-        <ServiceModuleListPage 
-          config={config} 
-          data={data} 
-          loading={loading}
-          onRefresh={fetchData}
-          onCreateNew={() => setIsFormOpen(true)}
-          onRowClick={(row) => setSelectedRow(row)}
-        />
+        <div className="space-y-4">
+          <ServiceKPIGrid>
+            <ServiceKPICard label="Total Requests" value={kpiStats.total} icon={<FileQuestion size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Requests"} />
+            <ServiceKPICard label="New" value={kpiStats.newUnassigned} icon={<AlertCircle size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "New"} />
+            <ServiceKPICard label="In Progress" value={kpiStats.inProgress} icon={<Clock size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "In Progress"} />
+            <ServiceKPICard label="Overdue" value={kpiStats.overdue} icon={<AlertTriangle size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Overdue"} />
+            <ServiceKPICard label="Resolved This Week" value={kpiStats.resolvedThisWeek} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Resolved This Week"} />
+          </ServiceKPIGrid>
+          <ServiceModuleListPage
+            config={config}
+            data={filteredKpiData}
+            loading={loading}
+            onRefresh={fetchData}
+            onCreateNew={() => setIsFormOpen(true)}
+            onRowClick={(row) => setSelectedRow(row)}
+          />
+        </div>
       )}
  
       {/* Assign Engineer Modal */}

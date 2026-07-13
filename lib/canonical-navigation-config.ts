@@ -88,6 +88,7 @@ const V2_EXTRAS: NavItem[] = [
   { key: 'visits', label: 'Customer Visits', href: '/visits', iconEmoji: '🚗', keywords: ['visit', 'field', 'site visit'], type: 'module' },
   { key: 'catalogue', label: 'Product Catalogue', href: '/catalogue', iconEmoji: '📦', keywords: ['product', 'catalogue', 'catalog'], type: 'module' },
   { key: 'deals', label: 'Deals', href: '/deals', iconEmoji: '🤝', keywords: ['deal', 'won', 'active deal'], type: 'module' },
+  { key: 'customer-assets', label: 'Customer Assets', href: '/customer-assets', iconEmoji: '🖥️', keywords: ['asset', 'equipment', 'installed', 'warranty', 'amc'], type: 'module' },
   // V2 leads extras
   { key: 'leads-sql', label: 'SQL', href: '/leads?status=SQL', iconEmoji: '👤', keywords: ['sql', 'stale', 'long'], type: 'submodule', parentLabel: 'Leads', parentKey: 'leads', variantMin: 2 },
   { key: 'leads-overdue', label: 'Overdue', href: '/leads?status=Overdue', iconEmoji: '👤', keywords: ['overdue', 'late', 'stale'], type: 'submodule', parentLabel: 'Leads', parentKey: 'leads', variantMin: 2 },
@@ -138,6 +139,8 @@ const V2_EXTRAS: NavItem[] = [
   { key: 'deals-overview', label: 'Deals Overview', href: '/deals', iconEmoji: '🤝', keywords: ['all deals', 'deals list', 'overview'], type: 'submodule', parentLabel: 'Deals', parentKey: 'deals' },
   { key: 'deals-active', label: 'Active Deals', href: '/deals?status=Active', iconEmoji: '🤝', keywords: ['active', 'open'], type: 'submodule', parentLabel: 'Deals', parentKey: 'deals' },
   { key: 'deals-won', label: 'Won Deals', href: '/deals?status=Won', iconEmoji: '🤝', keywords: ['won', 'successful'], type: 'submodule', parentLabel: 'Deals', parentKey: 'deals' },
+  // Customer Assets sub-modules
+  { key: 'customer-assets-overview', label: 'Assets Overview', href: '/customer-assets', iconEmoji: '🖥️', keywords: ['all assets', 'assets list', 'overview'], type: 'submodule', parentLabel: 'Customer Assets', parentKey: 'customer-assets' },
   { key: 'deals-lost', label: 'Lost Deals', href: '/deals?status=Lost', iconEmoji: '🤝', keywords: ['lost', 'failed'], type: 'submodule', parentLabel: 'Deals', parentKey: 'deals' },
   { key: 'deals-hold', label: 'On Hold Deals', href: '/deals?status=OnHold', iconEmoji: '🤝', keywords: ['hold', 'paused'], type: 'submodule', parentLabel: 'Deals', parentKey: 'deals' },
   // V2 tasks sub-modules
