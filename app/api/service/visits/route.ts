@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyAuth } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
+    const user = await verifyAuth();
     const { searchParams } = new URL(request.url);
     const engineerId = searchParams.get("engineerId");
     const statusId = searchParams.get("statusId");
@@ -16,7 +18,19 @@ export async function GET(request: Request) {
     const dateTo = searchParams.get("dateTo");
     
     let whereClause: any = {};
-    if (engineerId) whereClause.engineerId = engineerId;
+    if (user && user.role === "ServiceEngineer") {
+      const eng = await prisma.serviceEngineer.findFirst({
+        where: { userId: user.id }
+      });
+      if (eng) {
+        whereClause.engineerId = eng.id;
+      } else {
+        // Engineer not found for this user, return empty list
+        return NextResponse.json([]);
+      }
+    } else if (engineerId) {
+      whereClause.engineerId = engineerId;
+    }
     if (statusId) whereClause.statusId = statusId;
     if (customerId) whereClause.customerId = customerId;
     if (customerAssetId) whereClause.customerAssetId = customerAssetId;
@@ -37,7 +51,7 @@ export async function GET(request: Request) {
         status: true,
         createdBy: true,
         customer: { select: { id: true, name: true } },
-        customerAsset: { select: { id: true, productName: true, serialNumber: true } },
+        customerAsset: { select: { id: true, productName: true, serialNumber: true, amcExpiryDate: true } },
         request: { include: { customer: true, customerAsset: true } },
         complaint: { include: { customer: true, customerAsset: true } },
         defect: { include: { customer: true, customerAsset: true } },
@@ -125,7 +139,7 @@ export async function POST(request: Request) {
         status: true,
         createdBy: true,
         customer: { select: { id: true, name: true } },
-        customerAsset: { select: { id: true, productName: true, serialNumber: true } },
+        customerAsset: { select: { id: true, productName: true, serialNumber: true, amcExpiryDate: true } },
         request: { include: { customer: true, customerAsset: true } },
         complaint: { include: { customer: true, customerAsset: true } },
         defect: { include: { customer: true, customerAsset: true } },

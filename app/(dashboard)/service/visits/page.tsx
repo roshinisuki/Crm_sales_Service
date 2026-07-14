@@ -44,7 +44,44 @@ export default function ServiceVisitsPage() {
   const [engineerFilter, setEngineerFilter] = useState("");
   const [completeModal, setCompleteModal] = useState<any>(null);
   const [outcomeNotes, setOutcomeNotes] = useState("");
+  const [selectedOutcome, setSelectedOutcome] = useState("Resolved");
+  const [reasonNextSteps, setReasonNextSteps] = useState("");
+  const [followUpVisitNeeded, setFollowUpVisitNeeded] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [sparePartsUsed, setSparePartsUsed] = useState<{ productId: string; quantity: number }[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [checkingIn, setCheckingIn] = useState(false);
   const [completing, setCompleting] = useState(false);
+
+  // Fetch catalogue products for spare parts dropdown
+  useEffect(() => {
+    fetch("/api/catalogue/products")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success) setProducts(json.data || []);
+      })
+      .catch((err) => console.error("Error fetching products:", err));
+  }, []);
+
+  const [elapsedTimeText, setElapsedTimeText] = useState("");
+
+  useEffect(() => {
+    if (selectedRow && selectedRow.status === "In Progress" && selectedRow.checkInTime) {
+      const updateTimer = () => {
+        const checkIn = new Date(selectedRow.checkInTime).getTime();
+        const diffMs = new Date().getTime() - checkIn;
+        const diffMins = Math.floor(diffMs / (1000 * 60));
+        const hours = Math.floor(diffMins / 60);
+        const mins = diffMins % 60;
+        setElapsedTimeText(`On-site for ${hours > 0 ? `${hours}h ` : ""}${mins} min`);
+      };
+      updateTimer();
+      const interval = setInterval(updateTimer, 60000);
+      return () => clearInterval(interval);
+    } else {
+      setElapsedTimeText("");
+    }
+  }, [selectedRow]);
 
   const prefilledCustomerId = searchParams?.get("customerId") || "";
   const prefilledAssetId = searchParams?.get("customerAssetId") || "";
@@ -155,24 +192,94 @@ export default function ServiceVisitsPage() {
     }
   };
 
+  const handleCheckIn = async (row: any) => {
+    setCheckingIn(true);
+    
+    const triggerCheckIn = async (lat?: number, lng?: number, gpsCaptured = false) => {
+      try {
+        const res = await fetch(`/api/service/visits/${row.id}/check-in`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lat, lng, gpsCaptured }),
+        });
+        if (res.ok) {
+          const updatedVisit = await res.json();
+          // Find updated in data array
+          await fetchData();
+          setSelectedRow(null); // Return to list or refresh
+          alert("Check-in successful! Your status has been updated to 'In Progress'.");
+        } else {
+          const err = await res.json();
+          alert(`Check-in failed: ${err.error || "Unknown error"}`);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setCheckingIn(false);
+      }
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          triggerCheckIn(position.coords.latitude, position.coords.longitude, true);
+        },
+        (error) => {
+          console.warn("Geolocation denied or failed. Proceeding with stub.", error);
+          triggerCheckIn(undefined, undefined, false);
+        },
+        { timeout: 8000 }
+      );
+    } else {
+      triggerCheckIn(undefined, undefined, false);
+    }
+  };
+
   const handleComplete = async () => {
-    if (!outcomeNotes.trim()) {
-      alert("Outcome notes are required.");
+    if (!outcomeNotes.trim() || outcomeNotes.trim().length < 20) {
+      alert("Work performed notes are required and must be at least 20 characters.");
       return;
     }
+    
+    const requiresNextSteps = ["Escalated", "Follow-up Required", "Parts Pending"].includes(selectedOutcome);
+    if (requiresNextSteps && (!reasonNextSteps || reasonNextSteps.trim().length < 10)) {
+      alert(`Reason / next steps details are required for outcome '${selectedOutcome}' (min 10 characters).`);
+      return;
+    }
+
+    if (selectedOutcome === "Parts Pending" && sparePartsUsed.length === 0) {
+      alert("At least one spare part item must be listed when the outcome is 'Parts Pending'.");
+      return;
+    }
+
     setCompleting(true);
     try {
+      const body = {
+        outcome: selectedOutcome,
+        outcomeNotes: outcomeNotes.trim(),
+        sparePartsUsed,
+        reasonNextSteps: reasonNextSteps.trim(),
+        followUpVisitNeeded,
+        followUpDate: followUpVisitNeeded ? followUpDate : null,
+      };
+
       const res = await fetch(`/api/service/visits/${completeModal.id}/complete`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outcomeNotes: outcomeNotes.trim() }),
+        body: JSON.stringify(body),
       });
       if (res.ok) {
         await fetchData();
         await fetchStats();
         setCompleteModal(null);
         setOutcomeNotes("");
+        setSelectedOutcome("Resolved");
+        setReasonNextSteps("");
+        setFollowUpVisitNeeded(false);
+        setFollowUpDate("");
+        setSparePartsUsed([]);
         setSelectedRow(null);
+        alert("Visit completed successfully.");
       } else {
         const err = await res.json();
         alert(`Failed to complete: ${err.error || "Unknown error"}`);
@@ -294,43 +401,201 @@ export default function ServiceVisitsPage() {
 
   // ── Complete Modal ──
   if (completeModal) {
+    const requiresNextSteps = ["Escalated", "Follow-up Required", "Parts Pending"].includes(selectedOutcome);
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-        <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl space-y-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+        <div className="w-full max-w-lg rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-            <h3 className="text-sm font-black text-[var(--text-primary)]">Complete Visit</h3>
-            <button onClick={() => { setCompleteModal(null); setOutcomeNotes(""); }} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+            <h3 className="text-sm font-black text-[var(--text-primary)]">Checkout & Complete Visit</h3>
+            <button 
+              onClick={() => { 
+                setCompleteModal(null); 
+                setOutcomeNotes(""); 
+                setSelectedOutcome("Resolved");
+                setReasonNextSteps("");
+                setFollowUpVisitNeeded(false);
+                setFollowUpDate("");
+                setSparePartsUsed([]);
+              }} 
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            >
               <X size={18} />
             </button>
           </div>
-          <div className="space-y-2">
+          
+          <div className="space-y-4">
             <div className="text-xs text-[var(--text-secondary)]">
               <span className="font-bold">{completeModal.visitCode}</span> — {completeModal.customer?.name}
             </div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
-              Outcome Notes <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={outcomeNotes}
-              onChange={(e) => setOutcomeNotes(e.target.value)}
-              rows={4}
-              placeholder="Describe the visit outcome, actions taken, and recommendations..."
-              className="w-full text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors placeholder-[var(--text-muted)]"
-            />
+
+            {/* Outcome Selection */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                Outcome <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedOutcome}
+                onChange={(e) => setSelectedOutcome(e.target.value)}
+                className="w-full text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors"
+              >
+                <option value="Resolved">Resolved</option>
+                <option value="Partially Resolved">Partially Resolved</option>
+                <option value="Escalated">Escalated</option>
+                <option value="Follow-up Required">Follow-up Required</option>
+                <option value="Parts Pending">Parts Pending</option>
+              </select>
+            </div>
+
+            {/* Outcome Notes */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                Work Performed Description (Min 20 characters) <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                value={outcomeNotes}
+                onChange={(e) => setOutcomeNotes(e.target.value)}
+                rows={3}
+                placeholder="Describe work done, testing completed, outcome details..."
+                className="w-full text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors placeholder-[var(--text-muted)]"
+              />
+              <span className="text-[10px] text-[var(--text-muted)] block">
+                {outcomeNotes.length}/20 characters minimum
+              </span>
+            </div>
+
+            {/* Conditionally Required Details */}
+            {requiresNextSteps && (
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                  Reason & Next Steps (Min 10 characters) <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={reasonNextSteps}
+                  onChange={(e) => setReasonNextSteps(e.target.value)}
+                  rows={2}
+                  placeholder={`Explain why the visit is ${selectedOutcome} and specify next action items...`}
+                  className="w-full text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors placeholder-[var(--text-muted)]"
+                />
+              </div>
+            )}
+
+            {/* Spare Parts Section */}
+            <div className="space-y-2 border-t border-[var(--border)] pt-3">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                Spare Parts Used {selectedOutcome === "Parts Pending" && <span className="text-red-500">*</span>}
+              </label>
+              
+              <div className="flex gap-2">
+                <select
+                  id="part-select"
+                  className="flex-1 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 text-[var(--text-primary)] focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">-- Select Product Part --</option>
+                  {products.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.productCode || "Part"})</option>
+                  ))}
+                </select>
+                <input
+                  id="part-qty"
+                  type="number"
+                  placeholder="Qty"
+                  defaultValue="1"
+                  min="1"
+                  className="w-16 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 text-center"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sel = document.getElementById("part-select") as HTMLSelectElement;
+                    const qty = document.getElementById("part-qty") as HTMLInputElement;
+                    if (sel && sel.value) {
+                      const prod = products.find((p) => p.id === sel.value);
+                      if (prod) {
+                        setSparePartsUsed(prev => [...prev, { productId: prod.id, name: prod.name, quantity: parseInt(qty.value) || 1 } as any]);
+                        sel.value = "";
+                        qty.value = "1";
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
+                >
+                  Add Part
+                </button>
+              </div>
+
+              {sparePartsUsed.length > 0 && (
+                <div className="space-y-1 bg-[var(--surface-2)] p-2 rounded-lg border border-[var(--border)]">
+                  {sparePartsUsed.map((item: any, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <span className="text-[var(--text-secondary)]">{item.name || item.productId}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-[var(--text-primary)]">x{item.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSparePartsUsed(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-red-500 hover:text-red-400 font-bold"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Follow-up Visit Needed */}
+            <div className="space-y-3 border-t border-[var(--border)] pt-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="followUpNeeded"
+                  checked={followUpVisitNeeded}
+                  onChange={(e) => setFollowUpVisitNeeded(e.target.checked)}
+                  className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="followUpNeeded" className="text-xs font-bold text-[var(--text-primary)]">
+                  Follow-up Field Visit Required?
+                </label>
+              </div>
+
+              {followUpVisitNeeded && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                    Follow-up Date & Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    className="w-full text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
+            </div>
           </div>
+
           <div className="flex items-center justify-end gap-2 border-t border-[var(--border)] pt-4">
             <button
-              onClick={() => { setCompleteModal(null); setOutcomeNotes(""); }}
+              onClick={() => { 
+                setCompleteModal(null); 
+                setOutcomeNotes(""); 
+                setSelectedOutcome("Resolved");
+                setReasonNextSteps("");
+                setFollowUpVisitNeeded(false);
+                setFollowUpDate("");
+                setSparePartsUsed([]);
+              }}
               className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)] text-xs font-bold transition-all"
             >
               Cancel
             </button>
             <button
               onClick={handleComplete}
-              disabled={completing || !outcomeNotes.trim()}
+              disabled={completing || outcomeNotes.trim().length < 20}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
             >
-              {completing ? "Completing..." : "Mark Completed"}
+              {completing ? "Completing..." : "Check Out & Complete"}
             </button>
           </div>
         </div>
@@ -366,7 +631,8 @@ export default function ServiceVisitsPage() {
   // ── Detail View ──
   if (selectedRow) {
     const source = getSourceInfo(selectedRow);
-    const canComplete = selectedRow.status === "Scheduled" || selectedRow.status === "Overdue" || selectedRow.status === "Assigned";
+    const canCheckIn = selectedRow.status === "Scheduled" || selectedRow.status === "Assigned" || selectedRow.status === "Overdue";
+    const canCheckOut = selectedRow.status === "In Progress";
 
     return (
       <div className="space-y-6">
@@ -377,14 +643,25 @@ export default function ServiceVisitsPage() {
           >
             <ChevronLeft size={16} /> Back to List
           </button>
-          {canComplete && (
-            <button
-              onClick={() => setCompleteModal(selectedRow)}
-              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-colors"
-            >
-              Mark Completed
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {canCheckIn && (
+              <button
+                onClick={() => handleCheckIn(selectedRow)}
+                disabled={checkingIn}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+              >
+                {checkingIn ? "Checking In..." : "Check In"}
+              </button>
+            )}
+            {canCheckOut && (
+              <button
+                onClick={() => setCompleteModal(selectedRow)}
+                className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-colors"
+              >
+                Check Out & Complete
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-4 backdrop-blur-md">
@@ -398,6 +675,11 @@ export default function ServiceVisitsPage() {
             )}>
               {selectedRow.status}
             </span>
+            {selectedRow.status === "In Progress" && elapsedTimeText && (
+              <span className="text-xs text-amber-500 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full animate-pulse">
+                {elapsedTimeText}
+              </span>
+            )}
           </div>
           <h2 className="text-xl font-black text-[var(--text-primary)]">{selectedRow.title || "Service Visit"}</h2>
           <p className="text-xs text-[var(--text-secondary)]">
@@ -422,6 +704,18 @@ export default function ServiceVisitsPage() {
               <div className="space-y-1">
                 <span className="text-[var(--text-secondary)] block font-semibold">Customer Asset</span>
                 <span className="text-[var(--text-primary)] block font-medium">{selectedRow.customerAsset?.productName || "-"}</span>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[var(--text-secondary)] block font-semibold">Billing Eligibility</span>
+                {selectedRow.customerAsset?.amcExpiryDate && new Date(selectedRow.customerAsset.amcExpiryDate) > new Date() ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-500/10 text-green-500 text-[10px] font-bold border border-green-500/20">
+                    Covered under AMC — no billing
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-red-500/10 text-red-500 text-[10px] font-bold border border-red-500/20">
+                    Billable visit
+                  </span>
+                )}
               </div>
               <div className="space-y-1">
                 <span className="text-[var(--text-secondary)] block font-semibold">Completed At</span>

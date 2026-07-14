@@ -14,8 +14,17 @@ interface SLACountdownBadgeProps {
 }
 
 export function SLACountdownBadge({ dueDate, status }: SLACountdownBadgeProps) {
+  const [now, setNow] = React.useState(new Date());
+
+  React.useEffect(() => {
+    if (["Resolved", "Closed"].includes(status)) return;
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [status]);
+
   const due = new Date(dueDate);
-  const now = new Date();
   const diffMs = due.getTime() - now.getTime();
   const diffHrs = diffMs / (1000 * 60 * 60);
 

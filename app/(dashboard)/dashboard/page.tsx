@@ -6,9 +6,11 @@ import { PageLoader } from "@/components/PageLoader";
 import { getDashboardDataAction } from "@/app/actions/visits";
 import { getSalesAnalyticsAction } from "@/app/actions/analytics";
 
+import { useRouter } from "next/navigation";
 import AdminDashboard from "@/components/dashboards/AdminDashboard";
 
 export default function DashboardRouter() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<any>(null);
@@ -39,6 +41,10 @@ export default function DashboardRouter() {
 
   useEffect(() => {
     if (!authLoading && user) {
+      if ((user.role as string) === "ServiceEngineer") {
+        router.push("/service/my-visits");
+        return;
+      }
       loadData();
     }
   }, [authLoading, user, dateRange]);

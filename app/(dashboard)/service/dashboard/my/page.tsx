@@ -44,7 +44,7 @@ export default function MyServiceDashboardPage() {
     { header: "Customer", cell: (row) => <span>{row.customer?.name || "Unknown"}</span> },
     { 
       header: "SLA", 
-      cell: (row) => <SLACountdownBadge dueDate={row.createdAt} status={row.status?.name || "New"} /> 
+      cell: (row) => <SLACountdownBadge dueDate={row.dueDate || row.createdAt} status={row.status?.name || "New"} /> 
     },
     { 
       header: "Status", 

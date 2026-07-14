@@ -17,6 +17,7 @@ import { logAudit } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
 import { createOrHealRFQ } from "@/lib/rfqService";
 import { PIPELINE_STAGE_ORDER } from "@/lib/module-status-config";
+import { createCustomerAssetsFromPO } from "@/lib/service-handoff";
 type DealStatus = string;
 
 type TransitionContext = {
@@ -197,6 +198,33 @@ export async function transitionDealStatus(
           changedAt: new Date(),
         },
       });
+    }
+
+    // Auto-generate/link customer assets for POs associated with this deal
+    try {
+      const pos = await db.purchaseOrder.findMany({
+        where: { dealId, deletedAt: null },
+        select: { id: true }
+      });
+      const actor = ctx.actorId === "system" ? (await getSystemActorId(db)) : ctx.actorId;
+      for (const po of pos) {
+        await createCustomerAssetsFromPO(po.id, actor);
+      }
+      
+      // Explicitly link any matching assets to this deal
+      if (pos.length > 0) {
+        await db.customerAsset.updateMany({
+          where: {
+            purchaseOrderId: { in: pos.map(p => p.id) },
+            dealId: null
+          },
+          data: {
+            dealId: dealId
+          }
+        });
+      }
+    } catch (assetErr) {
+      console.error("Failed to sync customer assets for Won deal:", assetErr);
     }
   }
 

@@ -674,7 +674,7 @@ export async function unlockAccountAction(email: string) {
 export async function createInternalUserByAdmin(data: {
   name: string;
   email: string;
-  role: "SalesManager" | "SalesExecutive";
+  role: "SalesManager" | "SalesExecutive" | "ServiceEngineer" | "ServiceManager";
 }) {
   try {
     const adminPayload = await verifyAuth();
@@ -718,23 +718,48 @@ export async function createInternalUserByAdmin(data: {
     const adminUser = await prisma.user.findUnique({ where: { id: adminPayload.id }, select: { name: true } });
     const inviterName = adminUser?.name || " SUKI  CRM Admin";
 
-    const newUser = await prisma.user.create({
-      data: {
-        email: normalizedEmail,
-        name: name.trim(),
-        role,
-        userType: "internal",
-        passwordHash: "",
-        isActive: true,
-        isFirstLogin: true,
-        activationToken,
-        activationTokenExpiry,
-        otpAttempts: 0,
-        invitedBy: adminPayload.id,
-        invitedAt: new Date(),
-        companyId: adminPayload.companyId,
-        theme: DB_DEFAULT_THEME,
-      },
+    const newUser = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          email: normalizedEmail,
+          name: name.trim(),
+          role,
+          userType: "internal",
+          passwordHash: "",
+          isActive: true,
+          isFirstLogin: true,
+          activationToken,
+          activationTokenExpiry,
+          otpAttempts: 0,
+          invitedBy: adminPayload.id,
+          invitedAt: new Date(),
+          companyId: adminPayload.companyId,
+          theme: DB_DEFAULT_THEME,
+        },
+      });
+
+      if (role === "ServiceEngineer") {
+        let team = await tx.serviceTeam.findFirst({
+          where: { isActive: true }
+        });
+        if (!team) {
+          team = await tx.serviceTeam.create({
+            data: {
+              name: "Default Field Service Team",
+              description: "Automatically created team for Service Engineers"
+            }
+          });
+        }
+        await tx.serviceEngineer.create({
+          data: {
+            userId: u.id,
+            teamId: team.id,
+            isActive: true
+          }
+        });
+      }
+
+      return u;
     });
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";

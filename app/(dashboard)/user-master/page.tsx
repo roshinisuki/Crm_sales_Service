@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { getUsersAction, updateUserAction, deleteUserAction } from "@/app/actions/users";
-import { createInternalUserByAdmin, createCustomerPortalUser, resendInvitation } from "@/app/actions/auth";
+import { createInternalUserAction, getUsersAction, updateUserAction, deleteUserAction } from "@/app/actions/users";
+import { createCustomerPortalUser, resendInvitation } from "@/app/actions/auth";
 import { getCustomersAction } from "@/app/actions/customers";
 import { User } from "@/types";
 import { useAuth } from "@/components/AuthProvider";
@@ -64,7 +64,7 @@ export default function UserMasterPage() {
   // Internal form
   const [intName, setIntName] = useState("");
   const [intEmail, setIntEmail] = useState("");
-  const [intRole, setIntRole] = useState<"SalesManager" | "SalesExecutive">("SalesExecutive");
+  const [intRole, setIntRole] = useState<"SalesManager" | "SalesExecutive" | "ServiceEngineer" | "ServiceManager">("SalesExecutive");
 
   // Confirm Modal
   const [confirmState, setConfirmState] = useState<{isOpen: boolean; title: string; message: string; isDestructive: boolean; action: () => void}>({ isOpen: false, title: "", message: "", isDestructive: false, action: () => {} });
@@ -161,7 +161,7 @@ export default function UserMasterPage() {
     const emailErr = validateEmail(intEmail);
     if (emailErr) { setErrorMsg(emailErr); return; }
     setFormLoading(true); setErrorMsg(""); setSuccessMsg("");
-    const res = await createInternalUserByAdmin({ name: intName, email: intEmail, role: intRole });
+    const res = await createInternalUserAction({ name: intName, email: intEmail, role: intRole });
     setFormLoading(false);
     if (!res.success) { setErrorMsg(res.message); return; }
     setSuccessMsg(res.message);
@@ -541,6 +541,8 @@ export default function UserMasterPage() {
                     >
                       <option value="SalesExecutive">Marketing Executive</option>
                       <option value="SalesManager">Marketing Lead</option>
+                      <option value="ServiceEngineer">Service Engineer</option>
+                      <option value="ServiceManager">Service Lead / Manager</option>
                     </select>
                     <p className="text-[10px] text-slate-400 mt-1">Admin accounts can only be created via database seeding.</p>
                   </div>

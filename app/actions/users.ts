@@ -15,7 +15,7 @@ import { DB_DEFAULT_THEME } from "@/lib/theme";
 export async function createInternalUserAction(data: {
   email: string;
   name: string;
-  role: "Admin" | "SalesManager" | "SalesExecutive";
+  role: "Admin" | "SalesManager" | "SalesExecutive" | "ServiceEngineer" | "ServiceManager";
   department?: string;
   phone?: string;
 }) {
@@ -57,22 +57,47 @@ export async function createInternalUserAction(data: {
       }
     }
 
-    const passwordHash = await bcrypt.hash("Welcome@123", 10);
+    const passwordHash = await bcrypt.hash("SukiCRM@2026", 10);
 
-    const user = await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        name,
-        role,
-        department: department || null,
-        phone: phone || null,
-        passwordHash,
-        userType: "internal",
-        companyId: userPayload.companyId,
-        isActive: true,
-        isFirstLogin: true,
-        theme: DB_DEFAULT_THEME,
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          email: email.toLowerCase(),
+          name,
+          role,
+          department: department || null,
+          phone: phone || null,
+          passwordHash,
+          userType: "internal",
+          companyId: userPayload.companyId,
+          isActive: true,
+          isFirstLogin: false,
+          theme: DB_DEFAULT_THEME,
+        },
+      });
+
+      if (role === "ServiceEngineer") {
+        let team = await tx.serviceTeam.findFirst({
+          where: { isActive: true }
+        });
+        if (!team) {
+          team = await tx.serviceTeam.create({
+            data: {
+              name: "Default Field Service Team",
+              description: "Automatically created team for Service Engineers"
+            }
+          });
+        }
+        await tx.serviceEngineer.create({
+          data: {
+            userId: u.id,
+            teamId: team.id,
+            isActive: true
+          }
+        });
+      }
+
+      return u;
     });
 
     await logAudit(

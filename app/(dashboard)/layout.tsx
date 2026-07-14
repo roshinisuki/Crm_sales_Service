@@ -78,7 +78,7 @@ export function isBasePathActive(currentPath: string, targetHref: string): boole
     return false;
   }
 
-  const parentSegmentsCount = ["admin", "settings", "customer", "reports"].includes(targetSegments[0]) ? 2 : 1;
+  const parentSegmentsCount = ["admin", "settings", "customer", "reports", "service"].includes(targetSegments[0]) ? 2 : 1;
 
   for (let i = 0; i < parentSegmentsCount; i++) {
     if (targetSegments[i] !== currentSegments[i]) {
@@ -909,6 +909,7 @@ function SidebarContent({
     { href: "/service/settings?tab=engineers", label: "Service Engineers" },
     { href: "/service/settings?tab=priorities", label: "Priority Levels" },
     { href: "/service/settings?tab=statuses", label: "Service Status" },
+    { href: "/service/settings?tab=escalation-rules", label: "Escalation Rules" },
   ];
 
   // Accordion: only one section open at a time
@@ -1244,8 +1245,25 @@ function SidebarContent({
         )}
 
         {isServiceWorkspace ? (
-          <>
-            <ExpandableNavSection
+          user?.role === "ServiceEngineer" ? (
+            <>
+              <ExpandableNavSection
+                label="Engineer Portal"
+                icon={<Wrench size={17} />}
+                subItems={[
+                  { href: "/service/my-visits", label: "My Visits" },
+                ]}
+                pathname={pathname}
+                onNavClick={onNavClick}
+                collapsed={collapsed}
+                isOpen={openSection === "Engineer Portal"}
+                onToggle={makeToggle("Engineer Portal")}
+                onOpen={openSectionLabel("Engineer Portal")}
+              />
+            </>
+          ) : (
+            <>
+              <ExpandableNavSection
               label="Dashboard"
               icon={<LayoutDashboard size={17} />}
               subItems={[
@@ -1359,6 +1377,7 @@ function SidebarContent({
               onOpen={openSectionLabel("Service Settings")}
             />
           </>
+          )
         ) : (
           <>
             {/* Dashboards - Expandable section */}

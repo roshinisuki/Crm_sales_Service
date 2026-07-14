@@ -61,12 +61,14 @@ export function requireRole(payload: TokenPayload | null, allowedRoles: string[]
 /** Returns the dashboard URL for a given role */
 export function getRoleRedirect(role: string): string {
   switch (role) {
-    case "SuperAdmin":      return "/dashboard";
-    case "Admin":           return "/dashboard";
-    case "SalesManager":    return "/dashboard";
-    case "SalesExecutive":  return "/dashboard";
-    case "Customer":        return "/customer/portal";
-    default:                return "/login";
+    case "SuperAdmin":       return "/dashboard";
+    case "Admin":            return "/dashboard";
+    case "SalesManager":     return "/dashboard";
+    case "SalesExecutive":   return "/dashboard";
+    case "ServiceManager":   return "/service/dashboard/my";
+    case "ServiceEngineer":  return "/service/my-visits";
+    case "Customer":         return "/customer/portal";
+    default:                 return "/dashboard";
   }
 }
 

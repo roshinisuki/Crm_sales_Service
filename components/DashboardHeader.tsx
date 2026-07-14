@@ -409,9 +409,11 @@ export default function DashboardHeader({
       {/* ── Right ── */}
       <div className="flex items-center gap-2">
         {/* CRM Switcher Toggle */}
-        <div className="hidden md:block mr-2 shrink-0">
-          <CrmToggle />
-        </div>
+        {user?.role !== "ServiceEngineer" && (
+          <div className="hidden md:block mr-2 shrink-0">
+            <CrmToggle />
+          </div>
+        )}
 
         {/* Theme Switcher */}
         <div className="hidden lg:block">

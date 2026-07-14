@@ -71,13 +71,16 @@ export async function createCustomerAssetsFromPO(
       });
       updated++;
     } else {
+      const warrantyExpiryDate = new Date(purchaseDate.getTime());
+      warrantyExpiryDate.setMonth(warrantyExpiryDate.getMonth() + 12);
+
       await prisma.customerAsset.create({
         data: {
           customerId: po.customerId,
           serialNumber: serialPlaceholder,
           productName,
           purchaseDate,
-          warrantyExpiryDate: null, // Set manually or during Installation
+          warrantyExpiryDate, // Default to 12 months warranty
           amcExpiryDate: null, // Set when AMC is purchased
           status: "Active",
           purchaseOrderId: po.id,
