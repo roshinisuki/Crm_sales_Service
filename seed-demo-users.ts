@@ -28,13 +28,13 @@ async function main() {
         theme: "blue",
       }
     });
-    console.log("Created SalesManager: lead@sukisoftware.com / Password@123");
+    console.log("Created SalesManager: lead@sukisoftware.com / SukiCRM@2026");
   } else {
     await prisma.user.update({
       where: { id: manager.id },
-      data: { passwordHash, isFirstLogin: false, isActive: true }
+      data: { isFirstLogin: false, isActive: true }
     });
-    console.log("Reset SalesManager: lead@sukisoftware.com / Password@123");
+    console.log("Ensure SalesManager exists: lead@sukisoftware.com");
   }
 
   // SalesExecutive
@@ -53,13 +53,13 @@ async function main() {
         theme: "blue",
       }
     });
-    console.log("Created SalesExecutive: exec1@sukisoftware.com / Password@123");
+    console.log("Created SalesExecutive: exec1@sukisoftware.com / SukiCRM@2026");
   } else {
     await prisma.user.update({
       where: { id: exec.id },
-      data: { passwordHash, isFirstLogin: false, isActive: true }
+      data: { isFirstLogin: false, isActive: true }
     });
-    console.log("Reset SalesExecutive: exec1@sukisoftware.com / Password@123");
+    console.log("Ensure SalesExecutive exists: exec1@sukisoftware.com");
   }
 }
 

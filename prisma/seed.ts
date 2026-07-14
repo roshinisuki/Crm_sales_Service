@@ -132,9 +132,13 @@ async function main() {
   ];
   const createdUsers: Record<string, any> = {};
   for (const u of usersData) {
-    createdUsers[u.email] = await prisma.user.create({
-      data: { email: u.email, name: u.name, passwordHash, role: u.role, isActive: true, isFirstLogin: false, companyId: defaultCompany.id },
-    });
+    let userRecord = await prisma.user.findFirst({ where: { email: u.email } });
+    if (!userRecord) {
+      userRecord = await prisma.user.create({
+        data: { email: u.email, name: u.name, passwordHash, role: u.role, isActive: true, isFirstLogin: false, companyId: defaultCompany.id },
+      });
+    }
+    createdUsers[u.email] = userRecord;
   }
   const execs = [
     createdUsers["exec1@sukisoftware.com"],
