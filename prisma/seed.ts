@@ -121,7 +121,7 @@ async function main() {
 
   // ---- Users (6) ----
   console.log("Seeding users...");
-  const passwordHash = await bcrypt.hash("Password@123", 10);
+  const passwordHash = await bcrypt.hash("SukiCRM@2026", 10);
   const usersData = [
     { email: "admin@sukisoftware.com", name: "System Admin", role: "Admin" },
     { email: "lead@sukisoftware.com", name: "Vikram Iyer", role: "SalesManager" },
