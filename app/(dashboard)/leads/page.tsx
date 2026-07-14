@@ -654,9 +654,9 @@ export default function LeadsPage() {
               <col style={{ width: "70px" }} />
               <col style={{ width: "110px" }} />
               <col style={{ width: "85px" }} />
-              <col style={{ width: "120px" }} /> {/* Actions */}
-              <col style={{ width: "65px" }} />  {/* Edit */}
-              <col style={{ width: "65px" }} />  {/* Delete */}
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
             </colgroup>
             <thead>
               <tr>

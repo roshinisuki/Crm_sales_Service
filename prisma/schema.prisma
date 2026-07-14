@@ -1618,7 +1618,7 @@ model NegotiationRevision {
   approvedBy                User?       @relation("ApprovedNegotiationRevisions", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   negotiation               Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
 
-  @@unique([negotiationId, roundNumber])
+  @@unique([negotiationId, revisionNumber])
   @@index([negotiationId])
   @@index([status])
   @@index([roundNumber])

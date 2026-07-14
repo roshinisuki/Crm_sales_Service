@@ -1,3 +1,6 @@
+// ASSUMPTION: ERP sync UI is removed from the PO list view per demo requirements.
+// The backend /api/purchase-orders/[id]/sync-erp route is intentionally left in place (orphaned, no callers).
+// ASSUMPTION: PO statuses are reused as-is from ORDERS_STATUS config — no new statuses invented.
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -21,7 +24,6 @@ const icons = {
   search: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
   x: "M6 18L18 6M6 6l12 12",
   eye: "M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z",
-  sync: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
 };
 
 const statusColors: Record<string, string> = {
@@ -33,12 +35,6 @@ const statusColors: Record<string, string> = {
   Closed: "bg-green-100 text-green-700",
 };
 
-const erpStatusColors: Record<string, string> = {
-  Synced: "bg-green-100 text-green-700",
-  Pending: "bg-amber-100 text-amber-700",
-  Failed: "bg-red-100 text-red-700",
-};
-
 const statusOptions = ["New", "UnderValidation", "OnHold", "Approved", "Rejected", "Closed"];
 
 function PurchaseOrderListContent() {
@@ -48,10 +44,7 @@ function PurchaseOrderListContent() {
   const router = useRouter();
   const toast = useToast();
   const { formatCurrency } = useCurrency();
-  const { user } = useAuth();
-  const canSyncErp = ["Admin", "SalesManager", "SuperAdmin"].includes(user?.role ?? "");
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
-  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const statusFilter = useStatusFromUrl("status");
 
@@ -111,30 +104,12 @@ function PurchaseOrderListContent() {
     });
   };
 
-  const handleSyncErp = async (id: string) => {
-    setSyncingId(id);
-    try {
-      const res = await fetch(`/api/purchase-orders/${id}/sync-erp`, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(data.message || "Synced to ERP");
-        loadPurchaseOrders();
-      } else {
-        toast.error(data.message || "ERP sync failed");
-      }
-    } catch {
-      toast.error("ERP sync failed");
-    } finally {
-      setSyncingId(null);
-    }
-  };
-
   return (
     <PageContainer className="space-y-4 p-0">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Purchase Orders Overview</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Create POs, validate, approve, and sync to ERP</p>
+          <p className="text-sm text-slate-500 mt-0.5">Create POs, validate, approve, and close</p>
         </div>
         <button
           onClick={() => router.push("/purchase-orders/new")}
@@ -170,7 +145,6 @@ function PurchaseOrderListContent() {
                 <th className="crm-th">Customer</th>
                 <th className="crm-th">Final Amount</th>
                 <th className="crm-th">Status</th>
-                <th className="crm-th">ERP</th>
                 <th className="crm-th">Items</th>
                 <th className="crm-th">Expected Delivery</th>
                 <th className="crm-th text-right">Actions</th>
@@ -178,14 +152,14 @@ function PurchaseOrderListContent() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="crm-td text-center py-12">
+                <tr><td colSpan={7} className="crm-td text-center py-12">
                   <div className="flex flex-col items-center gap-3">
                     <div className="w-8 h-8 rounded-full border-2 border-slate-200 border-t-[var(--primary)] animate-spin" />
                     <p className="text-sm text-slate-400">Loading orders...</p>
                   </div>
                 </td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="crm-td text-center py-16">
+                <tr><td colSpan={7} className="crm-td text-center py-16">
                   <p className="text-sm font-semibold text-slate-500">No purchase orders found</p>
                 </td></tr>
               ) : (
@@ -204,27 +178,10 @@ function PurchaseOrderListContent() {
                     <td className="crm-td">
                       <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[p.status] || "bg-gray-100 text-gray-600"}`}>{p.status}</span>
                     </td>
-                    <td className="crm-td">
-                      {p.erpSyncStatus ? (
-                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-medium ${erpStatusColors[p.erpSyncStatus] || "bg-gray-100 text-gray-600"}`}>{p.erpSyncStatus}</span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </td>
                     <td className="crm-td text-foreground">{p._count?.items || 0}</td>
                     <td className="crm-td text-muted-foreground">{p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString() : "—"}</td>
                     <td className="crm-td text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
-                        {p.status === "Approved" && p.erpSyncStatus !== "Synced" && canSyncErp && (
-                          <button
-                            onClick={() => handleSyncErp(p.id)}
-                            disabled={syncingId === p.id}
-                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-600 cursor-pointer disabled:opacity-40"
-                            title="Sync to ERP"
-                          >
-                            <Ico d={icons.sync} size={15} className={syncingId === p.id ? "animate-spin" : ""} />
-                          </button>
-                        )}
                         <button onClick={() => router.push(`/purchase-orders/${p.id}?status=${p.status}`)} className="p-1.5 rounded-lg hover:bg-muted text-slate-600 cursor-pointer" title="View">
                           <Ico d={icons.eye} size={15} />
                         </button>

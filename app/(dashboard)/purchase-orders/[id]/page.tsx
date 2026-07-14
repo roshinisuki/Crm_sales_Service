@@ -1,3 +1,11 @@
+// ASSUMPTION: "Approved" is treated as the final/won stage that triggers the success overlay,
+// because the backend (lib/service-handoff.ts) auto-creates CustomerAsset records on PO approval.
+// "Closed" is a post-approval delivery state, not the win moment.
+// ASSUMPTION: ERP sync UI is fully removed from the detail page. The backend route is left in place.
+// ASSUMPTION: PO statuses are reused as-is — no new statuses invented. The stepper shows all 6
+// existing status values in their existing order (New → UnderValidation → OnHold → Approved → Rejected → Closed).
+// ASSUMPTION: Stage-transition forms reuse only fields already present in the PO edit form
+// (onHoldReason, rejectionReason — both existing schema fields). Pure status flips use confirmation dialogs.
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,22 +14,15 @@ import { useSyncUrlParam } from "@/lib/use-sync-url-param";
 import { useToast } from "@/components/ToastProvider";
 import { useCurrency } from "@/components/CurrencyProvider";
 import PageContainer from "@/components/PageContainer";
-import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { useAuth } from "@/components/AuthProvider";
-
-const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
-  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d={d} />
-  </svg>
-);
-
-const icons = {
-  back: "M10 19l-7-7m0 0l7-7m-7 7h18",
-  check: "M5 13l4 4L19 7",
-  x: "M6 18L18 6M6 6l12 12",
-  sync: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
-  upload: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12",
-};
+import { StatusStepper } from "@/components/ui/StatusStepper";
+import { Modal } from "@/components/ui/Modal";
+import { FormField, Input, Textarea } from "@/components/ui/FormField";
+import { cn } from "@/lib/ui-utils";
+import {
+  FileText, Clock, PauseCircle, CheckCircle, XCircle, PackageCheck,
+  ArrowRight, Link2, Pencil, Trash2, RotateCcw, AlertTriangle,
+} from "lucide-react";
 
 const statusColors: Record<string, string> = {
   New: "bg-slate-100 text-slate-700",
@@ -32,13 +33,17 @@ const statusColors: Record<string, string> = {
   Closed: "bg-green-100 text-green-700",
 };
 
-const erpStatusColors: Record<string, string> = {
-  Synced: "bg-green-100 text-green-700",
-  Pending: "bg-amber-100 text-amber-700",
-  Failed: "bg-red-100 text-red-700",
-};
+// Stepper stages — maps 1:1 to existing PO status values in their existing order
+const PO_STEPS = [
+  { key: "New", label: "New", icon: FileText },
+  { key: "UnderValidation", label: "Under Validation", icon: Clock },
+  { key: "OnHold", label: "On Hold", icon: PauseCircle },
+  { key: "Approved", label: "Approved", icon: CheckCircle },
+  { key: "Rejected", label: "Rejected", icon: XCircle },
+  { key: "Closed", label: "Closed", icon: PackageCheck },
+];
 
-const tabs = ["Details", "Validation", "ERP Sync"];
+const tabs = ["Details", "Validation"];
 
 const checklistItems = [
   { key: "customerVerified", label: "Customer details verified" },
@@ -59,8 +64,6 @@ export default function PurchaseOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Details");
   const [saving, setSaving] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const { startLoading, stopLoading } = useGlobalLoading();
   const { user } = useAuth();
   const canApproveDirectly = ["Admin", "SalesManager", "SuperAdmin"].includes(user?.role ?? "");
 
@@ -70,6 +73,14 @@ export default function PurchaseOrderDetailPage() {
 
   // Edit form
   const [editForm, setEditForm] = useState<any>({});
+
+  // Stage-transition modal state
+  const [showTransitionModal, setShowTransitionModal] = useState(false);
+  const [transitionTarget, setTransitionTarget] = useState<string | null>(null);
+  const [transitionReason, setTransitionReason] = useState("");
+
+  // Success overlay state — shown when PO reaches "Approved" (the won/final status)
+  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
 
   const loadPo = async () => {
     try {
@@ -131,11 +142,60 @@ export default function PurchaseOrderDetailPage() {
       if (data.success) {
         setPo(data.data);
         toast.success(`Status changed to ${newStatus}`);
+        // Trigger success overlay when PO reaches "Approved" (the won/final status)
+        if (newStatus === "Approved") {
+          setShowSuccessOverlay(true);
+        }
       } else toast.error(data.message || "Failed to update status");
     } catch {
       toast.error("Failed to update status");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Open the stage-transition modal for a target status
+  const openTransitionModal = (target: string) => {
+    setTransitionTarget(target);
+    setTransitionReason("");
+    setShowTransitionModal(true);
+  };
+
+  // Submit the stage-transition form
+  const handleTransitionSubmit = async () => {
+    if (!transitionTarget) return;
+    if (transitionTarget === "Rejected" && !transitionReason.trim()) {
+      toast.error("Rejection reason is required");
+      return;
+    }
+    if (transitionTarget === "OnHold" && !transitionReason.trim()) {
+      toast.error("Hold reason is required");
+      return;
+    }
+    setShowTransitionModal(false);
+    const payload: any = { status: transitionTarget };
+    if (transitionTarget === "Rejected") payload.rejectionReason = transitionReason;
+    if (transitionTarget === "OnHold") payload.onHoldReason = transitionReason;
+    // Reuse existing status-update API
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/purchase-orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPo(data.data);
+        toast.success(`Status changed to ${transitionTarget}`);
+        if (transitionTarget === "Approved") setShowSuccessOverlay(true);
+      } else toast.error(data.message || "Failed to update status");
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setSaving(false);
+      setTransitionTarget(null);
+      setTransitionReason("");
     }
   };
 
@@ -214,26 +274,6 @@ export default function PurchaseOrderDetailPage() {
       toast.error("Failed to request approval");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleSyncErp = async () => {
-    setSyncing(true);
-    startLoading("Syncing with SUKI ERP...", "handshake");
-    try {
-      const res = await fetch(`/api/purchase-orders/${id}/sync-erp`, { method: "POST" });
-      const data = await res.json();
-      if (data.success) {
-        setPo(data.data);
-        toast.success(data.message || "Synced to ERP");
-      } else {
-        toast.error(data.message || "ERP sync failed");
-      }
-    } catch {
-      toast.error("ERP sync failed");
-    } finally {
-      setSyncing(false);
-      stopLoading();
     }
   };
 

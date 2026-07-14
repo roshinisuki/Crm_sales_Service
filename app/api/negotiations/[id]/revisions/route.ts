@@ -34,6 +34,30 @@ async function getEscalationConfig(): Promise<{ threshold: number; role: string 
   return { threshold: isNaN(threshold) ? DEFAULT_ESCALATION_THRESHOLD : threshold, role };
 }
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await verifyAuth();
+  if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+
+  const negotiation = await prisma.negotiation.findFirst({
+    where: { id, deletedAt: null, companyId: user.companyId },
+    select: { id: true },
+  });
+  if (!negotiation) return NextResponse.json({ success: false, message: "Negotiation not found" }, { status: 404 });
+
+  const revisions = await prisma.negotiationRevision.findMany({
+    where: { negotiationId: id },
+    include: { createdBy: { select: { id: true, name: true } } },
+    orderBy: { revisionNumber: "asc" },
+  });
+
+  return NextResponse.json({ success: true, data: revisions });
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -59,6 +83,8 @@ export async function POST(
   });
   if (!negotiation) return NextResponse.json({ success: false, message: "Negotiation not found" }, { status: 404 });
 
+  console.log("[revisions POST] negotiation status:", negotiation.status, "currentRound:", negotiation.currentRound, "existing revisions count:", negotiation.revisions.length, "latest revision:", negotiation.revisions[0]?.revisionNumber);
+
   // Only allow revisions when Active or PriceRevision
   if (!["Active", "PriceRevision"].includes(negotiation.status)) {
     return NextResponse.json({ success: false, message: "Cannot add revision to a negotiation that is not Active or in PriceRevision" }, { status: 400 });
@@ -67,6 +93,7 @@ export async function POST(
   const proposedAmount = parseFloat(body.proposedAmount);
   const reason = body.reason.trim();
   const nextRevisionNumber = (negotiation.revisions[0]?.revisionNumber || 0) + 1;
+  console.log("[revisions POST] nextRevisionNumber:", nextRevisionNumber, "requiresApproval will be:", null);
 
   // B.6: Validate proposedAmount — reject non-positive or amounts greater than current amount
   const currentAmount = negotiation.revisedAmount || negotiation.initialAmount;
@@ -94,12 +121,15 @@ export async function POST(
   const requiresEscalation = discountPercent > escalationConfig.threshold;
   const approverRole = requiresEscalation ? escalationConfig.role : "SalesManager";
 
+  console.log("[revisions POST] requiresApproval:", requiresApproval, "discountPercent:", discountPercent, "threshold:", threshold, "hasQuotationId:", !!negotiation.quotationId);
+
   // Create the revision in a transaction along with status + approval request
   const result = await prisma.$transaction(async (tx) => {
     const revision = await tx.negotiationRevision.create({
       data: {
         negotiationId: id,
         revisionNumber: nextRevisionNumber,
+        roundNumber: requiresApproval ? negotiation.currentRound : negotiation.currentRound + 1,
         proposedAmount,
         discountPercent,
         cumulativeDiscountPercent: cumulativeDiscount,
@@ -164,6 +194,8 @@ export async function POST(
     return { revision, quotationRevisionId };
   });
 
+  console.log("[revisions POST] transaction completed, revision.revisionNumber:", result.revision.revisionNumber);
+
   // Fetch the updated negotiation with revisions to return
   const updated = await prisma.negotiation.findUnique({
     where: { id },
@@ -180,6 +212,8 @@ export async function POST(
       },
     },
   });
+
+  console.log("[revisions POST] updated negotiation revisions:", updated?.revisions?.map(r => ({ id: r.id, revisionNumber: r.revisionNumber, status: r.status })));
 
   // B15: Notify assigned user about the revision
   if (updated?.assignedUserId) {
