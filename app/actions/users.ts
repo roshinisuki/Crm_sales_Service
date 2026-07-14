@@ -57,7 +57,7 @@ export async function createInternalUserAction(data: {
       }
     }
 
-    const passwordHash = await bcrypt.hash("SukiCRM@2026", 10);
+    const passwordHash = await bcrypt.hash("Password@123", 10);
 
     const user = await prisma.$transaction(async (tx) => {
       const u = await tx.user.create({

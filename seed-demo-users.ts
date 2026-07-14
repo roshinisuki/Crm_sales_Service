@@ -10,7 +10,7 @@ async function main() {
     return;
   }
 
-  const passwordHash = await bcrypt.hash("SukiCRM@2026", 10);
+  const passwordHash = await bcrypt.hash("Password@123", 10);
 
   // SalesManager
   let manager = await prisma.user.findFirst({ where: { email: "lead@sukisoftware.com" } });
@@ -28,7 +28,7 @@ async function main() {
         theme: "blue",
       }
     });
-    console.log("Created SalesManager: lead@sukisoftware.com / SukiCRM@2026");
+    console.log("Created SalesManager: lead@sukisoftware.com / Password@123");
   } else {
     await prisma.user.update({
       where: { id: manager.id },
@@ -53,7 +53,7 @@ async function main() {
         theme: "blue",
       }
     });
-    console.log("Created SalesExecutive: exec1@sukisoftware.com / SukiCRM@2026");
+    console.log("Created SalesExecutive: exec1@sukisoftware.com / Password@123");
   } else {
     await prisma.user.update({
       where: { id: exec.id },
