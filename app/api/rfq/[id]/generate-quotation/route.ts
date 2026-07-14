@@ -4,6 +4,7 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
 import { computeOverallMarginPercent } from "@/lib/quotation-margins";
+import { logEvent } from "@/lib/activity-event";
 
 export async function POST(
   request: NextRequest,
@@ -235,6 +236,27 @@ export async function POST(
           changedById: user.id,
           notes: `Quotation ${quotationCode} generated.${lowMarginItems.length > 0 ? " Approved low-margin items." : ""}`,
         },
+      });
+
+      await logEvent(tx, {
+        entityType: "Quotation",
+        entityId: quotation.id,
+        rootEntityId: id,
+        type: "quotation_created",
+        fromStatus: null,
+        toStatus: "Draft",
+        actorId: user.id,
+        metadata: { quotationCode, rfqId: id, grandTotal },
+      });
+
+      await logEvent(tx, {
+        entityType: "RFQ",
+        entityId: id,
+        type: "rfq_status_changed",
+        fromStatus: rfq.status,
+        toStatus: "QuotationCreated",
+        actorId: user.id,
+        metadata: { quotationId: quotation.id, quotationCode },
       });
 
       return { quotationId: quotation.id, quotationCode, grandTotal };

@@ -33,6 +33,29 @@ export async function POST(
     return NextResponse.json({ success: false, message: `Cannot reopen RFQ in ${rfq.status} status — only Closed RFQs can be reopened` }, { status: 400 });
   }
 
+  // Guard: check for linked accepted quotations or purchase orders
+  const linkedQuotes = await prisma.quotation.findMany({
+    where: { rfqId: id, deletedAt: null, status: { in: ["Accepted", "Sent", "UnderReview"] } },
+    select: { id: true, quotationCode: true, status: true },
+  });
+  if (linkedQuotes.length > 0) {
+    return NextResponse.json(
+      { success: false, message: `Cannot reopen RFQ: ${linkedQuotes.length} quotation(s) are in active or accepted state (${linkedQuotes.map((q) => q.quotationCode).join(", ")}). Cancel or reject them first.` },
+      { status: 409 }
+    );
+  }
+
+  const linkedPOs = await prisma.purchaseOrder.findMany({
+    where: { quotation: { rfqId: id }, deletedAt: null, status: { in: ["New", "UnderValidation", "Approved"] } },
+    select: { id: true, poCode: true, status: true },
+  });
+  if (linkedPOs.length > 0) {
+    return NextResponse.json(
+      { success: false, message: `Cannot reopen RFQ: ${linkedPOs.length} purchase order(s) are in active state (${linkedPOs.map((p) => p.poCode).join(", ")}). Close or reject them first.` },
+      { status: 409 }
+    );
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.rFQ.update({

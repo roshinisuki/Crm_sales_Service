@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { logEvent } from "@/lib/activity-event";
 
 export async function POST(
   request: NextRequest,
@@ -167,6 +168,17 @@ export async function POST(
           changedById: user.id,
           notes: `Cloned from quotation ${existing.quotationCode} (R${existing.revisionNumber})`,
         },
+      });
+
+      await logEvent(tx, {
+        entityType: "Quotation",
+        entityId: newQuotation.id,
+        rootEntityId: existing.parentQuotationId || existing.id,
+        type: "quotation_cloned",
+        fromStatus: existing.status,
+        toStatus: "Draft",
+        actorId: user.id,
+        metadata: { parentQuotationCode: existing.quotationCode, newQuotationCode: newCode, revisionNumber: existing.revisionNumber + 1 },
       });
 
       return { quotationId: newQuotation.id, quotationCode: newCode, revisionNumber: existing.revisionNumber + 1 };

@@ -9,6 +9,8 @@ import PageContainer from "@/components/PageContainer";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { FormSection, FormGrid, FormActions, FormButton, CompactFormContainer } from "@/components/ui/FormLayout";
 import { getCustomersAction } from "@/app/actions/customers";
+import { validatePositiveNumeric, validateCurrency, validatePercentage, validateAlphanumeric } from "@/lib/formValidation";
+import { cn } from "@/lib/ui-utils";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -193,6 +195,22 @@ export default function NewQuotationPage() {
     if (!form.validUntil) { toast.error("Please set valid until date"); return; }
     if (items.length === 0) { toast.error("At least one line item is required"); return; }
     if (items.some(i => !i.description)) { toast.error("All items need a description"); return; }
+    for (const item of items) {
+      const qtyErr = validatePositiveNumeric(item.quantity, "Quantity");
+      if (qtyErr) { toast.error(`Item "${item.description}": ${qtyErr}`); return; }
+      const priceErr = validateCurrency(item.unitPrice, "Unit Price");
+      if (priceErr) { toast.error(`Item "${item.description}": ${priceErr}`); return; }
+      const discErr = validatePercentage(item.discountPercent, "Discount");
+      if (discErr) { toast.error(`Item "${item.description}": ${discErr}`); return; }
+      const taxErr = validatePercentage(item.taxPercent, "Tax");
+      if (taxErr) { toast.error(`Item "${item.description}": ${taxErr}`); return; }
+      if (item.hsn) {
+        const hsnErr = validateAlphanumeric(item.hsn, "HSN");
+        if (hsnErr) { toast.error(`Item "${item.description}": ${hsnErr}`); return; }
+      }
+    }
+    const headerDiscErr = validatePercentage(form.discountPercent, "Header Discount");
+    if (headerDiscErr) { toast.error(headerDiscErr); return; }
 
     setSaving(true);
     try {
@@ -343,7 +361,8 @@ export default function NewQuotationPage() {
                   </div>
                   <div className="col-span-1">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">Qty</label>
-                    <Input type="number" step="0.01" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className="text-xs py-1.5" />
+                    <Input type="number" step="0.01" min="1" placeholder="Qty" value={item.quantity} onChange={(e) => updateItem(idx, "quantity", e.target.value)} className={cn("text-xs py-1.5", item.quantity && validatePositiveNumeric(item.quantity, "Quantity") && "border-rose-500")} />
+                    {item.quantity && validatePositiveNumeric(item.quantity, "Quantity") && <p className="text-[9px] text-rose-500 mt-0.5">{validatePositiveNumeric(item.quantity, "Quantity")}</p>}
                   </div>
                   <div className="col-span-1">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">UOM</label>
@@ -351,15 +370,18 @@ export default function NewQuotationPage() {
                   </div>
                   <div className="col-span-1">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">Price</label>
-                    <Input type="number" step="0.01" placeholder="Price" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className="text-xs py-1.5" />
+                    <Input type="number" step="0.01" min="0" placeholder="Price" value={item.unitPrice} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} className={cn("text-xs py-1.5", item.unitPrice && validateCurrency(item.unitPrice, "Unit Price") && "border-rose-500")} />
+                    {item.unitPrice && validateCurrency(item.unitPrice, "Unit Price") && <p className="text-[9px] text-rose-500 mt-0.5">{validateCurrency(item.unitPrice, "Unit Price")}</p>}
                   </div>
                   <div className="col-span-1">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">Disc%</label>
-                    <Input type="number" step="0.01" min="0" max="100" placeholder="0" value={item.discountPercent} onChange={(e) => updateItem(idx, "discountPercent", e.target.value)} className="text-xs py-1.5" />
+                    <Input type="number" step="0.01" min="0" max="100" placeholder="0" value={item.discountPercent} onChange={(e) => updateItem(idx, "discountPercent", e.target.value)} className={cn("text-xs py-1.5", item.discountPercent && validatePercentage(item.discountPercent, "Discount") && "border-rose-500")} />
+                    {item.discountPercent && validatePercentage(item.discountPercent, "Discount") && <p className="text-[9px] text-rose-500 mt-0.5">{validatePercentage(item.discountPercent, "Discount")}</p>}
                   </div>
                   <div className="col-span-1">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">Tax%</label>
-                    <Input type="number" step="0.01" placeholder="18" value={item.taxPercent} onChange={(e) => updateItem(idx, "taxPercent", e.target.value)} className="text-xs py-1.5" />
+                    <Input type="number" step="0.01" min="0" max="100" placeholder="18" value={item.taxPercent} onChange={(e) => updateItem(idx, "taxPercent", e.target.value)} className={cn("text-xs py-1.5", item.taxPercent && validatePercentage(item.taxPercent, "Tax") && "border-rose-500")} />
+                    {item.taxPercent && validatePercentage(item.taxPercent, "Tax") && <p className="text-[9px] text-rose-500 mt-0.5">{validatePercentage(item.taxPercent, "Tax")}</p>}
                   </div>
                   <div className="col-span-0 flex flex-col items-end justify-end pb-1">
                     <span className="text-xs font-medium text-[var(--text-primary)]">{((parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0) * (1 - (parseFloat(item.discountPercent) || 0) / 100)).toFixed(2)}</span>
@@ -396,7 +418,8 @@ export default function NewQuotationPage() {
             <div className="flex justify-between text-sm"><span className="text-[var(--text-secondary)]">Tax (GST)</span><span className="font-medium text-[var(--text-primary)]">+{formatCurrency(taxAmount)}</span></div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-[var(--text-secondary)]">Header Discount %</span>
-              <Input type="number" step="0.01" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} className="w-24 text-right" />
+              <Input type="number" step="0.01" min="0" max="100" value={form.discountPercent} onChange={(e) => setForm({ ...form, discountPercent: e.target.value })} className={cn("w-24 text-right", validatePercentage(form.discountPercent, "Header Discount") && "border-rose-500")} />
+              {validatePercentage(form.discountPercent, "Header Discount") && <p className="text-[10px] text-rose-500 mt-0.5">{validatePercentage(form.discountPercent, "Header Discount")}</p>}
             </div>
             <div className="flex justify-between text-sm text-red-600"><span>Discount Amount</span><span>-{formatCurrency(discountAmount)}</span></div>
             <div className="flex justify-between text-sm font-bold border-t border-[var(--border)] pt-2"><span className="text-[var(--text-primary)]">Final Amount</span><span className="text-[var(--primary)]">{formatCurrency(finalAmount)}</span></div>

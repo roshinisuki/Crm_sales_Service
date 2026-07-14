@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const customerId = searchParams.get("customerId");
   const assignedUserId = searchParams.get("assignedUserId");
+  const search = searchParams.get("search");
   const page = parseInt(searchParams.get("page") || "1");
   const pageSize = 20;
 
@@ -21,6 +22,14 @@ export async function GET(request: NextRequest) {
   if (status) where.status = status;
   if (customerId) where.customerId = customerId;
   if (assignedUserId) where.assignedUserId = assignedUserId;
+  if (search) {
+    where.OR = [
+      { negotiationCode: { contains: search } },
+      { customer: { name: { contains: search } } },
+      { deal: { dealName: { contains: search } } },
+      { quotation: { quotationCode: { contains: search } } },
+    ];
+  }
 
   const [negotiations, total] = await Promise.all([
     prisma.negotiation.findMany({

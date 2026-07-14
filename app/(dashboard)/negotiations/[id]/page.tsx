@@ -45,11 +45,12 @@ const revisionStatusColors: Record<string, string> = {
 const tabs = ["Overview", "Revisions", "Discussion"];
 
 // Sequential status flow: each status can only transition to the next one(s)
+// PriceRevision → must go to CommercialDiscussion (quotation R2 review), NOT directly to Closed-Success
 const STATUS_FLOW: Record<string, string[]> = {
   Active: ["PriceRevision", "Closed-Success", "Closed-Failure"],
-  PriceRevision: ["CommercialDiscussion", "Closed-Success", "Closed-Failure"],
+  PriceRevision: ["CommercialDiscussion"],
   CommercialDiscussion: ["PendingApproval", "PriceRevision", "Closed-Success", "Closed-Failure"],
-  PendingApproval: ["Closed-Success", "Closed-Failure"],
+  PendingApproval: ["Active", "Closed-Success", "Closed-Failure"],
   "Closed-Success": [],
   "Closed-Failure": [],
 };
@@ -70,6 +71,8 @@ export default function NegotiationDetailPage() {
   const [saving, setSaving] = useState(false);
   const { startLoading, stopLoading } = useGlobalLoading();
   const [confirmState, setConfirmState] = useState({ isOpen: false, title: "", message: "", action: () => {} });
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Edit form state
   const [editForm, setEditForm] = useState<any>({});
@@ -130,7 +133,7 @@ export default function NegotiationDetailPage() {
     loadDiscussionNotes();
   }, [id]);
 
-  const handleStatusChange = async (newStatus: string) => {
+  const handleStatusChange = async (newStatus: string, reasonText?: string) => {
     if (!negotiation) return;
     if (newStatus === negotiation.status) return;
     // Enforce sequential transitions
@@ -147,6 +150,9 @@ export default function NegotiationDetailPage() {
         const payload: any = { status: newStatus };
         if (newStatus === "Closed-Success") {
           payload.finalAmount = negotiation.revisedAmount || negotiation.initialAmount;
+        }
+        if (newStatus === "Closed-Failure" && reasonText) {
+          payload.rejectionReasonText = reasonText;
         }
         const res = await fetch(`/api/negotiations/${id}`, {
           method: "PUT",
@@ -168,11 +174,14 @@ export default function NegotiationDetailPage() {
       }
     };
 
-    if (newStatus === "Closed-Success" || newStatus === "Closed-Failure") {
-      const isWon = newStatus === "Closed-Success";
-      const outcomeText = isWon ? "Won" : "Lost";
-      const message = `This will mark the negotiation as ${newStatus}. Are you sure you want to proceed?`;
+    if (newStatus === "Closed-Failure") {
+      // Reject requires a reason — handled via dedicated modal (see showRejectModal)
+      setShowRejectModal(true);
+      return;
+    }
 
+    if (newStatus === "Closed-Success") {
+      const message = `This will mark the negotiation as ${newStatus}. Are you sure you want to proceed?`;
       setConfirmState({
         isOpen: true,
         title: `Transition to ${newStatus}`,
@@ -184,6 +193,34 @@ export default function NegotiationDetailPage() {
       });
     } else {
       await executeChange();
+    }
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectReason.trim()) {
+      toast.error("Please provide a reason for rejecting this negotiation");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/negotiations/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Closed-Failure", rejectionReasonText: rejectReason.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNegotiation(data.data);
+        toast.success("Negotiation closed as failure");
+        setShowRejectModal(false);
+        setRejectReason("");
+      } else {
+        toast.error(data.message || "Failed to update status");
+      }
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -330,6 +367,14 @@ export default function NegotiationDetailPage() {
               <Ico d={icons.plus} size={16} /> Add Revision
             </button>
           )}
+          {negotiation.status === "PriceRevision" && negotiation.quotation?.id && (
+            <button
+              onClick={() => router.push(`/quotations/${negotiation.quotation.id}`)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              📄 View Quotation (R{negotiation.currentRound + 1})
+            </button>
+          )}
           {canResumeRevision && (
             <button
               onClick={() => handleStatusChange("PriceRevision")}
@@ -349,7 +394,7 @@ export default function NegotiationDetailPage() {
               {requestingApproval ? "Requesting..." : "Request Approval"}
             </button>
           )}
-          {!isClosed && (
+          {!isClosed && (STATUS_FLOW[negotiation.status] || []).includes("Closed-Success") && (
             <>
               <button
                 onClick={() => handleStatusChange("Closed-Success")}
@@ -443,9 +488,14 @@ export default function NegotiationDetailPage() {
             const allowed = STATUS_FLOW[negotiation.status] || [];
             const isAllowed = allowed.includes(s);
             const isClosed = ["Closed-Success", "Closed-Failure"].includes(negotiation.status);
-            const statusIdx = ALL_STATUSES.indexOf(negotiation.status);
-            const stepIdx = idx;
-            const isCompleted = stepIdx < statusIdx || (negotiation.status === "Closed-Success" && s === "Closed-Success") || (negotiation.status === "Closed-Failure" && s === "Closed-Failure");
+            const NON_TERMINAL_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval"];
+            const statusIdx = NON_TERMINAL_STATUSES.indexOf(negotiation.status);
+            const stepIdx = NON_TERMINAL_STATUSES.indexOf(s);
+            // Terminal steps (Closed-Success/Closed-Failure) are mutually exclusive outcomes, not sequential —
+            // a step is only "completed" if it matches the negotiation's actual terminal status.
+            const isCompleted = isClosed
+              ? (s === negotiation.status)
+              : (stepIdx !== -1 && statusIdx !== -1 && stepIdx < statusIdx);
             const isClickable = !isClosed && !isCurrent && isAllowed;
             return {
               label: s,
@@ -565,6 +615,31 @@ export default function NegotiationDetailPage() {
       )}
 
       {activeTab === "Revisions" && (
+        <div className="space-y-4">
+          {/* Latest revision reason banner */}
+          {negotiation.revisions?.length > 0 && (() => {
+            const latest = negotiation.revisions[negotiation.revisions.length - 1];
+            return (
+              <div className={cn(
+                "rounded-xl p-4 border flex items-start gap-3",
+                latest.status === "Approved" ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/30" :
+                latest.status === "Rejected" ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/30" :
+                "bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/30"
+              )}>
+                <span className="text-base mt-0.5">
+                  {latest.status === "Approved" ? "✅" : latest.status === "Rejected" ? "❌" : "⏳"}
+                </span>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">R{latest.revisionNumber} — {latest.status}</span>
+                    <span className="text-[10px] text-slate-500 font-medium">{formatCurrency(latest.proposedAmount)}</span>
+                  </div>
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{latest.reason || "No reason provided"}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">By {latest.createdBy?.name || "Unknown"} on {new Date(latest.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                </div>
+              </div>
+            );
+          })()}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* Left / Main side: Revisions List Table */}
           <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -641,7 +716,7 @@ export default function NegotiationDetailPage() {
                           <td className={cn("crm-td text-right font-semibold", marginDelta != null && marginDelta < 0 ? "text-rose-600" : "text-emerald-600")}>
                             {marginDelta != null ? `${marginDelta < 0 ? "" : "+"}${marginDelta.toFixed(1)}%` : "—"}
                           </td>
-                          <td className="crm-td text-left text-slate-750 dark:text-slate-350 max-w-xs truncate" title={r.reason || ""}>{r.reason || "—"}</td>
+                          <td className="crm-td text-left text-slate-750 dark:text-slate-350 max-w-[200px] whitespace-normal break-words text-[11px] leading-snug">{r.reason || "—"}</td>
                           <td className="crm-td text-center">
                             <span className={cn(
                               "inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
@@ -727,6 +802,7 @@ export default function NegotiationDetailPage() {
               )}
             </div>
           </div>
+        </div>
         </div>
       )}
 
@@ -853,6 +929,34 @@ export default function NegotiationDetailPage() {
         onCancel={() => setConfirmState({ isOpen: false, title: "", message: "", action: () => {} })}
         isDestructive={true}
       />
+
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setShowRejectModal(false)}>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">❌ Reject &amp; Close Negotiation</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">This will mark the negotiation as Closed-Failure, reject the quotation, and mark the deal as Lost (if linked). This action cannot be undone.</p>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Reason for rejection <span className="text-red-500">*</span></label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={3}
+                placeholder="Why is this negotiation being closed as unsuccessful? (e.g. customer chose competitor, budget mismatch, etc.)"
+                className="w-full px-4 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all resize-none"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => { setShowRejectModal(false); setRejectReason(""); }} className="px-5 py-2 rounded-xl text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer">
+                Cancel
+              </button>
+              <button onClick={handleConfirmReject} disabled={saving || !rejectReason.trim()} className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-[var(--status-danger)] hover:opacity-90 transition-colors cursor-pointer disabled:opacity-60">
+                {saving ? "Closing..." : "Confirm Reject & Close"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageContainer>
   );
 }

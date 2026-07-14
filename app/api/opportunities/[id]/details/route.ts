@@ -73,6 +73,9 @@ export async function PUT(
     "techDiscussionDate", "techDiscussionAttendees", "techDiscussionQuestions", "techDiscussionConfirmed",
     // V5: Manufacturing pipeline fields
     "leadVerified", "tdDiscussionDate", "tdAttendees", "tdEngineerId", "additionalNotes",
+    // Commercial Information — extra RG fields
+    "paymentTerms", "competitorInfo", "commercialRisks",
+    "discountRequested", "proposalValue", "negotiationNotes",
   ];
 
   const data: Record<string, any> = {};
@@ -81,7 +84,7 @@ export async function PUT(
       // Parse numeric fields
       if (["userCountSales", "userCountManagers", "userCountAdmins", "numberOfUsers", "licenseCount", "probability", "employeeCount", "meetingDuration", "demoDuration"].includes(key)) {
         data[key] = body[key] !== null && body[key] !== "" ? parseInt(body[key]) || null : null;
-      } else if (["expectedBudget", "finalDiscussedBudget"].includes(key)) {
+      } else if (["expectedBudget", "finalDiscussedBudget", "discountRequested", "proposalValue"].includes(key)) {
         data[key] = body[key] !== null && body[key] !== "" ? parseFloat(body[key]) || null : null;
       } else if (["expectedGoLive", "requirementCompletedAt", "techDiscussionDate", "tdDiscussionDate"].includes(key)) {
         data[key] = body[key] ? new Date(body[key]) : null;

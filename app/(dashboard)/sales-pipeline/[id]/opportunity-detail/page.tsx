@@ -28,6 +28,7 @@ import { RFQSummaryCard } from "@/components/pipeline/RFQSummaryCard";
 import { generateStageSummary } from "@/components/pipeline/StageSummaryLine";
 import { PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 import { getUsersAction } from "@/app/actions/users";
+import { validateEmail, validatePhone, validateNumeric } from "@/lib/formValidation";
 
 const STAGE_DISPLAY_LABELS: Record<string, string> = {
   Qualified:            "Qualified",
@@ -705,8 +706,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         // Commercial information — auto-fill budget/timeline from lead
         budgetRange:      autoFill(d.budgetRange, lead?.budgetAsked, ""),
         timeline:         autoFill(d.timeline, lead?.timelineAsked, ""),
-        expectedBudget:   d.expectedBudget || (lead?.estimatedValue ? String(lead.estimatedValue) : ""),
-        finalDiscussedBudget: d.finalDiscussedBudget || "",
+        expectedBudget:   d.expectedBudget != null ? String(d.expectedBudget) : (lead?.estimatedValue ? String(lead.estimatedValue) : ""),
+        finalDiscussedBudget: d.finalDiscussedBudget != null ? String(d.finalDiscussedBudget) : "",
         procurementProcess: d.procurementProcess || "",
         decisionMaker:    autoFill(d.decisionMaker, lead?.name, primaryContact?.name),
         influencer:       d.influencer || "",
@@ -714,6 +715,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         expectedGoLive:   d.expectedGoLive ? d.expectedGoLive.split("T")[0] : "",
         paymentTerms:     d.paymentTerms || "",
         competitorInfo:   d.competitorInfo || "",
+        commercialRisks:  d.commercialRisks || "",
+        discountRequested: d.discountRequested != null ? String(d.discountRequested) : "",
+        proposalValue:    d.proposalValue != null ? String(d.proposalValue) : "",
+        negotiationNotes: d.negotiationNotes || "",
         // Internal notes (consolidated)
         additionalNotes:  d.additionalNotes || d.internalSalesNotes || "",
         internalSalesNotes: d.internalSalesNotes || "",
@@ -868,6 +873,12 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       body: JSON.stringify(editForm),
     });
     if (res.ok) {
+      // Sync expectedBudget in OpportunityDetail with the updated dealValue
+      await fetch(`/api/opportunities/${id}/details`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedBudget: editForm.dealValue }),
+      });
       toast.success("Opportunity updated");
       setShowEditModal(false);
       fetchDeal(true, false);
@@ -1035,6 +1046,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customerId: deal.customerId,
+        dealId: id,
         nextMeetingDate: followUpForm.nextMeetingDate,
         remarks: followUpForm.title || `Follow-up for ${deal.dealName}`,
         notes: followUpForm.notes || null,
@@ -1047,6 +1059,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       toast.success("Follow-up created");
       setShowFollowUpModal(false);
       setFollowUpForm({ title: "", nextMeetingDate: "", priority: "Medium", notes: "" });
+      fetchDeal(true, false);
     } else {
       const json = await res.json().catch(() => ({}));
       toast.error(json.message || "Failed to create follow-up");
@@ -1671,19 +1684,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                       <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
                     )}
                   </FormField>
-                  <FormField label="Email" required error={rgAttempted && !rgForm.email ? "This field is required" : ""}>
-                    <Input value={rgForm.email || ""} onChange={(e) => setRgForm({ ...rgForm, email: e.target.value })} className={cn(rgAttempted && !rgForm.email && "border-rose-500")} />
+                  <FormField label="Email" required error={rgAttempted && !rgForm.email ? "This field is required" : (rgForm.email ? validateEmail(rgForm.email) : "")}>
+                    <Input value={rgForm.email || ""} onChange={(e) => setRgForm({ ...rgForm, email: e.target.value })} className={cn(rgAttempted && !rgForm.email && "border-rose-500", rgForm.email && validateEmail(rgForm.email) && "border-rose-500")} />
                     {deal?.lead && !deal?.opportunityDetail?.email && rgForm.email && (
                       <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
                     )}
                   </FormField>
-                  <FormField label="Phone" required error={rgAttempted && !rgForm.phone ? "This field is required" : ""}>
-                    <Input value={rgForm.phone || ""} onChange={(e) => setRgForm({ ...rgForm, phone: e.target.value })} className={cn(rgAttempted && !rgForm.phone && "border-rose-500")} />
+                  <FormField label="Phone" required error={rgAttempted && !rgForm.phone ? "This field is required" : (rgForm.phone ? validatePhone(rgForm.phone) : "")}>
+                    <Input value={rgForm.phone || ""} onChange={(e) => setRgForm({ ...rgForm, phone: e.target.value })} className={cn(rgAttempted && !rgForm.phone && "border-rose-500", rgForm.phone && validatePhone(rgForm.phone) && "border-rose-500")} />
                     {deal?.lead && !deal?.opportunityDetail?.phone && rgForm.phone && (
                       <p className="text-xs text-slate-400 mt-1">Auto-filled from lead</p>
                     )}
                   </FormField>
-                  <FormField label="Employee Count"><Input type="number" value={rgForm.employeeCount || ""} onChange={(e) => setRgForm({ ...rgForm, employeeCount: e.target.value })} /></FormField>
+                  <FormField label="Employee Count" error={rgForm.employeeCount ? validateNumeric(rgForm.employeeCount, "Employee Count") : ""}><Input type="number" value={rgForm.employeeCount || ""} onChange={(e) => setRgForm({ ...rgForm, employeeCount: e.target.value })} className={cn(rgForm.employeeCount && validateNumeric(rgForm.employeeCount, "Employee Count") && "border-rose-500")} /></FormField>
                   <FormField label="Approval Process"><Textarea rows={2} value={rgForm.approvalProcess || ""} onChange={(e) => setRgForm({ ...rgForm, approvalProcess: e.target.value })} /></FormField>
                   <FormField label="Buying Authority Notes"><Textarea rows={2} value={rgForm.buyingAuthorityNotes || ""} onChange={(e) => setRgForm({ ...rgForm, buyingAuthorityNotes: e.target.value })} /></FormField>
                 </div>
@@ -1702,7 +1715,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   <FormField label="Business Need" required error={rgAttempted && !rgForm.businessNeed ? "This field is required" : ""}><Textarea rows={3} value={rgForm.businessNeed || ""} onChange={(e) => setRgForm({ ...rgForm, businessNeed: e.target.value })} className={cn(rgAttempted && !rgForm.businessNeed && "border-rose-500")} /></FormField>
                   <FormField label="Expected Outcome"><Textarea rows={3} value={rgForm.expectedOutcome || ""} onChange={(e) => setRgForm({ ...rgForm, expectedOutcome: e.target.value })} /></FormField>
                   <FormField label="Required Departments"><Input value={rgForm.requiredDepartments || ""} onChange={(e) => setRgForm({ ...rgForm, requiredDepartments: e.target.value })} /></FormField>
-                  <FormField label="Number of Users"><Input type="number" value={rgForm.numberOfUsers || ""} onChange={(e) => setRgForm({ ...rgForm, numberOfUsers: e.target.value })} /></FormField>
+                  <FormField label="Number of Users" error={rgForm.numberOfUsers ? validateNumeric(rgForm.numberOfUsers, "Number of Users") : ""}><Input type="number" value={rgForm.numberOfUsers || ""} onChange={(e) => setRgForm({ ...rgForm, numberOfUsers: e.target.value })} className={cn(rgForm.numberOfUsers && validateNumeric(rgForm.numberOfUsers, "Number of Users") && "border-rose-500")} /></FormField>
                   <FormField label="Urgency / Priority" required error={rgAttempted && !rgForm.urgencyPriority ? "This field is required" : ""}>
                     <Select value={rgForm.urgencyPriority || ""} onChange={(e) => setRgForm({ ...rgForm, urgencyPriority: e.target.value })} className={cn(rgAttempted && !rgForm.urgencyPriority && "border-rose-500")}>
                       <option value="">Select...</option>
@@ -2505,7 +2518,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
 
 
-        {(effectiveStage === "DemoAccepted" || effectiveStage === "Lost" || effectiveStage === "Rejected") && (
+        {(effectiveStage === "DemoAccepted" || effectiveStage === "Lost" || effectiveStage === "Rejected" || effectiveStage === "Won") && (
           <div className="text-sm text-slate-600">
             <p>This opportunity is closed as <strong>{STAGE_DISPLAY_LABELS[effectiveStage] || effectiveStage}</strong>. Details are read-only.</p>
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2536,6 +2549,38 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 >
                   Direct Quotation
                 </button>
+              </div>
+            )}
+            
+            {effectiveStage === "Won" && (
+              <div className="mt-6 space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <CheckCircle size={18} className="text-emerald-600" />
+                    <h4 className="text-sm font-bold text-emerald-800">Closed Success — Next Steps</h4>
+                  </div>
+                  <p className="text-xs text-emerald-700 mb-4">This deal has been won. Complete the post-sale workflow to activate the customer account and begin onboarding.</p>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => router.push(`/subscription?customerId=${deal.customerId}&dealId=${deal.id}`)}
+                      className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm"
+                    >
+                      Create Subscription
+                    </button>
+                    <button
+                      onClick={() => router.push(`/tasks/new?dealId=${deal.id}&title=Onboarding%20-%20${encodeURIComponent(deal.customer?.name || "")}`)}
+                      className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-emerald-700 border border-emerald-300 hover:bg-emerald-50 transition-colors shadow-sm"
+                    >
+                      Create Onboarding Task
+                    </button>
+                    <button
+                      onClick={() => router.push(`/customer-master/${deal.customerId}`)}
+                      className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm"
+                    >
+                      View Customer Account
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -2862,10 +2907,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   const currentStageIndex = PIPELINE_STAGES.findIndex((s) => s.key === deal.status);
   const hasAcceptedQuotation = deal.quotations?.some((q: any) => q.status === "Accepted");
-  const isTerminalStage = deal.status === "DemoAccepted" || deal.status === "Lost" || deal.status === "Rejected";
+  const isTerminalStage = deal.status === "DemoAccepted" || deal.status === "Won" || deal.status === "Lost" || deal.status === "Rejected";
   const isValidStage = currentStageIndex !== -1 || isTerminalStage;
   const progressPercent = isTerminalStage
-    ? (deal.status === "DemoAccepted" ? 100 : 0)
+    ? (deal.status === "DemoAccepted" || deal.status === "Won" ? 100 : 0)
     : Math.round(((currentStageIndex + 1) / PIPELINE_STAGES.length) * 100);
 
   const summaryRows: { label: string; value: React.ReactNode }[] = [
@@ -3577,7 +3622,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         )}
 
         {/* Next Action Guidance */}
-        {deal.status !== "Won" && deal.status !== "Lost" && deal.status !== "Rejected" && (
+        {deal.status !== "Lost" && deal.status !== "Rejected" && (
           <>
             <div className="flex items-center gap-2 px-4 py-3 border-b border-t border-border bg-page-bg shrink-0 h-[50px]">
               <span className="text-text-muted"><Calendar size={14} /></span>
@@ -3590,6 +3635,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   {deal.status === "RequirementGathering" && "📅 Schedule a meeting or demo"}
                   {deal.status === "MeetingScheduled" && "🎯 Conduct the meeting/demo"}
                   {deal.status === "DemoAccepted" && "💼 Create and send a quotation"}
+                  {deal.status === "Won" && "🏆 Complete post-sale workflow: create subscription & onboarding task"}
                 </p>
                 <p className="text-[11px] text-text-muted">
                   {deal.status === "Qualified" &&
@@ -3600,6 +3646,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     "Record meeting outcome and advance to Demo Conducted."}
                   {deal.status === "DemoAccepted" &&
                     "Use the Quotation section to create an offer for the customer."}
+                  {deal.status === "Won" &&
+                    "Create a subscription for the customer and assign an onboarding task to begin service delivery."}
                 </p>
               </div>
             </div>

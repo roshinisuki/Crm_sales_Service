@@ -10,6 +10,7 @@ import { ConfirmModal } from "@/components/ConfirmModal";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { useRouter } from "next/navigation";
+import { validateEmail, validateAlphabetic, validateRequired } from "@/lib/formValidation";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -153,6 +154,12 @@ export default function UserMasterPage() {
   // ── Submit handlers ─────────────────────────────────────────
   const handleCreateInternal = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nameErr = validateRequired(intName, "Name");
+    if (nameErr) { setErrorMsg(nameErr); return; }
+    const alphaErr = validateAlphabetic(intName, "Name");
+    if (alphaErr) { setErrorMsg(alphaErr); return; }
+    const emailErr = validateEmail(intEmail);
+    if (emailErr) { setErrorMsg(emailErr); return; }
     setFormLoading(true); setErrorMsg(""); setSuccessMsg("");
     const res = await createInternalUserByAdmin({ name: intName, email: intEmail, role: intRole });
     setFormLoading(false);

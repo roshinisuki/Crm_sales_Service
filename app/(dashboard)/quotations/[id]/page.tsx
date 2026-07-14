@@ -11,6 +11,7 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
+import { EntityTimeline } from "@/components/entity-timeline";
 import QuotationDetailPageV2 from "@/components/quotations/QuotationDetailPageV2";
 import { cn } from "@/lib/ui-utils";
 import { StatusStepper } from "@/components/ui/StatusStepper";
@@ -63,7 +64,7 @@ export default function QuotationDetailPage() {
   const [quotation, setQuotation] = useState<any>(null);
   useSyncUrlParam(quotation?.status, "status");
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"items" | "history" | "revisions" | "approvals" | "documents">("items");
+  const [activeTab, setActiveTab] = useState<"items" | "history" | "revisions" | "approvals" | "documents" | "timeline">("items");
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void; input?: boolean; inputLabel?: string }>({ isOpen: false, title: "", message: "", action: () => {} });
   const [rejectReason, setRejectReason] = useState("");
   const [rejectReasonId, setRejectReasonId] = useState("");
@@ -847,6 +848,7 @@ export default function QuotationDetailPage() {
           { key: "revisions", label: "Revisions" },
           { key: "approvals", label: "Approvals" },
           { key: "documents", label: "Documents" },
+          { key: "timeline", label: "Timeline" },
         ].map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className={`px-4 py-2 text-sm font-medium border-b-2 cursor-pointer transition-colors ${activeTab === tab.key ? "border-[var(--primary)] text-[var(--primary)] font-semibold" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{tab.label}</button>
         ))}
@@ -1268,6 +1270,14 @@ export default function QuotationDetailPage() {
             <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">Uploaded Documents</h2>
             <EntityDocumentTab entityType="Quotation" entityId={quotation.id} defaultDocumentType="Quotation" />
           </div>
+        </div>
+      )}
+
+      {/* Timeline Tab */}
+      {activeTab === "timeline" && quotation && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">Activity Timeline</h2>
+          <EntityTimeline rootEntityId={quotation.parentQuotationId || quotation.id} />
         </div>
       )}
 

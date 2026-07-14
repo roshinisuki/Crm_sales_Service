@@ -11,6 +11,7 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
 import { SummaryCard } from "@/components/ui/SummaryCard";
+import { validateEmail, validatePhone, validateAlphabetic } from "@/lib/formValidation";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -212,6 +213,13 @@ export default function CustomerMasterPage() {
       setFormLoading(false);
       return;
     }
+
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) { setErrorMsg(emailErr); setFormLoading(false); return; }
+    const phoneErr = validatePhone(formData.phone);
+    if (phoneErr) { setErrorMsg(phoneErr); setFormLoading(false); return; }
+    const cityErr = validateAlphabetic(formData.city, "City");
+    if (cityErr) { setErrorMsg(cityErr); setFormLoading(false); return; }
 
     let res;
     if (formData.id) {
@@ -545,8 +553,9 @@ export default function CustomerMasterPage() {
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="Email address" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
+                      className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all ${formData.email && validateEmail(formData.email) ? "border-rose-500" : "border-slate-200"}`} 
                     />
+                    {formData.email && validateEmail(formData.email) && <p className="text-xs text-rose-500 mt-1">{validateEmail(formData.email)}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Phone</label>
@@ -555,8 +564,9 @@ export default function CustomerMasterPage() {
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       placeholder="Phone number" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
+                      className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all ${formData.phone && validatePhone(formData.phone) ? "border-rose-500" : "border-slate-200"}`} 
                     />
+                    {formData.phone && validatePhone(formData.phone) && <p className="text-xs text-rose-500 mt-1">{validatePhone(formData.phone)}</p>}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -567,8 +577,9 @@ export default function CustomerMasterPage() {
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       placeholder="City" 
-                      className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all" 
+                      className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all ${formData.city && validateAlphabetic(formData.city, "City") ? "border-rose-500" : "border-slate-200"}`} 
                     />
+                    {formData.city && validateAlphabetic(formData.city, "City") && <p className="text-xs text-rose-500 mt-1">{validateAlphabetic(formData.city, "City")}</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">Status</label>

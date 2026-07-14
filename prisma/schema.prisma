@@ -79,6 +79,7 @@ model User {
   assignedNegotiations        Negotiation[]               @relation("AssignedNegotiations")
   negotiationDeletedBy        Negotiation[]               @relation("NegotiationDeletedBy")
   negotiationRevisions        NegotiationRevision[]       @relation("NegotiationRevisions")
+  approvedNegotiationRevisions NegotiationRevision[]      @relation("ApprovedNegotiationRevisions")
   createdNotes                Note[]                      @relation("CreatedNotes")
   notifications               Notification[]
   notificationPrefs           NotificationPreference?
@@ -484,6 +485,7 @@ model FollowUp {
   id                String             @id @default(uuid())
   customerId        String?
   leadId            String?
+  dealId            String?
   assignedUserId    String
   nextMeetingDate   DateTime
   remarks           String?            @db.NVarChar(Max)
@@ -517,11 +519,13 @@ model FollowUp {
   completedBy       User?              @relation("CompletedFollowUps", fields: [completedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   lead              Lead?              @relation(fields: [leadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deal              Deal?              @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   nextFollowUp      FollowUp?          @relation("ChainedFollowUp", fields: [nextFollowupId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   prevFollowUps     FollowUp[]         @relation("ChainedFollowUp")
 
   @@index([customerId])
   @@index([leadId])
+  @@index([dealId])
   @@index([assignedUserId])
   @@index([status])
   @@index([nextMeetingDate])
@@ -610,6 +614,7 @@ model Deal {
   tasks                  Task[]
   competitorInvolvements CompetitorInvolvement[]      @relation("CompetitorInvolvementDeal")
   customerAssets         CustomerAsset[]               @relation("CustomerAssetDeal")
+  followUps              FollowUp[]
 
   @@index([customerId])
   @@index([assignedUserId])
@@ -700,6 +705,13 @@ model OpportunityDetail {
   tdAttendees             String?   @db.NVarChar(Max) // TechnicalDiscussion stage attendees
   tdEngineerId            String? // TechnicalDiscussion stage — assigned engineer user ID
   additionalNotes         String?   @db.NVarChar(Max) // RG stage — consolidates narrative notes (objections, risks, next steps, etc.)
+  // Commercial Information — extra fields used in RG form
+  paymentTerms            String?   @db.NVarChar(Max)
+  competitorInfo          String?   @db.NVarChar(Max)
+  commercialRisks         String?   @db.NVarChar(Max)
+  discountRequested       Float?
+  proposalValue           Float?
+  negotiationNotes        String?   @db.NVarChar(Max)
   deal                    Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
 }
 
@@ -1185,7 +1197,7 @@ model ProductCategory {
   companyId              String?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
-  defaultSpecifications  String?           @db.Text
+  defaultSpecifications  String?           @db.NVarChar(Max)
   parentCategoryId       String?
   defaultOverheadPercent Decimal           @default(0) @db.Decimal(5, 2)
   defaultMarginPercent   Decimal           @default(0) @db.Decimal(5, 2)
@@ -1380,6 +1392,9 @@ model Quotation {
   assignedUserId           String?
   negotiationId            String?
   parentQuotationId        String?
+  currentRound             Int                         @default(0)
+  holdReason               String?                     @db.NVarChar(Max)
+  holdAt                   DateTime?
   negotiations             Negotiation[]
   purchaseOrders           PurchaseOrder[]
   assignedUser             User?                       @relation("AssignedQuotations", fields: [assignedUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -1408,6 +1423,7 @@ model Quotation {
   @@index([status, validUntil])
   @@index([negotiationId])
   @@index([parentQuotationId])
+  @@index([currentRound])
 }
 
 model QuotationItem {
@@ -1535,6 +1551,7 @@ model Negotiation {
   customerId             String
   contactId              String?
   status                 String                  @default("Active")
+  currentRound           Int                     @default(0)
   initialAmount          Float
   revisedAmount          Float?
   finalAmount            Float?
@@ -1575,22 +1592,36 @@ model Negotiation {
   @@index([status])
   @@index([assignedUserId])
   @@index([companyId])
+  @@index([currentRound])
 }
 
 model NegotiationRevision {
-  id              String      @id @default(uuid())
-  negotiationId   String
-  revisionNumber  Int
-  proposedAmount  Float
-  discountPercent Float       @default(0)
-  reason          String?     @db.NVarChar(Max)
-  status          String      @default("Pending")
-  createdById     String
-  createdAt       DateTime    @default(now())
-  createdBy       User        @relation("NegotiationRevisions", fields: [createdById], references: [id], onUpdate: NoAction)
-  negotiation     Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
+  id                        String      @id @default(uuid())
+  negotiationId             String
+  revisionNumber            Int
+  roundNumber               Int         @default(0)
+  proposedAmount            Float
+  previousAmount            Float?
+  discountPercent           Float       @default(0)
+  cumulativeDiscountPercent Float       @default(0)
+  submittedAgainstRound     Int         @default(0)
+  reason                    String?     @db.NVarChar(Max)
+  status                    String      @default("Pending")
+  createdById               String
+  approvedById              String?
+  approvalHistoryId         String?
+  quotationSnapshotBeforeId String?
+  quotationSnapshotAfterId  String?
+  resolvedAt                DateTime?
+  createdAt                 DateTime    @default(now())
+  createdBy                 User        @relation("NegotiationRevisions", fields: [createdById], references: [id], onUpdate: NoAction)
+  approvedBy                User?       @relation("ApprovedNegotiationRevisions", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  negotiation               Negotiation @relation(fields: [negotiationId], references: [id], onDelete: Cascade)
 
+  @@unique([negotiationId, roundNumber])
   @@index([negotiationId])
+  @@index([status])
+  @@index([roundNumber])
 }
 
 model PurchaseOrder {
@@ -1629,6 +1660,8 @@ model PurchaseOrder {
   poDocumentUrl       String?             @db.NVarChar(Max)
   specialInstructions String?             @db.NVarChar(Max)
   validationChecklist String?             @db.NVarChar(Max)
+  quotationFinalAmount Float?             @default(0)
+  amountReconciled    Boolean             @default(false)
   approvedAt          DateTime?
   approvedById        String?
   rejectionReason     String?             @db.NVarChar(Max)
@@ -1656,19 +1689,21 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id              String        @id @default(uuid())
-  purchaseOrderId String
-  productId       String?
-  description     String
-  quantity        Float
-  unitPrice       Float
-  totalPrice      Float
-  discountPercent Float         @default(0)
-  taxPercent      Float         @default(18)
-  lineTotal       Float         @default(0)
-  notes           String?
-  product         Product?      @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  id                  String        @id @default(uuid())
+  purchaseOrderId     String
+  productId           String?
+  description         String
+  quantity            Float
+  unitPrice           Float
+  totalPrice          Float
+  discountPercent     Float         @default(0)
+  taxPercent          Float         @default(18)
+  lineTotal           Float         @default(0)
+  costBasisUnitPrice  Float?
+  marginPercent       Float?
+  notes               String?
+  product             Product?      @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchaseOrder       PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
   @@index([purchaseOrderId])
 }
@@ -2098,18 +2133,27 @@ model QuotationStatusHistory {
 }
 
 model QuotationRevisionSnapshot {
-  id             String    @id @default(uuid())
-  quotationId    String
-  revisionNumber Int
-  snapshotJson   String    @db.NVarChar(Max)
-  createdById    String?
-  createdAt      DateTime  @default(now())
-  createdBy      User?     @relation("CreatedRevisionSnapshots", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  quotation      Quotation @relation(fields: [quotationId], references: [id], onUpdate: NoAction)
+  id              String    @id @default(uuid())
+  quotationId     String
+  revisionNumber  Int
+  roundNumber     Int       @default(0)
+  triggeredBy     String    @default("manual_edit")
+  triggerRefId    String?
+  snapshotJson    String    @db.NVarChar(Max)
+  subtotal        Float?
+  taxAmount       Float?
+  finalAmount     Float?
+  discountPercent Float?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  createdBy       User?     @relation("CreatedRevisionSnapshots", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotation       Quotation @relation(fields: [quotationId], references: [id], onUpdate: NoAction)
 
   @@index([quotationId])
   @@index([revisionNumber])
+  @@index([roundNumber])
   @@index([createdById])
+  @@index([triggeredBy])
 }
 
 model QuotationApproval {
@@ -2803,4 +2847,22 @@ model RolePermission {
   updatedAt DateTime @updatedAt
 
   @@unique([role, module])
+}
+
+model ActivityEvent {
+  id           String   @id @default(uuid())
+  entityType   String
+  entityId     String
+  rootEntityId String?
+  type         String
+  fromStatus   String?
+  toStatus     String?
+  roundNumber  Int?
+  actorId      String?
+  metadata     String?  @db.NVarChar(Max)
+  createdAt    DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([rootEntityId, createdAt])
+  @@index([type, createdAt])
 }

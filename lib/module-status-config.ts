@@ -160,6 +160,8 @@ export const DEALS_STATUS: StatusOption[] = [
 // API: /api/quotations?status={value}
 export const QUOTES_STATUS: StatusOption[] = [
   { label: "Draft", value: "Draft" },
+  { label: "Pending Approval", value: "PendingApproval" },
+  { label: "Approved", value: "Approved" },
   { label: "Sent", value: "Sent" },
   { label: "Under Review", value: "UnderReview" },
   { label: "Accepted", value: "Accepted" },

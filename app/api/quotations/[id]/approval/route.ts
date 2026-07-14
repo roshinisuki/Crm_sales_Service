@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { applyNegotiationRevision, rejectNegotiationRevision } from "@/lib/negotiation-revision";
 
 export async function PUT(
   request: NextRequest,
@@ -77,44 +78,30 @@ export async function PUT(
 
       // Sync linked negotiation status if this quotation is linked to a negotiation
       if (existing.negotiationId) {
-        if (body.decision === "Approved") {
-          // Approve the pending negotiation revision and move negotiation to PriceRevision (Ready for PO)
-          const pendingRevision = await tx.negotiationRevision.findFirst({
-            where: { negotiationId: existing.negotiationId, status: "Pending" },
-            orderBy: { revisionNumber: "desc" },
-            take: 1,
-          });
-          if (pendingRevision) {
-            await tx.negotiationRevision.update({
-              where: { id: pendingRevision.id },
-              data: { status: "Approved" },
+        const pendingRevision = await tx.negotiationRevision.findFirst({
+          where: { negotiationId: existing.negotiationId, status: "Pending" },
+          orderBy: { revisionNumber: "desc" },
+          take: 1,
+        });
+        if (pendingRevision) {
+          if (body.decision === "Approved") {
+            // Apply the revision via the single source of truth function
+            await applyNegotiationRevision({
+              negotiationId: existing.negotiationId,
+              revisionId: pendingRevision.id,
+              actorId: user.id,
+              tx,
+            });
+          } else {
+            // Reject: revert negotiation to Active
+            await rejectNegotiationRevision({
+              negotiationId: existing.negotiationId,
+              revisionId: pendingRevision.id,
+              actorId: user.id,
+              tx,
+              revertStatus: "Active",
             });
           }
-          await tx.negotiation.update({
-            where: { id: existing.negotiationId },
-            data: {
-              status: "PriceRevision",
-              discountApproved: approval.discountPercent,
-              approvedById: user.id,
-            },
-          });
-        } else {
-          // Reject: revert negotiation to Active so the negotiator can revise again
-          const pendingRevision = await tx.negotiationRevision.findFirst({
-            where: { negotiationId: existing.negotiationId, status: "Pending" },
-            orderBy: { revisionNumber: "desc" },
-            take: 1,
-          });
-          if (pendingRevision) {
-            await tx.negotiationRevision.update({
-              where: { id: pendingRevision.id },
-              data: { status: "Rejected" },
-            });
-          }
-          await tx.negotiation.update({
-            where: { id: existing.negotiationId },
-            data: { status: "Active" },
-          });
         }
       }
 

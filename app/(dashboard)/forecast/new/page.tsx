@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import { validateCurrency, validateNumeric } from "@/lib/formValidation";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -28,6 +29,10 @@ export default function NewForecastPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.targetAmount || parseFloat(form.targetAmount) <= 0) { toast.error("Target amount must be positive"); return; }
+    const amtErr = validateCurrency(form.targetAmount, "Target Amount");
+    if (amtErr) { toast.error(amtErr); return; }
+    const yearErr = validateNumeric(form.year, "Year");
+    if (yearErr) { toast.error(yearErr); return; }
     setSaving(true);
     try {
       const res = await fetch("/api/forecast", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });

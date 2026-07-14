@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { dispatchNotification } from "@/lib/notifications";
-import { applyDiscountToQuotationItems } from "@/lib/quotation-margins";
 import { transitionDealStatus } from "@/lib/dealService";
 import { createCustomerAssetsFromPO } from "@/lib/service-handoff";
+import { logEvent, logEventAsync } from "@/lib/activity-event";
+import { applyNegotiationRevision, rejectNegotiationRevision } from "@/lib/negotiation-revision";
 
 // Approve / Reject an approval request
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -26,7 +27,46 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     where: { id, deletedAt: null, status: "Pending" },
     include: { deal: true },
   });
-  if (!approval) return NextResponse.json({ success: false, message: "Pending approval not found" }, { status: 404 });
+
+  // Recovery path: if the approval was already marked Approved but the negotiation revision
+  // is still Pending (due to a previous failed transaction), allow re-applying the revision.
+  if (!approval) {
+    const stuckApproval = await prisma.approvalHistory.findFirst({
+      where: { id, deletedAt: null, status: "Approved", approvalType: "Negotiation", entityType: "Negotiation" },
+      include: { deal: true },
+    });
+    if (stuckApproval && action === "approve") {
+      const pendingRev = await prisma.negotiationRevision.findFirst({
+        where: { negotiationId: stuckApproval.entityId!, status: "Pending" },
+        orderBy: { revisionNumber: "desc" },
+        take: 1,
+      });
+      if (pendingRev) {
+        try {
+          const result = await prisma.$transaction(async (tx) => {
+            return await applyNegotiationRevision({
+              negotiationId: stuckApproval.entityId!,
+              revisionId: pendingRev.id,
+              actorId: user.id,
+              tx,
+            });
+          });
+          return NextResponse.json({
+            success: true,
+            data: stuckApproval,
+            message: `Recovery: pending revision applied successfully. Negotiation moved to ${result.negotiation.status}.`,
+          });
+        } catch (err: any) {
+          console.error("[negotiation-approval-recovery] Failed:", err);
+          return NextResponse.json(
+            { success: false, message: `Recovery failed: ${err.message}` },
+            { status: 500 }
+          );
+        }
+      }
+    }
+    return NextResponse.json({ success: false, message: "Pending approval not found" }, { status: 404 });
+  }
 
   // Verify company scope
   if (approval.companyId && approval.companyId !== user.companyId) {
@@ -35,20 +75,80 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const newStatus = action === "approve" ? "Approved" : "Rejected";
 
-  const updated = await prisma.approvalHistory.update({
-    where: { id },
-    data: {
-      status: newStatus,
-      resolvedById: user.id,
-      resolvedAt: new Date(),
-      remarks: remarks || approval.remarks,
-    },
-    include: {
-      deal: { select: { id: true, dealName: true, customer: { select: { id: true, name: true } } } },
-      requestedBy: { select: { id: true, name: true, email: true } },
-      resolvedBy: { select: { id: true, name: true, email: true } },
-    },
-  });
+  // For Negotiation approvals, the approval update and revision application must be atomic.
+  // For other types, update approval first (existing behavior).
+  let updated: any;
+
+  if (approval.approvalType === "Negotiation" && approval.entityType === "Negotiation") {
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        // 1. Update approval status
+        const approvalResult = await tx.approvalHistory.update({
+          where: { id },
+          data: {
+            status: newStatus,
+            resolvedById: user.id,
+            resolvedAt: new Date(),
+            remarks: remarks || approval.remarks,
+          },
+          include: {
+            deal: { select: { id: true, dealName: true, customer: { select: { id: true, name: true } } } },
+            requestedBy: { select: { id: true, name: true, email: true } },
+            resolvedBy: { select: { id: true, name: true, email: true } },
+          },
+        });
+
+        // 2. Find pending revision
+        const pendingRevision = await tx.negotiationRevision.findFirst({
+          where: { negotiationId: approval.entityId!, status: "Pending" },
+          orderBy: { revisionNumber: "desc" },
+          take: 1,
+        });
+
+        if (action === "approve" && pendingRevision) {
+          await applyNegotiationRevision({
+            negotiationId: approval.entityId!,
+            revisionId: pendingRevision.id,
+            actorId: user.id,
+            tx,
+          });
+        } else if (action === "reject" && pendingRevision) {
+          const revertStatus = approval.previousStatus || "Active";
+          await rejectNegotiationRevision({
+            negotiationId: approval.entityId!,
+            revisionId: pendingRevision.id,
+            actorId: user.id,
+            tx,
+            revertStatus,
+          });
+        }
+
+        return approvalResult;
+      });
+    } catch (err: any) {
+      console.error("[negotiation-approval] Failed to apply revision:", err);
+      return NextResponse.json(
+        { success: false, message: `Failed to ${action} negotiation revision: ${err.message}` },
+        { status: 500 }
+      );
+    }
+  } else {
+    // Non-negotiation approvals: update approval first (existing behavior)
+    updated = await prisma.approvalHistory.update({
+      where: { id },
+      data: {
+        status: newStatus,
+        resolvedById: user.id,
+        resolvedAt: new Date(),
+        remarks: remarks || approval.remarks,
+      },
+      include: {
+        deal: { select: { id: true, dealName: true, customer: { select: { id: true, name: true } } } },
+        requestedBy: { select: { id: true, name: true, email: true } },
+        resolvedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+  }
 
   // Side effects based on approval type
   if (approval.approvalType === "Discount" && approval.dealId) {
@@ -120,144 +220,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     });
   }
 
-  // Negotiation approval side effect
+  // Negotiation approval side effect is handled atomically above (approval update + revision in same transaction)
+
+  // Log approval decision as activity event
   if (approval.approvalType === "Negotiation" && approval.entityType === "Negotiation") {
-    if (action === "approve") {
-      // Approve the pending revision and move negotiation to PriceRevision
-      const pendingRevision = await prisma.negotiationRevision.findFirst({
-        where: { negotiationId: approval.entityId!, status: "Pending" },
-        orderBy: { revisionNumber: "desc" },
-        take: 1,
-      });
-      if (pendingRevision) {
-        await prisma.negotiationRevision.update({
-          where: { id: pendingRevision.id },
-          data: { status: "Approved" },
-        });
-      }
-      const updatedNegotiation = await prisma.negotiation.update({
-        where: { id: approval.entityId! },
-        data: {
-          status: "PriceRevision",
-          discountApproved: approval.discountPercent,
-          approvedById: user.id,
-        },
-      });
-
-      // Calculate cumulative discount relative to initialAmount
-      const cumulativeDiscount = updatedNegotiation.initialAmount > 0 && pendingRevision
-        ? ((updatedNegotiation.initialAmount - pendingRevision.proposedAmount) / updatedNegotiation.initialAmount) * 100
-        : approval.discountPercent;
-
-      // Apply the approved discount to the underlying Quotation
-      if (updatedNegotiation.quotationId) {
-        const rootQuotation = await prisma.quotation.findFirst({
-          where: { id: updatedNegotiation.quotationId, deletedAt: null },
-          include: { items: true },
-        });
-        if (rootQuotation) {
-          // Create a snapshot of the quotation before applying the new discount
-          const snapshotJson = JSON.stringify({
-            quotationCode: rootQuotation.quotationCode,
-            revisionNumber: rootQuotation.revisionNumber,
-            status: rootQuotation.status,
-            validUntil: rootQuotation.validUntil,
-            subtotal: rootQuotation.subtotal,
-            taxAmount: rootQuotation.taxAmount,
-            totalAmount: rootQuotation.totalAmount,
-            discountPercent: rootQuotation.discountPercent,
-            finalAmount: rootQuotation.finalAmount,
-            termsAndConditions: rootQuotation.termsAndConditions,
-            paymentTerms: rootQuotation.paymentTerms,
-            deliveryTerms: rootQuotation.deliveryTerms,
-            freightTerms: rootQuotation.freightTerms,
-            leadTimeDays: rootQuotation.leadTimeDays,
-            overallMarginPercent: rootQuotation.overallMarginPercent ? Number(rootQuotation.overallMarginPercent) : null,
-            items: rootQuotation.items.map((it) => ({
-              description: it.description,
-              quantity: it.quantity,
-              unitPrice: it.unitPrice,
-              discountPercent: it.discountPercent,
-              taxPercent: it.taxPercent,
-              lineTotal: it.lineTotal,
-              hsn: it.hsn,
-              unit: it.unit,
-              notes: it.notes,
-              costBasisUnitPrice: it.costBasisUnitPrice ? Number(it.costBasisUnitPrice) : null,
-              marginPercent: it.marginPercent ? Number(it.marginPercent) : null,
-              priceSource: it.priceSource,
-              quantityBreakId: it.quantityBreakId,
-            })),
-          });
-
-          await prisma.quotationRevisionSnapshot.create({
-            data: {
-              quotationId: rootQuotation.id,
-              revisionNumber: rootQuotation.revisionNumber,
-              snapshotJson,
-              createdById: user.id,
-            },
-          });
-
-          const totalAmount = rootQuotation.totalAmount || 0;
-          // C.3/C.4: Recalculate line items + tax proportionally using cumulativeDiscount
-          const recalc = applyDiscountToQuotationItems(
-            rootQuotation.items.map(i => ({ id: i.id, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice, taxPercent: i.taxPercent, discountPercent: i.discountPercent })),
-            totalAmount,
-            cumulativeDiscount
-          );
-          await prisma.quotation.update({
-            where: { id: rootQuotation.id },
-            data: {
-              discountPercent: cumulativeDiscount,
-              finalAmount: recalc.finalAmount,
-              taxAmount: recalc.taxAmount,
-              subtotal: recalc.subtotal,
-              status: "Draft", // Reset to Draft!
-            },
-          });
-          // Update each line item
-          for (const updatedItem of recalc.items) {
-            await prisma.quotationItem.update({
-              where: { id: updatedItem.id },
-              data: {
-                unitPrice: updatedItem.unitPrice,
-                totalPrice: updatedItem.totalPrice,
-                lineTotal: updatedItem.lineTotal,
-                discountPercent: updatedItem.discountPercent,
-              },
-            });
-          }
-          await prisma.quotationStatusHistory.create({
-            data: {
-              quotationId: rootQuotation.id,
-              fromStatus: rootQuotation.status,
-              toStatus: "Draft", // Reset to Draft!
-              changedById: user.id,
-              notes: `Discount of ${cumulativeDiscount.toFixed(2)}% applied via approved negotiation revision. Quotation reset to Draft.`,
-            },
-          });
-        }
-      }
-    } else {
-      // Reject: revert negotiation to previous status
-      const revertStatus = approval.previousStatus || "Active";
-      const pendingRevision = await prisma.negotiationRevision.findFirst({
-        where: { negotiationId: approval.entityId!, status: "Pending" },
-        orderBy: { revisionNumber: "desc" },
-        take: 1,
-      });
-      if (pendingRevision) {
-        await prisma.negotiationRevision.update({
-          where: { id: pendingRevision.id },
-          data: { status: "Rejected" },
-        });
-      }
-      await prisma.negotiation.update({
-        where: { id: approval.entityId! },
-        data: { status: revertStatus },
-      });
-    }
+    await logEventAsync({
+      entityType: "Negotiation",
+      entityId: approval.entityId!,
+      type: action === "approve" ? "revision_approved" : "revision_rejected",
+      actorId: user.id,
+      metadata: { approvalId: id, discountPercent: approval.discountPercent, remarks },
+    });
+  }
+  if (approval.approvalType === "PO" && approval.entityType === "PurchaseOrder") {
+    await logEventAsync({
+      entityType: "PurchaseOrder",
+      entityId: approval.entityId!,
+      type: action === "approve" ? "po_approved" : "po_rejected",
+      actorId: user.id,
+      metadata: { approvalId: id, remarks },
+    });
   }
 
   // B15: Notify the requester about the decision

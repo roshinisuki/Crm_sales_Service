@@ -8,6 +8,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { useGlobalLoading } from "@/components/GlobalLoadingProvider";
+import { validateEmail, validatePhone } from "@/lib/formValidation";
 
 const Icons = {
   plus: "M12 4v16m8-8H4",
@@ -189,6 +190,11 @@ export default function AccountsPage() {
         return;
       }
     }
+
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) { setFormError(emailErr); setFormLoading(false); return; }
+    const phoneErr = validatePhone(formData.phone);
+    if (phoneErr) { setFormError(phoneErr); setFormLoading(false); return; }
 
     let res;
     if (formData.id) {
@@ -607,8 +613,9 @@ export default function AccountsPage() {
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       placeholder="account@example.com"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${formData.email && validateEmail(formData.email) ? "border-rose-500" : "border-slate-200"}`}
                     />
+                    {formData.email && validateEmail(formData.email) && <p className="text-xs text-rose-500 mt-1">{validateEmail(formData.email)}</p>}
                   </div>
 
                   <div>
@@ -618,8 +625,9 @@ export default function AccountsPage() {
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       placeholder="+91 98765 43210"
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 ${formData.phone && validatePhone(formData.phone) ? "border-rose-500" : "border-slate-200"}`}
                     />
+                    {formData.phone && validatePhone(formData.phone) && <p className="text-xs text-rose-500 mt-1">{validatePhone(formData.phone)}</p>}
                   </div>
 
                   <div>

@@ -67,6 +67,13 @@ export async function GET(
         meetingLogs: {
           orderBy: { attemptNumber: "desc" }
         },
+        followUps: {
+          include: {
+            assignedUser: { select: { id: true, name: true } },
+            completedBy: { select: { id: true, name: true } },
+          },
+          orderBy: { nextMeetingDate: "desc" },
+        },
         _count: { select: { quotations: true, tasks: true } },
       },
     });

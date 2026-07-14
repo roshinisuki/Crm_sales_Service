@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { transitionDealStatus } from "@/lib/dealService";
+import { logEvent } from "@/lib/activity-event";
 
 export async function POST(
   request: NextRequest,
@@ -198,6 +199,16 @@ export async function POST(
           },
         });
       }
+
+      await logEvent(tx, {
+        entityType: "Quotation",
+        entityId: id,
+        type: "quotation_accepted",
+        fromStatus: existing.status,
+        toStatus: "Accepted",
+        actorId: user.id,
+        metadata: { quotationCode: existing.quotationCode, finalAmount: existing.finalAmount },
+      });
 
       return { quotationId: id };
       },

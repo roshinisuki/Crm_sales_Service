@@ -632,7 +632,7 @@ export default function FollowUpsPage() {
                   const isToday = f.badgeStatus === "TODAY" && !isCompleted;
 
                   // Initials Circle
-                  const displayName = f.customerName || f.leadName || "Unknown";
+                  const displayName = f.customerName || f.leadName || f.deal?.dealName || "Unknown";
                   const nameParts = displayName.split(" ");
                   const initials = nameParts.map((n: string) => n[0]).join("").substring(0, 2).toUpperCase();
                   const avatarColorClass = AVATAR_COLORS[index % AVATAR_COLORS.length];
@@ -642,7 +642,9 @@ export default function FollowUpsPage() {
                       key={f.id}
                       className="crm-tr table-row-clickable"
                       onClick={() => {
-                        if (f.leadId) {
+                        if (f.dealId) {
+                          router.push(`/sales-pipeline/${f.dealId}`);
+                        } else if (f.leadId) {
                           router.push(`/leads/${f.leadId}?status=${f.leadStatus || ""}`);
                         } else if (f.customerId) {
                           router.push(`/customer-master/${f.customerId}?status=${f.customerStatus || ""}`);
@@ -658,7 +660,11 @@ export default function FollowUpsPage() {
                           <div className="flex flex-col">
                             <span className="row-primary-link text-sm block leading-tight">{displayName}</span>
                             <div className="flex items-center gap-1.5 mt-1">
-                              {f.leadId ? (
+                              {f.dealId ? (
+                                <span className="inline-flex items-center text-[10px] bg-violet-50 text-violet-700 border border-violet-100 rounded px-1.5 py-0.5 font-bold">
+                                  Deal
+                                </span>
+                              ) : f.leadId ? (
                                 <span className="inline-flex items-center text-[10px] bg-blue-50 text-blue-700 border border-blue-100 rounded px-1.5 py-0.5 font-bold">
                                   Lead
                                 </span>
@@ -672,7 +678,7 @@ export default function FollowUpsPage() {
                         </div>
                       </td>
                       <td className="crm-td text-slate-500 font-medium">
-                        {f.leadId ? (f.leadCompanyName || "—") : getCompanyName(f.customerName)}
+                        {f.dealId ? (f.deal?.dealName || "—") : f.leadId ? (f.leadCompanyName || "—") : getCompanyName(f.customerName)}
                       </td>
                       <td className="crm-td text-slate-600 font-mono text-xs">
                         {f.customer?.phone || (f.leadId ? "—" : "+91 9876543210")}

@@ -12,6 +12,7 @@ import { buildScope, checkRecordScope } from "@/lib/scopes";
 const createSchema = z.object({
   customerId: z.string().optional().nullable(),
   leadId: z.string().optional().nullable(),
+  dealId: z.string().optional().nullable(),
   nextMeetingDate: z.date(),
   remarks: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -22,8 +23,8 @@ const createSchema = z.object({
   assignedUserId: z.string().optional().nullable(),
   autoCreated: z.boolean().default(false),
   type: z.enum(["Call", "Meeting", "Note"]).optional().nullable(),
-}).refine(data => data.customerId || data.leadId, {
-  message: "Either customerId or leadId must be provided",
+}).refine(data => data.customerId || data.leadId || data.dealId, {
+  message: "Either customerId, leadId, or dealId must be provided",
   path: ["customerId"]
 });
 
@@ -235,6 +236,7 @@ export async function getFollowUpsAction(params?: {
       include: {
         customer: { select: { id: true, name: true, customerCode: true, status: true } },
         lead: { select: { id: true, name: true, leadCode: true, status: true, companyName: true } },
+        deal: { select: { id: true, dealName: true, opportunityCode: true, status: true } },
         assignedUser: { select: { id: true, name: true, email: true } },
         completedBy: { select: { id: true, name: true, email: true } },
       },
@@ -297,6 +299,7 @@ export async function createFollowUpAction(data: any) {
     const parsedInput = createSchema.safeParse({
       customerId: data.customerId || null,
       leadId: data.leadId || null,
+      dealId: data.dealId || null,
       nextMeetingDate: new Date(data.nextMeetingDate || data.scheduledTime),
       remarks: data.remarks || data.notes || null,
       notes: data.notes || data.remarks || null,
@@ -365,8 +368,9 @@ export async function createFollowUpAction(data: any) {
       data: {
         customerId: validated.customerId || null,
         leadId: validated.leadId || null,
-        entityType: validated.leadId ? "lead" : (validated.customerId ? "account" : null),
-        entityId: validated.leadId || validated.customerId || null,
+        dealId: validated.dealId || null,
+        entityType: validated.leadId ? "lead" : (validated.dealId ? "deal" : (validated.customerId ? "account" : null)),
+        entityId: validated.leadId || validated.dealId || validated.customerId || null,
         assignedUserId: validated.assignedUserId || userPayload.id,
         nextMeetingDate: validated.nextMeetingDate,
         dueDate: validated.nextMeetingDate, // Align dueDate with nextMeetingDate
@@ -385,6 +389,7 @@ export async function createFollowUpAction(data: any) {
       include: {
         customer: { select: { id: true, name: true, customerCode: true } },
         lead: { select: { id: true, name: true, leadCode: true } },
+        deal: { select: { id: true, dealName: true, opportunityCode: true } },
         assignedUser: { select: { id: true, name: true, email: true } },
       },
     });

@@ -6,6 +6,8 @@ import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { FormSection, FormGrid, FormActions, FormButton, CompactFormContainer } from "@/components/ui/FormLayout";
+import { validatePositiveNumeric, validateCurrency, validatePercentage } from "@/lib/formValidation";
+import { cn } from "@/lib/ui-utils";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -180,6 +182,14 @@ export default function NewPurchaseOrderPage() {
     if (items.length === 0) { toast.error("At least one line item is required"); return; }
     const invalidItems = items.some(it => !it.description || parseFloat(it.quantity) <= 0);
     if (invalidItems) { toast.error("All items need a description and quantity > 0"); return; }
+    for (const it of items) {
+      const qtyErr = validatePositiveNumeric(it.quantity, "Quantity");
+      if (qtyErr) { toast.error(`Item "${it.description}": ${qtyErr}`); return; }
+      const priceErr = validateCurrency(it.unitPrice, "Unit Price");
+      if (priceErr) { toast.error(`Item "${it.description}": ${priceErr}`); return; }
+    }
+    const discErr = validatePercentage(form.discountPercent, "Discount");
+    if (discErr) { toast.error(discErr); return; }
 
     setSaving(true);
     try {
@@ -407,8 +417,9 @@ export default function NewPurchaseOrderPage() {
                         min="0"
                         value={it.quantity}
                         onChange={(e) => updateItem(i, "quantity", e.target.value)}
-                        className="py-1.5 text-sm text-right"
+                        className={cn("py-1.5 text-sm text-right", it.quantity && validatePositiveNumeric(it.quantity, "Quantity") && "border-rose-500")}
                       />
+                      {it.quantity && validatePositiveNumeric(it.quantity, "Quantity") && <p className="text-[10px] text-rose-500 mt-0.5">{validatePositiveNumeric(it.quantity, "Quantity")}</p>}
                     </td>
                     <td className="px-3 py-2">
                       <Input
@@ -417,8 +428,9 @@ export default function NewPurchaseOrderPage() {
                         min="0"
                         value={it.unitPrice}
                         onChange={(e) => updateItem(i, "unitPrice", e.target.value)}
-                        className="py-1.5 text-sm text-right"
+                        className={cn("py-1.5 text-sm text-right", it.unitPrice && validateCurrency(it.unitPrice, "Unit Price") && "border-rose-500")}
                       />
+                      {it.unitPrice && validateCurrency(it.unitPrice, "Unit Price") && <p className="text-[10px] text-rose-500 mt-0.5">{validateCurrency(it.unitPrice, "Unit Price")}</p>}
                     </td>
                     <td className="px-3 py-2 text-sm text-right font-medium text-[var(--text-primary)]">
                       ${(it.totalPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -449,10 +461,12 @@ export default function NewPurchaseOrderPage() {
                   type="number"
                   step="0.01"
                   min="0"
+                  max="100"
                   value={form.discountPercent}
                   onChange={(e) => setForm({ ...form, discountPercent: e.target.value })}
-                  className="w-20 text-right"
+                  className={cn("w-20 text-right", validatePercentage(form.discountPercent, "Discount") && "border-rose-500")}
                 />
+                {validatePercentage(form.discountPercent, "Discount") && <p className="text-[10px] text-rose-500 mt-0.5">{validatePercentage(form.discountPercent, "Discount")}</p>}
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--text-secondary)]">Discount Amount</span>

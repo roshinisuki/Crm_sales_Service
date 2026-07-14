@@ -3,7 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
-import { computeItemMarginPercent, computeOverallMarginPercent, applyDiscountToQuotationItems } from "@/lib/quotation-margins";
+import { computeItemMarginPercent, computeOverallMarginPercent } from "@/lib/quotation-margins";
+import { logEvent } from "@/lib/activity-event";
+import { applyNegotiationRevision } from "@/lib/negotiation-revision";
 
 // Default discount threshold (%) above which approval is required.
 // Falls back to this if no Approval Matrix config is found.
@@ -47,6 +49,10 @@ export async function POST(
     return NextResponse.json({ success: false, message: "Proposed amount is required" }, { status: 400 });
   }
 
+  if (!body.reason || !body.reason.trim()) {
+    return NextResponse.json({ success: false, message: "Reason is required — explain why this revision is being proposed (e.g. customer asked for lower price, competitor offered better rate, etc.)" }, { status: 400 });
+  }
+
   const negotiation = await prisma.negotiation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
     include: { revisions: { orderBy: { revisionNumber: "desc" }, take: 1 } },
@@ -59,7 +65,7 @@ export async function POST(
   }
 
   const proposedAmount = parseFloat(body.proposedAmount);
-  const reason = body.reason || null;
+  const reason = body.reason.trim();
   const nextRevisionNumber = (negotiation.revisions[0]?.revisionNumber || 0) + 1;
 
   // B.6: Validate proposedAmount — reject non-positive or amounts greater than current amount
@@ -96,6 +102,8 @@ export async function POST(
         revisionNumber: nextRevisionNumber,
         proposedAmount,
         discountPercent,
+        cumulativeDiscountPercent: cumulativeDiscount,
+        submittedAgainstRound: negotiation.currentRound,
         reason,
         status: requiresApproval ? "Pending" : "Approved",
         createdById: user.id,
@@ -103,95 +111,16 @@ export async function POST(
     });
 
     let quotationRevisionId: string | null = null;
-    // Apply discount to the underlying Quotation ONLY if it does not require approval.
-    // If it requires approval, the Quotation will be updated in the Approval Center handler.
+
     if (!requiresApproval && negotiation.quotationId) {
-      const rootQuotation = await tx.quotation.findFirst({
-        where: { id: negotiation.quotationId, deletedAt: null },
-        include: { items: true },
+      // Auto-approve: apply the revision via the single source of truth function
+      const result = await applyNegotiationRevision({
+        negotiationId: id,
+        revisionId: revision.id,
+        actorId: user.id,
+        tx,
       });
-      if (rootQuotation) {
-        // Create a snapshot of the quotation before applying the new discount
-        const snapshotJson = JSON.stringify({
-          quotationCode: rootQuotation.quotationCode,
-          revisionNumber: rootQuotation.revisionNumber,
-          status: rootQuotation.status,
-          validUntil: rootQuotation.validUntil,
-          subtotal: rootQuotation.subtotal,
-          taxAmount: rootQuotation.taxAmount,
-          totalAmount: rootQuotation.totalAmount,
-          discountPercent: rootQuotation.discountPercent,
-          finalAmount: rootQuotation.finalAmount,
-          termsAndConditions: rootQuotation.termsAndConditions,
-          paymentTerms: rootQuotation.paymentTerms,
-          deliveryTerms: rootQuotation.deliveryTerms,
-          freightTerms: rootQuotation.freightTerms,
-          leadTimeDays: rootQuotation.leadTimeDays,
-          overallMarginPercent: rootQuotation.overallMarginPercent ? Number(rootQuotation.overallMarginPercent) : null,
-          items: rootQuotation.items.map((it) => ({
-            description: it.description,
-            quantity: it.quantity,
-            unitPrice: it.unitPrice,
-            discountPercent: it.discountPercent,
-            taxPercent: it.taxPercent,
-            lineTotal: it.lineTotal,
-            hsn: it.hsn,
-            unit: it.unit,
-            notes: it.notes,
-            costBasisUnitPrice: it.costBasisUnitPrice ? Number(it.costBasisUnitPrice) : null,
-            marginPercent: it.marginPercent ? Number(it.marginPercent) : null,
-            priceSource: it.priceSource,
-            quantityBreakId: it.quantityBreakId,
-          })),
-        });
-
-        await tx.quotationRevisionSnapshot.create({
-          data: {
-            quotationId: rootQuotation.id,
-            revisionNumber: rootQuotation.revisionNumber,
-            snapshotJson,
-            createdById: user.id,
-          },
-        });
-
-        const totalAmount = rootQuotation.totalAmount || 0;
-        // C.3/C.4: Recalculate line items + tax proportionally using cumulativeDiscount
-        const recalc = applyDiscountToQuotationItems(
-          rootQuotation.items.map(i => ({ id: i.id, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice, taxPercent: i.taxPercent, discountPercent: i.discountPercent })),
-          totalAmount,
-          cumulativeDiscount
-        );
-        await tx.quotation.update({
-          where: { id: rootQuotation.id },
-          data: {
-            discountPercent: cumulativeDiscount,
-            finalAmount: recalc.finalAmount,
-            taxAmount: recalc.taxAmount,
-            subtotal: recalc.subtotal,
-          },
-        });
-        // Update each line item
-        for (const updatedItem of recalc.items) {
-          await tx.quotationItem.update({
-            where: { id: updatedItem.id },
-            data: {
-              unitPrice: updatedItem.unitPrice,
-              totalPrice: updatedItem.totalPrice,
-              lineTotal: updatedItem.lineTotal,
-              discountPercent: updatedItem.discountPercent,
-            },
-          });
-        }
-        await tx.quotationStatusHistory.create({
-          data: {
-            quotationId: rootQuotation.id,
-            fromStatus: rootQuotation.status,
-            toStatus: rootQuotation.status,
-            changedById: user.id,
-            notes: `Discount of ${cumulativeDiscount.toFixed(2)}% applied via auto-approved negotiation revision`,
-          },
-        });
-      }
+      quotationRevisionId = result.afterSnapshotId;
     }
 
     if (requiresApproval) {
@@ -219,17 +148,18 @@ export async function POST(
           companyId: user.companyId,
         },
       });
-    } else {
-      // Auto-approve: set negotiation to PriceRevision
-      await tx.negotiation.update({
-        where: { id },
-        data: {
-          status: "PriceRevision",
-          revisedAmount: proposedAmount,
-          discountRequested: discountPercent,
-        },
-      });
     }
+
+    await logEvent(tx, {
+      entityType: "Negotiation",
+      entityId: id,
+      rootEntityId: negotiation.quotationId || undefined,
+      type: requiresApproval ? "revision_proposed" : "revision_auto_approved",
+      fromStatus: negotiation.status,
+      toStatus: requiresApproval ? "PendingApproval" : "PriceRevision",
+      actorId: user.id,
+      metadata: { revisionNumber: nextRevisionNumber, proposedAmount, discountPercent, cumulativeDiscount, requiresApproval },
+    });
 
     return { revision, quotationRevisionId };
   });

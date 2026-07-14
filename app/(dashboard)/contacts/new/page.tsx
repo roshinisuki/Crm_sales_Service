@@ -9,6 +9,7 @@ import { PageShell } from "@/components/ui/PageShell";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { ArrowLeft, Save, UserPlus } from "lucide-react";
 import Link from "next/link";
+import { validateEmail, validatePhone, validateAlphabetic, validateRequired } from "@/lib/formValidation";
 
 const CONTACT_TYPES = ["Technical", "Purchase", "Finance", "Management"];
 
@@ -33,6 +34,7 @@ export default function NewContactPage() {
     status: "Active",
     notes: "",
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const loadCustomers = async (query: string) => {
     if (query.length < 2) return;
@@ -41,7 +43,17 @@ export default function NewContactPage() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Name is required"); return; }
+    const errors: Record<string, string> = {};
+    const nameErr = validateRequired(form.name, "Name"); if (nameErr) errors.name = nameErr;
+    else { const e = validateAlphabetic(form.name, "Name"); if (e) errors.name = e; }
+    const emailErr = validateEmail(form.email); if (emailErr) errors.email = emailErr;
+    const phoneErr = validatePhone(form.phone); if (phoneErr) errors.phone = phoneErr;
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      toast.error("Please fix the errors below");
+      return;
+    }
+    setFieldErrors({});
     setSaving(true);
     try {
       const res = await createContactAction({
@@ -110,9 +122,9 @@ export default function NewContactPage() {
           </FormField>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField label="Name" required><Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. John Smith" /></FormField>
-            <FormField label="Email"><Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="john@company.com" /></FormField>
-            <FormField label="Phone"><Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+1 555-0000" /></FormField>
+            <FormField label="Name" required error={fieldErrors.name}><Input value={form.name} onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); setFieldErrors((p) => ({ ...p, name: "" })); }} placeholder="e.g. John Smith" className={fieldErrors.name ? "border-rose-500" : ""} /></FormField>
+            <FormField label="Email" error={fieldErrors.email}><Input type="email" value={form.email} onChange={(e) => { setForm((f) => ({ ...f, email: e.target.value })); setFieldErrors((p) => ({ ...p, email: "" })); }} placeholder="john@company.com" className={fieldErrors.email ? "border-rose-500" : ""} /></FormField>
+            <FormField label="Phone" error={fieldErrors.phone}><Input value={form.phone} onChange={(e) => { setForm((f) => ({ ...f, phone: e.target.value })); setFieldErrors((p) => ({ ...p, phone: "" })); }} placeholder="+1 555-0000" className={fieldErrors.phone ? "border-rose-500" : ""} /></FormField>
             <FormField label="Company"><Input value={form.company} onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))} placeholder="Company name" /></FormField>
             <FormField label="Title"><Input value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Manager" /></FormField>
             <FormField label="Designation"><Input value={form.designation} onChange={(e) => setForm((f) => ({ ...f, designation: e.target.value }))} placeholder="e.g. CTO" /></FormField>

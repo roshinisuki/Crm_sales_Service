@@ -226,7 +226,39 @@ export async function createMeetingAction(input: MeetingInput) {
       },
     });
 
+    // Auto-transition lead from New to Contacted when a meeting is logged
+    if (input.leadId && input.status !== "Missed" && input.status !== "Cancelled") {
+      const lead = await prisma.lead.findUnique({ where: { id: input.leadId } });
+      if (lead && lead.status === "New") {
+        const now = new Date();
+        await prisma.lead.update({
+          where: { id: input.leadId },
+          data: {
+            status: "Contacted",
+            lastInteractionAt: now,
+            ...(lead.firstRespondedAt ? {} : { slaStatus: "Met", firstRespondedAt: now }),
+          },
+        }).catch((e) => console.error("Auto-transition lead status failed:", e));
+      }
+
+      // Mark the pending auto-created follow-up (Meeting) as Completed
+      await prisma.followUp.updateMany({
+        where: {
+          leadId: input.leadId,
+          status: "Pending",
+          type: "Meeting",
+          sourceType: "AUTO",
+        },
+        data: {
+          status: "Completed",
+          completedAt: log.sentAt,
+          completionNotes: input.outcome || input.content || input.agenda,
+        },
+      }).catch(() => {});
+    }
+
     revalidatePath("/activities");
+    if (input.leadId) revalidatePath(`/leads/${input.leadId}`);
     return { success: true, data: log };
   } catch (error) {
     console.error("createMeetingAction error:", error);

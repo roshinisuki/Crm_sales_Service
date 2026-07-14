@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import path from "path";
 import * as fs from "fs/promises";
-// @ts-ignore
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import ExcelJS from "exceljs";
 
 export async function POST(request: NextRequest) {
@@ -24,8 +23,9 @@ export async function POST(request: NextRequest) {
     let rawText = "";
 
     if (ext === ".pdf") {
-      const pdfData = await pdfParse(buffer);
-      rawText = pdfData.text;
+      const parser = new PDFParse({ data: new Uint8Array(buffer) });
+      const result = await parser.getText();
+      rawText = result.text;
       parsedLineItems = parsePdfLineItems(rawText);
     } else if (ext === ".xlsx" || ext === ".xls") {
       const workbook = new ExcelJS.Workbook();

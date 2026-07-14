@@ -8,6 +8,7 @@ import { useCurrency } from "@/components/CurrencyProvider";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { ArrowLeft, Save } from "lucide-react";
+import { validateCurrency, validateUrl } from "@/lib/formValidation";
 
 export default function NewProposalPage() {
   const router = useRouter();
@@ -52,6 +53,14 @@ export default function NewProposalPage() {
     if (!form.customerId || !form.title || !form.validUntil) {
       toast.error("Please fill in all required fields");
       return;
+    }
+    if (form.value) {
+      const valErr = validateCurrency(form.value, "Value");
+      if (valErr) { toast.error(valErr); return; }
+    }
+    if (form.proposalPdfUrl) {
+      const urlErr = validateUrl(form.proposalPdfUrl);
+      if (urlErr) { toast.error(urlErr); return; }
     }
     setSaving(true);
     try {
@@ -140,15 +149,17 @@ export default function NewProposalPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Value</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Value (₹)</label>
               <input
                 type="number"
                 step="0.01"
+                min="0"
                 value={form.value}
                 onChange={(e) => setForm({ ...form, value: e.target.value })}
                 placeholder="0.00"
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
+                className={`w-full px-3 py-2.5 rounded-lg border bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 ${form.value && validateCurrency(form.value, "Value") ? "border-rose-500" : "border-slate-200"}`}
               />
+              {form.value && validateCurrency(form.value, "Value") && <p className="text-xs text-rose-500 mt-1">{validateCurrency(form.value, "Value")}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">Valid Until *</label>

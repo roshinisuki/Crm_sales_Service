@@ -7,6 +7,7 @@ import { Subscription, Customer } from "@/types";
 import { useRouter } from "next/navigation";
 import PageContainer from "@/components/PageContainer";
 import { useAuth } from "@/components/AuthProvider";
+import { validateDateRange } from "@/lib/formValidation";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -157,6 +158,9 @@ export default function SubscriptionsPage() {
       setFormLoading(false);
       return;
     }
+
+    const dateErr = validateDateRange(formData.startDate, formData.endDate, "Start date", "End date");
+    if (dateErr) { setErrorMsg(dateErr); setFormLoading(false); return; }
 
     let res;
     if (isEdit && selectedSub) {

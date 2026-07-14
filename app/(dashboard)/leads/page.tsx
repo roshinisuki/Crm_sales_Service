@@ -997,7 +997,7 @@ export default function LeadsPage() {
               />
             </FormField>
 
-            <FormField label="Lead Source">
+            <FormField label="Lead Source" required>
               <Select
                 value={formData.leadSource}
                 onChange={e => setFormData(p => ({ ...p, leadSource: e.target.value }))}

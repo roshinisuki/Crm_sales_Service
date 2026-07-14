@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
-import { transitionDealStatus } from "@/lib/dealService";
+import { logEvent, logEventAsync } from "@/lib/activity-event";
+import { cascadeNegotiationSuccess, cascadeNegotiationFailure } from "@/lib/negotiation-cascade";
 
 const VALID_STATUSES = ["Active", "PriceRevision", "CommercialDiscussion", "PendingApproval", "Closed-Success", "Closed-Failure"];
 
@@ -79,15 +80,15 @@ export async function PUT(
 
   // B2: Block terminal status transitions when approval is pending
   if (body.status && body.status !== existing.status) {
-    if (existing.status === "PendingApproval" && ["Active", "PriceRevision", "CommercialDiscussion"].includes(body.status)) {
+    if (existing.status === "PendingApproval" && ["PriceRevision", "CommercialDiscussion"].includes(body.status)) {
       return NextResponse.json({ success: false, message: "Cannot change status while approval is pending. Resolve the approval in the Approval Center first." }, { status: 400 });
     }
     // Enforce sequential status transitions server-side (mirrors UI STATUS_FLOW)
     const SERVER_STATUS_FLOW: Record<string, string[]> = {
       Active: ["PriceRevision", "Closed-Success", "Closed-Failure"],
-      PriceRevision: ["CommercialDiscussion", "Closed-Success", "Closed-Failure"],
+      PriceRevision: ["CommercialDiscussion"],
       CommercialDiscussion: ["PendingApproval", "PriceRevision", "Closed-Success", "Closed-Failure"],
-      PendingApproval: ["Closed-Success", "Closed-Failure"],
+      PendingApproval: ["Active", "Closed-Success", "Closed-Failure"],
       "Closed-Success": [],
       "Closed-Failure": [],
     };
@@ -130,177 +131,34 @@ export async function PUT(
     // 1. Cascading logic for Closed-Success
     if (body.status === "Closed-Success" && body.status !== existing.status) {
       const finalAmt = updateData.finalAmount;
-      if (existing.quotationId) {
-        // Update quotation to Accepted
-        await tx.quotation.update({
-          where: { id: existing.quotationId },
-          data: {
-            finalAmount: finalAmt,
-            status: "Accepted",
-            acceptedAt: now
-          }
-        });
-
-        // Insert quotation_status_history
-        await tx.quotationStatusHistory.create({
-          data: {
-            quotationId: existing.quotationId,
-            fromStatus: existing.status === "PendingApproval" ? "UnderReview" : existing.status,
-            toStatus: "Accepted",
-            changedById: user.id,
-            notes: "Quotation accepted via negotiation success",
-          }
-        });
-
-        // Close RFQ if linked
-        const quote = await tx.quotation.findUnique({
-          where: { id: existing.quotationId },
-          select: { rfqId: true, quotationCode: true }
-        });
-        if (quote?.rfqId) {
-          const rfq = await tx.rFQ.findUnique({
-            where: { id: quote.rfqId },
-            select: { id: true, status: true }
-          });
-          if (rfq && rfq.status !== "Closed") {
-            await tx.rFQ.update({
-              where: { id: rfq.id },
-              data: { status: "Closed" }
-            });
-            await tx.rFQStatusHistory.create({
-              data: {
-                rfqId: rfq.id,
-                fromStatus: rfq.status,
-                toStatus: "Closed",
-                changedById: user.id,
-                notes: `RFQ closed on negotiation success for quotation ${quote.quotationCode}`,
-              }
-            });
-          }
-        }
-      }
-
-      // Transition Deal to Won
-      if (existing.dealId) {
-        await transitionDealStatus(existing.dealId, "Won", {
-          actorId: user.id,
-          reason: `Negotiation ${existing.negotiationCode} closed as success`,
-          companyId: user.companyId!,
-        }, tx);
-      } else {
-        // Prospect -> Active customer sync if no linked deal
-        const customer = await tx.customer.findUnique({
-          where: { id: existing.customerId },
-          select: { id: true, status: true }
-        });
-        if (customer && customer.status === "Prospect") {
-          await tx.customer.update({
-            where: { id: existing.customerId },
-            data: { status: "Active", accountType: "Customer" },
-          });
-          await tx.accountStatusHistory.create({
-            data: {
-              customerId: existing.customerId,
-              fromStatus: "Prospect",
-              toStatus: "Active",
-              changedById: user.id,
-              notes: `Auto-activated on negotiation success (${existing.negotiationCode})`,
-            }
-          });
-        }
-      }
-
-      // Cancel pending follow-ups for this customer
-      await tx.followUp.updateMany({
-        where: {
-          customerId: existing.customerId,
-          status: { in: ["Pending", "Overdue"] },
-        },
-        data: { status: "Cancelled" },
+      await cascadeNegotiationSuccess({
+        quotationId: existing.quotationId,
+        dealId: existing.dealId,
+        customerId: existing.customerId,
+        negotiationCode: existing.negotiationCode,
+        negotiationId: id,
+        actorId: user.id,
+        companyId: user.companyId!,
+        finalAmount: finalAmt,
+        fromNegotiationStatus: existing.status,
+        tx,
       });
-
-      // Send notifications to Sales Manager
-      const managers = await tx.user.findMany({
-        where: { role: "SalesManager", companyId: user.companyId, isActive: true },
-        select: { id: true }
-      });
-      for (const mgr of managers) {
-        await tx.notification.create({
-          data: {
-            userId: mgr.id,
-            title: "Deal Won!",
-            message: `Deal Won: Customer negotiation ${existing.negotiationCode} closed as success — ₹${finalAmt.toFixed(2)}`,
-            type: "Deal",
-            link: `/negotiations/${id}`,
-          }
-        });
-      }
-
-      // Send notification to Quotation Creator
-      const quoteCreator = existing.quotationId ? await tx.quotation.findUnique({ where: { id: existing.quotationId }, select: { createdById: true } }) : null;
-      if (quoteCreator) {
-        await tx.notification.create({
-          data: {
-            userId: quoteCreator.createdById,
-            title: "Negotiation Won! 🎉",
-            message: `Negotiation ${existing.negotiationCode} has been won`,
-            type: "Quotation",
-            link: `/negotiations/${id}`,
-          }
-        });
-      }
-
-      // Send notification to Admin/CostingEngineer — New Order
-      const financeUsers = await tx.user.findMany({
-        where: { role: { in: ["Admin", "CostingEngineer"] }, companyId: user.companyId, isActive: true },
-        select: { id: true }
-      });
-      for (const fin of financeUsers) {
-        await tx.notification.create({
-          data: {
-            userId: fin.id,
-            title: "New Order",
-            message: `New order via negotiation success ${existing.negotiationCode} — ₹${finalAmt.toFixed(2)}`,
-            type: "Order",
-            link: `/negotiations/${id}`,
-          }
-        });
-      }
     }
 
     // 2. Cascading logic for Closed-Failure
     if (body.status === "Closed-Failure" && body.status !== existing.status) {
-      if (existing.quotationId) {
-        // Update quotation to Rejected
-        await tx.quotation.update({
-          where: { id: existing.quotationId },
-          data: {
-            status: "Rejected",
-            rejectedAt: now,
-            rejectionReason: body.rejectionReasonText || "Negotiation closed as failure"
-          }
-        });
-
-        // Insert quotation_status_history
-        await tx.quotationStatusHistory.create({
-          data: {
-            quotationId: existing.quotationId,
-            fromStatus: existing.status === "PendingApproval" ? "UnderReview" : existing.status,
-            toStatus: "Rejected",
-            changedById: user.id,
-            notes: body.rejectionReasonText || "Negotiation closed as failure",
-          }
-        });
-      }
-
-      // Transition Deal to Lost
-      if (existing.dealId) {
-        await transitionDealStatus(existing.dealId, "Lost", {
-          actorId: user.id,
-          reason: body.rejectionReasonText || `Negotiation ${existing.negotiationCode} closed as failure`,
-          companyId: user.companyId!,
-        }, tx);
-      }
+      await cascadeNegotiationFailure({
+        quotationId: existing.quotationId,
+        dealId: existing.dealId,
+        customerId: existing.customerId,
+        negotiationCode: existing.negotiationCode,
+        negotiationId: id,
+        actorId: user.id,
+        companyId: user.companyId!,
+        rejectionReason: body.rejectionReasonText,
+        fromNegotiationStatus: existing.status,
+        tx,
+      });
     }
 
     // 3. Update negotiation record
@@ -330,6 +188,16 @@ export async function PUT(
       context: extractAuditContext(request),
     });
 
+    await logEventAsync({
+      entityType: "Negotiation",
+      entityId: id,
+      rootEntityId: existing.quotationId || undefined,
+      type: "negotiation_status_changed",
+      fromStatus: existing.status,
+      toStatus: body.status,
+      actorId: user.id,
+      metadata: { negotiationCode: existing.negotiationCode },
+    });
 
   } else {
     await logAudit(user.id, "Negotiation", "Update", `Updated negotiation ${existing.negotiationCode}`, {

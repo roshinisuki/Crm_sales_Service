@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { logEvent } from "@/lib/activity-event";
 
 export async function POST(
   request: NextRequest,
@@ -202,7 +203,19 @@ export async function POST(
         }
       }
 
-      return { quotation: q, negotiationId: negotiationRecord?.id };
+      const negId = negotiationRecord?.id || existingNeg?.id || "";
+      await logEvent(tx, {
+        entityType: "Negotiation",
+        entityId: negId,
+        rootEntityId: id,
+        type: "negotiation_started",
+        fromStatus: null,
+        toStatus: "Active",
+        actorId: user.id,
+        metadata: { quotationId: id, quotationCode: existing.quotationCode, initialAmount: existing.finalAmount },
+      });
+
+      return { quotation: q, negotiationId: negId };
     });
 
     await logAudit(user.id, "Quotation", "Negotiate", `Moved quotation ${existing.quotationCode} to UnderReview`, {

@@ -1178,6 +1178,8 @@ export async function getFollowUpsListAction() {
         leadName: f.lead?.name,
         leadCode: f.lead?.leadCode,
         leadCompanyName: (f.lead as any)?.companyName || null,
+        dealId: f.dealId,
+        deal: f.deal || null,
         nextMeetingDate: f.nextMeetingDate,
         createdAt: f.createdAt,
         notes: f.notes,

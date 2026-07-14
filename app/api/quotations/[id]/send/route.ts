@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
+import { logEvent, logEventAsync } from "@/lib/activity-event";
 
 export async function POST(
   request: NextRequest,
@@ -24,8 +25,22 @@ export async function POST(
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
-  if (!["Draft", "Approved"].includes(existing.status)) {
-    return NextResponse.json({ success: false, message: "Only Draft or Approved quotations can be sent" }, { status: 400 });
+  if (!["Draft", "Approved", "UnderReview"].includes(existing.status)) {
+    return NextResponse.json({ success: false, message: "Only Draft, Approved, or UnderReview (post-revision) quotations can be sent" }, { status: 400 });
+  }
+
+  // If quotation is UnderReview, verify the linked negotiation has an approved revision (PriceRevision status)
+  if (existing.status === "UnderReview" && existing.negotiationId) {
+    const linkedNeg = await prisma.negotiation.findFirst({
+      where: { id: existing.negotiationId, deletedAt: null },
+      select: { id: true, status: true },
+    });
+    if (linkedNeg && !["PriceRevision", "CommercialDiscussion"].includes(linkedNeg.status)) {
+      return NextResponse.json(
+        { success: false, message: `Cannot send quotation while negotiation is in ${linkedNeg.status} status. The revision must be approved first.` },
+        { status: 400 }
+      );
+    }
   }
 
   if (existing.items.length === 0) {
@@ -110,15 +125,42 @@ export async function POST(
       });
 
       // 2. Insert quotation_status_history
+      const sendNotes = existing.status === "UnderReview"
+        ? `Revised quotation (R${existing.currentRound}) re-sent to customer after negotiation revision approval.`
+        : `Quotation sent to customer.${reasons.length > 0 ? " Approved override." : ""}`;
       await tx.quotationStatusHistory.create({
         data: {
           quotationId: id,
           fromStatus: existing.status,
           toStatus: "Sent",
           changedById: user.id,
-          notes: `Quotation sent to customer.${reasons.length > 0 ? " Approved override." : ""}`,
+          notes: sendNotes,
         },
       });
+
+      // 2a. If this was a re-send after revision, move negotiation to CommercialDiscussion
+      if (existing.status === "UnderReview" && existing.negotiationId) {
+        const neg = await tx.negotiation.findFirst({
+          where: { id: existing.negotiationId },
+          select: { id: true, status: true },
+        });
+        if (neg && neg.status === "PriceRevision") {
+          await tx.negotiation.update({
+            where: { id: neg.id },
+            data: { status: "CommercialDiscussion" },
+          });
+          await logEvent(tx, {
+            entityType: "Negotiation",
+            entityId: neg.id,
+            rootEntityId: id,
+            type: "negotiation_status_changed",
+            fromStatus: "PriceRevision",
+            toStatus: "CommercialDiscussion",
+            actorId: user.id,
+            metadata: { reason: "Quotation re-sent to customer after revision approval" },
+          });
+        }
+      }
 
       // 3. Create follow-up (Call, scheduled +2 days)
       const followUpDate = new Date();
@@ -140,6 +182,16 @@ export async function POST(
 
 
       return q;
+    });
+
+    await logEventAsync({
+      entityType: "Quotation",
+      entityId: id,
+      type: "quotation_sent",
+      fromStatus: existing.status,
+      toStatus: "Sent",
+      actorId: user.id,
+      metadata: { quotationCode: existing.quotationCode, finalAmount: existing.finalAmount },
     });
 
     await logAudit(user.id, "Quotation", "Send", `Sent quotation ${existing.quotationCode} to customer`, {

@@ -48,6 +48,11 @@ export function computeOverallMarginPercent(
  * - Start Negotiation initial revision (quotations/[id]/negotiate/route.ts)
  *
  * Returns the updated header values so the caller can persist them.
+ *
+ * When `originalUnitPrices` is provided (a map of itemId → base price before any discount),
+ * the cumulative discount is applied to those originals rather than reverse-engineering
+ * the original from the current discounted price. This prevents compounding errors
+ * across multiple negotiation rounds.
  */
 export function applyDiscountToQuotationItems(
   items: Array<{
@@ -59,25 +64,33 @@ export function applyDiscountToQuotationItems(
     discountPercent: number;
   }>,
   headerTotalAmount: number,
-  discountPercent: number
+  discountPercent: number,
+  originalUnitPrices?: Record<string, number>
 ): {
   items: Array<{ id: string; unitPrice: number; totalPrice: number; lineTotal: number; discountPercent: number }>;
   finalAmount: number;
   taxAmount: number;
   subtotal: number;
 } {
-  const finalAmount = headerTotalAmount * (1 - discountPercent / 100);
-
   const updatedItems = items.map((item) => {
-    // Reconstruct the original undiscounted price
-    const currentDiscount = item.discountPercent || 0;
-    const divisor = 1 - (currentDiscount / 100);
-    const originalUnitPrice = divisor > 0 ? item.unitPrice / divisor : item.unitPrice;
-    const originalTotalPrice = divisor > 0 ? item.totalPrice / divisor : item.totalPrice;
+    let baseUnitPrice: number;
+    let baseTotalPrice: number;
 
-    // Apply the new discount percent to the original price
-    const newUnitPrice = originalUnitPrice * (1 - discountPercent / 100);
-    const newTotalPrice = originalTotalPrice * (1 - discountPercent / 100);
+    if (originalUnitPrices && originalUnitPrices[item.id] != null) {
+      // Use the provided original price as the anchor — apply cumulative discount to it
+      baseUnitPrice = originalUnitPrices[item.id];
+      baseTotalPrice = baseUnitPrice * item.quantity;
+    } else {
+      // Fallback: reconstruct the original undiscounted price (legacy behavior)
+      const currentDiscount = item.discountPercent || 0;
+      const divisor = 1 - (currentDiscount / 100);
+      baseUnitPrice = divisor > 0 ? item.unitPrice / divisor : item.unitPrice;
+      baseTotalPrice = divisor > 0 ? item.totalPrice / divisor : item.totalPrice;
+    }
+
+    // Apply the new cumulative discount percent to the base price
+    const newUnitPrice = baseUnitPrice * (1 - discountPercent / 100);
+    const newTotalPrice = baseTotalPrice * (1 - discountPercent / 100);
     const newLineTotal = newTotalPrice; // pre-tax!
 
     return {
@@ -94,6 +107,7 @@ export function applyDiscountToQuotationItems(
     (sum, i) => sum + (i.totalPrice * (items.find((x) => x.id === i.id)?.taxPercent || 0)) / 100,
     0
   );
+  const finalAmount = subtotal + taxAmount;
 
   return {
     items: updatedItems,

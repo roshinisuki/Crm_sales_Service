@@ -106,6 +106,22 @@ export async function PUT(
     return NextResponse.json({ success: false, message: "Only Draft quotations can be edited" }, { status: 400 });
   }
 
+  // Edit lock: block manual edits while negotiation is active
+  if (existing.negotiationId) {
+    const negotiation = await prisma.negotiation.findFirst({
+      where: { id: existing.negotiationId, deletedAt: null },
+      select: { status: true, negotiationCode: true },
+    });
+    if (negotiation && !["Closed-Success", "Closed-Failure"].includes(negotiation.status)) {
+      if (user.role !== "Admin") {
+        return NextResponse.json(
+          { success: false, message: `This quotation is under active negotiation (${negotiation.negotiationCode}) and cannot be edited manually. Price changes are applied through the negotiation revision flow.` },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
   const discountPercent = body.discountPercent !== undefined ? parseFloat(body.discountPercent) || 0 : existing.discountPercent;
 
   // Fetch margin floor threshold

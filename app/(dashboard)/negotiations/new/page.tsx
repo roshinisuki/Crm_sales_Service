@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
+import { validateCurrency } from "@/lib/formValidation";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -75,6 +76,8 @@ export default function NewNegotiationPage() {
     e.preventDefault();
     if (!form.customerId) { toast.error("Please select a customer"); return; }
     if (!form.initialAmount) { toast.error("Initial amount is required"); return; }
+    const amtErr = validateCurrency(form.initialAmount, "Initial Amount");
+    if (amtErr) { toast.error(amtErr); return; }
     setSaving(true);
     try {
       const res = await fetch("/api/negotiations", {
@@ -190,7 +193,7 @@ export default function NewNegotiationPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Initial Amount *</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1.5">Initial Amount (₹) *</label>
             <input
               type="number"
               step="0.01"
@@ -199,8 +202,9 @@ export default function NewNegotiationPage() {
               onChange={(e) => setForm({ ...form, initialAmount: e.target.value })}
               placeholder="0.00"
               required
-              className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all"
+              className={`w-full px-4 py-2 rounded-xl bg-slate-50 border text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all ${form.initialAmount && validateCurrency(form.initialAmount, "Initial Amount") ? "border-rose-500" : "border-slate-200"}`}
             />
+            {form.initialAmount && validateCurrency(form.initialAmount, "Initial Amount") && <p className="text-xs text-rose-500 mt-1">{validateCurrency(form.initialAmount, "Initial Amount")}</p>}
           </div>
 
           <div>

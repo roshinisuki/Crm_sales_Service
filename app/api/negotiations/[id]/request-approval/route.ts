@@ -46,6 +46,14 @@ export async function POST(
       },
     });
 
+    // Update the latest pending revision's submittedAgainstRound for concurrency guard
+    if (latestRevision && latestRevision.status === "Pending") {
+      await tx.negotiationRevision.update({
+        where: { id: latestRevision.id },
+        data: { submittedAgainstRound: negotiation.currentRound },
+      });
+    }
+
     // Create ApprovalHistory entry so it appears in the Approval Center
     const approval = await tx.approvalHistory.create({
       data: {

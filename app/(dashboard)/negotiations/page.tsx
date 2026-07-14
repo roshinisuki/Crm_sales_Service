@@ -51,6 +51,7 @@ export default function NegotiationListPage() {
     try {
       const params: any = {};
       if (statusFilter) params.status = statusFilter;
+      if (search) params.search = search;
       let allData: any[] = [];
       let page = 1;
       let totalPages = 1;
@@ -73,13 +74,9 @@ export default function NegotiationListPage() {
 
   useEffect(() => {
     loadNegotiations();
-  }, [statusFilter]);
+  }, [statusFilter, search]);
 
-  const filtered = negotiations.filter((n: any) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return n.negotiationCode?.toLowerCase().includes(q) || n.customer?.name?.toLowerCase().includes(q);
-  });
+  const filtered = negotiations;
 
   const handleDelete = (id: string) => {
     setConfirmState({

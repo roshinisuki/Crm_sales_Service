@@ -69,6 +69,8 @@ export function CostingDetailsPanel({
   const [tierForms, setTierForms] = useState<Record<string, CostingFormState>>({});
   // Overridden tracking per quantity break ID and field
   const [overrides, setOverrides] = useState<Record<string, Record<string, boolean>>>({});
+  // Track existing sheet IDs per quantity break ID for PUT (edit) vs POST (create)
+  const [existingSheetIds, setExistingSheetIds] = useState<Record<string, string>>({});
 
   const activeBreak = lineItem?.quantityBreaks?.[activeBreakIdx] || null;
 
@@ -80,6 +82,7 @@ export function CostingDetailsPanel({
     setDefaults(null);
     setTierForms({});
     setOverrides({});
+    setExistingSheetIds({});
 
     // Fetch existing costing sheets for this line item to pre-fill
     const fetchExistingSheets = async () => {
@@ -90,6 +93,7 @@ export function CostingDetailsPanel({
           const sheets = data.data.filter((s: any) => s.rfqLineItemId === lineItem.id);
           const initialForms: Record<string, CostingFormState> = {};
           const initialOverrides: Record<string, Record<string, boolean>> = {};
+          const initialSheetIds: Record<string, string> = {};
 
           for (const qb of lineItem.quantityBreaks || []) {
             const sheet = sheets.find((s: any) => s.quantityBreakId === qb.id);
@@ -105,11 +109,13 @@ export function CostingDetailsPanel({
                 other_cost: String(sheet.otherCost),
                 notes: sheet.notes || "",
               };
+              initialSheetIds[qb.id] = sheet.id;
               // Any loaded sheet values are marked as manual override if they differ from the defaults (fetched next)
               initialOverrides[qb.id] = {};
             }
           }
           setTierForms(initialForms);
+          setExistingSheetIds(initialSheetIds);
         }
       } catch (e) {
         console.error("Failed to load existing costing sheets:", e);
@@ -295,11 +301,15 @@ export function CostingDetailsPanel({
 
     setSaving(true);
     try {
-      const payload = {
-        line_items: [
-          {
-            line_item_id: lineItem.id,
-            quantity_break_id: activeBreak.id,
+      const existingSheetId = existingSheetIds[activeBreak.id];
+
+      if (existingSheetId) {
+        // Update existing sheet via PUT
+        const res = await fetch(`/api/rfq/${rfqId}/costing-sheet`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sheetId: existingSheetId,
             material_cost: mc,
             labour_cost: lc,
             overhead_percent: oh,
@@ -309,22 +319,49 @@ export function CostingDetailsPanel({
             tooling_cost: tl,
             other_cost: ot,
             notes: currentForm.notes || undefined,
-          },
-        ],
-      };
+          }),
+        });
 
-      const res = await fetch(`/api/rfq/${rfqId}/costing-sheet`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Costing sheet saved for quantity break: ${activeBreak.quantity} units`);
-        onSaved();
+        const data = await res.json();
+        if (data.success) {
+          toast.success(`Costing sheet updated for quantity break: ${activeBreak.quantity} units`);
+          onSaved();
+        } else {
+          toast.error(data.message || "Failed to update costing sheet");
+        }
       } else {
-        toast.error(data.message || "Failed to save costing sheet");
+        // Create new sheet via POST
+        const payload = {
+          line_items: [
+            {
+              line_item_id: lineItem.id,
+              quantity_break_id: activeBreak.id,
+              material_cost: mc,
+              labour_cost: lc,
+              overhead_percent: oh,
+              margin_percent: mg,
+              freight_cost: fr,
+              packaging_cost: pk,
+              tooling_cost: tl,
+              other_cost: ot,
+              notes: currentForm.notes || undefined,
+            },
+          ],
+        };
+
+        const res = await fetch(`/api/rfq/${rfqId}/costing-sheet`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          toast.success(`Costing sheet saved for quantity break: ${activeBreak.quantity} units`);
+          onSaved();
+        } else {
+          toast.error(data.message || "Failed to save costing sheet");
+        }
       }
     } catch {
       toast.error("Failed to save costing sheet");

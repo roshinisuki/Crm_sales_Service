@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { transitionDealStatus } from "@/lib/dealService";
 
 export async function POST(
   request: NextRequest,
@@ -64,6 +65,15 @@ export async function POST(
           where: { id: { in: activeNegotiations.map(n => n.id) } },
           data: { status: "Closed-Failure", outcome: "Lost", closedAt: new Date() },
         });
+      }
+
+      // Transition linked deal to Lost (consistent with negotiation-cascade behavior)
+      if (existing.dealId) {
+        await transitionDealStatus(existing.dealId, "Lost", {
+          actorId: user.id,
+          companyId: user.companyId!,
+          reason: body.rejectionReasonText || `Quotation ${existing.quotationCode} rejected`,
+        }, tx);
       }
 
       return q;

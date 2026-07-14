@@ -244,3 +244,98 @@ export async function POST(
     return NextResponse.json({ success: false, message: error.message }, { status: 400 });
   }
 }
+
+// PUT: Update an existing costing sheet (Costing Engineer / Admin only)
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const user = await verifyAuth();
+  if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+
+  if (!["CostingEngineer", "Admin"].includes(user.role || "")) {
+    return NextResponse.json(
+      { success: false, message: "Only Costing Engineers and Admins can edit costing sheets" },
+      { status: 403 }
+    );
+  }
+
+  const { id } = await params;
+  const body = await request.json();
+  const { sheetId, material_cost, labour_cost, overhead_percent, margin_percent, freight_cost, packaging_cost, tooling_cost, other_cost, notes } = body;
+
+  if (!sheetId) {
+    return NextResponse.json({ success: false, message: "sheetId is required" }, { status: 400 });
+  }
+
+  const existing = await prisma.rFQCostingSheet.findFirst({
+    where: { id: sheetId, rfqId: id },
+    include: { rfqLineItem: { include: { product: { include: { category: true } } } } },
+  });
+  if (!existing) return NextResponse.json({ success: false, message: "Costing sheet not found" }, { status: 404 });
+
+  const mc = parseFloat(material_cost);
+  const lc = parseFloat(labour_cost);
+  if (isNaN(mc) || mc < 0) return NextResponse.json({ success: false, message: "Material cost must be 0 or greater" }, { status: 400 });
+  if (isNaN(lc) || lc < 0) return NextResponse.json({ success: false, message: "Labour cost must be 0 or greater" }, { status: 400 });
+
+  const fr = parseFloat(freight_cost) || 0;
+  const pk = parseFloat(packaging_cost) || 0;
+  const tl = parseFloat(tooling_cost) || 0;
+  const ot = parseFloat(other_cost) || 0;
+
+  let ohVal = overhead_percent !== undefined && overhead_percent !== "" ? parseFloat(overhead_percent) : null;
+  if (ohVal === null || isNaN(ohVal)) {
+    ohVal = existing.rfqLineItem.product?.category?.defaultOverheadPercent ? Number(existing.rfqLineItem.product.category.defaultOverheadPercent) : 0;
+  }
+
+  let mgVal = margin_percent !== undefined && margin_percent !== "" ? parseFloat(margin_percent) : null;
+  if (mgVal === null || isNaN(mgVal)) {
+    mgVal = existing.rfqLineItem.product?.category?.defaultMarginPercent ? Number(existing.rfqLineItem.product.category.defaultMarginPercent) : 0;
+  }
+
+  const computedUnitPrice = (mc + lc + fr + pk + tl + ot) * (1 + ohVal / 100) * (1 + mgVal / 100);
+  if (computedUnitPrice <= 0) {
+    return NextResponse.json({ success: false, message: "Computed unit price must be greater than 0" }, { status: 400 });
+  }
+
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      const sheet = await tx.rFQCostingSheet.update({
+        where: { id: sheetId },
+        data: {
+          materialCost: mc,
+          labourCost: lc,
+          overheadPercent: ohVal,
+          marginPercent: mgVal,
+          freightCost: fr,
+          packagingCost: pk,
+          toolingCost: tl,
+          otherCost: ot,
+          computedUnitPrice,
+          notes: notes || undefined,
+        },
+      });
+
+      if (existing.quantityBreakId) {
+        await tx.rFQLineItemQuantityBreak.update({
+          where: { id: existing.quantityBreakId },
+          data: { computedUnitPrice },
+        });
+      }
+
+      return sheet;
+    });
+
+    await logAudit(user.id, "RFQ", "UpdateCosting", `Updated costing sheet ${sheetId} for RFQ ${id}`, {
+      resourceId: id,
+      newState: { sheetId, computedUnitPrice },
+      context: extractAuditContext(request),
+      severity: "INFO",
+    });
+
+    return NextResponse.json({ success: true, data: updated });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, message: error.message }, { status: 400 });
+  }
+}

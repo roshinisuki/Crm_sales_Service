@@ -24,6 +24,22 @@ export async function PUT(
     return NextResponse.json({ success: false, message: "Only Draft quotations can be edited" }, { status: 400 });
   }
 
+  // Edit lock: block item edits while negotiation is active
+  if (existing.negotiationId) {
+    const negotiation = await prisma.negotiation.findFirst({
+      where: { id: existing.negotiationId, deletedAt: null },
+      select: { status: true, negotiationCode: true },
+    });
+    if (negotiation && !["Closed-Success", "Closed-Failure"].includes(negotiation.status)) {
+      if (user.role !== "Admin") {
+        return NextResponse.json(
+          { success: false, message: `This quotation is under active negotiation (${negotiation.negotiationCode}) and line items cannot be edited. Price changes are applied through the negotiation revision flow.` },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
   const items = body.items || [];
 
   // Compute totals with tax lookup and margin

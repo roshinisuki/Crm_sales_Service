@@ -59,6 +59,15 @@ function SampleListContent() {
     loadSamples();
   }, [statusFilter]);
 
+  // Auto-refresh when returning to the list page (e.g. after editing a sample)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (!document.hidden) loadSamples();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [statusFilter]);
+
   const filtered = samples.filter((s: any) => {
     if (!search) return true;
     const q = search.toLowerCase();

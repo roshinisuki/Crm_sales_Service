@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { dispatchNotification, dispatchNotificationsToMany } from "@/lib/notifications";
+import { logEvent } from "@/lib/activity-event";
 
 // Create a Purchase Order from an Accepted Quotation.
 // Copies line items from the quotation and links customer, contact, deal, negotiation.
@@ -154,6 +155,8 @@ export async function POST(
         discountPercent,
         taxAmount,
         finalAmount,
+        quotationFinalAmount: existing.finalAmount,
+        amountReconciled: Math.abs(finalAmount - (existing.finalAmount || 0)) < 0.01,
         paymentTerms: existing.paymentTerms || null,
         deliveryTerms: existing.deliveryTerms || null,
         shippingAddress,
@@ -167,6 +170,17 @@ export async function POST(
         customer: { select: { id: true, name: true, customerCode: true } },
         items: { include: { product: { select: { id: true, name: true, productCode: true } } } },
       },
+    });
+
+    await logEvent(tx, {
+      entityType: "PurchaseOrder",
+      entityId: purchaseOrder.id,
+      rootEntityId: existing.dealId || existing.id,
+      type: "po_created",
+      fromStatus: null,
+      toStatus: "New",
+      actorId: user.id,
+      metadata: { poCode, quotationId: existing.id, quotationCode: existing.quotationCode, finalAmount },
     });
 
     return { purchaseOrder, poCode };

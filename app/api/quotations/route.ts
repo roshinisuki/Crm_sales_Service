@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
+import { logEvent } from "@/lib/activity-event";
 
 export async function GET(request: NextRequest) {
   const user = await verifyAuth();
@@ -269,6 +270,16 @@ export async function POST(request: NextRequest) {
           changedById: user.id,
           notes: "Quotation created",
         },
+      });
+
+      await logEvent(tx, {
+        entityType: "Quotation",
+        entityId: q.id,
+        type: "quotation_created",
+        fromStatus: null,
+        toStatus: "Draft",
+        actorId: user.id,
+        metadata: { quotationCode: q.quotationCode, rfqId: body.rfqId || null, grandTotal },
       });
 
       return q;

@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import PageContainer from "@/components/PageContainer";
 import { ArrowLeft, Package, Plus, Search, FileText, User, X } from "lucide-react";
+import { validatePositiveNumeric } from "@/lib/formValidation";
 
 export default function NewSamplePage() {
   const router = useRouter();
@@ -75,6 +76,8 @@ export default function NewSamplePage() {
       toast.error("Please select a product");
       return;
     }
+    const qtyErr = validatePositiveNumeric(form.quantity, "Quantity");
+    if (qtyErr) { toast.error(qtyErr); return; }
     setSaving(true);
     try {
       const res = await fetch("/api/samples", {

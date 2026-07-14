@@ -15,6 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import { Plus, Pencil, Trash2, Search, ExternalLink, Swords, Trophy, AlertTriangle, Eye } from "lucide-react";
+import { validateUrl } from "@/lib/formValidation";
 
 export default function CompetitorsPage() {
   const { user } = useAuth();
@@ -100,6 +101,10 @@ export default function CompetitorsPage() {
 
   const handleSave = async () => {
     if (!form.name) return toast.error("Name is required");
+    if (form.website) {
+      const urlErr = validateUrl(form.website);
+      if (urlErr) { toast.error(urlErr); return; }
+    }
     setSaving(true);
     try {
       const res = await fetch(editing ? `/api/competitors/${editing.id}` : "/api/competitors", {

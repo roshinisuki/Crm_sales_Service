@@ -10,6 +10,7 @@ import { FormSection, FormGrid, FormActions, FormButton, CompactFormContainer } 
 import { getCustomersAction } from "@/app/actions/customers";
 import { TemplateUploader, ParsedLineItem } from "@/components/rfq/TemplateUploader";
 import { Trash2, Plus, ArrowLeft, Upload, Edit3 } from "lucide-react";
+import { validatePositiveNumeric, validateCurrency } from "@/lib/formValidation";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -150,6 +151,14 @@ export default function NewRFQPage() {
     if (!form.customerId) { toast.error("Please select a customer"); return; }
     const validLineItems = lineItems.filter(li => li.item_description.trim());
     if (validLineItems.length === 0) { toast.error("At least one line item with a description is required"); return; }
+    for (const li of validLineItems) {
+      const qtyErr = validatePositiveNumeric(li.quantity, "Quantity");
+      if (qtyErr) { toast.error(`Item "${li.item_description}": ${qtyErr}`); return; }
+      if (li.target_price) {
+        const priceErr = validateCurrency(li.target_price, "Target Price");
+        if (priceErr) { toast.error(`Item "${li.item_description}": ${priceErr}`); return; }
+      }
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/rfq", {
@@ -363,9 +372,10 @@ export default function NewRFQPage() {
                       ))}
                     </Select>
                   </FormField>
-                  <FormField label="Quantity">
+                  <FormField label="Quantity" error={li.quantity && validatePositiveNumeric(li.quantity, "Quantity")}>
                     <Input
                       type="number"
+                      min="1"
                       value={li.quantity}
                       onChange={(e) => updateLineItem(idx, "quantity", e.target.value)}
                     />
@@ -378,10 +388,11 @@ export default function NewRFQPage() {
                       placeholder="pcs, kg, set..."
                     />
                   </FormField>
-                  <FormField label="Target Price">
+                  <FormField label="Target Price (₹)" error={li.target_price && validateCurrency(li.target_price, "Target Price")}>
                     <Input
                       type="number"
                       step="0.01"
+                      min="0"
                       value={li.target_price}
                       onChange={(e) => updateLineItem(idx, "target_price", e.target.value)}
                       placeholder="0.00"

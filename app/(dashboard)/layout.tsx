@@ -1130,8 +1130,8 @@ function SidebarContent({
     { href: "/negotiations?status=PendingApproval", label: "Pending Approval" },
     { href: "/negotiations?status=PriceRevision", label: "Price Revision" },
     { href: "/negotiations?status=CommercialDiscussion", label: "Commercial Discussion" },
-    { href: "/negotiations?status=Won", label: "Won" },
-    { href: "/negotiations?status=Lost", label: "Lost" },
+    { href: "/negotiations?status=Closed-Success", label: "Won" },
+    { href: "/negotiations?status=Closed-Failure", label: "Lost" },
   ];
 
   const purchaseOrderMgmtSubItems = [

@@ -5,6 +5,7 @@ import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
 import { transitionDealStatus } from "@/lib/dealService";
 import { createCustomerAssetsFromPO } from "@/lib/service-handoff";
+import { logEventAsync } from "@/lib/activity-event";
 
 const VALID_STATUSES = ["New", "UnderValidation", "OnHold", "Approved", "Rejected", "Closed"];
 
@@ -217,6 +218,17 @@ export async function PUT(
       message: `PO ${existing.poCode} status changed from ${existing.status} to ${body.status}.`,
       type: "purchase_order",
       link: `/purchase-orders/${id}`,
+    });
+
+    await logEventAsync({
+      entityType: "PurchaseOrder",
+      entityId: id,
+      rootEntityId: existing.dealId || existing.quotationId || undefined,
+      type: "po_status_changed",
+      fromStatus: existing.status,
+      toStatus: body.status,
+      actorId: user.id,
+      metadata: { poCode: existing.poCode },
     });
   }
 

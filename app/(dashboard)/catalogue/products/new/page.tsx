@@ -8,6 +8,7 @@ import { useCurrency } from "@/components/CurrencyProvider";
 import { FormField, Input, Select, Textarea } from "@/components/ui/FormField";
 import { Modal } from "@/components/ui/Modal";
 import { ArrowLeft, Save, Plus, UploadCloud, X, Image as ImageIcon } from "lucide-react";
+import { validateRequired, validateCurrency, validatePositiveNumeric } from "@/lib/formValidation";
 
 export default function NewProductPage() {
   const [categories, setCategories] = useState<any[]>([]);
@@ -70,6 +71,16 @@ export default function NewProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nameErr = validateRequired(formData.name, "Product Name");
+    if (nameErr) { toast.error(nameErr); return; }
+    if (formData.basePrice) {
+      const priceErr = validateCurrency(formData.basePrice, "Base Price");
+      if (priceErr) { toast.error(priceErr); return; }
+    }
+    if (formData.minOrderQuantity) {
+      const moqErr = validatePositiveNumeric(formData.minOrderQuantity, "Min Order Quantity");
+      if (moqErr) { toast.error(moqErr); return; }
+    }
     setFormLoading(true);
     try {
       const res = await fetch("/api/catalogue/products", {
