@@ -46,16 +46,33 @@ export async function cascadeNegotiationSuccess(params: CascadeParams): Promise<
   const db = tx as any;
   const now = new Date();
   const finalAmt = finalAmount ?? 0;
+  let authoritativeFinalAmount = finalAmt;
 
   // 1. Update quotation to Accepted
+  // Bug #9 fix: applyNegotiationRevision already set quotation.finalAmount = subtotal + taxAmount
+  // (the authoritative value with per-item rounding). Overwriting it with negotiation.revisedAmount
+  // (the proposedAmount) introduced a rounding mismatch. We now read the quotation's current
+  // finalAmount and use THAT as the source of truth for deal value, notifications, and logging —
+  // only falling back to the passed-in finalAmt if the quotation has no finalAmount set.
   if (quotationId) {
+    const currentQuote = await db.quotation.findUnique({
+      where: { id: quotationId },
+      select: { finalAmount: true, totalAmount: true },
+    });
+    authoritativeFinalAmount = currentQuote?.finalAmount || currentQuote?.totalAmount || finalAmt;
+
     await db.quotation.update({
       where: { id: quotationId },
       data: {
-        finalAmount: finalAmt,
         status: "Accepted",
         acceptedAt: now,
       },
+    });
+
+    // Update negotiation.finalAmount to the authoritative quotation finalAmount
+    await db.negotiation.update({
+      where: { id: negotiationId },
+      data: { finalAmount: authoritativeFinalAmount },
     });
 
     await db.quotationStatusHistory.create({
@@ -103,12 +120,16 @@ export async function cascadeNegotiationSuccess(params: CascadeParams): Promise<
       fromStatus: fromNegotiationStatus,
       toStatus: "Accepted",
       actorId,
-      metadata: { negotiationId, negotiationCode, finalAmount: finalAmt },
+      metadata: { negotiationId, negotiationCode, finalAmount: authoritativeFinalAmount },
     });
   }
 
-  // 2. Transition Deal to Won
+  // 2. Transition Deal to Won and sync deal value to the authoritative quotation finalAmount
   if (dealId) {
+    await db.deal.update({
+      where: { id: dealId },
+      data: { dealValue: authoritativeFinalAmount },
+    });
     await transitionDealStatus(dealId, "Won", {
       actorId,
       reason: `Negotiation ${negotiationCode} closed as success`,
@@ -156,7 +177,7 @@ export async function cascadeNegotiationSuccess(params: CascadeParams): Promise<
       data: {
         userId: mgr.id,
         title: "Deal Won!",
-        message: `Deal Won: Customer negotiation ${negotiationCode} closed as success — ₹${finalAmt.toFixed(2)}`,
+        message: `Deal Won: Customer negotiation ${negotiationCode} closed as success — ₹${authoritativeFinalAmount.toFixed(2)}`,
         type: "Deal",
         link: `/negotiations/${negotiationId}`,
       },
@@ -172,7 +193,7 @@ export async function cascadeNegotiationSuccess(params: CascadeParams): Promise<
       data: {
         userId: fin.id,
         title: "New Order",
-        message: `New order via negotiation success ${negotiationCode} — ₹${finalAmt.toFixed(2)}`,
+        message: `New order via negotiation success ${negotiationCode} — ₹${authoritativeFinalAmount.toFixed(2)}`,
         type: "Order",
         link: `/negotiations/${negotiationId}`,
       },

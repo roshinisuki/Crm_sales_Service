@@ -101,8 +101,11 @@ export async function PUT(
     });
   }
 
-  const discountAmount = subtotal * (existing.discountPercent / 100);
-  const grandTotal = subtotal - discountAmount + totalTax;
+  // Bug #14 fix: subtotal already includes line-level discounts (lineTotal = qty * unitPrice *
+  // (1 - lineDiscount/100)). Applying existing.discountPercent on top double-discounted the
+  // grand total. The header discountPercent is stored for display only — the effective subtotal
+  // is the sum of line-discounted lineTotals. grandTotal = subtotal + tax.
+  const grandTotal = subtotal + totalTax;
 
   const overallMarginPercent = computeOverallMarginPercent(
     processedItems.map((pi) => ({

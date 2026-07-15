@@ -294,32 +294,41 @@ export function generateQuotationPdf(data: QuotationPdfData): jsPDF {
     },
   });
 
-  // @ts-expect-error - lastAutoTable is added by jspdf-autotable
+  // lastAutoTable is added by jspdf-autotable at runtime
   y = (doc as any).lastAutoTable.finalY + 6;
 
   // ── Totals section (right-aligned) ──
+  // After applyNegotiationRevision, subtotal is ALREADY net of discount (sum of discounted
+  // totalPrice values). Showing Subtotal - Discount + Tax doesn't add up to Grand Total.
+  // Instead: compute gross from discountPercent, show Gross → Discount → Net Subtotal → Tax → Grand Total.
   const totalsW = 70;
   const totalsX = pageW - margin - totalsW;
   const labelX = totalsX;
   const valueX = pageW - margin;
 
-  const subtotal = data.subtotal || data.totalAmount;
-  const discountAmount = subtotal * (data.discountPercent || 0) / 100;
+  const netSubtotal = data.subtotal || data.totalAmount;
+  const discountPct = data.discountPercent || 0;
+  const grossSubtotal = discountPct > 0 ? netSubtotal / (1 - discountPct / 100) : netSubtotal;
+  const discountAmount = grossSubtotal - netSubtotal;
 
   doc.setFontSize(9);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(71, 85, 105);
 
-  doc.text("Subtotal", labelX, y);
-  doc.text(formatCurrency(subtotal), valueX, y, { align: "right" });
+  doc.text("Gross Total", labelX, y);
+  doc.text(formatCurrency(grossSubtotal), valueX, y, { align: "right" });
   y += 5;
 
-  doc.text(`Discount (${data.discountPercent || 0}%)`, labelX, y);
+  doc.text(`Discount (${discountPct}%)`, labelX, y);
   doc.setTextColor(220, 38, 38);
   doc.text(`-${formatCurrency(discountAmount)}`, valueX, y, { align: "right" });
   y += 5;
 
   doc.setTextColor(71, 85, 105);
+  doc.text("Net Subtotal", labelX, y);
+  doc.text(formatCurrency(netSubtotal), valueX, y, { align: "right" });
+  y += 5;
+
   doc.text("Tax (GST)", labelX, y);
   doc.text(formatCurrency(data.taxAmount || 0), valueX, y, { align: "right" });
   y += 5;

@@ -24,6 +24,18 @@ import {
   ArrowRight, Link2, Pencil, Trash2, RotateCcw, AlertTriangle,
 } from "lucide-react";
 
+const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
+  <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d={d} />
+  </svg>
+);
+
+const icons = {
+  back: "M10 19l-7-7m0 0l7-7m-7 7h18",
+  check: "M5 13l4 4L19 7",
+  sync: "M21 12a9 9 0 11-6.219-8.56 M21 3v6h-6",
+};
+
 const statusColors: Record<string, string> = {
   New: "bg-slate-100 text-slate-700",
   UnderValidation: "bg-amber-100 text-amber-700",

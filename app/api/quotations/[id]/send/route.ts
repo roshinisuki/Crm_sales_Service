@@ -62,8 +62,40 @@ export async function POST(
   const marginFloor = floorConfig ? parseFloat(floorConfig.value) : 15.0;
 
   // Compute realized weighted discount and evaluate triggers
+  // Bug #10 fix: after applyNegotiationRevision, existing.subtotal is ALREADY the sum of
+  // discounted totalPrice values and item.unitPrice is already discounted. The old code
+  // re-applied discountPercent on subtotal (double-discount) and used discounted unitPrice
+  // as "gross". Now: totalNet = subtotal (already net), and we try to recover original
+  // gross from the round-0 snapshot. If no snapshot, we reverse-engineer from discountPercent.
   let totalGross = 0;
-  let totalNet = existing.subtotal - (existing.subtotal * existing.discountPercent / 100);
+  let totalNet = existing.subtotal;
+
+  // Try to recover original undiscounted prices from round-0 snapshot
+  let originalPrices: Record<string, number> | null = null;
+  if (existing.currentRound > 0) {
+    const round0Snap = await prisma.quotationRevisionSnapshot.findFirst({
+      where: { quotationId: existing.id, roundNumber: 0 },
+      orderBy: { createdAt: "asc" },
+    });
+    if (round0Snap) {
+      try {
+        const snap = JSON.parse(round0Snap.snapshotJson);
+        if (snap.items && Array.isArray(snap.items)) {
+          originalPrices = {};
+          for (const snapItem of snap.items) {
+            const matched = existing.items.find(
+              (it: any) => it.description === snapItem.description && it.quantity === snapItem.quantity
+            );
+            if (matched && snapItem.unitPrice != null) {
+              originalPrices[matched.id] = snapItem.unitPrice;
+            }
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }
 
   let maxLineDiscount = 0;
   let hasMarginBreach = false;
@@ -72,7 +104,11 @@ export async function POST(
   for (const item of existing.items) {
     const qty = item.quantity || 0;
     const unitPrice = item.unitPrice || 0;
-    const gross = qty * unitPrice;
+    // Use original price if available, otherwise reverse-engineer from discount
+    const grossUnitPrice = originalPrices?.[item.id] ?? (item.discountPercent > 0
+      ? unitPrice / (1 - item.discountPercent / 100)
+      : unitPrice);
+    const gross = qty * grossUnitPrice;
     totalGross += gross;
 
     if (item.discountPercent > maxLineDiscount) {

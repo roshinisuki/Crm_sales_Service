@@ -18,8 +18,11 @@ export async function POST(
   const existing = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
-      customer: { select: { id: true, name: true, customerCode: true, status: true, accountType: true } },
+      customer: { select: { id: true, name: true, customerCode: true, status: true, accountType: true, billingAddress: true, shippingAddress: true, city: true, gstNumber: true } },
+      contact: { select: { id: true, name: true, email: true, phone: true } },
       deal: { select: { id: true, dealName: true, status: true, opportunityCode: true } },
+      items: true,
+      rfq: { select: { id: true, expectedDeliveryDate: true, lineItems: { select: { requestedDeliveryDate: true } } } },
     },
   });
   if (!existing) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
@@ -49,6 +52,9 @@ export async function POST(
       });
 
       // 2b. Close active negotiations
+      // Bug #8 fix: set negotiation.finalAmount to the quotation's finalAmount (which was
+      // already updated by applyNegotiationRevision) so the negotiation record reflects the
+      // actual negotiated amount, not null.
       const activeNegotiations = await tx.negotiation.findMany({
         where: {
           quotationId: id,
@@ -60,13 +66,19 @@ export async function POST(
       if (activeNegotiations.length > 0) {
         await tx.negotiation.updateMany({
           where: { id: { in: activeNegotiations.map(n => n.id) } },
-          data: { status: "Closed-Success", outcome: "Won", closedAt: new Date() },
+          data: {
+            status: "Closed-Success",
+            outcome: "Won",
+            closedAt: new Date(),
+            finalAmount: existing.finalAmount,
+          },
         });
       }
 
       // 3. Auto-create a linked Deal at DemoAccepted if none exists.
       //    The deal is later transitioned to Won when its linked PO is approved.
-      if (!existing.dealId) {
+      let dealId = existing.dealId;
+      if (!dealId) {
         const dealName = `${existing.customer?.name || "Customer"} — ${existing.quotationCode}`;
         const deal = await tx.deal.create({
           data: {
@@ -95,6 +107,125 @@ export async function POST(
         await tx.quotation.update({
           where: { id: existing.id },
           data: { dealId: deal.id },
+        });
+        dealId = deal.id;
+      }
+
+      // 3a. Auto-create Purchase Order from the accepted quotation.
+      // PO is created in "New" status — it gets approved via the Approval Center,
+      // which then transitions the deal to Won.
+      const existingPo = await tx.purchaseOrder.findFirst({
+        where: { quotationId: id, deletedAt: null },
+        select: { id: true, poCode: true },
+      });
+      let poCode = "";
+      if (!existingPo) {
+        // Generate sequential poCode
+        let codeExists = true;
+        let seqOffset = 0;
+        while (codeExists) {
+          const lastPO = await tx.purchaseOrder.findFirst({
+            where: { companyId: user.companyId },
+            orderBy: { poCode: "desc" },
+            select: { poCode: true },
+          });
+          let poSeq = 1;
+          if (lastPO?.poCode) {
+            const match = lastPO.poCode.match(/PO-(\d+)/);
+            if (match) poSeq = parseInt(match[1], 10) + 1;
+          }
+          poSeq += seqOffset;
+          poCode = `PO-${String(poSeq).padStart(4, "0")}`;
+          const dup = await tx.purchaseOrder.findFirst({
+            where: { companyId: user.companyId, poCode },
+            select: { id: true },
+          });
+          if (!dup) codeExists = false;
+          else seqOffset++;
+        }
+
+        // Compute expected delivery date
+        let computedExpectedDelivery: Date | null = null;
+        if (existing.leadTimeDays && existing.leadTimeDays > 0) {
+          const d = new Date();
+          d.setDate(d.getDate() + existing.leadTimeDays);
+          computedExpectedDelivery = d;
+        } else if (existing.rfq?.lineItems?.length) {
+          const deliveryDates = existing.rfq.lineItems
+            .map((li) => li.requestedDeliveryDate)
+            .filter(Boolean) as Date[];
+          if (deliveryDates.length > 0) {
+            computedExpectedDelivery = new Date(Math.min(...deliveryDates.map((d) => d.getTime())));
+          }
+        } else if (existing.rfq?.expectedDeliveryDate) {
+          computedExpectedDelivery = existing.rfq.expectedDeliveryDate;
+        }
+
+        const shippingAddress = existing.customer?.shippingAddress || existing.customer?.billingAddress || null;
+
+        // Map quotation items → PO items (prices already net of discount)
+        const poItems = existing.items.map((it) => ({
+          productId: it.productId || null,
+          description: it.description || "",
+          quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          totalPrice: it.totalPrice || it.quantity * it.unitPrice,
+          notes: it.notes || null,
+          discountPercent: it.discountPercent || 0,
+          taxPercent: it.taxPercent || 18,
+          lineTotal: it.lineTotal || it.totalPrice,
+        }));
+
+        const totalAmount = poItems.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
+        const taxAmount = existing.items.reduce((sum, it) => {
+          const lineNet = it.totalPrice || 0;
+          return sum + lineNet * ((it.taxPercent || 18) / 100);
+        }, 0);
+        const finalAmount = totalAmount + taxAmount;
+
+        // Find linked negotiation
+        const negotiation = await tx.negotiation.findFirst({
+          where: { quotationId: id, deletedAt: null },
+          select: { id: true },
+        });
+
+        const purchaseOrder = await tx.purchaseOrder.create({
+          data: {
+            poCode,
+            customerId: existing.customerId,
+            contactId: existing.contactId || null,
+            negotiationId: negotiation?.id || null,
+            quotationId: existing.id,
+            dealId: dealId || null,
+            status: "New",
+            poDate: new Date(),
+            expectedDelivery: computedExpectedDelivery,
+            totalAmount,
+            discountPercent: existing.discountPercent || 0,
+            taxAmount,
+            finalAmount,
+            quotationFinalAmount: existing.finalAmount,
+            amountReconciled: Math.abs(finalAmount - (existing.finalAmount || 0)) < 0.01,
+            paymentTerms: existing.paymentTerms || null,
+            deliveryTerms: existing.deliveryTerms || null,
+            shippingAddress,
+            billingAddress: existing.customer?.billingAddress || null,
+            notes: `Auto-created from Quotation ${existing.quotationCode} on acceptance`,
+            assignedUserId: existing.assignedUserId || user.id,
+            companyId: user.companyId,
+            items: { create: poItems },
+          },
+        });
+
+        await logEvent(tx, {
+          entityType: "PurchaseOrder",
+          entityId: purchaseOrder.id,
+          rootEntityId: dealId || existing.id,
+          type: "po_created",
+          fromStatus: null,
+          toStatus: "New",
+          actorId: user.id,
+          metadata: { poCode, quotationId: existing.id, quotationCode: existing.quotationCode, finalAmount, autoCreated: true },
         });
       }
 
@@ -164,8 +295,8 @@ export async function POST(
         await tx.notification.create({
           data: {
             userId: mgr.id,
-            title: "Deal Won!",
-            message: `Deal Won: ${existing.customer?.name || "Unknown"} — ${existing.quotationCode} — ₹${existing.finalAmount.toFixed(2)}`,
+            title: "Quotation Accepted",
+            message: `Quotation ${existing.quotationCode} accepted by ${existing.customer?.name || "Unknown"} — ₹${existing.finalAmount.toFixed(2)}${poCode ? ` — PO ${poCode} auto-created` : ""}`,
             type: "Deal",
             link: `/quotations/${id}`,
           },
@@ -193,9 +324,9 @@ export async function POST(
           data: {
             userId: fin.id,
             title: "New Order",
-            message: `New order from ${existing.customer?.name || "Unknown"} — Quotation ${existing.quotationCode} accepted — ₹${existing.finalAmount.toFixed(2)}`,
+            message: `New order from ${existing.customer?.name || "Unknown"} — Quotation ${existing.quotationCode} accepted — ₹${existing.finalAmount.toFixed(2)}${poCode ? ` — PO ${poCode} pending approval` : ""}`,
             type: "Order",
-            link: `/quotations/${id}`,
+            link: poCode ? `/purchase-orders` : `/quotations/${id}`,
           },
         });
       }
@@ -215,10 +346,10 @@ export async function POST(
       { timeout: 30000, maxWait: 35000 }
     );
 
-    await logAudit(user.id, "Quotation", "Accept", `Accepted quotation ${existing.quotationCode} — cascading updates completed`, {
+    await logAudit(user.id, "Quotation", "Accept", `Accepted quotation ${existing.quotationCode} — PO ${poCode} auto-created`, {
       resourceId: id,
       previousState: { status: existing.status },
-      newState: { status: "Accepted", dealStage: "Won", accountStatus: "Active", rfqStatus: "Closed" },
+      newState: { status: "Accepted", dealStage: "DemoAccepted", poCode, rfqStatus: "Closed" },
       context: extractAuditContext(request),
     });
 

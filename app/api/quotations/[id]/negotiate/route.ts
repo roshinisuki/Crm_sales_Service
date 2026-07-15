@@ -56,20 +56,23 @@ export async function POST(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const isStatusChange = existing.status !== "UnderReview";
       const q = await tx.quotation.update({
         where: { id },
         data: { status: "UnderReview" },
       });
 
-      await tx.quotationStatusHistory.create({
-        data: {
-          quotationId: id,
-          fromStatus: existing.status,
-          toStatus: "UnderReview",
-          changedById: user.id,
-          notes: "Moved to negotiation — customer requested changes",
-        },
-      });
+      if (isStatusChange) {
+        await tx.quotationStatusHistory.create({
+          data: {
+            quotationId: id,
+            fromStatus: existing.status,
+            toStatus: "UnderReview",
+            changedById: user.id,
+            notes: "Moved to negotiation — customer requested changes",
+          },
+        });
+      }
 
       // If linked to an opportunity, move it to Negotiation stage so the negotiation form is surfaced
       let deal: { id: string; status: string; assignedUserId: string | null } | null = null;
@@ -176,18 +179,17 @@ export async function POST(
       } else {
         // Reuse existing negotiation — update quotationId to point to THIS revision
         // so discounts land on the correct quotation (R2/R3/R4, not stale R1).
-        // Reset to Active with fresh amounts since this is a new quotation revision.
+        // Preserve initialAmount, revisedAmount, discountRequested, and discountApproved so the
+        // cumulative discount baseline stays relative to the ORIGINAL quotation amount across
+        // all rounds. Resetting these here would make cumulative discount % / grand total drift
+        // after every subsequent revision round (see Bug #1/#2).
         await tx.negotiation.update({
           where: { id: existingNeg.id },
           data: {
             quotationId: id,
-            initialAmount: existing.finalAmount || existing.totalAmount || 0,
             costBasisUnitPrice: totalCostBasis,
             overallMarginPercent: clampedMarginPercent,
             status: "Active",
-            revisedAmount: null,
-            discountRequested: 0,
-            discountApproved: null,
             ...(body.customerDemands ? { customerDemands: body.customerDemands } : {}),
             ...(body.internalNotes ? { internalNotes: body.internalNotes } : {}),
             ...(body.negotiationType ? { negotiationType: body.negotiationType } : {}),

@@ -25,6 +25,7 @@ export async function POST(
           product: { select: { id: true, name: true, productCode: true, unit: true, hsnCode: true } },
         },
       },
+      company: { select: { id: true, name: true } },
       createdBy: { select: { id: true, name: true } },
     },
   });
@@ -71,27 +72,50 @@ export async function POST(
       generatedByName,
     });
 
-    const pdfBase64 = doc.output("datauristring");
     const pdfBytes = doc.output("arraybuffer");
     const fileSize = pdfBytes.byteLength;
 
-    const fileName = `${quotation.quotationCode}-R${quotation.revisionNumber}.pdf`;
+    // Bug 1 fix: Use roundNumber consistently (1-indexed, matching Revision History).
+    // quotation.currentRound is 0 before any negotiation, then 1, 2, 3 after each round.
+    // Revision History shows round 0 as "Root", so we use currentRound directly for consistency.
+    const roundNumber = quotation.currentRound || 0;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const fileName = `${quotation.quotationCode}-Round${roundNumber}-${timestamp}.pdf`;
 
-    // Store in QuotationDocument
-    const document = await prisma.quotationDocument.create({
+    const fileUrl = `/api/quotations/${id}/pdf?round=${roundNumber}`;
+
+    // Store as CRMDocument (unified document management) — avoids duplicate listings.
+    // Check if one already exists for this round to prevent duplicates.
+    const existingDoc = await prisma.cRMDocument.findFirst({
+      where: { entityType: "Quotation", entityId: id, revisionNumber: roundNumber, documentType: "QuotationRevision" },
+    });
+    if (existingDoc) {
+      return NextResponse.json({ success: false, message: `PDF for Round ${roundNumber} already exists` }, { status: 409 });
+    }
+
+    const document = await prisma.cRMDocument.create({
       data: {
-        quotationId: id,
-        revisionNumber: quotation.revisionNumber,
-        fileName,
-        fileUrl: pdfBase64,
+        documentCode: `QT-PDF-${quotation.quotationCode}-R${roundNumber}`,
+        name: fileName,
+        documentType: "QuotationRevision",
+        entityType: "Quotation",
+        entityId: id,
+        fileUrl,
+        mimeType: "application/pdf",
         fileSize,
-        generatedById: user.id,
+        description: `Quotation PDF for Round ${roundNumber}. Discount: ${quotation.discountPercent || 0}%. Final: ${quotation.finalAmount}`,
+        tags: `quotation,pdf,R${roundNumber}`,
+        uploadedById: user.id,
+        companyId: user.companyId,
+        customerId: quotation.customerId || null,
+        revisionNumber: roundNumber,
+        isCurrent: true,
       },
     });
 
-    await logAudit(user.id, "Quotation", "GeneratePDF", `Generated PDF for quotation ${quotation.quotationCode} R${quotation.revisionNumber}`, {
+    await logAudit(user.id, "Quotation", "GeneratePDF", `Generated PDF for quotation ${quotation.quotationCode} (Round ${roundNumber})`, {
       resourceId: id,
-      newState: { documentId: document.id, fileName },
+      newState: { documentId: document.id, fileName, roundNumber },
       context: extractAuditContext(request),
     });
 
@@ -104,20 +128,3 @@ export async function POST(
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await verifyAuth();
-  if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
-
-  const { id } = await params;
-
-  const documents = await prisma.quotationDocument.findMany({
-    where: { quotationId: id },
-    include: { generatedBy: { select: { id: true, name: true } } },
-    orderBy: { generatedAt: "desc" },
-  });
-
-  return NextResponse.json({ success: true, data: documents });
-}

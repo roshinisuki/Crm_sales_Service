@@ -118,7 +118,16 @@ export async function PUT(
     if (body.status === "Closed-Success") {
       updateData.outcome = "Won";
       updateData.closedAt = now;
-      const finalAmt = body.finalAmount !== undefined ? parseFloat(body.finalAmount) : (existing.revisedAmount !== null ? existing.revisedAmount : existing.initialAmount);
+      // Bug #9 fix: use the quotation's finalAmount (authoritative, set by applyNegotiationRevision)
+      // instead of negotiation.revisedAmount (the proposedAmount which may differ due to per-item
+      // rounding). Fall back to revisedAmount/initialAmount only if quotation has no finalAmount.
+      const linkedQuote = existing.quotationId ? await prisma.quotation.findUnique({
+        where: { id: existing.quotationId },
+        select: { finalAmount: true, totalAmount: true },
+      }) : null;
+      const finalAmt = body.finalAmount !== undefined
+        ? parseFloat(body.finalAmount)
+        : (linkedQuote?.finalAmount || linkedQuote?.totalAmount || (existing.revisedAmount !== null ? existing.revisedAmount : existing.initialAmount));
       updateData.finalAmount = finalAmt;
     }
     if (body.status === "Closed-Failure") {

@@ -13,12 +13,14 @@ export async function GET(
   const { id } = await params;
   const searchParams = request.nextUrl.searchParams;
   const revParam = searchParams.get("revision");
+  const roundParam = searchParams.get("round");
 
   const dbQuotation = await prisma.quotation.findFirst({
     where: { id, deletedAt: null, companyId: user.companyId },
     include: {
       customer: { select: { id: true, name: true, customerCode: true, billingAddress: true, city: true, gstNumber: true, phone: true, email: true } },
       contact: { select: { id: true, name: true, email: true, phone: true } },
+      deal: { select: { id: true, dealName: true, opportunityCode: true } },
       items: { include: { product: { select: { id: true, name: true, productCode: true } } } },
       company: { select: { id: true, name: true } },
       createdBy: { select: { id: true, name: true } },
@@ -28,10 +30,36 @@ export async function GET(
   if (!dbQuotation) return NextResponse.json({ success: false, message: "Quotation not found" }, { status: 404 });
 
   let quotation: any = null;
-  if (revParam) {
+  if (roundParam) {
+    // Round-based lookup (negotiation round) — take the LATEST snapshot for that
+    // round (the "after" snapshot reflects the negotiated state, see Bug #4).
+    const roundNum = parseInt(roundParam);
+    const snapshot = await prisma.quotationRevisionSnapshot.findFirst({
+      where: { quotationId: id, roundNumber: roundNum },
+      orderBy: { createdAt: "desc" },
+    });
+    if (snapshot) {
+      try {
+        const snapObj = JSON.parse(snapshot.snapshotJson);
+        quotation = {
+          ...dbQuotation,
+          ...snapObj,
+          createdAt: snapObj.createdAt ? new Date(snapObj.createdAt) : dbQuotation.createdAt,
+          validUntil: snapObj.validUntil ? new Date(snapObj.validUntil) : dbQuotation.validUntil,
+          items: snapObj.items.map((it: any) => ({
+            ...it,
+            product: dbQuotation.items.find(dbi => dbi.description === it.description)?.product || null,
+          })),
+        };
+      } catch (err) {
+        console.error("Failed to parse snapshot", err);
+      }
+    }
+  } else if (revParam) {
     const revNum = parseInt(revParam);
     const snapshot = await prisma.quotationRevisionSnapshot.findFirst({
       where: { quotationId: id, revisionNumber: revNum },
+      orderBy: { createdAt: "desc" },
     });
     if (snapshot) {
       try {
@@ -100,7 +128,7 @@ export async function GET(
   return new NextResponse(pdfBytes, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${fileName}"`,
+      "Content-Disposition": `inline; filename="${fileName}"`,
       "Content-Length": String(pdfBytes.byteLength),
     },
   });

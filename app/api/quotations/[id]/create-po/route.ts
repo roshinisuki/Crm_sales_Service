@@ -100,15 +100,18 @@ export async function POST(
     lineTotal: it.lineTotal || it.totalPrice,
   }));
 
-  // Compute totals including tax (tax stored at PO header level via taxAmount)
+  // Bug #6 fix: quotation.items[].totalPrice/lineTotal are ALREADY net of the negotiated
+  // discount (applyNegotiationRevision writes discounted prices directly onto the item rows).
+  // discountPercent is stored purely for display/audit purposes at this point — re-applying it
+  // on top of totalAmount here was double-discounting the PO. Tax must be computed on the
+  // already-net totalPrice directly, not on a second discount pass.
   const totalAmount = items.reduce((sum, it) => sum + (it.totalPrice || 0), 0);
   const discountPercent = existing.discountPercent || 0;
-  const discountAmount = totalAmount * (discountPercent / 100);
   const taxAmount = existing.items.reduce((sum, it) => {
-    const lineNet = (it.totalPrice || 0) * (1 - (it.discountPercent || 0) / 100);
+    const lineNet = it.totalPrice || 0;
     return sum + lineNet * ((it.taxPercent || 18) / 100);
   }, 0);
-  const finalAmount = totalAmount - discountAmount + taxAmount;
+  const finalAmount = totalAmount + taxAmount;
 
   const result = await prisma.$transaction(async (tx) => {
     // Auto-generate poCode using MAX-based sequential numbering to avoid race conditions

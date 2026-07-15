@@ -77,30 +77,39 @@ export async function PUT(
   }
 
   // If items are provided, recalculate totals
+  // Bug #7 fix: item.unitPrice/totalPrice on a PO created from a quotation are ALREADY net of
+  // the negotiated discount (see create-po/route.ts). Re-applying body.discountPercent on top of
+  // the summed totalAmount here double-discounted the PO on every subsequent edit. discountPercent
+  // is now stored for display/audit only. Tax was also previously never recalculated on edit —
+  // it's now computed per-item (using each item's taxPercent, default 18%) on the net total.
   let totalAmount = existing.totalAmount;
+  let taxAmount = existing.taxAmount;
   let finalAmount = existing.finalAmount;
   let discountPercent = existing.discountPercent;
   let itemsOperation: any = undefined;
 
   if (body.items && Array.isArray(body.items)) {
     totalAmount = 0;
+    taxAmount = 0;
     const newItems = body.items.map((it: any) => {
       const qty = parseFloat(it.quantity) || 0;
       const price = parseFloat(it.unitPrice) || 0;
       const lineTotal = qty * price;
+      const taxPercent = parseFloat(it.taxPercent) || 18;
       totalAmount += lineTotal;
+      taxAmount += lineTotal * (taxPercent / 100);
       return {
         productId: it.productId || null,
         description: it.description || "",
         quantity: qty,
         unitPrice: price,
         totalPrice: lineTotal,
+        taxPercent,
         notes: it.notes || null,
       };
     });
-    discountPercent = parseFloat(body.discountPercent) || 0;
-    const discountAmount = totalAmount * (discountPercent / 100);
-    finalAmount = totalAmount - discountAmount;
+    discountPercent = body.discountPercent !== undefined ? parseFloat(body.discountPercent) || 0 : discountPercent;
+    finalAmount = totalAmount + taxAmount;
     // Replace all items
     itemsOperation = {
       deleteMany: {},
@@ -108,12 +117,11 @@ export async function PUT(
     };
   } else if (body.discountPercent !== undefined) {
     discountPercent = parseFloat(body.discountPercent) || 0;
-    const discountAmount = totalAmount * (discountPercent / 100);
-    finalAmount = totalAmount - discountAmount;
   }
 
   const updateData: any = {
     totalAmount,
+    taxAmount,
     discountPercent,
     finalAmount,
   };

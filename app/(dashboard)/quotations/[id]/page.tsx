@@ -16,7 +16,7 @@ import QuotationDetailPageV2 from "@/components/quotations/QuotationDetailPageV2
 import { cn } from "@/lib/ui-utils";
 import { StatusStepper } from "@/components/ui/StatusStepper";
 import {
-  ChevronRight, ChevronLeft, CheckCircle, Edit, AlertTriangle, Send, FileCode, Copy, Download, X, XCircle, Check, Plus, FileText, MoreVertical
+  ChevronRight, ChevronLeft, CheckCircle, Edit, AlertTriangle, Send, Copy, Download, X, XCircle, Check, Plus, FileText, MoreVertical
 } from "lucide-react";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
@@ -92,7 +92,7 @@ export default function QuotationDetailPage() {
   });
   const [negotiating, setNegotiating] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [quotationDocuments, setQuotationDocuments] = useState<any[]>([]);
+  const [docReloadKey, setDocReloadKey] = useState(0);
   const searchParams = useSearchParams();
   if (searchParams.get("v2") === "1") return <QuotationDetailPageV2 />;
   const { startLoading, stopLoading } = useGlobalLoading();
@@ -130,26 +130,15 @@ export default function QuotationDetailPage() {
     }
   }, [searchParams, quotation]);
 
-  const loadDocuments = async () => {
-    try {
-      const res = await fetch(`/api/quotations/${id}/generate-pdf`);
-      const data = await res.json();
-      if (data.success) setQuotationDocuments(data.data || []);
-    } catch {}
-  };
-
-  useEffect(() => {
-    loadDocuments();
-  }, [id]);
-
   const handleGeneratePdf = async () => {
     setGeneratingPdf(true);
     try {
       const res = await fetch(`/api/quotations/${id}/generate-pdf`, { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        toast.success("PDF generated and stored");
-        loadDocuments();
+        toast.success("PDF generated");
+        // Reload the documents tab via key bump to force EntityDocumentTab re-fetch
+        setDocReloadKey(k => k + 1);
       } else {
         toast.error(data.message || "Failed to generate PDF");
       }
@@ -158,15 +147,6 @@ export default function QuotationDetailPage() {
     } finally {
       setGeneratingPdf(false);
     }
-  };
-
-  const handleDownloadDoc = (doc: any) => {
-    const link = document.createElement("a");
-    link.href = doc.fileUrl;
-    link.download = doc.fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const startEdit = () => {
@@ -440,31 +420,6 @@ export default function QuotationDetailPage() {
     window.open(`/api/quotations/${id}/pdf`, "_blank");
   };
 
-  const [creatingPo, setCreatingPo] = useState(false);
-  const handleCreatePo = async () => {
-    setCreatingPo(true);
-    try {
-      const res = await fetch(`/api/quotations/${id}/create-po`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          // Pass quotation leadTimeDays so API can compute expectedDelivery
-          leadTimeDays: quotation?.leadTimeDays || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success(`Purchase order ${data.data.poCode} created`);
-        router.push(`/purchase-orders/${data.data.id}`);
-      } else {
-        toast.error(data.message || "Failed to create purchase order");
-      }
-    } catch {
-      toast.error("Failed to create purchase order");
-    } finally {
-      setCreatingPo(false);
-    }
-  };
 
   const handleDelete = () => {
     setConfirmState({
@@ -500,15 +455,24 @@ export default function QuotationDetailPage() {
   const validityColor = daysRemaining <= 3 ? "text-rose-600" : daysRemaining <= 7 ? "text-amber-600" : "text-slate-500";
 
   // Compute live margin and discount trigger rules locally
+  // Bug A fix (client-side mirror of Bug #10): after applyNegotiationRevision, quotation.subtotal
+  // is ALREADY the sum of discounted totalPrice values and item.unitPrice is already discounted.
+  // The old code re-applied discountPercent on subtotal (double-discount) and used discounted
+  // unitPrice as "gross". Now: totalNet = subtotal (already net), and we reverse-engineer the
+  // original gross from discountPercent if there's no round-0 snapshot available client-side.
   let totalGross = 0;
-  let totalNet = quotation.subtotal - (quotation.subtotal * quotation.discountPercent / 100);
+  let totalNet = quotation.subtotal || 0;
   let maxLineDiscount = 0;
   let hasMarginBreach = false;
 
   for (const item of quotation.items || []) {
     const qty = item.quantity || 0;
     const price = item.unitPrice || 0;
-    totalGross += qty * price;
+    // Reverse-engineer original undiscounted unit price from discountPercent
+    const grossUnitPrice = item.discountPercent > 0
+      ? price / (1 - item.discountPercent / 100)
+      : price;
+    totalGross += qty * grossUnitPrice;
     if (item.discountPercent > maxLineDiscount) maxLineDiscount = item.discountPercent;
 
     if (item.costBasisUnitPrice != null) {
@@ -693,12 +657,8 @@ export default function QuotationDetailPage() {
               <button onClick={handleAccept} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as accepted by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-[var(--status-success)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><Check size={15} /> Accept</button>
               {/* Mark Rejected — available in Sent and UnderReview */}
               <button onClick={handleReject} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as rejected by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-[var(--status-danger)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><XCircle size={15} /> Reject</button>
-              {/* Create PO — only in Accepted */}
-              <button onClick={handleCreatePo} disabled={quotation.status !== "Accepted" || creatingPo} title={quotation.status !== "Accepted" ? "Quotation must be Accepted first" : "Create purchase order from this quotation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Accepted" ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><FileCode size={15} /> Create PO</button>
               {/* PDF — always available */}
               <button onClick={handleDownloadPdf} title="Open printable quotation view" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-[var(--text-secondary)] bg-[var(--surface-2)] hover:bg-[var(--border)] cursor-pointer"><Download size={15} /> PDF</button>
-              {/* Generate & Store PDF — always available */}
-              <button onClick={handleGeneratePdf} disabled={generatingPdf} title="Generate and store a PDF document for this revision" className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] cursor-pointer disabled:opacity-60"><FileText size={15} /> {generatingPdf ? "Generating..." : "Generate PDF"}</button>
             </>
           )}
         </div>
@@ -709,9 +669,9 @@ export default function QuotationDetailPage() {
         <StatusStepper
           steps={[
             { label: "RFQ", key: "rfq", reached: !!quotation.rfq, active: false, onClick: () => quotation.rfq?.id && router.push(`/rfq/${quotation.rfq.id}`), clickable: !!quotation.rfq?.id },
-            { label: "Quotation", key: "quotation", reached: true, active: true },
-            { label: "Negotiation", key: "negotiation", reached: !!quotation.negotiation, active: false, onClick: () => quotation.negotiation?.id && router.push(`/negotiations/${quotation.negotiation.id}`), clickable: !!quotation.negotiation?.id },
-            { label: quotation.status === "Accepted" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", reached: ["Accepted", "Rejected"].includes(quotation.status), active: false, terminal: quotation.status === "Rejected" ? "danger" : quotation.status === "Accepted" ? "success" : undefined },
+            { label: "Quotation", key: "quotation", reached: true, active: !quotation.negotiation && !["Accepted", "Rejected"].includes(quotation.status) },
+            { label: "Negotiation", key: "negotiation", reached: !!quotation.negotiation, active: !!quotation.negotiation && !["Accepted", "Rejected"].includes(quotation.status), onClick: () => quotation.negotiation?.id && router.push(`/negotiations/${quotation.negotiation.id}`), clickable: !!quotation.negotiation?.id },
+            { label: quotation.status === "Accepted" && quotation.deal?.status === "Won" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", reached: quotation.status === "Accepted" && quotation.deal?.status === "Won", active: quotation.status === "Accepted" && quotation.deal?.status !== "Won", terminal: quotation.status === "Rejected" ? "danger" : quotation.status === "Accepted" && quotation.deal?.status === "Won" ? "success" : undefined },
           ]}
         />
       </div>
@@ -726,7 +686,7 @@ export default function QuotationDetailPage() {
             {quotation.status === "Approved" && "Quotation approved — ready to send to customer"}
             {quotation.status === "Sent" && "Customer reviewing — start negotiation if they request changes"}
             {quotation.status === "UnderReview" && "In negotiation — propose revisions or mark accepted/rejected"}
-            {quotation.status === "Accepted" && "Customer accepted — create a Deal or Purchase Order"}
+            {quotation.status === "Accepted" && (quotation.deal?.status === "Won" ? "Deal Won — PO approved, order complete" : "Customer accepted — Purchase Order auto-created, pending approval in Approval Center")}
             {quotation.status === "Rejected" && "Quotation rejected — clone & revise to create a new version"}
             {quotation.status === "Expired" && "Quotation expired — clone & revise with updated validity"}
           </p>
@@ -787,10 +747,17 @@ export default function QuotationDetailPage() {
             "Draft", "Approved", "Sent", "UnderReview", "Accepted", "Deal/PO"
           ].map((key, idx) => {
             const order = ["Draft", "Approved", "Sent", "UnderReview", "Accepted", "Deal/PO"];
-            const currentIdx = order.indexOf(quotation.status === "Rejected" || quotation.status === "Expired" ? "Accepted" : quotation.status);
+            // When status is "Accepted", check if deal is Won to determine if Deal/PO is done or active.
+            // If deal status is "Won", Deal/PO is completed (green check). Otherwise it's the active step (blue).
+            const dealWon = quotation.status === "Accepted" && quotation.deal?.status === "Won";
+            const activeStage = quotation.status === "Accepted"
+              ? (dealWon ? null : "Deal/PO")
+              : (quotation.status === "Rejected" || quotation.status === "Expired" ? "Accepted"
+              : quotation.status);
+            const currentIdx = activeStage ? order.indexOf(activeStage) : order.length;
             const stageIdx = idx;
             const isDone = stageIdx < currentIdx;
-            const isCurrent = key === quotation.status || (key === "Deal/PO" && quotation.status === "Accepted" && quotation.dealId);
+            const isCurrent = activeStage !== null && key === activeStage && quotation.status !== "Rejected" && quotation.status !== "Expired";
             const isRejected = quotation.status === "Rejected";
             const labelMap: Record<string,string> = { Draft: "Draft", Approved: "Approved", Sent: "Sent", UnderReview: "Negotiation", Accepted: "Accepted", "Deal/PO": "Deal / PO" };
             return {
@@ -1110,10 +1077,15 @@ export default function QuotationDetailPage() {
             </table>
 
               {/* Totals */}
+              {/* Bug B fix: after applyNegotiationRevision, subtotal is ALREADY net of discount.
+                  Showing a separate discount line that re-applies discountPercent on the already-
+                  discounted subtotal was misleading and the math didn't add up. Now we show the
+                  original gross, the discount amount (gross - net), net subtotal, tax, and grand total. */}
               <div className="px-6 py-4 bg-slate-50 border-t border-slate-200">
                 <div className="ml-auto w-64 space-y-1">
-                  <div className="flex justify-between text-xs"><span className="text-slate-600">Subtotal:</span><span className="font-semibold text-slate-800">{formatCurrency(quotation.subtotal || quotation.totalAmount)}</span></div>
-                  <div className="flex justify-between text-xs"><span className="text-slate-600">Discount ({quotation.discountPercent}%):</span><span className="font-semibold text-rose-600">-{formatCurrency((quotation.subtotal || quotation.totalAmount) * quotation.discountPercent / 100)}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-slate-600">Gross Total:</span><span className="font-semibold text-slate-800">{formatCurrency(totalGross)}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-slate-600">Discount ({quotation.discountPercent}%):</span><span className="font-semibold text-rose-600">-{formatCurrency(totalGross - (quotation.subtotal || quotation.totalAmount))}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-slate-600">Net Subtotal:</span><span className="font-semibold text-slate-800">{formatCurrency(quotation.subtotal || quotation.totalAmount)}</span></div>
                   <div className="flex justify-between text-xs"><span className="text-slate-600">Tax (GST):</span><span className="font-semibold text-slate-800">+{formatCurrency(quotation.taxAmount || 0)}</span></div>
                   <div className="flex justify-between text-sm font-bold pt-2 border-t border-slate-350"><span className="text-slate-800">Grand Total:</span><span className="text-[var(--primary)] font-black">{formatCurrency(quotation.finalAmount)}</span></div>
                 </div>
@@ -1165,11 +1137,27 @@ export default function QuotationDetailPage() {
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide mb-4">Revision History</h2>
           <div className="space-y-3">
             {quotation.revisionSnapshots?.length > 0 ? (
-              quotation.revisionSnapshots.map((rev: any) => (
+              // Dedupe: applyNegotiationRevision creates a "before" AND "after" snapshot per
+              // negotiation round (same quotationId + roundNumber). Only the latest (after) one
+              // per (quotationId, roundNumber) should be shown to the user (Bug #4).
+              Array.from(
+                quotation.revisionSnapshots
+                  .reduce((map: Map<string, any>, rev: any) => {
+                    const key = `${rev.quotationId}:${rev.roundNumber}`;
+                    const existingRev = map.get(key);
+                    if (!existingRev || new Date(rev.createdAt) > new Date(existingRev.createdAt)) {
+                      map.set(key, rev);
+                    }
+                    return map;
+                  }, new Map<string, any>())
+                  .values()
+              )
+                .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .map((rev: any) => (
                 <div key={rev.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/40 rounded-lg border border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold">R{rev.revisionNumber}</span>
-                    {rev.revisionNumber === 1 ? (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-[10px] font-bold">Round {rev.roundNumber}</span>
+                    {rev.roundNumber === 0 ? (
                       <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold">Root</span>
                     ) : (
                       <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold">v{rev.revisionNumber}</span>
@@ -1178,9 +1166,9 @@ export default function QuotationDetailPage() {
                     <span className="text-slate-400">by {rev.createdBy?.name || "—"}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => { try { const snap = JSON.parse(rev.snapshotJson); setRevisionModal({ open: true, revisionNumber: rev.revisionNumber, data: snap }); } catch { toast.error("Failed to load snapshot"); } }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 cursor-pointer">View Snapshot</button>
+                    <button onClick={() => { try { const snap = JSON.parse(rev.snapshotJson); setRevisionModal({ open: true, revisionNumber: rev.roundNumber, data: snap }); } catch { toast.error("Failed to load snapshot"); } }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 cursor-pointer">View Snapshot</button>
                     <a
-                      href={`/api/quotations/${id}/pdf?revision=${rev.revisionNumber}`}
+                      href={`/api/quotations/${rev.quotationId}/pdf?round=${rev.roundNumber}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors cursor-pointer"
@@ -1220,7 +1208,7 @@ export default function QuotationDetailPage() {
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${a.status === "Approved" ? "bg-green-100 text-green-700 border border-green-200/50" : a.status === "Rejected" ? "bg-red-100 text-red-700 border-red-200/50" : "bg-amber-100 text-amber-700 border-amber-200/50"}`}>{a.status}</span>
                     <div>
                       <p className="text-slate-700 font-semibold">Requested by {a.requestedBy?.name || "—"}</p>
-                      <p className="text-slate-400 text-[10px]">Required: {a.requiredApproverRole || "SalesManager"}{a.approver && ` (Assigned: ${a.approver.name})`}</p>
+                      <p className="text-slate-400 text-[10px]">Required: {a.requiredApproverRole || "SalesManager"}{a.approver && ` · Approved by: ${a.approver.name}`}</p>
                     </div>
                   </div>
                   <div className="text-right">
@@ -1237,39 +1225,18 @@ export default function QuotationDetailPage() {
         </div>
       )}
 
-      {/* Documents Tab */}
+      {/* Documents Tab — unified: system-generated PDFs + user-uploaded files */}
       {activeTab === "documents" && (
-        <div className="space-y-4">
-          {/* Generated PDFs */}
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Generated PDFs</h2>
+        <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Documents</h2>
+            {/* Show "Generate PDF" only for the initial quotation (round 0) if no round-0 PDF exists yet.
+                Revision PDFs are auto-generated when negotiation revisions are approved. */}
+            {quotation.currentRound === 0 && (
               <button onClick={handleGeneratePdf} disabled={generatingPdf} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 cursor-pointer disabled:opacity-60"><FileText size={15} /> {generatingPdf ? "Generating..." : "Generate PDF"}</button>
-            </div>
-            {quotationDocuments.length > 0 ? (
-              <div className="space-y-2">
-                {quotationDocuments.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
-                    <div className="flex items-center gap-3">
-                      <FileText size={20} className="text-indigo-600" />
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">{doc.fileName}</p>
-                        <p className="text-xs text-slate-400">R{doc.revisionNumber} · {doc.fileSize ? `${(doc.fileSize / 1024).toFixed(0)} KB` : "—"} · {new Date(doc.generatedAt).toLocaleString("en-IN")}</p>
-                      </div>
-                    </div>
-                    <button onClick={() => handleDownloadDoc(doc)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 cursor-pointer"><Download size={14} /> Download</button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-slate-400 italic text-sm">No PDFs generated yet. Click "Generate PDF" to create one for this revision.</p>
             )}
           </div>
-          {/* Uploaded Documents */}
-          <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">Uploaded Documents</h2>
-            <EntityDocumentTab entityType="Quotation" entityId={quotation.id} defaultDocumentType="Quotation" />
-          </div>
+          <EntityDocumentTab key={docReloadKey} entityType="Quotation" entityId={quotation.id} defaultDocumentType="Quotation" />
         </div>
       )}
 
@@ -1306,7 +1273,7 @@ export default function QuotationDetailPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setRevisionModal({ open: false, revisionNumber: 0, data: null })}>
           <div className="bg-white rounded-2xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-slate-850 uppercase tracking-wide">Revision R{revisionModal.revisionNumber} Snapshot</h3>
+              <h3 className="text-sm font-bold text-slate-850 uppercase tracking-wide">Round {revisionModal.revisionNumber} Snapshot</h3>
               <button onClick={() => setRevisionModal({ open: false, revisionNumber: 0, data: null })} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"><Ico d={icons.x} size={18} /></button>
             </div>
             <div className="space-y-4 text-xs">

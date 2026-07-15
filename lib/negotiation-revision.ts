@@ -314,6 +314,23 @@ export async function applyNegotiationRevision(
     },
   });
 
+  // 12a. Bug 3 fix: Create a QuotationApproval record so the Approvals tab surfaces
+  // negotiation revision approvals with resolved approver name, round, and timestamp.
+  const actorUser = await db.user.findUnique({ where: { id: actorId }, select: { name: true, role: true } });
+  await db.quotationApproval.create({
+    data: {
+      quotationId: quotation.id,
+      requestedById: actorId,
+      approverId: actorId,
+      status: "Approved",
+      discountPercent: cumulativeDiscountPercent,
+      notes: `Negotiation round ${nextRound} revision approved. Discount: ${cumulativeDiscountPercent}%. Amount: ${proposedAmount}. Reason: ${revision.reason || "N/A"}`,
+      decidedAt: new Date(),
+      requiredApproverRole: actorUser?.role || null,
+      revisionAuthorId: quotation.createdById,
+    },
+  });
+
   // 13. Log ActivityEvents
   await logEvent(db, {
     entityType: "Negotiation",
@@ -352,16 +369,18 @@ export async function applyNegotiationRevision(
   });
 
   // 14. Save revision snapshot as a CRMDocument for document management
+  // Point fileUrl to the PDF API endpoint which returns real PDF bytes with
+  // Content-Type: application/pdf (not a frontend page route that downloads as HTML).
   const revisionDocCode = `QT-REV-${quotation.quotationCode}-R${nextRound}`;
   await db.cRMDocument.create({
     data: {
       documentCode: revisionDocCode,
-      name: `Quotation ${quotation.quotationCode} — Revision R${nextRound} (Negotiation)`,
+      name: `Quotation ${quotation.quotationCode} — Revision R${nextRound} (Negotiation).pdf`,
       documentType: "QuotationRevision",
       entityType: "Quotation",
       entityId: quotation.id,
-      fileUrl: `/quotations/${quotation.id}?round=${nextRound}`,
-      mimeType: "application/json",
+      fileUrl: `/api/quotations/${quotation.id}/pdf?round=${nextRound}`,
+      mimeType: "application/pdf",
       fileSize: afterSnapshotJson.length,
       description: `Negotiation round ${nextRound} snapshot. Discount: ${cumulativeDiscountPercent}%. Amount: ${proposedAmount}. Reason: ${revision.reason || "N/A"}`,
       tags: `negotiation,revision,R${nextRound},${negotiation.negotiationCode}`,
@@ -375,7 +394,7 @@ export async function applyNegotiationRevision(
 
   // 15. Append revision summary to quotation termsAndConditions (only existing nvarchar(max) field for notes)
   const discountAmount = (negotiation.initialAmount || 0) - proposedAmount;
-  const revisionSummary = `\n[R${nextRound}] Discount: ${cumulativeDiscountPercent}% (₹${discountAmount.toFixed(2)} off). Final: ₹${proposedAmount.toFixed(2)}. Reason: ${revision.reason || "N/A"}. Approved by: ${actorId}.`;
+  const revisionSummary = `\n[R${nextRound}] Discount: ${cumulativeDiscountPercent}% (₹${discountAmount.toFixed(2)} off). Final: ₹${proposedAmount.toFixed(2)}. Reason: ${revision.reason || "N/A"}. Approved by: ${actorUser?.name || actorId}.`;
   const existingTerms = updatedQuotation.termsAndConditions || "";
   await db.quotation.update({
     where: { id: quotation.id },
@@ -427,6 +446,27 @@ export async function rejectNegotiationRevision(
       status: "Rejected",
       resolvedAt: new Date(),
       approvedById: actorId,
+    },
+  });
+
+  // Bug 3 fix: Create a QuotationApproval record for rejected revisions too,
+  // so the Approvals tab shows both approvals and rejections.
+  const revision = await db.negotiationRevision.findUnique({
+    where: { id: revisionId },
+    select: { proposedAmount: true, cumulativeDiscountPercent: true, reason: true },
+  });
+  const rejectActorUser = await db.user.findUnique({ where: { id: actorId }, select: { name: true, role: true } });
+  await db.quotationApproval.create({
+    data: {
+      quotationId: negotiation.quotationId,
+      requestedById: actorId,
+      approverId: actorId,
+      status: "Rejected",
+      discountPercent: revision?.cumulativeDiscountPercent || 0,
+      notes: `Negotiation revision rejected. Proposed amount: ${revision?.proposedAmount || "N/A"}. Reason: ${revision?.reason || "N/A"}`,
+      decidedAt: new Date(),
+      requiredApproverRole: rejectActorUser?.role || null,
+      revisionAuthorId: null,
     },
   });
 

@@ -2184,8 +2184,10 @@ model QuotationDocument {
   id             String   @id @default(uuid())
   quotationId    String
   revisionNumber Int
+  roundNumber    Int      @default(0)
   fileName       String
   fileUrl        String   @db.NVarChar(Max)
+  snapshotJson   String?  @db.NVarChar(Max)
   fileSize       Int?
   generatedById  String
   generatedAt    DateTime @default(now())
@@ -2196,6 +2198,7 @@ model QuotationDocument {
 
   @@index([quotationId])
   @@index([revisionNumber])
+  @@index([roundNumber])
 }
 
 model OpportunityContact {

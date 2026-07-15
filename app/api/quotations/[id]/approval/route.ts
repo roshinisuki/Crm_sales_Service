@@ -64,6 +64,7 @@ export async function PUT(
         where: { id: approval.id },
         data: {
           status: body.decision,
+          approverId: user.id,
           decidedAt: new Date(),
           notes: body.notes || approval.notes,
         },
