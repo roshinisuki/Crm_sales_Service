@@ -407,5 +407,63 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
       chartType: "bar",
     },
   },
+  reviews: {
+    id: "reviews",
+    routeBase: "/service/reviews",
+    displayTitle: "Reviews & Feedback",
+    entityLabel: "Review",
+    iconName: "Star",
+    statuses: [
+      { id: "Pending", label: "Pending", color: "#FF6901" },
+      { id: "Submitted", label: "Submitted", color: "#10B981" },
+    ],
+    statusOrder: ["Pending", "Submitted"],
+    allowedTransitions: {},
+    listColumns: [
+      { id: "id", label: "Review Code", type: "text" },
+      { id: "customerId", label: "Customer", type: "relation", relationKey: "customer.name" },
+      { id: "engineerId", label: "Engineer", type: "relation", relationKey: "engineer.user.name" },
+      { id: "rating", label: "Rating", type: "text" },
+      { id: "status", label: "Status", type: "badge" },
+      { id: "requestedAt", label: "Date", type: "date" },
+    ],
+    filterDefinitions: [
+      { id: "engineerId", label: "Engineer", type: "select", options: [] },
+      { id: "sourceType", label: "Source Type", type: "select", options: [
+        { value: "request", label: "Request" },
+        { value: "complaint", label: "Complaint" },
+        { value: "defect", label: "Defect" },
+        { value: "installation", label: "Installation" },
+        { value: "visit", label: "Visit" },
+      ]},
+    ],
+    formFields: [
+      { id: "customerId", label: "Customer", type: "relation", relationModel: "Customer" },
+      { id: "engineerId", label: "Engineer", type: "relation", relationModel: "ServiceEngineer" },
+      { id: "rating", label: "Rating", type: "number" },
+      { id: "comment", label: "Comment", type: "textarea" },
+      { id: "status", label: "Status", type: "text" },
+      { id: "isEscalation", label: "Escalation Flag", type: "boolean" },
+      { id: "escalationResolved", label: "Escalation Resolved", type: "boolean" },
+      { id: "requestedAt", label: "Requested At", type: "date" },
+      { id: "submittedAt", label: "Submitted At", type: "date" },
+    ],
+    detailSections: [
+      { id: "general", title: "Feedback Details", fields: ["rating", "status", "comment", "isEscalation", "escalationResolved"] },
+      { id: "assignment", title: "Assignment & SLA", fields: ["customerId", "engineerId", "requestedAt", "submittedAt"] },
+    ],
+    allowedActions: [
+      { id: "resolve_escalation", label: "Resolve Escalation", variant: "success" }
+    ],
+    badgeColorRules: {
+      Pending: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+      Submitted: "bg-green-500/10 text-green-500 border-green-500/20",
+      Escalation: "bg-red-500/10 text-red-500 border-red-500/20",
+    },
+    reportMappings: {
+      metricId: "average_rating",
+      chartType: "line",
+    },
+  },
 };
 

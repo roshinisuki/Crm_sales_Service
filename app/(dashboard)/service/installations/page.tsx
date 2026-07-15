@@ -1,6 +1,7 @@
 "use client";
  
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { serviceModulesConfig } from "@/lib/config/serviceModuleConfig";
 import ServiceModuleListPage from "@/components/shared/ServiceModuleListPage";
 import ServiceModuleDetailPage from "@/components/shared/ServiceModuleDetailPage";
@@ -11,6 +12,7 @@ import { Hammer, Calendar, Clock, CheckCircle, AlertTriangle } from "lucide-reac
  
 export default function ServiceInstallationsPage() {
   const config = serviceModulesConfig.installations;
+  const router = useRouter();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -233,37 +235,34 @@ export default function ServiceInstallationsPage() {
  
   // KPI computations from live data
   const kpiStats = useMemo(() => {
-    const monthAgo = new Date();
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     return {
       total: data.length,
       scheduled: data.filter(d => d.status === "Scheduled" || d.status === "New" || d.status === "Assigned").length,
       inProgress: data.filter(d => d.status === "In Progress").length,
-      completedThisMonth: data.filter(d => {
+      completedThisWeek: data.filter(d => {
         if (d.status !== "Completed" && d.status !== "Closed") return false;
         const updated = new Date(d.updatedAt || d.closedAt || d.createdAt);
-        return updated >= monthAgo;
+        return updated >= weekAgo;
       }).length,
-      failedNeedsFollowup: data.filter(d => d.status === "Failed" || d.status === "Needs Follow-up" || d.status === "Scheduled").length,
     };
   }, [data]);
-
+ 
   const kpiFilterMap: Record<string, (d: any) => boolean> = {
     "Total Installations": () => true,
     "Scheduled": (d) => d.status === "Scheduled" || d.status === "New" || d.status === "Assigned",
     "In Progress": (d) => d.status === "In Progress",
-    "Completed This Month": (d) => {
-      const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
-      return (d.status === "Completed" || d.status === "Closed") && new Date(d.updatedAt || d.closedAt || d.createdAt) >= monthAgo;
+    "Completed This Week": (d) => {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return (d.status === "Completed" || d.status === "Closed") && new Date(d.updatedAt || d.closedAt || d.createdAt) >= weekAgo;
     },
-    "Failed/Needs Follow-up": (d) => d.status === "Failed" || d.status === "Needs Follow-up",
   };
-
+ 
   const filteredKpiData = useMemo(() => {
     if (!kpiFilter) return data;
     return data.filter(d => kpiFilterMap[kpiFilter]?.(d) ?? true);
   }, [data, kpiFilter]);
-
+ 
   const handleCreateNew = async (formData: any) => {
     try {
       const createdById = "user-1";
@@ -276,8 +275,8 @@ export default function ServiceInstallationsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: formData.title || formData.details || "New Installation",
-          description: formData.notes || formData.description || "",
+          title: formData.title || formData.description || "New Installation",
+          description: formData.description,
           categoryId: formData.categoryId || refData.ServiceCategory?.[0]?.value,
           priorityId: formData.priorityId || refData.PriorityLevel?.[0]?.value,
           statusId: formData.statusId || defaultStatusObj?.value,
@@ -310,7 +309,17 @@ export default function ServiceInstallationsPage() {
           onBack={() => setSelectedRow(null)}
           onStatusTransition={handleStatusTransition}
           onTriggerAction={handleTriggerAction}
-          customWidgets={<LinkedVisitsPanel visits={selectedRow.visits} />}
+          customWidgets={
+            <div className="space-y-4">
+              <button
+                onClick={() => router.push(`/service/visits?customerId=${selectedRow.customerId || ""}&customerAssetId=${selectedRow.customerAssetId || ""}&sourceType=installation&sourceId=${selectedRow.id}`)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold transition-colors"
+              >
+                <Calendar size={14} /> Log Service Visit
+              </button>
+              <LinkedVisitsPanel visits={selectedRow.visits} />
+            </div>
+          }
         />
       ) : isFormOpen ? (
         <div className="py-6">
@@ -327,8 +336,7 @@ export default function ServiceInstallationsPage() {
             <ServiceKPICard label="Total Installations" value={kpiStats.total} icon={<Hammer size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Installations"} />
             <ServiceKPICard label="Scheduled" value={kpiStats.scheduled} icon={<Calendar size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Scheduled"} />
             <ServiceKPICard label="In Progress" value={kpiStats.inProgress} icon={<Clock size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "In Progress"} />
-            <ServiceKPICard label="Completed This Month" value={kpiStats.completedThisMonth} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Completed This Month"} />
-            <ServiceKPICard label="Failed/Needs Follow-up" value={kpiStats.failedNeedsFollowup} icon={<AlertTriangle size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Failed/Needs Follow-up"} />
+            <ServiceKPICard label="Completed This Week" value={kpiStats.completedThisWeek} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Completed This Week"} />
           </ServiceKPIGrid>
           <ServiceModuleListPage
             config={config}

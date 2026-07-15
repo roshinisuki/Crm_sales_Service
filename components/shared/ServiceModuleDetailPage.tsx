@@ -41,7 +41,12 @@ export default function ServiceModuleDetailPage({
 
         <div className="flex items-center gap-2">
           {config.allowedActions
-            .filter(act => !act.requiredStatus || act.requiredStatus.includes(currentStatus))
+            .filter(act => {
+              if (act.id === "resolve_escalation") {
+                return data.isEscalation === true && !data.escalationResolved;
+              }
+              return !act.requiredStatus || act.requiredStatus.includes(currentStatus);
+            })
             .map(act => (
               <button
                 key={act.id}
@@ -184,13 +189,22 @@ export default function ServiceModuleDetailPage({
                   }
 
                   if (fid === "createdAt" || fid === "updatedAt") {
-                    displayVal = data[fid] ? new Date(data[fid]).toLocaleString() : "-";
+                    displayVal = data[fid] ? new Date(data[fid]).toLocaleString() : null;
+                  }
+
+                  if (fieldDef?.type === "boolean") {
+                    displayVal = data[fid] ? "Yes" : "No";
+                  }
+
+                  let fallback = "–";
+                  if (fid === "engineerId" || fid === "teamId") {
+                    fallback = "Unassigned";
                   }
 
                   return (
                     <div key={fid} className="space-y-1">
                       <span className="text-[var(--text-secondary)] block font-semibold">{label}</span>
-                      <span className="text-[var(--text-primary)] block font-medium">{displayVal?.toString() || "-"}</span>
+                      <span className="text-[var(--text-primary)] block font-medium">{displayVal?.toString() || fallback}</span>
                     </div>
                   );
                 })}

@@ -18,7 +18,7 @@ import {
   ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo,
   Package, FileText, IndianRupee, MessageSquare, Clock, Target, Layers, MapPin, Search,
   Swords, Crown, Globe, Trophy, Wrench, ShieldAlert, Hammer, LifeBuoy, AlertTriangle, HelpCircle, Calendar,
-  HardDrive
+  HardDrive, Award, ChartBar, Star
 } from "lucide-react";
 
 // ─── Nav definitions ─────────────────────────────────────────────────────────
@@ -1252,6 +1252,7 @@ function SidebarContent({
                 icon={<Wrench size={17} />}
                 subItems={[
                   { href: "/service/my-visits", label: "My Visits" },
+                  { href: "/service/my-visits/feedback", label: "My Ratings & Feedback" },
                 ]}
                 pathname={pathname}
                 onNavClick={onNavClick}
@@ -1264,119 +1265,36 @@ function SidebarContent({
           ) : (
             <>
               <ExpandableNavSection
-              label="Dashboard"
-              icon={<LayoutDashboard size={17} />}
-              subItems={[
-                { href: "/service/dashboard/my", label: "My Dashboard" },
-                { href: "/service/dashboard/manager", label: "Service Manager Dashboard" },
-              ]}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Dashboard"}
-              onToggle={makeToggle("Dashboard")}
-              onOpen={openSectionLabel("Dashboard")}
-            />
-            <ExpandableNavSection
-              label="Service Requests"
-              icon={<Wrench size={17} />}
-              subItems={serviceRequestSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Service Requests"}
-              onToggle={makeToggle("Service Requests")}
-              onOpen={openSectionLabel("Service Requests")}
-            />
-            <ExpandableNavSection
-              label="Complaints"
-              icon={<AlertTriangle size={17} />}
-              subItems={serviceComplaintSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Complaints"}
-              onToggle={makeToggle("Complaints")}
-              onOpen={openSectionLabel("Complaints")}
-            />
-            <ExpandableNavSection
-              label="Defects"
-              icon={<HelpCircle size={17} />}
-              subItems={serviceDefectSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Defects"}
-              onToggle={makeToggle("Defects")}
-              onOpen={openSectionLabel("Defects")}
-            />
-            <ExpandableNavSection
-              label="Installations"
-              icon={<Hammer size={17} />}
-              subItems={serviceInstallationSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Installations"}
-              onToggle={makeToggle("Installations")}
-              onOpen={openSectionLabel("Installations")}
-            />
-            <ExpandableNavSection
-              label="Warranty & AMC"
-              icon={<LifeBuoy size={17} />}
-              subItems={serviceWarrantyAMCSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Warranty & AMC"}
-              onToggle={makeToggle("Warranty & AMC")}
-              onOpen={openSectionLabel("Warranty & AMC")}
-            />
-            <ExpandableNavSection
-              label="Service Visits"
-              icon={<Calendar size={17} />}
-              subItems={serviceVisitSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Service Visits"}
-              onToggle={makeToggle("Service Visits")}
-              onOpen={openSectionLabel("Service Visits")}
-            />
-            <ExpandableNavSection
-              label="Customer Assets"
-              icon={<Package size={17} />}
-              subItems={serviceAssetSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Customer Assets"}
-              onToggle={makeToggle("Customer Assets")}
-              onOpen={openSectionLabel("Customer Assets")}
-            />
-            <ExpandableNavSection
-              label="Service Reports"
-              icon={<PieChart size={17} />}
-              subItems={serviceReportSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Service Reports"}
-              onToggle={makeToggle("Service Reports")}
-              onOpen={openSectionLabel("Service Reports")}
-            />
-            <ExpandableNavSection
-              label="Service Settings"
-              icon={<Settings size={17} />}
-              subItems={serviceSettingsSubItems}
-              pathname={pathname}
-              onNavClick={onNavClick}
-              collapsed={collapsed}
-              isOpen={openSection === "Service Settings"}
-              onToggle={makeToggle("Service Settings")}
-              onOpen={openSectionLabel("Service Settings")}
-            />
-          </>
+                label="Dashboard"
+                icon={<LayoutDashboard size={17} />}
+                subItems={[
+                  { href: "/service/dashboard/my", label: "My Dashboard" },
+                  { href: "/service/dashboard/manager", label: "Service Manager Dashboard" },
+                ]}
+                pathname={pathname}
+                onNavClick={onNavClick}
+                collapsed={collapsed}
+                isOpen={openSection === "Dashboard"}
+                onToggle={makeToggle("Dashboard")}
+                onOpen={openSectionLabel("Dashboard")}
+              />
+              {!collapsed && (
+                <div className="pt-4 pb-1.5">
+                  <p className="px-3.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sidebar-heading)" }}>SERVICE</p>
+                </div>
+              )}
+              <NavLink item={{ href: "/service/requests", label: "Requests", icon: <Wrench size={17} /> }} active={pathname.startsWith("/service/requests")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/complaints", label: "Complaints", icon: <AlertTriangle size={17} /> }} active={pathname.startsWith("/service/complaints")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/defects", label: "Defects", icon: <HelpCircle size={17} /> }} active={pathname.startsWith("/service/defects")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/installations", label: "Installations", icon: <Hammer size={17} /> }} active={pathname.startsWith("/service/installations")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/warranty-amc", label: "Warranty & AMC", icon: <Award size={17} /> }} active={pathname.startsWith("/service/warranty-amc")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/visits", label: "Visits", icon: <Calendar size={17} /> }} active={pathname.startsWith("/service/visits")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/reviews", label: "Reviews & Feedback", icon: <Star size={17} /> }} active={pathname.startsWith("/service/reviews")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/assets", label: "Assets", icon: <Package size={17} /> }} active={pathname.startsWith("/service/assets")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/reports", label: "Reports", icon: <ChartBar size={17} /> }} active={pathname.startsWith("/service/reports")} onClick={onNavClick} collapsed={collapsed} />
+              <div className="border-t border-white/[0.06] my-2 pt-1" />
+              <NavLink item={{ href: "/service/settings", label: "Settings", icon: <Settings size={17} /> }} active={pathname.startsWith("/service/settings")} onClick={onNavClick} collapsed={collapsed} />
+            </>
           )
         ) : (
           <>

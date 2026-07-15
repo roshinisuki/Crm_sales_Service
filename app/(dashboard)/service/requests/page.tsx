@@ -9,10 +9,12 @@ import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
 import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
 import { Calendar, FileQuestion, AlertCircle, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { useToast } from "@/components/ToastProvider";
  
 export default function ServiceRequestsPage() {
   const config = serviceModulesConfig.requests;
   const router = useRouter();
+  const toast = useToast();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -87,42 +89,51 @@ export default function ServiceRequestsPage() {
     fetchRefData();
   }, []);
  
-  const handleStatusTransition = async (newStatusName: string) => {
-    if (selectedRow) {
-      const newStatusObj = refData.ServiceStatus?.find((s: any) => s.label === newStatusName);
-      if (!newStatusObj) return;
+  const handleStatusTransition = async (row: any, newStatusName?: string) => {
+    const targetRow = typeof row === "string" ? null : row;
+    const statusName = typeof row === "string" ? row : newStatusName;
+    const finalRow = targetRow || selectedRow;
+    if (!finalRow) return;
+    const newStatusObj = refData.ServiceStatus?.find((s: any) => s.label === statusName);
+    if (!newStatusObj) return;
  
-      try {
-        const res = await fetch(`/api/service/requests/${selectedRow.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ statusId: newStatusObj.value }),
-        });
-        if (res.ok) {
-          await fetchData();
-        }
-      } catch (e) {
-        console.error(e);
+    try {
+      const res = await fetch(`/api/service/requests/${finalRow.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statusId: newStatusObj.value }),
+      });
+      if (res.ok) {
+        await fetchData();
+        toast.success(`Request status updated to ${statusName}`);
       }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update status");
     }
   };
  
-  const handleTriggerAction = (actionId: string) => {
-    if (!selectedRow) return;
+  const handleTriggerAction = (row: any, actionId?: string) => {
+    const targetRow = typeof row === "string" ? null : row;
+    const actId = typeof row === "string" ? row : actionId;
+    const finalRow = targetRow || selectedRow;
+    if (!finalRow) return;
  
-    if (actionId === "assign") {
-      if (selectedRow.status === "Closed") {
-        alert("Cannot assign an engineer to a Closed request.");
+    if (actId === "assign") {
+      if (finalRow.status === "Closed") {
+        toast.error("Cannot assign an engineer to a Closed request.");
         return;
       }
-      setAssignTeamId(selectedRow.assignedTeamId || "");
-      setAssignEngineerId(selectedRow.assignedEngineerId || "");
+      setSelectedRow(finalRow);
+      setAssignTeamId(finalRow.assignedTeamId || "");
+      setAssignEngineerId(finalRow.assignedEngineerId || "");
       setIsAssignOpen(true);
-    } else if (actionId === "close") {
+    } else if (actId === "close") {
+      setSelectedRow(finalRow);
       setResolutionNotes("");
       setIsCloseOpen(true);
     } else {
-      alert(`Action triggered: ${actionId}`);
+      toast.error(`Action triggered: ${actId}`);
     }
   };
  
@@ -242,14 +253,13 @@ export default function ServiceRequestsPage() {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     return {
       total: data.length,
-      newUnassigned: data.filter(d => d.status === "New" || d.status === "New Request").length,
-      inProgress: data.filter(d => d.status === "In Progress" || d.status === "Assigned").length,
-      overdue: data.filter(d => {
+      open: data.filter(d => d.status === "New" || d.status === "Assigned").length,
+      slaBreaches: data.filter(d => {
         const created = new Date(d.createdAt || d.created);
         return (d.status !== "Closed" && d.status !== "Resolved") && created < weekAgo;
       }).length,
-      resolvedThisWeek: data.filter(d => {
-        if (d.status !== "Resolved" && d.status !== "Closed") return false;
+      closedThisWeek: data.filter(d => {
+        if (d.status !== "Closed") return false;
         const updated = new Date(d.updatedAt || d.closedAt || d.createdAt);
         return updated >= weekAgo;
       }).length,
@@ -258,15 +268,14 @@ export default function ServiceRequestsPage() {
 
   const kpiFilterMap: Record<string, (d: any) => boolean> = {
     "Total Requests": () => true,
-    "New": (d) => d.status === "New" || d.status === "New Request",
-    "In Progress": (d) => d.status === "In Progress" || d.status === "Assigned",
-    "Overdue": (d) => {
+    "Open": (d) => d.status === "New" || d.status === "Assigned",
+    "SLA Breaches": (d) => {
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       return (d.status !== "Closed" && d.status !== "Resolved") && new Date(d.createdAt || d.created) < weekAgo;
     },
-    "Resolved This Week": (d) => {
+    "Closed This Week": (d) => {
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      return (d.status === "Resolved" || d.status === "Closed") && new Date(d.updatedAt || d.closedAt || d.createdAt) >= weekAgo;
+      return d.status === "Closed" && new Date(d.updatedAt || d.closedAt || d.createdAt) >= weekAgo;
     },
   };
 
@@ -314,10 +323,9 @@ export default function ServiceRequestsPage() {
         <div className="space-y-4">
           <ServiceKPIGrid>
             <ServiceKPICard label="Total Requests" value={kpiStats.total} icon={<FileQuestion size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Requests"} />
-            <ServiceKPICard label="New" value={kpiStats.newUnassigned} icon={<AlertCircle size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "New"} />
-            <ServiceKPICard label="In Progress" value={kpiStats.inProgress} icon={<Clock size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "In Progress"} />
-            <ServiceKPICard label="Overdue" value={kpiStats.overdue} icon={<AlertTriangle size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Overdue"} />
-            <ServiceKPICard label="Resolved This Week" value={kpiStats.resolvedThisWeek} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Resolved This Week"} />
+            <ServiceKPICard label="Open" value={kpiStats.open} icon={<AlertCircle size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Open"} />
+            <ServiceKPICard label="SLA Breaches" value={kpiStats.slaBreaches} icon={<AlertTriangle size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "SLA Breaches"} />
+            <ServiceKPICard label="Closed This Week" value={kpiStats.closedThisWeek} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Closed This Week"} />
           </ServiceKPIGrid>
           <ServiceModuleListPage
             config={config}
@@ -326,6 +334,9 @@ export default function ServiceRequestsPage() {
             onRefresh={fetchData}
             onCreateNew={() => setIsFormOpen(true)}
             onRowClick={(row) => setSelectedRow(row)}
+            useLeftPanel={true}
+            onTriggerAction={handleTriggerAction}
+            onStatusTransition={handleStatusTransition}
           />
         </div>
       )}

@@ -9,10 +9,12 @@ import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
 import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
 import { Calendar, AlertTriangle, Search as SearchIcon, TrendingUp, CheckCircle, RotateCcw } from "lucide-react";
+import { useToast } from "@/components/ToastProvider";
  
 export default function ServiceComplaintsPage() {
   const config = serviceModulesConfig.complaints;
   const router = useRouter();
+  const toast = useToast();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -85,61 +87,76 @@ export default function ServiceComplaintsPage() {
     fetchRefData();
   }, []);
  
-  const handleStatusTransition = async (newStatusName: string) => {
-    if (selectedRow) {
-      const newStatusObj = refData.ServiceStatus?.find((s: any) => s.label === newStatusName);
-      if (!newStatusObj) return;
+  const handleStatusTransition = async (row: any, newStatusName?: string) => {
+    const targetRow = typeof row === "string" ? null : row;
+    const statusName = typeof row === "string" ? row : newStatusName;
+    const finalRow = targetRow || selectedRow;
+    if (!finalRow) return;
+    const newStatusObj = refData.ServiceStatus?.find((s: any) => s.label === statusName);
+    if (!newStatusObj) return;
  
-      try {
-        const res = await fetch(`/api/service/complaints/${selectedRow.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ statusId: newStatusObj.value }),
-        });
-        if (res.ok) {
-          await fetchData();
-        }
-      } catch (e) {
-        console.error(e);
+    try {
+      const res = await fetch(`/api/service/complaints/${finalRow.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statusId: newStatusObj.value }),
+      });
+      if (res.ok) {
+        await fetchData();
+        toast.success(`Complaint status updated to ${statusName}`);
       }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to update status");
     }
   };
  
-  const handleTriggerAction = async (actionId: string) => {
-    if (!selectedRow) return;
+  const handleTriggerAction = async (row: any, actionId?: string) => {
+    const targetRow = typeof row === "string" ? null : row;
+    const actId = typeof row === "string" ? row : actionId;
+    const finalRow = targetRow || selectedRow;
+    if (!finalRow) return;
  
-    if (actionId === "investigate") {
+    if (actId === "investigate") {
       const statusObj = refData.ServiceStatus?.find((s: any) => s.label === "Investigating");
       if (!statusObj) return;
       try {
-        const res = await fetch(`/api/service/complaints/${selectedRow.id}`, {
+        const res = await fetch(`/api/service/complaints/${finalRow.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ statusId: statusObj.value }),
         });
-        if (res.ok) await fetchData();
+        if (res.ok) {
+          await fetchData();
+          toast.success("Complaint is now under investigation");
+        }
       } catch (e) {
         console.error(e);
       }
-    } else if (actionId === "resolve") {
+    } else if (actId === "resolve") {
+      setSelectedRow(finalRow);
       setResolutionNotes("");
       setIsResolveOpen(true);
-    } else if (actionId === "close") {
+    } else if (actId === "close") {
       if (confirm("Are you sure you want to close this complaint?")) {
         const statusObj = refData.ServiceStatus?.find((s: any) => s.label === "Closed");
         if (!statusObj) return;
         try {
-          const res = await fetch(`/api/service/complaints/${selectedRow.id}`, {
+          const res = await fetch(`/api/service/complaints/${finalRow.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ statusId: statusObj.value, closedAt: new Date().toISOString() }),
           });
-          if (res.ok) await fetchData();
+          if (res.ok) {
+            await fetchData();
+            toast.success("Complaint closed successfully");
+          }
         } catch (e) {
           console.error(e);
         }
       }
-    } else if (actionId === "reopen") {
+    } else if (actId === "reopen") {
+      setSelectedRow(finalRow);
       setReopenReason("");
       setIsReopenOpen(true);
     }
@@ -202,26 +219,24 @@ export default function ServiceComplaintsPage() {
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     return {
       total: data.length,
-      openInvestigating: data.filter(d => d.status === "Open" || d.status === "Investigating" || d.status === "In Progress").length,
-      escalatedToDefect: data.filter(d => d.status === "Escalated" || d.status === "Escalated to Defect").length,
+      open: data.filter(d => d.status === "New" || d.status === "Open").length,
+      underInvestigation: data.filter(d => d.status === "Investigating" || d.status === "In Progress").length,
       resolvedThisWeek: data.filter(d => {
         if (d.status !== "Resolved" && d.status !== "Closed") return false;
         const updated = new Date(d.updatedAt || d.closedAt || d.createdAt);
         return updated >= weekAgo;
       }).length,
-      reopened: data.filter(d => d.status === "Reopened" || d.status === "Investigating").length,
     };
   }, [data]);
 
   const kpiFilterMap: Record<string, (d: any) => boolean> = {
     "Total Complaints": () => true,
-    "Open/Investigating": (d) => d.status === "Open" || d.status === "Investigating" || d.status === "In Progress",
-    "Escalated to Defect": (d) => d.status === "Escalated" || d.status === "Escalated to Defect",
+    "Open": (d) => d.status === "New" || d.status === "Open",
+    "Under Investigation": (d) => d.status === "Investigating" || d.status === "In Progress",
     "Resolved This Week": (d) => {
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       return (d.status === "Resolved" || d.status === "Closed") && new Date(d.updatedAt || d.closedAt || d.createdAt) >= weekAgo;
     },
-    "Reopened": (d) => d.status === "Reopened" || d.status === "Investigating",
   };
 
   const filteredKpiData = useMemo(() => {
@@ -302,10 +317,9 @@ export default function ServiceComplaintsPage() {
         <div className="space-y-4">
           <ServiceKPIGrid>
             <ServiceKPICard label="Total Complaints" value={kpiStats.total} icon={<AlertTriangle size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Complaints"} />
-            <ServiceKPICard label="Open/Investigating" value={kpiStats.openInvestigating} icon={<SearchIcon size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Open/Investigating"} />
-            <ServiceKPICard label="Escalated to Defect" value={kpiStats.escalatedToDefect} icon={<TrendingUp size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Escalated to Defect"} />
+            <ServiceKPICard label="Open" value={kpiStats.open} icon={<AlertTriangle size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Open"} />
+            <ServiceKPICard label="Under Investigation" value={kpiStats.underInvestigation} icon={<SearchIcon size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Under Investigation"} />
             <ServiceKPICard label="Resolved This Week" value={kpiStats.resolvedThisWeek} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Resolved This Week"} />
-            <ServiceKPICard label="Reopened" value={kpiStats.reopened} icon={<RotateCcw size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Reopened"} />
           </ServiceKPIGrid>
           <ServiceModuleListPage
             config={config}
@@ -314,6 +328,9 @@ export default function ServiceComplaintsPage() {
             onRefresh={fetchData}
             onCreateNew={() => setIsFormOpen(true)}
             onRowClick={(row) => setSelectedRow(row)}
+            useLeftPanel={true}
+            onTriggerAction={handleTriggerAction}
+            onStatusTransition={handleStatusTransition}
           />
         </div>
       )}

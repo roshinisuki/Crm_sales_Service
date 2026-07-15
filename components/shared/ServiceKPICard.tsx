@@ -5,7 +5,7 @@ import { cn } from "@/lib/ui-utils";
 
 interface ServiceKPICardProps {
   label: string;
-  value: number;
+  value: string | number;
   icon: React.ReactNode;
   color: string;
   onClick?: (filter: string) => void;

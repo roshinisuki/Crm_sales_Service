@@ -216,30 +216,27 @@ export default function ServiceDefectsPage() {
  
   // KPI computations from live data
   const kpiStats = useMemo(() => {
-    const monthAgo = new Date();
-    monthAgo.setMonth(monthAgo.getMonth() - 1);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     return {
       total: data.length,
+      open: data.filter(d => d.status === "New" || d.status === "Open").length,
       underInvestigation: data.filter(d => d.status === "Under Investigation" || d.status === "Investigating").length,
-      awaitingCorrective: data.filter(d => d.status === "Corrective Action" || d.status === "Awaiting Corrective Action").length,
-      closedThisMonth: data.filter(d => {
+      closedThisWeek: data.filter(d => {
         if (d.status !== "Closed") return false;
         const updated = new Date(d.updatedAt || d.closedAt || d.createdAt);
-        return updated >= monthAgo;
+        return updated >= weekAgo;
       }).length,
-      reopened: data.filter(d => d.status === "Reopened").length,
     };
   }, [data]);
 
   const kpiFilterMap: Record<string, (d: any) => boolean> = {
     "Total Defects": () => true,
+    "Open": (d) => d.status === "New" || d.status === "Open",
     "Under Investigation": (d) => d.status === "Under Investigation" || d.status === "Investigating",
-    "Awaiting Corrective Action": (d) => d.status === "Corrective Action" || d.status === "Awaiting Corrective Action",
-    "Closed This Month": (d) => {
-      const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1);
-      return d.status === "Closed" && new Date(d.updatedAt || d.closedAt || d.createdAt) >= monthAgo;
+    "Closed This Week": (d) => {
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return d.status === "Closed" && new Date(d.updatedAt || d.closedAt || d.createdAt) >= weekAgo;
     },
-    "Reopened": (d) => d.status === "Reopened",
   };
 
   const filteredKpiData = useMemo(() => {
@@ -250,7 +247,6 @@ export default function ServiceDefectsPage() {
   const handleCreateNew = async (formData: any) => {
     try {
       const createdById = "user-1";
-      // Fix form creation mapping: read assetId instead of customerAssetId
       const selectedAsset = refData.CustomerAsset?.find((a: any) => a.value === formData.assetId);
       const derivedCustomerId = formData.customerId || selectedAsset?.customerId || refData.Customer?.[0]?.value;
       const defaultStatusName = config.statusOrder[0];
@@ -260,8 +256,8 @@ export default function ServiceDefectsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: formData.title || formData.details || "New Defect",
-          description: formData.details || formData.description,
+          title: formData.title || formData.description || "New Defect",
+          description: formData.description,
           categoryId: formData.categoryId || refData.ServiceCategory?.[0]?.value,
           defectTypeId: formData.defectTypeId || refData.DefectType?.[0]?.value,
           priorityId: formData.priorityId || refData.PriorityLevel?.[0]?.value,
@@ -320,10 +316,9 @@ export default function ServiceDefectsPage() {
         <div className="space-y-4">
           <ServiceKPIGrid>
             <ServiceKPICard label="Total Defects" value={kpiStats.total} icon={<HelpCircle size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Total Defects"} />
-            <ServiceKPICard label="Under Investigation" value={kpiStats.underInvestigation} icon={<SearchIcon size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Under Investigation"} />
-            <ServiceKPICard label="Awaiting Corrective Action" value={kpiStats.awaitingCorrective} icon={<Wrench size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Awaiting Corrective Action"} />
-            <ServiceKPICard label="Closed This Month" value={kpiStats.closedThisMonth} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Closed This Month"} />
-            <ServiceKPICard label="Reopened" value={kpiStats.reopened} icon={<RotateCcw size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Reopened"} />
+            <ServiceKPICard label="Open" value={kpiStats.open} icon={<HelpCircle size={20} className="text-amber-500" />} color="bg-amber-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Open"} />
+            <ServiceKPICard label="Under Investigation" value={kpiStats.underInvestigation} icon={<SearchIcon size={20} className="text-red-500" />} color="bg-red-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Under Investigation"} />
+            <ServiceKPICard label="Closed This Week" value={kpiStats.closedThisWeek} icon={<CheckCircle size={20} className="text-green-500" />} color="bg-green-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Closed This Week"} />
           </ServiceKPIGrid>
           <ServiceModuleListPage
             config={config}
@@ -332,6 +327,7 @@ export default function ServiceDefectsPage() {
             onRefresh={fetchData}
             onCreateNew={() => setIsFormOpen(true)}
             onRowClick={(row) => setSelectedRow(row)}
+            useLeftPanel={true}
           />
         </div>
       )}
