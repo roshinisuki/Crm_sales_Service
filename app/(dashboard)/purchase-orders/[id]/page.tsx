@@ -45,6 +45,12 @@ const statusColors: Record<string, string> = {
   Closed: "bg-green-100 text-green-700",
 };
 
+const erpStatusColors: Record<string, string> = {
+  Pending: "bg-slate-100 text-slate-700",
+  Synced: "bg-green-100 text-green-700",
+  Failed: "bg-red-100 text-red-700",
+};
+
 // Stepper stages — maps 1:1 to existing PO status values in their existing order
 const PO_STEPS = [
   { key: "New", label: "New", icon: FileText },
@@ -76,8 +82,30 @@ export default function PurchaseOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("Details");
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const { user } = useAuth();
   const canApproveDirectly = ["Admin", "SalesManager", "SuperAdmin"].includes(user?.role ?? "");
+
+  const handleSyncErp = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/purchase-orders/${id}/sync-erp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        toast.success("ERP sync initiated");
+        loadPo();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "ERP sync failed");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "ERP sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Validation checklist state
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});

@@ -10,40 +10,42 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
 
-// Derived engineer workload status from seed data
-const mockWorkloads = [
-  { id: "e-1", name: "System Admin", team: "Field Service Team North", openCount: 1, status: "Available" },
-  { id: "e-2", name: "Vikram Iyer", team: "Field Service Team South", openCount: 1, status: "Available" },
-  { id: "e-3", name: "Arjun Mehta", team: "Installation Team", openCount: 2, status: "High Load" },
-  { id: "e-4", name: "Priya Nair", team: "AMC Support Team", openCount: 2, status: "High Load" },
-  { id: "e-5", name: "Karthik Reddy", team: "Warranty Resolution Team", openCount: 1, status: "Available" },
-  { id: "e-6", name: "Deepa Krishnan", team: "Escalation Desk", openCount: 1, status: "Available" }
-];
-
 export default function ManagerServiceDashboardPage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [complaints, setComplaints] = useState<any[]>([]);
   const [defects, setDefects] = useState<any[]>([]);
   const [installations, setInstallations] = useState<any[]>([]);
   const [visits, setVisits] = useState<any[]>([]);
+  const [engineerWorkloads, setEngineerWorkloads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [reqsRes, compRes, defRes, instRes, visRes] = await Promise.all([
+        const [reqsRes, compRes, defRes, instRes, visRes, engRes] = await Promise.all([
           fetch("/api/service/requests"),
           fetch("/api/service/complaints"),
           fetch("/api/service/defects"),
           fetch("/api/service/installations"),
           fetch("/api/service/visits"),
+          fetch("/api/service/reports/engineer-performance"),
         ]);
         if (reqsRes.ok) setRequests(await reqsRes.json());
         if (compRes.ok) setComplaints(await compRes.json());
         if (defRes.ok) setDefects(await defRes.json());
         if (instRes.ok) setInstallations(await instRes.json());
         if (visRes.ok) setVisits(await visRes.json());
+        if (engRes.ok) {
+          const engData = await engRes.json();
+          setEngineerWorkloads(engData.map((e: any) => ({
+            id: e.id,
+            name: e.name,
+            team: e.team,
+            openCount: e.assigned - e.resolved,
+            status: (e.assigned - e.resolved) >= 3 ? "High Load" : "Available",
+          })));
+        }
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       } finally {
@@ -135,7 +137,7 @@ export default function ManagerServiceDashboardPage() {
             Engineer Workload & Allocation
           </h3>
           <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)]">
-            <DataTable data={mockWorkloads} columns={workloadColumns} />
+            <DataTable data={engineerWorkloads} columns={workloadColumns} />
           </div>
         </div>
 
@@ -145,10 +147,23 @@ export default function ManagerServiceDashboardPage() {
             Escalation Monitor
           </h3>
           <div className="space-y-3">
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs space-y-1 text-red-500 animate-pulse">
-              <span className="font-bold uppercase tracking-wide block">Level 1 Escalation: Deepa Krishnan</span>
-              <p className="opacity-90 text-[var(--text-secondary)]">SLA warning warning detected on Critical Request REQ-2026-005 (Ashok Leyland).</p>
-            </div>
+            {complaints.filter(c => c.status?.name === "Escalated" || c.status?.name === "Escalated to Defect").slice(0, 5).map(c => (
+              <div key={c.id} className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs space-y-1 text-red-500">
+                <span className="font-bold uppercase tracking-wide block">Escalation: {c.title}</span>
+                <p className="opacity-90 text-[var(--text-secondary)]">Customer: {c.customer?.name || "Unknown"} | Status: {c.status?.name}</p>
+              </div>
+            ))}
+            {defects.filter(d => d.status?.name === "Escalated").slice(0, 3).map(d => (
+              <div key={d.id} className="p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg text-xs space-y-1 text-orange-500">
+                <span className="font-bold uppercase tracking-wide block">Defect Escalation: {d.title}</span>
+                <p className="opacity-90 text-[var(--text-secondary)]">Customer: {d.customer?.name || "Unknown"}</p>
+              </div>
+            ))}
+            {complaints.filter(c => c.status?.name === "Escalated" || c.status?.name === "Escalated to Defect").length === 0 && defects.filter(d => d.status?.name === "Escalated").length === 0 && (
+              <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-xs text-green-500">
+                No active escalations. All clear!
+              </div>
+            )}
           </div>
         </div>
       </div>

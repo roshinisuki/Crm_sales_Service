@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyAuth } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const claims = await prisma.warrantyClaim.findMany({
       include: {
         customer: true,
@@ -22,6 +26,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
     const {
       title,
@@ -37,12 +44,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Use authenticated user, or fall back to provided createdById
     let finalCreatedById = createdById;
     if (!finalCreatedById || finalCreatedById === "user-1") {
-      const firstUser = await prisma.user.findFirst();
-      if (firstUser) {
-        finalCreatedById = firstUser.id;
-      }
+      finalCreatedById = user.id;
     }
 
     const newClaim = await prisma.warrantyClaim.create({

@@ -10,25 +10,58 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export async function sendEmail(to: string, subject: string, html: string) {
+interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
+interface SendEmailOptions {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+}
+
+export async function sendEmail(opts: SendEmailOptions): Promise<void>;
+export async function sendEmail(to: string, subject: string, html: string): Promise<void>;
+export async function sendEmail(toOrOpts: string | SendEmailOptions, subject?: string, html?: string): Promise<void> {
+  let to: string;
+  let subjectText: string;
+  let htmlText: string;
+  let attachments: EmailAttachment[] | undefined;
+
+  if (typeof toOrOpts === "object") {
+    to = toOrOpts.to;
+    subjectText = toOrOpts.subject;
+    htmlText = toOrOpts.html;
+    attachments = toOrOpts.attachments;
+  } else {
+    to = toOrOpts;
+    subjectText = subject!;
+    htmlText = html!;
+  }
+
   try {
     const user = process.env.SMTP_USER || process.env.EMAIL_USER;
     if (!user) {
       console.log("=========================================");
       console.log(`[DEVELOPMENT] Mock Email to: ${to}`);
-      console.log(`Subject: ${subject}`);
-      const otpMatch = html.match(/\b\d{6}\b/);
+      console.log(`Subject: ${subjectText}`);
+      const otpMatch = htmlText!.match(/\b\d{6}\b/);
       if (otpMatch) console.log(`=> Extracted OTP: ${otpMatch[0]}`);
-      const linkMatch = html.match(/href="([^"]+)"/g);
+      const linkMatch = htmlText!.match(/href="([^"]+)"/g);
       if (linkMatch) console.log(`=> Links: ${linkMatch.join(" | ")}`);
+      if (attachments && attachments.length > 0) console.log(`=> Attachments: ${attachments.map(a => a.filename).join(", ")}`);
       console.log("=========================================");
       return;
     }
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.EMAIL_FROM || '"SUKI CRM" <noreply@sukisoftware.com>',
       to,
-      subject,
-      html,
+      subject: subjectText,
+      html: htmlText,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     });
   } catch (error) {
     console.error("Failed to send email via SMTP:", error);

@@ -13,6 +13,7 @@ export default function MyVisitsFeedbackPage() {
   const [visits, setVisits] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [engineerId, setEngineerId] = useState<string | null>(null);
 
   // Modal States
   const [selectedVisit, setSelectedVisit] = useState<any>(null);
@@ -20,11 +21,12 @@ export default function MyVisitsFeedbackPage() {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = async (engId?: string | null) => {
     try {
       setLoading(true);
-      // Fetch engineer's visits
-      const visitsRes = await fetch("/api/service/visits");
+      // Fetch engineer's visits (filtered by engineerId if available)
+      const visitsUrl = engId ? `/api/service/visits?engineerId=${engId}` : "/api/service/visits";
+      const visitsRes = await fetch(visitsUrl);
       // Fetch engineer's reviews
       const reviewsRes = await fetch("/api/service/reviews");
 
@@ -46,8 +48,23 @@ export default function MyVisitsFeedbackPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    // Resolve engineer profile then fetch data
+    if (user?.id) {
+      fetch("/api/service/engineer-profile")
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.id) {
+            setEngineerId(data.id);
+            fetchData(data.id);
+          } else {
+            fetchData();
+          }
+        })
+        .catch(() => fetchData());
+    } else {
+      fetchData();
+    }
+  }, [user?.id]);
 
   // Map review to visit ID
   const reviewMap = useMemo(() => {
@@ -143,7 +160,7 @@ export default function MyVisitsFeedbackPage() {
           <p className="text-xs text-[var(--text-muted)]">Log and track customer feedback for your completed service visits.</p>
         </div>
         <button
-          onClick={fetchData}
+          onClick={() => fetchData(engineerId)}
           className="p-2 border border-[var(--border)] rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-2)] transition-all"
           title="Refresh Data"
         >

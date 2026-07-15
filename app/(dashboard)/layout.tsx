@@ -18,7 +18,7 @@ import {
   ChevronDown, ChevronUp, Building2, ShieldCheck, PieChart, Activity, ContactRound, ListTodo,
   Package, FileText, IndianRupee, MessageSquare, Clock, Target, Layers, MapPin, Search,
   Swords, Crown, Globe, Trophy, Wrench, ShieldAlert, Hammer, LifeBuoy, AlertTriangle, HelpCircle, Calendar,
-  HardDrive, Award, ChartBar, Star
+  HardDrive, Award, ChartBar, Star, FolderKanban, Boxes
 } from "lucide-react";
 
 // ─── Nav definitions ─────────────────────────────────────────────────────────
@@ -1291,6 +1291,8 @@ function SidebarContent({
               <NavLink item={{ href: "/service/visits", label: "Visits", icon: <Calendar size={17} /> }} active={pathname.startsWith("/service/visits")} onClick={onNavClick} collapsed={collapsed} />
               <NavLink item={{ href: "/service/reviews", label: "Reviews & Feedback", icon: <Star size={17} /> }} active={pathname.startsWith("/service/reviews")} onClick={onNavClick} collapsed={collapsed} />
               <NavLink item={{ href: "/service/assets", label: "Assets", icon: <Package size={17} /> }} active={pathname.startsWith("/service/assets")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/projects", label: "Projects", icon: <FolderKanban size={17} /> }} active={pathname.startsWith("/service/projects")} onClick={onNavClick} collapsed={collapsed} />
+              <NavLink item={{ href: "/service/inventory", label: "Inventory", icon: <Boxes size={17} /> }} active={pathname.startsWith("/service/inventory")} onClick={onNavClick} collapsed={collapsed} />
               <NavLink item={{ href: "/service/reports", label: "Reports", icon: <ChartBar size={17} /> }} active={pathname.startsWith("/service/reports")} onClick={onNavClick} collapsed={collapsed} />
               <div className="border-t border-white/[0.06] my-2 pt-1" />
               <NavLink item={{ href: "/service/settings", label: "Settings", icon: <Settings size={17} /> }} active={pathname.startsWith("/service/settings")} onClick={onNavClick} collapsed={collapsed} />

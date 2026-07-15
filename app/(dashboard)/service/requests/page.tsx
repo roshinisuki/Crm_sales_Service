@@ -8,13 +8,15 @@ import ServiceModuleDetailPage from "@/components/shared/ServiceModuleDetailPage
 import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
 import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
-import { Calendar, FileQuestion, AlertCircle, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { Calendar, FileQuestion, AlertCircle, Clock, CheckCircle, AlertTriangle, Package } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
+import { useAuth } from "@/components/AuthProvider";
  
 export default function ServiceRequestsPage() {
   const config = serviceModulesConfig.requests;
   const router = useRouter();
   const toast = useToast();
+  const { user } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -30,6 +32,12 @@ export default function ServiceRequestsPage() {
   // Close Request Modal States
   const [isCloseOpen, setIsCloseOpen] = useState(false);
   const [resolutionNotes, setResolutionNotes] = useState("");
+
+  // Issue Parts Modal States
+  const [isIssuePartsOpen, setIsIssuePartsOpen] = useState(false);
+  const [issuePartsItems, setIssuePartsItems] = useState<{ sparePartId: string; partName: string; quantity: number }[]>([]);
+  const [sparePartOptions, setSparePartOptions] = useState<any[]>([]);
+  const [issuingParts, setIssuingParts] = useState(false);
  
   const mapRequest = (item: any) => {
     return {
@@ -139,13 +147,13 @@ export default function ServiceRequestsPage() {
  
   const handleConfirmAssign = async () => {
     if (!selectedRow || !assignTeamId || !assignEngineerId) {
-      alert("Please select both a Service Team and a Service Engineer.");
+      toast.error("Please select both a Service Team and a Service Engineer.");
       return;
     }
  
     const assignedStatusObj = refData.ServiceStatus?.find((s: any) => s.label === "Assigned");
     if (!assignedStatusObj) {
-      alert("Error: 'Assigned' status object not found in reference data.");
+      toast.error("Error: 'Assigned' status object not found in reference data.");
       return;
     }
  
@@ -165,7 +173,7 @@ export default function ServiceRequestsPage() {
         await fetchData();
       } else {
         const err = await res.json();
-        alert(`Failed to assign: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to assign: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);
@@ -174,13 +182,13 @@ export default function ServiceRequestsPage() {
  
   const handleConfirmClose = async () => {
     if (!selectedRow || !resolutionNotes.trim()) {
-      alert("Resolution notes/outcome are required to close the request.");
+      toast.error("Resolution notes/outcome are required to close the request.");
       return;
     }
  
     const closedStatusObj = refData.ServiceStatus?.find((s: any) => s.label === "Closed");
     if (!closedStatusObj) {
-      alert("Error: 'Closed' status object not found in reference data.");
+      toast.error("Error: 'Closed' status object not found in reference data.");
       return;
     }
  
@@ -203,7 +211,7 @@ export default function ServiceRequestsPage() {
         await fetchData();
       } else {
         const err = await res.json();
-        alert(`Failed to close: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to close: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);
@@ -212,7 +220,7 @@ export default function ServiceRequestsPage() {
  
   const handleCreateNew = async (formData: any) => {
     try {
-      const createdById = "user-1";
+      const createdById = user?.id || "user-1";
       const selectedAsset = refData.CustomerAsset?.find((a: any) => a.value === formData.assetId);
       const derivedCustomerId = formData.customerId || selectedAsset?.customerId || refData.Customer?.[0]?.value;
       const defaultStatusName = config.statusOrder[0];
@@ -240,7 +248,7 @@ export default function ServiceRequestsPage() {
         setIsFormOpen(false);
       } else {
         const err = await res.json();
-        alert(`Failed to create: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to create: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);
@@ -306,6 +314,21 @@ export default function ServiceRequestsPage() {
               >
                 <Calendar size={14} /> Log Service Visit
               </button>
+              {selectedRow.assignedEngineerId && (
+                <button
+                  onClick={() => {
+                    fetch("/api/service/spare-parts?active=true")
+                      .then((r) => r.json())
+                      .then((j) => { if (j.success) setSparePartOptions(j.data || []); })
+                      .catch((e) => console.error(e));
+                    setIssuePartsItems([]);
+                    setIsIssuePartsOpen(true);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] rounded-lg text-xs font-bold transition-colors hover:bg-[var(--surface-3)]"
+                >
+                  <Package size={14} /> Request / Issue Parts
+                </button>
+              )}
               <LinkedVisitsPanel visits={selectedRow.visits} />
             </div>
           }
@@ -437,6 +460,119 @@ export default function ServiceRequestsPage() {
                 className="px-4 py-1.5 rounded-lg text-xs font-bold bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Close Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Parts Modal */}
+      {isIssuePartsOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">Issue Spare Parts to Engineer</h3>
+              <p className="text-xs text-[var(--text-secondary)]">Select parts to issue to the assigned engineer for this service request. Stock will be tracked via the part movement ledger.</p>
+            </div>
+
+            <div className="flex gap-2">
+              <select
+                id="issue-part-select"
+                className="flex-1 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-blue-500"
+              >
+                <option value="">-- Select Spare Part --</option>
+                {sparePartOptions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.partName} ({p.partCode}) — Stock: {p.currentStock}</option>
+                ))}
+              </select>
+              <input
+                id="issue-part-qty"
+                type="number"
+                min="1"
+                defaultValue="1"
+                className="w-16 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-center"
+                placeholder="Qty"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const sel = document.getElementById("issue-part-select") as HTMLSelectElement;
+                  const qty = document.getElementById("issue-part-qty") as HTMLInputElement;
+                  if (sel && sel.value) {
+                    const part = sparePartOptions.find((p) => p.id === sel.value);
+                    if (part) {
+                      setIssuePartsItems(prev => [...prev, { sparePartId: part.id, partName: part.partName, quantity: parseInt(qty.value) || 1 }]);
+                      sel.value = "";
+                      qty.value = "1";
+                    }
+                  }
+                }}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold"
+              >
+                Add
+              </button>
+            </div>
+
+            {issuePartsItems.length > 0 && (
+              <div className="space-y-1 bg-[var(--surface-2)] p-3 rounded-lg border border-[var(--border)]">
+                {issuePartsItems.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-xs">
+                    <span className="text-[var(--text-secondary)]">{item.partName}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-[var(--text-primary)]">x{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => setIssuePartsItems(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-red-500 hover:text-red-400 font-bold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
+              <button
+                onClick={() => setIsIssuePartsOpen(false)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--text-primary)] border border-[var(--border)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (issuePartsItems.length === 0) return;
+                  setIssuingParts(true);
+                  try {
+                    const res = await fetch("/api/service/parts/issue", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        engineerId: selectedRow.assignedEngineerId,
+                        items: issuePartsItems.map((i) => ({ sparePartId: i.sparePartId, quantity: i.quantity })),
+                        notes: `Issued for REQ-${selectedRow.id.substring(0, 8).toUpperCase()}`,
+                      }),
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                      toast.success(`${issuePartsItems.length} part(s) issued to engineer`);
+                      setIsIssuePartsOpen(false);
+                      setIssuePartsItems([]);
+                    } else {
+                      toast.error(json.message || "Failed to issue parts");
+                    }
+                  } catch (e) {
+                    console.error(e);
+                    toast.error("Failed to issue parts");
+                  } finally {
+                    setIssuingParts(false);
+                  }
+                }}
+                disabled={issuePartsItems.length === 0 || issuingParts}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-brand hover:bg-brand-hover text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {issuingParts ? "Issuing..." : "Confirm Issue"}
               </button>
             </div>
           </div>

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyAuth } from "@/lib/auth";
 
 export async function GET(request: Request, { params }: { params: any }) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
     const claim = await prisma.warrantyClaim.findUnique({
       where: { id },
@@ -27,6 +31,9 @@ export async function GET(request: Request, { params }: { params: any }) {
 
 export async function PATCH(request: Request, { params }: { params: any }) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
     const body = await request.json();
     
@@ -61,6 +68,11 @@ export async function PATCH(request: Request, { params }: { params: any }) {
 
 export async function DELETE(request: Request, { params }: { params: any }) {
   try {
+    const user = await verifyAuth();
+    if (!user || !["Admin", "SuperAdmin"].includes(user.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { id } = await params;
     await prisma.warrantyClaim.delete({
       where: { id },

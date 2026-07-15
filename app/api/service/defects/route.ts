@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeEscalations } from "@/lib/escalationService";
+import { verifyAuth } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { searchParams } = new URL(request.url);
     const customerId = searchParams.get("customerId");
     const statusId = searchParams.get("statusId");
@@ -16,7 +20,7 @@ export async function GET(request: Request) {
       where: whereClause,
       include: {
         customer: true,
-        customerAsset: true,
+        customerAsset: { include: { AMCContract: { orderBy: { createdAt: "desc" }, take: 1 } } },
         priority: true,
         status: true,
         category: true,
@@ -40,6 +44,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
     const {
       title,
@@ -59,13 +66,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Default to a real user if none provided
+    // Use authenticated user, or fall back to provided createdById
     let finalCreatedById = createdById;
     if (!finalCreatedById || finalCreatedById === "user-1") {
-      const firstUser = await prisma.user.findFirst();
-      if (firstUser) {
-        finalCreatedById = firstUser.id;
-      }
+      finalCreatedById = user.id;
     }
 
     // Auto-assignment logic: derive team from category via TeamToCategory mapping
@@ -107,7 +111,7 @@ export async function POST(request: Request) {
       },
       include: {
         customer: true,
-        customerAsset: true,
+        customerAsset: { include: { AMCContract: { orderBy: { createdAt: "desc" }, take: 1 } } },
         priority: true,
         status: true,
         category: true,

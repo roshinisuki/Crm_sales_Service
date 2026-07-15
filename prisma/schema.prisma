@@ -130,6 +130,8 @@ model User {
   amcContracts              AMCContract[]
   serviceVisits             ServiceVisit[]
   escalationRulesNotifyUser EscalationRule[] @relation("EscalationRuleNotifyUser")
+  projectsCreated           Project[]         @relation("ProjectCreatedBy")
+  partMovementsCreated      PartMovement[]
 
   @@index([role])
   @@index([isActive])
@@ -201,6 +203,7 @@ model Customer {
   competitorInvolvements CompetitorInvolvement[] @relation("CompetitorInvolvementCustomer")
   assets                 CustomerAsset[]         @relation("CustomerAssets")
   serviceReviews         ServiceReview[]         @relation("CustomerReviews")
+  projects               Project[]
 
   @@index([customerCode])
   @@index([status])
@@ -616,6 +619,7 @@ model Deal {
   competitorInvolvements CompetitorInvolvement[]      @relation("CompetitorInvolvementDeal")
   customerAssets         CustomerAsset[]               @relation("CustomerAssetDeal")
   followUps              FollowUp[]
+  projects               Project[]
 
   @@index([customerId])
   @@index([assignedUserId])
@@ -2522,6 +2526,7 @@ model ServiceEngineer {
   Installation   Installation[]
   ServiceVisit   ServiceVisit[]
   reviews        ServiceReview[]  @relation("EngineerReviews")
+  partMovements  PartMovement[]
 }
 
 model CustomerAsset {
@@ -2538,10 +2543,12 @@ model CustomerAsset {
   purchaseOrderId    String?
   productId          String?
   dealId             String?
+  projectId          String?
   customer           Customer         @relation("CustomerAssets", fields: [customerId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   purchaseOrder      PurchaseOrder?   @relation("CustomerAssetPO", fields: [purchaseOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   product            Product?         @relation("CustomerAssetProduct", fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   deal               Deal?            @relation("CustomerAssetDeal", fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  project            Project?         @relation("ProjectAssets", fields: [projectId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   ServiceRequest     ServiceRequest[]
   Complaint          Complaint[]
   Defect             Defect[]
@@ -2549,10 +2556,12 @@ model CustomerAsset {
   WarrantyClaim      WarrantyClaim[]
   AMCContract        AMCContract[]
   ServiceVisit       ServiceVisit[]
+  partMovements      PartMovement[]
 
   @@index([purchaseOrderId])
   @@index([productId])
   @@index([dealId])
+  @@index([projectId])
 }
 
 model MaterialRate {
@@ -2783,6 +2792,15 @@ model AMCContract {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  // ── Entitlement plan fields (Feature 4) ──
+  planTier                 String?  // e.g. "Basic", "Standard", "Premium"
+  preventiveVisitsIncluded Int      @default(0)
+  preventiveVisitsUsed     Int      @default(0)
+  breakdownCallsUnlimited  Boolean  @default(false)
+  breakdownCallsIncluded   Int      @default(0)
+  breakdownCallsUsed       Int      @default(0)
+  sparesCoverage           String?  // e.g. "Full", "Partial", "None"
+
   customer      Customer      @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   customerAsset CustomerAsset @relation(fields: [customerAssetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   status        ServiceStatus @relation(fields: [statusId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -2800,6 +2818,9 @@ model ServiceVisit {
   checkOutTime  DateTime?
   outcomeNotes  String?   @db.NVarChar(Max)
   completedAt   DateTime?
+
+  // ── Proof-of-work capture (Feature 3) ──
+  signatureUrl  String?   @db.NVarChar(Max)
 
   // Direct customer/asset link (for standalone visits not tied to a source record)
   customerId      String?
@@ -2825,6 +2846,9 @@ model ServiceVisit {
   installation Installation?   @relation(fields: [installationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdBy    User            @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
   review       ServiceReview?  @relation("VisitReview")
+  partsUsed    ServicePartUsed[]
+  photos       ServiceVisitPhoto[]
+  partMovements PartMovement[]
 }
 
 model EscalationRule {
@@ -2911,4 +2935,125 @@ model ServiceReview {
 
   @@index([customerId])
   @@index([engineerId])
+}
+
+// ==========================================
+// PROJECT MODEL (Feature 1)
+// Groups multiple CustomerAssets under a project
+// ==========================================
+
+model Project {
+  id          String    @id @default(uuid())
+  projectCode String    @unique
+  name        String
+  customerId  String
+  dealId      String?
+  status      String    @default("Active") // Active | Completed | On Hold | Cancelled
+  startDate   DateTime?
+  endDate     DateTime?
+  notes       String?   @db.NVarChar(Max)
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  customer   Customer         @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deal       Deal?            @relation(fields: [dealId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdBy  User             @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assets     CustomerAsset[]  @relation("ProjectAssets")
+
+  @@index([customerId])
+  @@index([dealId])
+  @@index([status])
+}
+
+// ==========================================
+// SPARE PARTS MASTER DATA (Feature 2)
+// ==========================================
+
+model SparePart {
+  id           String   @id @default(uuid())
+  partCode     String   @unique
+  partName     String
+  category     String?
+  unit         String?  // e.g. "pcs", "set", "meter"
+  unitCost     Float    @default(0)
+  currency     String   @default("INR")
+  currentStock Int      @default(0)  // maintained via PartMovement
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  servicePartsUsed ServicePartUsed[]
+  partMovements    PartMovement[]
+
+  @@index([partCode])
+  @@index([category])
+}
+
+// ==========================================
+// SERVICE PARTS USED (Feature 2)
+// Tracks spare parts consumed during a service visit
+// ==========================================
+
+model ServicePartUsed {
+  id             String   @id @default(uuid())
+  serviceVisitId String
+  sparePartId    String?
+  partName       String   // snapshot of part name at time of use
+  quantity       Int      @default(1)
+  unitCost       Float    @default(0)
+  totalCost      Float    @default(0)
+  createdAt      DateTime @default(now())
+
+  serviceVisit ServiceVisit @relation(fields: [serviceVisitId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sparePart    SparePart?   @relation(fields: [sparePartId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([serviceVisitId])
+  @@index([sparePartId])
+}
+
+// ==========================================
+// SERVICE VISIT PHOTOS (Feature 3)
+// Stores site photos captured during visit completion
+// ==========================================
+
+model ServiceVisitPhoto {
+  id             String   @id @default(uuid())
+  serviceVisitId String
+  photoUrl       String   @db.NVarChar(Max)
+  caption        String?
+  createdAt      DateTime @default(now())
+
+  serviceVisit ServiceVisit @relation(fields: [serviceVisitId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([serviceVisitId])
+}
+
+// ==========================================
+// PART MOVEMENT LEDGER (Spare Parts Inventory v1)
+// Append-only ledger — never edit past rows, only add new ones.
+// ==========================================
+
+model PartMovement {
+  id              String   @id @default(uuid())
+  sparePartId     String
+  type            String   // "Issued" | "Used" | "Returned" | "Damaged"
+  quantity        Int
+  engineerId      String?
+  serviceVisitId  String?
+  customerAssetId String?
+  notes           String?
+  createdById     String
+  createdAt       DateTime @default(now())
+
+  sparePart     SparePart        @relation(fields: [sparePartId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  engineer      ServiceEngineer? @relation(fields: [engineerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  serviceVisit  ServiceVisit?    @relation(fields: [serviceVisitId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  customerAsset CustomerAsset?   @relation(fields: [customerAssetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  createdBy     User             @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([sparePartId])
+  @@index([engineerId])
+  @@index([serviceVisitId])
+  @@index([type])
 }

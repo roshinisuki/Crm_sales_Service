@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyAuth } from "@/lib/auth";
 
 export async function GET(request: Request, { params }: { params: any }) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
     const contract = await prisma.aMCContract.findUnique({
       where: { id },
@@ -27,6 +31,9 @@ export async function GET(request: Request, { params }: { params: any }) {
 
 export async function PATCH(request: Request, { params }: { params: any }) {
   try {
+    const user = await verifyAuth();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { id } = await params;
     const body = await request.json();
     
@@ -41,6 +48,11 @@ export async function PATCH(request: Request, { params }: { params: any }) {
     if (body.statusId !== undefined) updateData.statusId = body.statusId;
     if (body.renewalStatus !== undefined) updateData.renewalStatus = body.renewalStatus;
     if (body.endDate !== undefined) updateData.endDate = body.endDate ? new Date(body.endDate) : null;
+    if (body.planTier !== undefined) updateData.planTier = body.planTier || null;
+    if (body.preventiveVisitsIncluded !== undefined) updateData.preventiveVisitsIncluded = body.preventiveVisitsIncluded;
+    if (body.breakdownCallsUnlimited !== undefined) updateData.breakdownCallsUnlimited = body.breakdownCallsUnlimited;
+    if (body.breakdownCallsIncluded !== undefined) updateData.breakdownCallsIncluded = body.breakdownCallsIncluded;
+    if (body.sparesCoverage !== undefined) updateData.sparesCoverage = body.sparesCoverage || null;
 
     const updated = await prisma.aMCContract.update({
       where: { id },
@@ -62,6 +74,11 @@ export async function PATCH(request: Request, { params }: { params: any }) {
 
 export async function DELETE(request: Request, { params }: { params: any }) {
   try {
+    const user = await verifyAuth();
+    if (!user || !["Admin", "SuperAdmin"].includes(user.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const { id } = await params;
     await prisma.aMCContract.delete({
       where: { id },

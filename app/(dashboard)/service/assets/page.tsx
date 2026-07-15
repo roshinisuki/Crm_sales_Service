@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { WarrantyAMCContextCard, AssetHistoryPanel } from "@/components/shared/ServiceComponents";
 import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
-import { Search, Plus, Filter, HardDrive, RefreshCw, Calendar, ChevronLeft, Package, AlertCircle, CheckCircle, ShieldCheck } from "lucide-react";
+import { Search, Plus, Filter, HardDrive, RefreshCw, Calendar, ChevronLeft, Package, AlertCircle, CheckCircle, ShieldCheck, X } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
+import { useToast } from "@/components/ToastProvider";
 
 export default function CustomerAssetsPage() {
   const router = useRouter();
@@ -17,6 +18,12 @@ export default function CustomerAssetsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [kpiFilter, setKpiFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("All");
+  const [projects, setProjects] = useState<any[]>([]);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [customers, setCustomers] = useState<any[]>([]);
+  const toast = useToast();
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -24,6 +31,7 @@ export default function CustomerAssetsPage() {
       const params = new URLSearchParams();
       if (statusFilter !== "All") params.set("status", statusFilter);
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (projectFilter !== "All") params.set("projectId", projectFilter);
       const res = await fetch(`/api/service/assets?${params.toString()}`);
       const json = await res.json();
       if (json.success) {
@@ -34,11 +42,56 @@ export default function CustomerAssetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, projectFilter]);
 
   useEffect(() => {
     fetchAssets();
   }, [fetchAssets]);
+
+  useEffect(() => {
+    fetch("/api/service/projects")
+      .then(res => res.json())
+      .then(json => { if (json.success) setProjects(json.data || []); })
+      .catch(() => {});
+    fetch("/api/customer-master?pageSize=500")
+      .then(res => res.json())
+      .then(json => { setCustomers(json.data || json || []); })
+      .catch(() => {});
+  }, []);
+
+  const openEditModal = (asset: any) => {
+    setEditForm({
+      id: asset.id,
+      serialNumber: asset.serialNumber || "",
+      productName: asset.productName || "",
+      customerId: asset.customerId || "",
+      status: asset.status || "Active",
+      purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split("T")[0] : "",
+      warrantyExpiryDate: asset.warrantyExpiryDate ? new Date(asset.warrantyExpiryDate).toISOString().split("T")[0] : "",
+      amcExpiryDate: asset.amcExpiryDate ? new Date(asset.amcExpiryDate).toISOString().split("T")[0] : "",
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveAsset = async () => {
+    try {
+      const res = await fetch(`/api/service/assets/${editForm.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        toast.success("Asset updated successfully");
+        setShowEditModal(false);
+        fetchAssets();
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to update asset");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update asset");
+    }
+  };
 
   // Fetch visits when an asset is selected
   useEffect(() => {
@@ -74,6 +127,7 @@ export default function CustomerAssetsPage() {
 
   const filteredData = data.filter(item => {
     if (kpiFilter && kpiFilterMap[kpiFilter] && !kpiFilterMap[kpiFilter](item)) return false;
+    if (projectFilter !== "All" && item.projectId !== projectFilter) return false;
     if (statusFilter !== "All" && item.status !== statusFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -89,6 +143,7 @@ export default function CustomerAssetsPage() {
     { header: "Serial Number", accessorKey: "serialNumber" },
     { header: "Product Name", accessorKey: "productName" },
     { header: "Customer", cell: (row) => <span>{row.customer?.name || "-"}</span> },
+    { header: "Project", cell: (row) => <span className="text-[10px] font-mono">{row.project?.projectCode || "-"}</span> },
     { header: "Purchase Date", cell: (row) => <span>{row.purchaseDate ? new Date(row.purchaseDate).toLocaleDateString() : "-"}</span> },
     { header: "Originating PO", cell: (row) => <span className="text-[10px] font-mono">{row.purchaseOrder?.poCode || "-"}</span> },
     { 
@@ -105,12 +160,20 @@ export default function CustomerAssetsPage() {
     {
       header: "Action",
       cell: (row) => (
-        <button 
-          onClick={() => setSelectedAsset(row)}
-          className="text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline"
-        >
-          View Details
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSelectedAsset(row)}
+            className="text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline"
+          >
+            View
+          </button>
+          <button
+            onClick={() => openEditModal(row)}
+            className="text-xs font-bold text-amber-400 hover:text-amber-300 hover:underline"
+          >
+            Edit
+          </button>
+        </div>
       )
     }
   ];  if (selectedAsset) {
@@ -197,6 +260,7 @@ export default function CustomerAssetsPage() {
               purchaseDate={selectedAsset.purchaseDate}
               warrantyExpiry={selectedAsset.warrantyExpiryDate}
               amcExpiry={selectedAsset.amcExpiryDate}
+              amcContract={selectedAsset.AMCContract?.[0] ?? null}
             />
           </div>
         </div>
@@ -228,7 +292,7 @@ export default function CustomerAssetsPage() {
         <ServiceKPICard label="Under AMC" value={kpiStats.underAMC} icon={<ShieldCheck size={20} className="text-cyan-500" />} color="bg-cyan-500/10" onClick={(f) => setKpiFilter(f)} active={kpiFilter === "Under AMC"} />
       </ServiceKPIGrid>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-[var(--surface)] border border-[var(--border)] p-3 rounded-xl backdrop-blur-md">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-[var(--surface)] border border-[var(--border)] p-3 rounded-xl backdrop-blur-md">
         <div className="relative md:col-span-2">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
           <input 
@@ -239,6 +303,17 @@ export default function CustomerAssetsPage() {
             className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] focus:outline-none focus:border-blue-500 transition-colors placeholder-[var(--text-muted)]"
           />
         </div>
+
+        <select
+          value={projectFilter}
+          onChange={(e) => setProjectFilter(e.target.value)}
+          className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-secondary)] focus:outline-none focus:border-blue-500 transition-colors"
+        >
+          <option value="All">All Projects</option>
+          {projects.map((p: any) => (
+            <option key={p.id} value={p.id}>{p.projectCode} — {p.name}</option>
+          ))}
+        </select>
 
         <select
           value={statusFilter}
@@ -254,6 +329,117 @@ export default function CustomerAssetsPage() {
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden backdrop-blur-md">
         <DataTable data={filteredData} columns={columns} />
       </div>
+
+      {/* Edit Asset Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="text-sm font-black text-[var(--text-primary)]">Edit Asset</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-secondary)]">Serial Number</label>
+                  <input
+                    type="text"
+                    value={editForm.serialNumber || ""}
+                    onChange={(e) => setEditForm(p => ({ ...p, serialNumber: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-secondary)]">Product Name</label>
+                  <input
+                    type="text"
+                    value={editForm.productName || ""}
+                    onChange={(e) => setEditForm(p => ({ ...p, productName: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[var(--text-secondary)]">Customer</label>
+                <select
+                  value={editForm.customerId || ""}
+                  onChange={(e) => setEditForm(p => ({ ...p, customerId: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-brand"
+                >
+                  <option value="">Select customer...</option>
+                  {customers.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name || c.customerCode}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-[var(--text-secondary)]">Status</label>
+                <select
+                  value={editForm.status || "Active"}
+                  onChange={(e) => setEditForm(p => ({ ...p, status: e.target.value }))}
+                  className="w-full mt-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-brand"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Under Warranty">Under Warranty</option>
+                  <option value="Under AMC">Under AMC</option>
+                  <option value="Expired">Expired</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-secondary)]">Purchase Date</label>
+                  <input
+                    type="date"
+                    value={editForm.purchaseDate || ""}
+                    onChange={(e) => setEditForm(p => ({ ...p, purchaseDate: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-secondary)]">Warranty Expiry</label>
+                  <input
+                    type="date"
+                    value={editForm.warrantyExpiryDate || ""}
+                    onChange={(e) => setEditForm(p => ({ ...p, warrantyExpiryDate: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-[var(--text-secondary)]">AMC Expiry</label>
+                  <input
+                    type="date"
+                    value={editForm.amcExpiryDate || ""}
+                    onChange={(e) => setEditForm(p => ({ ...p, amcExpiryDate: e.target.value }))}
+                    className="w-full mt-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-brand"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--border)]">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--text-primary)] border border-[var(--border)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveAsset}
+                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-brand hover:bg-brand-hover text-white transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

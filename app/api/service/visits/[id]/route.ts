@@ -16,6 +16,8 @@ export async function GET(request: Request, { params }: { params: any }) {
         complaint: { include: { customer: true, customerAsset: true } },
         defect: { include: { customer: true, customerAsset: true } },
         installation: { include: { customer: true, customerAsset: true } },
+        partsUsed: true,
+        photos: true,
       },
     });
 
@@ -67,6 +69,8 @@ export async function PATCH(request: Request, { params }: { params: any }) {
         complaint: { include: { customer: true, customerAsset: true } },
         defect: { include: { customer: true, customerAsset: true } },
         installation: { include: { customer: true, customerAsset: true } },
+        partsUsed: true,
+        photos: true,
       }
     });
 

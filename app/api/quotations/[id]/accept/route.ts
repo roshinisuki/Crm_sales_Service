@@ -341,15 +341,15 @@ export async function POST(
         metadata: { quotationCode: existing.quotationCode, finalAmount: existing.finalAmount },
       });
 
-      return { quotationId: id };
+      return { quotationId: id, poCode };
       },
       { timeout: 30000, maxWait: 35000 }
     );
 
-    await logAudit(user.id, "Quotation", "Accept", `Accepted quotation ${existing.quotationCode} — PO ${poCode} auto-created`, {
+    await logAudit(user.id, "Quotation", "Accept", `Accepted quotation ${existing.quotationCode} — PO ${result.poCode} auto-created`, {
       resourceId: id,
       previousState: { status: existing.status },
-      newState: { status: "Accepted", dealStage: "DemoAccepted", poCode, rfqStatus: "Closed" },
+      newState: { status: "Accepted", dealStage: "DemoAccepted", poCode: result.poCode, rfqStatus: "Closed" },
       context: extractAuditContext(request),
     });
 

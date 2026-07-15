@@ -28,6 +28,7 @@ export async function createCustomerAssetsFromPO(
     include: {
       items: true,
       customer: { select: { id: true, name: true } },
+      deal: { select: { id: true, projects: { where: { status: "Active" }, orderBy: { createdAt: "desc" }, take: 1 } } },
     },
   });
 
@@ -40,6 +41,7 @@ export async function createCustomerAssetsFromPO(
   }
 
   const purchaseDate = po.approvedAt ?? po.poDate ?? new Date();
+  const projectId = po.deal?.projects?.[0]?.id ?? null;
   let created = 0;
   let updated = 0;
 
@@ -67,6 +69,7 @@ export async function createCustomerAssetsFromPO(
           productName,
           purchaseDate,
           dealId: po.dealId || existing.dealId,
+          ...(projectId ? { projectId } : {}),
         },
       });
       updated++;
@@ -86,6 +89,7 @@ export async function createCustomerAssetsFromPO(
           purchaseOrderId: po.id,
           productId: productId || null,
           dealId: po.dealId || null,
+          ...(projectId ? { projectId } : {}),
         },
       });
       created++;

@@ -7,13 +7,18 @@ import {
   Clock, MapPin, User, ShieldAlert, Award, Package, Hammer, Inbox, ArrowRight
 } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
+import { useToast } from "@/components/ToastProvider";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function MyVisitsPage() {
   const router = useRouter();
+  const toast = useToast();
+  const { user } = useAuth();
+  const [engineerId, setEngineerId] = useState<string | null>(null);
   const [visits, setVisits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<any[]>([]);
-  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkingInId, setCheckingInId] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   
   // Checkout Modal states
@@ -32,7 +37,8 @@ export default function MyVisitsPage() {
   const fetchVisits = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/service/visits");
+      const url = engineerId ? `/api/service/visits?engineerId=${engineerId}` : "/api/service/visits";
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         setVisits(data);
@@ -49,6 +55,15 @@ export default function MyVisitsPage() {
   };
 
   useEffect(() => {
+    // Resolve current user's engineer profile
+    if (user?.id) {
+      fetch("/api/service/engineer-profile")
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data?.id) setEngineerId(data.id);
+        })
+        .catch(() => {});
+    }
     fetchVisits();
     // Fetch products for parts catalog
     fetch("/api/catalogue/products")
@@ -57,7 +72,12 @@ export default function MyVisitsPage() {
         if (json.success) setProducts(json.data || []);
       })
       .catch((err) => console.error("Error fetching products:", err));
-  }, []);
+  }, [user?.id]);
+
+  // Re-fetch visits when engineerId is resolved
+  useEffect(() => {
+    if (engineerId) fetchVisits();
+  }, [engineerId]);
 
   // Live Timer for active visit
   useEffect(() => {
@@ -79,7 +99,7 @@ export default function MyVisitsPage() {
   }, [activeVisit]);
 
   const handleCheckIn = async (visitId: string) => {
-    setCheckingIn(true);
+    setCheckingInId(visitId);
     
     const triggerCheckIn = async (lat?: number, lng?: number, gpsCaptured = false) => {
       try {
@@ -89,16 +109,16 @@ export default function MyVisitsPage() {
           body: JSON.stringify({ lat, lng, gpsCaptured }),
         });
         if (res.ok) {
-          alert("Check-in successful! Your status has been updated to 'In Progress'.");
+          toast.success("Check-in successful! Your status has been updated to 'In Progress'.");
           await fetchVisits();
         } else {
           const err = await res.json();
-          alert(`Check-in failed: ${err.error || "Unknown error"}`);
+          toast.error(`Check-in failed: ${err.error || "Unknown error"}`);
         }
       } catch (err) {
         console.error(err);
       } finally {
-        setCheckingIn(false);
+        setCheckingInId(null);
       }
     };
 
@@ -120,18 +140,18 @@ export default function MyVisitsPage() {
 
   const handleComplete = async () => {
     if (!outcomeNotes.trim() || outcomeNotes.trim().length < 5) {
-      alert("Please describe the work performed (at least 5 characters).");
+      toast.error("Please describe the work performed (at least 5 characters).");
       return;
     }
     
     const requiresNextSteps = ["Escalated", "Follow-up Required", "Parts Pending"].includes(selectedOutcome);
     if (requiresNextSteps && (!reasonNextSteps || reasonNextSteps.trim().length < 10)) {
-      alert(`Reason / next steps details are required for outcome '${selectedOutcome}' (min 10 characters).`);
+      toast.error(`Reason / next steps details are required for outcome '${selectedOutcome}' (min 10 characters).`);
       return;
     }
 
     if (selectedOutcome === "Parts Pending" && sparePartsUsed.length === 0) {
-      alert("At least one spare part item must be listed when the outcome is 'Parts Pending'.");
+      toast.error("At least one spare part item must be listed when the outcome is 'Parts Pending'.");
       return;
     }
 
@@ -153,7 +173,7 @@ export default function MyVisitsPage() {
       });
       
       if (res.ok) {
-        alert("Visit completed successfully!");
+        toast.success("Visit completed successfully!");
         setCompleteModal(null);
         setOutcomeNotes("");
         setSelectedOutcome("Resolved");
@@ -164,7 +184,7 @@ export default function MyVisitsPage() {
         await fetchVisits();
       } else {
         const err = await res.json();
-        alert(`Failed to complete: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to complete: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);
@@ -278,10 +298,10 @@ export default function MyVisitsPage() {
                   {canCheckIn && !hasActiveOtherVisit && (
                     <button
                       onClick={() => handleCheckIn(visit.id)}
-                      disabled={checkingIn}
+                      disabled={checkingInId === visit.id}
                       className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
                     >
-                      {checkingIn ? "Checking In..." : "✅ Check In to Site"}
+                      {checkingInId === visit.id ? "Checking In..." : "✅ Check In to Site"}
                     </button>
                   )}
 

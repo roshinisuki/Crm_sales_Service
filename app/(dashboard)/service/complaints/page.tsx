@@ -10,11 +10,13 @@ import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
 import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
 import { Calendar, AlertTriangle, Search as SearchIcon, TrendingUp, CheckCircle, RotateCcw } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
+import { useAuth } from "@/components/AuthProvider";
  
 export default function ServiceComplaintsPage() {
   const config = serviceModulesConfig.complaints;
   const router = useRouter();
   const toast = useToast();
+  const { user } = useAuth();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -133,6 +135,27 @@ export default function ServiceComplaintsPage() {
       } catch (e) {
         console.error(e);
       }
+    } else if (actId === "escalate_to_defect") {
+      if (confirm("Escalate this complaint to a Product Defect? A new defect record will be created with the same customer and asset.")) {
+        try {
+          const res = await fetch(`/api/service/complaints/${finalRow.id}/escalate-to-defect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          if (res.ok) {
+            const defect = await res.json();
+            toast.success(`Complaint escalated to Defect: DEF-${defect.id.substring(0, 8).toUpperCase()}`);
+            await fetchData();
+          } else {
+            const err = await res.json();
+            toast.error(err.error || "Failed to escalate complaint");
+          }
+        } catch (e) {
+          console.error(e);
+          toast.error("Failed to escalate complaint to defect");
+        }
+      }
     } else if (actId === "resolve") {
       setSelectedRow(finalRow);
       setResolutionNotes("");
@@ -246,7 +269,7 @@ export default function ServiceComplaintsPage() {
 
   const handleCreateNew = async (formData: any) => {
     try {
-      const createdById = "user-1";
+      const createdById = user?.id || "user-1";
       // Fix form creation mapping: read assetId instead of customerAssetId
       const selectedAsset = refData.CustomerAsset?.find((a: any) => a.value === formData.assetId);
       const derivedCustomerId = formData.customerId || selectedAsset?.customerId || refData.Customer?.[0]?.value;
@@ -276,7 +299,7 @@ export default function ServiceComplaintsPage() {
         setIsFormOpen(false);
       } else {
         const err = await res.json();
-        alert(`Failed to create: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to create: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);

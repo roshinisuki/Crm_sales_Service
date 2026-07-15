@@ -195,7 +195,7 @@ export default function ServiceModuleListPage({
       if (nextAction.actionId) {
         if (onTriggerAction) {
           onTriggerAction(row, nextAction.actionId);
-          if (!["assign", "close", "resolve", "corrective"].includes(nextAction.actionId)) {
+          if (!["assign", "close", "resolve", "corrective", "escalate_to_defect", "investigate", "reopen"].includes(nextAction.actionId)) {
             toast.success(`Success: Triggered "${nextAction.label}"`);
           }
         }

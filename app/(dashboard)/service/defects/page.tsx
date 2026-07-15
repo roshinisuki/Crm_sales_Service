@@ -9,10 +9,14 @@ import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { LinkedVisitsPanel } from "@/components/shared/ServiceComponents";
 import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
 import { Calendar, HelpCircle, Search as SearchIcon, Wrench, CheckCircle, RotateCcw } from "lucide-react";
+import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/ToastProvider";
  
 export default function ServiceDefectsPage() {
   const config = serviceModulesConfig.defects;
   const router = useRouter();
+  const { user } = useAuth();
+  const toast = useToast();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -246,7 +250,7 @@ export default function ServiceDefectsPage() {
 
   const handleCreateNew = async (formData: any) => {
     try {
-      const createdById = "user-1";
+      const createdById = user?.id || "user-1";
       const selectedAsset = refData.CustomerAsset?.find((a: any) => a.value === formData.assetId);
       const derivedCustomerId = formData.customerId || selectedAsset?.customerId || refData.Customer?.[0]?.value;
       const defaultStatusName = config.statusOrder[0];
@@ -275,7 +279,7 @@ export default function ServiceDefectsPage() {
         setIsFormOpen(false);
       } else {
         const err = await res.json();
-        alert(`Failed to create: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to create: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);

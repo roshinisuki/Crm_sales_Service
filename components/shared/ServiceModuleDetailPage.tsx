@@ -221,6 +221,7 @@ export default function ServiceModuleDetailPage({
               purchaseDate={data.asset.purchaseDate}
               warrantyExpiry={data.asset.warrantyExpiryDate}
               amcExpiry={data.asset.amcExpiryDate}
+              amcContract={data.asset.AMCContract?.[0] ?? null}
             />
           )}
 

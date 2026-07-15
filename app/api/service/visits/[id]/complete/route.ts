@@ -11,7 +11,7 @@ export async function PATCH(request: Request, { params }: { params: any }) {
     }
 
     const body = await request.json();
-    const { outcome, outcomeNotes, sparePartsUsed, reasonNextSteps, followUpVisitNeeded, followUpDate } = body;
+    const { outcome, outcomeNotes, sparePartsUsed, structuredPartsUsed, returnedParts, reasonNextSteps, followUpVisitNeeded, followUpDate, signatureUrl, photoUrls } = body;
 
     // 1. Fetch visit
     const visit = await prisma.serviceVisit.findUnique({
@@ -99,6 +99,7 @@ export async function PATCH(request: Request, { params }: { params: any }) {
           notes: formattedNotes,
           completedAt: checkOutTime,
           checkOutTime,
+          ...(signatureUrl ? { signatureUrl } : {}),
         },
         include: {
           engineer: { include: { user: true } },
@@ -108,6 +109,106 @@ export async function PATCH(request: Request, { params }: { params: any }) {
           customerAsset: { select: { id: true, productName: true, serialNumber: true, amcExpiryDate: true } },
         }
       });
+
+      // Save structured spare parts (Feature 2) + PartMovement ledger entries (Inventory v1)
+      if (structuredPartsUsed && Array.isArray(structuredPartsUsed) && structuredPartsUsed.length > 0) {
+        for (const part of structuredPartsUsed) {
+          const qty = parseInt(part.quantity) || 1;
+          const unitCost = parseFloat(part.unitCost) || 0;
+          const totalCost = qty * unitCost;
+          await tx.servicePartUsed.create({
+            data: {
+              serviceVisitId: id,
+              sparePartId: part.sparePartId || null,
+              partName: part.partName || "Unknown Part",
+              quantity: qty,
+              unitCost,
+              totalCost,
+            },
+          });
+          // Create PartMovement "Used" entry and deduct stock
+          if (part.sparePartId) {
+            await tx.partMovement.create({
+              data: {
+                sparePartId: part.sparePartId,
+                type: "Used",
+                quantity: qty,
+                engineerId: updatedVisit.engineerId || null,
+                serviceVisitId: id,
+                customerAssetId: updatedVisit.customerAssetId || null,
+                createdById: user.id,
+              },
+            });
+            await tx.sparePart.update({
+              where: { id: part.sparePartId },
+              data: { currentStock: { decrement: qty } },
+            });
+          }
+        }
+      }
+
+      // Process returned unused parts (Inventory v1)
+      if (returnedParts && Array.isArray(returnedParts) && returnedParts.length > 0) {
+        for (const part of returnedParts) {
+          if (!part.sparePartId || !part.quantity || part.quantity < 1) continue;
+          await tx.partMovement.create({
+            data: {
+              sparePartId: part.sparePartId,
+              type: "Returned",
+              quantity: part.quantity,
+              engineerId: updatedVisit.engineerId || null,
+              serviceVisitId: id,
+              createdById: user.id,
+              notes: part.notes || "Returned unused parts at visit completion",
+            },
+          });
+          await tx.sparePart.update({
+            where: { id: part.sparePartId },
+            data: { currentStock: { increment: part.quantity } },
+          });
+        }
+      }
+
+      // Save site photos (Feature 3)
+      if (photoUrls && Array.isArray(photoUrls) && photoUrls.length > 0) {
+        for (const url of photoUrls) {
+          await tx.serviceVisitPhoto.create({
+            data: {
+              serviceVisitId: id,
+              photoUrl: url.url || url,
+              caption: url.caption || null,
+            },
+          });
+        }
+      }
+
+      // Increment AMC entitlement usage (Feature 4)
+      if (updatedVisit.customerAssetId) {
+        const activeAmc = await tx.aMCContract.findFirst({
+          where: {
+            customerAssetId: updatedVisit.customerAssetId,
+            startDate: { lte: checkOutTime },
+            endDate: { gte: checkOutTime },
+          },
+        });
+        if (activeAmc) {
+          // Determine if this is a preventive or breakdown visit based on source
+          const isBreakdown = !!(updatedVisit.complaintId || updatedVisit.defectId);
+          const isPreventive = !isBreakdown && (!!updatedVisit.requestId || !!updatedVisit.installationId);
+
+          if (isPreventive && activeAmc.preventiveVisitsIncluded > 0) {
+            await tx.aMCContract.update({
+              where: { id: activeAmc.id },
+              data: { preventiveVisitsUsed: { increment: 1 } },
+            });
+          } else if (isBreakdown && !activeAmc.breakdownCallsUnlimited && activeAmc.breakdownCallsIncluded > 0) {
+            await tx.aMCContract.update({
+              where: { id: activeAmc.id },
+              data: { breakdownCallsUsed: { increment: 1 } },
+            });
+          }
+        }
+      }
 
       // Update parent ticket status based on outcome
       const parentClosedAt = outcome === "Resolved" ? checkOutTime : null;

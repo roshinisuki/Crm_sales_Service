@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search");
   const customerId = searchParams.get("customerId");
   const dealId = searchParams.get("dealId");
+  const projectId = searchParams.get("projectId");
 
   const where: any = {};
   if (status && status !== "All") {
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
   }
   if (dealId) {
     where.dealId = dealId;
+  }
+  if (projectId) {
+    where.projectId = projectId;
   }
   if (search) {
     where.OR = [
@@ -37,6 +41,8 @@ export async function GET(request: NextRequest) {
       purchaseOrder: { select: { id: true, poCode: true, poNumber: true } },
       product: { select: { id: true, name: true, productCode: true } },
       deal: { select: { id: true, dealName: true, opportunityCode: true } },
+      project: { select: { id: true, projectCode: true, name: true } },
+      AMCContract: { orderBy: { createdAt: "desc" }, take: 1 },
     },
     orderBy: { createdAt: "desc" },
   });

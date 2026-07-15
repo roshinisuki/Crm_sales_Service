@@ -183,6 +183,7 @@ export const serviceModulesConfig: Record<string, ServiceModuleConfig> = {
     ],
     allowedActions: [
       { id: "investigate", label: "Start Investigation", variant: "primary", requiredStatus: ["New"] },
+      { id: "escalate_to_defect", label: "Escalate to Defect", variant: "danger", requiredStatus: ["New", "Investigating"] },
       { id: "resolve", label: "Resolve Complaint", variant: "success", requiredStatus: ["Investigating"] },
       { id: "close", label: "Close Complaint", variant: "secondary", requiredStatus: ["Resolved"] },
       { id: "reopen", label: "Not Resolved / Reopen", variant: "danger", requiredStatus: ["Resolved"] },

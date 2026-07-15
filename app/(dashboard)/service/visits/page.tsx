@@ -7,7 +7,10 @@ import ServiceModuleForm from "@/components/shared/ServiceModuleForm";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { cn } from "@/lib/ui-utils";
 import { Search, Plus, RefreshCw, ChevronLeft, X, Calendar, CheckCircle, AlertTriangle, Clock, CalendarDays } from "lucide-react";
+import { SignaturePad, PhotoUploader } from "@/components/shared/ProofOfWork";
 import { ServiceKPICard as KPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
+import { useAuth } from "@/components/AuthProvider";
+import { useToast } from "@/components/ToastProvider";
 
 const NOW = new Date();
 
@@ -32,6 +35,8 @@ export default function ServiceVisitsPage() {
   const config = serviceModulesConfig.visits;
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const toast = useToast();
   const [data, setData] = useState<any[]>([]);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -49,9 +54,18 @@ export default function ServiceVisitsPage() {
   const [followUpVisitNeeded, setFollowUpVisitNeeded] = useState(false);
   const [followUpDate, setFollowUpDate] = useState("");
   const [sparePartsUsed, setSparePartsUsed] = useState<{ productId: string; quantity: number }[]>([]);
+  const [structuredParts, setStructuredParts] = useState<{ sparePartId: string; partName: string; quantity: number; unitCost: number }[]>([]);
+  const [sparePartMaster, setSparePartMaster] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<{ url: string; caption?: string }[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [returnedParts, setReturnedParts] = useState<{ sparePartId: string; partName: string; quantity: number; notes?: string }[]>([]);
+  const [engineerHolding, setEngineerHolding] = useState<any[]>([]);
   const [checkingIn, setCheckingIn] = useState(false);
   const [completing, setCompleting] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [emailingReport, setEmailingReport] = useState(false);
 
   // Fetch catalogue products for spare parts dropdown
   useEffect(() => {
@@ -62,6 +76,30 @@ export default function ServiceVisitsPage() {
       })
       .catch((err) => console.error("Error fetching products:", err));
   }, []);
+
+  // Fetch spare parts master data
+  useEffect(() => {
+    fetch("/api/service/spare-parts?active=true")
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.success) setSparePartMaster(json.data || []);
+      })
+      .catch((err) => console.error("Error fetching spare parts:", err));
+  }, []);
+
+  // Fetch engineer holding when complete modal opens
+  useEffect(() => {
+    if (completeModal?.engineer?.id) {
+      fetch(`/api/service/inventory?engineerId=${completeModal.engineer.id}`)
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success) setEngineerHolding(json.data || []);
+        })
+        .catch((err) => console.error("Error fetching engineer holding:", err));
+    } else {
+      setEngineerHolding([]);
+    }
+  }, [completeModal]);
 
   const [elapsedTimeText, setElapsedTimeText] = useState("");
 
@@ -155,7 +193,7 @@ export default function ServiceVisitsPage() {
 
   const handleCreateNew = async (formData: any) => {
     try {
-      const createdById = "user-1";
+      const createdById = user?.id || "user-1";
       const body: any = {
         title: formData.title || "Service Visit",
         notes: formData.notes,
@@ -185,7 +223,7 @@ export default function ServiceVisitsPage() {
         if (sourceType) router.replace("/service/visits");
       } else {
         const err = await res.json();
-        alert(`Failed to create: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to create: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);
@@ -207,10 +245,10 @@ export default function ServiceVisitsPage() {
           // Find updated in data array
           await fetchData();
           setSelectedRow(null); // Return to list or refresh
-          alert("Check-in successful! Your status has been updated to 'In Progress'.");
+          toast.success("Check-in successful! Your status has been updated to 'In Progress'.");
         } else {
           const err = await res.json();
-          alert(`Check-in failed: ${err.error || "Unknown error"}`);
+          toast.error(`Check-in failed: ${err.error || "Unknown error"}`);
         }
       } catch (err) {
         console.error(err);
@@ -237,18 +275,18 @@ export default function ServiceVisitsPage() {
 
   const handleComplete = async () => {
     if (!outcomeNotes.trim() || outcomeNotes.trim().length < 20) {
-      alert("Work performed notes are required and must be at least 20 characters.");
+      toast.error("Work performed notes are required and must be at least 20 characters.");
       return;
     }
     
     const requiresNextSteps = ["Escalated", "Follow-up Required", "Parts Pending"].includes(selectedOutcome);
     if (requiresNextSteps && (!reasonNextSteps || reasonNextSteps.trim().length < 10)) {
-      alert(`Reason / next steps details are required for outcome '${selectedOutcome}' (min 10 characters).`);
+      toast.error(`Reason / next steps details are required for outcome '${selectedOutcome}' (min 10 characters).`);
       return;
     }
 
     if (selectedOutcome === "Parts Pending" && sparePartsUsed.length === 0) {
-      alert("At least one spare part item must be listed when the outcome is 'Parts Pending'.");
+      toast.error("At least one spare part item must be listed when the outcome is 'Parts Pending'.");
       return;
     }
 
@@ -258,9 +296,13 @@ export default function ServiceVisitsPage() {
         outcome: selectedOutcome,
         outcomeNotes: outcomeNotes.trim(),
         sparePartsUsed,
+        structuredPartsUsed: structuredParts,
+        returnedParts,
         reasonNextSteps: reasonNextSteps.trim(),
         followUpVisitNeeded,
         followUpDate: followUpVisitNeeded ? followUpDate : null,
+        signatureUrl: signatureData,
+        photoUrls,
       };
 
       const res = await fetch(`/api/service/visits/${completeModal.id}/complete`, {
@@ -278,16 +320,63 @@ export default function ServiceVisitsPage() {
         setFollowUpVisitNeeded(false);
         setFollowUpDate("");
         setSparePartsUsed([]);
+        setStructuredParts([]);
+        setSignatureData(null);
+        setPhotoUrls([]);
+        setReturnedParts([]);
+        setEngineerHolding([]);
         setSelectedRow(null);
-        alert("Visit completed successfully.");
+        toast.success("Visit completed successfully.");
       } else {
         const err = await res.json();
-        alert(`Failed to complete: ${err.error || "Unknown error"}`);
+        toast.error(`Failed to complete: ${err.error || "Unknown error"}`);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setCompleting(false);
+    }
+  };
+
+  const handleGeneratePdf = async (visitId: string) => {
+    setGeneratingPdf(true);
+    try {
+      const res = await fetch(`/api/service/visits/${visitId}/generate-report`, { method: "POST" });
+      const json = await res.json();
+      if (json.success && json.fileUrl) {
+        window.open(json.fileUrl, "_blank");
+      } else {
+        toast.error(json.message || "Failed to generate PDF");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handleEmailReport = async (visitId: string) => {
+    const email = prompt("Enter recipient email address:", selectedRow?.customer?.email || "");
+    if (!email) return;
+    setEmailingReport(true);
+    try {
+      const res = await fetch(`/api/service/visits/${visitId}/email-report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        toast.success(`Report emailed to ${email}`);
+      } else {
+        toast.error(json.message || "Failed to email report");
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to email report");
+    } finally {
+      setEmailingReport(false);
     }
   };
 
@@ -416,6 +505,11 @@ export default function ServiceVisitsPage() {
                 setFollowUpVisitNeeded(false);
                 setFollowUpDate("");
                 setSparePartsUsed([]);
+                setStructuredParts([]);
+                setSignatureData(null);
+                setPhotoUrls([]);
+                setReturnedParts([]);
+                setEngineerHolding([]);
               }} 
               className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             >
@@ -479,10 +573,10 @@ export default function ServiceVisitsPage() {
               </div>
             )}
 
-            {/* Spare Parts Section */}
+            {/* Spare Parts Section (Legacy product-based) */}
             <div className="space-y-2 border-t border-[var(--border)] pt-3">
               <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
-                Spare Parts Used {selectedOutcome === "Parts Pending" && <span className="text-red-500">*</span>}
+                Spare Parts Used (Product Catalogue) {selectedOutcome === "Parts Pending" && <span className="text-red-500">*</span>}
               </label>
               
               <div className="flex gap-2">
@@ -544,6 +638,177 @@ export default function ServiceVisitsPage() {
               )}
             </div>
 
+            {/* Structured Spare Parts (Feature 2) */}
+            <div className="space-y-2 border-t border-[var(--border)] pt-3">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                Structured Spare Parts (Master Data)
+              </label>
+              
+              <div className="flex gap-2">
+                <select
+                  id="structured-part-select"
+                  className="flex-1 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 text-[var(--text-primary)] focus:outline-none focus:border-blue-500"
+                >
+                  <option value="">-- Select Spare Part --</option>
+                  {sparePartMaster.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.partName} ({p.partCode}) — ₹{p.unitCost}</option>
+                  ))}
+                </select>
+                <input
+                  id="structured-part-qty"
+                  type="number"
+                  placeholder="Qty"
+                  defaultValue="1"
+                  min="1"
+                  className="w-16 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 text-[var(--text-primary)] focus:outline-none focus:border-blue-500 text-center"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const sel = document.getElementById("structured-part-select") as HTMLSelectElement;
+                    const qty = document.getElementById("structured-part-qty") as HTMLInputElement;
+                    if (sel && sel.value) {
+                      const part = sparePartMaster.find((p) => p.id === sel.value);
+                      if (part) {
+                        setStructuredParts(prev => [...prev, {
+                          sparePartId: part.id,
+                          partName: part.partName,
+                          quantity: parseInt(qty.value) || 1,
+                          unitCost: part.unitCost || 0,
+                        }]);
+                        sel.value = "";
+                        qty.value = "1";
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-brand hover:bg-brand-hover text-white rounded-lg text-xs font-bold"
+                >
+                  Add
+                </button>
+              </div>
+
+              {structuredParts.length > 0 && (
+                <div className="space-y-1 bg-[var(--surface-2)] p-2 rounded-lg border border-[var(--border)]">
+                  {structuredParts.map((item, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-[var(--text-secondary)]">{item.partName}</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">₹{item.unitCost} × {item.quantity} = ₹{item.unitCost * item.quantity}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStructuredParts(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-red-500 hover:text-red-400 font-bold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <div className="border-t border-[var(--border)] pt-1 mt-1 flex justify-between text-xs font-bold">
+                    <span className="text-[var(--text-secondary)]">Total Parts Cost</span>
+                    <span className="text-[var(--text-primary)]">₹{structuredParts.reduce((sum, p) => sum + p.unitCost * p.quantity, 0)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Return Unused Parts (Inventory v1) */}
+            {engineerHolding.length > 0 && (
+              <div className="space-y-2 border-t border-[var(--border)] pt-3">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                  Return Unused Parts (from engineer holding)
+                </label>
+                <div className="space-y-1 bg-[var(--surface-2)] p-2 rounded-lg border border-[var(--border)]">
+                  {engineerHolding.map((h, idx) => {
+                    const alreadyReturned = returnedParts.find((r) => r.sparePartId === h.sparePart.id);
+                    const remaining = h.holding - (alreadyReturned?.quantity || 0);
+                    return (
+                      <div key={idx} className="flex items-center justify-between text-xs gap-2">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[var(--text-secondary)] truncate block">{h.sparePart.partName} ({h.sparePart.partCode})</span>
+                          <span className="text-[10px] text-[var(--text-muted)]">Holding: {h.holding} {h.sparePart.unit || "pcs"}</span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="number"
+                            min="0"
+                            max={remaining}
+                            defaultValue="0"
+                            id={`return-qty-${h.sparePart.id}`}
+                            className="w-14 text-xs rounded border border-[var(--border)] bg-[var(--surface)] px-1.5 py-1 text-center"
+                            placeholder="0"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const input = document.getElementById(`return-qty-${h.sparePart.id}`) as HTMLInputElement;
+                              const qty = parseInt(input.value) || 0;
+                              if (qty > 0 && qty <= remaining) {
+                                setReturnedParts(prev => {
+                                  const existing = prev.find((r) => r.sparePartId === h.sparePart.id);
+                                  if (existing) {
+                                    return prev.map((r) => r.sparePartId === h.sparePart.id ? { ...r, quantity: r.quantity + qty } : r);
+                                  }
+                                  return [...prev, { sparePartId: h.sparePart.id, partName: h.sparePart.partName, quantity: qty }];
+                                });
+                                input.value = "0";
+                              }
+                            }}
+                            className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold"
+                          >
+                            Return
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {returnedParts.length > 0 && (
+                  <div className="space-y-1 bg-green-500/5 p-2 rounded-lg border border-green-500/20">
+                    {returnedParts.map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-xs">
+                        <span className="text-[var(--text-secondary)]">{item.partName}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-green-500">+{item.quantity} returned</span>
+                          <button
+                            type="button"
+                            onClick={() => setReturnedParts(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-red-500 hover:text-red-400 font-bold"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Proof of Work — Signature (Feature 3) */}
+            {selectedOutcome === "Resolved" && (
+              <div className="space-y-2 border-t border-[var(--border)] pt-3">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                  Customer Signature <span className="text-red-500">*</span>
+                </label>
+                <SignaturePad onChange={setSignatureData} value={signatureData} />
+              </div>
+            )}
+
+            {/* Proof of Work — Site Photos (Feature 3) */}
+            <div className="space-y-2 border-t border-[var(--border)] pt-3">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)] block">
+                Site Photos {selectedOutcome === "Resolved" && <span className="text-red-500">*</span>}
+              </label>
+              <PhotoUploader
+                visitId={completeModal.id}
+                photos={photoUrls}
+                onPhotosChange={setPhotoUrls}
+                uploading={uploadingPhotos}
+                setUploading={setUploadingPhotos}
+              />
+            </div>
+
             {/* Follow-up Visit Needed */}
             <div className="space-y-3 border-t border-[var(--border)] pt-3">
               <div className="flex items-center gap-2">
@@ -585,6 +850,11 @@ export default function ServiceVisitsPage() {
                 setFollowUpVisitNeeded(false);
                 setFollowUpDate("");
                 setSparePartsUsed([]);
+                setStructuredParts([]);
+                setSignatureData(null);
+                setPhotoUrls([]);
+                setReturnedParts([]);
+                setEngineerHolding([]);
               }}
               className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--surface-2)] text-xs font-bold transition-all"
             >
@@ -661,6 +931,24 @@ export default function ServiceVisitsPage() {
                 Check Out & Complete
               </button>
             )}
+            {selectedRow.status === "Completed" && (
+              <>
+                <button
+                  onClick={() => handleGeneratePdf(selectedRow.id)}
+                  disabled={generatingPdf}
+                  className="px-3 py-1.5 border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {generatingPdf ? "Generating..." : "Download PDF"}
+                </button>
+                <button
+                  onClick={() => handleEmailReport(selectedRow.id)}
+                  disabled={emailingReport}
+                  className="px-3 py-1.5 border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-primary)] rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {emailingReport ? "Sending..." : "Email to Customer"}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -731,6 +1019,39 @@ export default function ServiceVisitsPage() {
                 <div className="space-y-1 md:col-span-2">
                   <span className="text-[var(--text-secondary)] block font-semibold">Outcome Notes</span>
                   <span className="text-[var(--text-primary)] block font-medium">{selectedRow.outcomeNotes}</span>
+                </div>
+              )}
+              {selectedRow.partsUsed && selectedRow.partsUsed.length > 0 && (
+                <div className="space-y-1 md:col-span-2">
+                  <span className="text-[var(--text-secondary)] block font-semibold">Spare Parts Used</span>
+                  <div className="space-y-1">
+                    {selectedRow.partsUsed.map((part: any) => (
+                      <div key={part.id} className="flex justify-between text-xs bg-[var(--surface-2)] px-2 py-1 rounded border border-[var(--border)]">
+                        <span className="text-[var(--text-primary)]">{part.partName}</span>
+                        <span className="text-[var(--text-secondary)]">x{part.quantity} — ₹{part.totalCost}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-xs font-bold border-t border-[var(--border)] pt-1 mt-1">
+                      <span className="text-[var(--text-secondary)]">Total Parts Cost</span>
+                      <span className="text-[var(--text-primary)]">₹{selectedRow.partsUsed.reduce((sum: number, p: any) => sum + (p.totalCost || 0), 0)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {selectedRow.signatureUrl && (
+                <div className="space-y-1 md:col-span-2">
+                  <span className="text-[var(--text-secondary)] block font-semibold">Customer Signature</span>
+                  <img src={selectedRow.signatureUrl} alt="Customer Signature" className="border border-[var(--border)] rounded-lg max-w-[300px]" />
+                </div>
+              )}
+              {selectedRow.photos && selectedRow.photos.length > 0 && (
+                <div className="space-y-1 md:col-span-2">
+                  <span className="text-[var(--text-secondary)] block font-semibold">Site Photos</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {selectedRow.photos.map((photo: any) => (
+                      <img key={photo.id} src={photo.photoUrl} alt={photo.caption || "Site photo"} className="w-full h-24 object-cover rounded-lg border border-[var(--border)]" />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

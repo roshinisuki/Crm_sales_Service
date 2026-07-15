@@ -38,13 +38,14 @@ export default function ServiceReportsPage() {
   const fetchReports = async () => {
     setLoading(true);
     try {
-      const [reqs, comps, defs, insts, wars, amcs] = await Promise.all([
+      const [reqs, comps, defs, insts, wars, amcs, engPerf] = await Promise.all([
         fetch("/api/service/requests").then(r => r.ok ? r.json() : []),
         fetch("/api/service/complaints").then(r => r.ok ? r.json() : []),
         fetch("/api/service/defects").then(r => r.ok ? r.json() : []),
         fetch("/api/service/installations").then(r => r.ok ? r.json() : []),
         fetch("/api/service/warranty-claims").then(r => r.ok ? r.json() : []),
         fetch("/api/service/amc-contracts").then(r => r.ok ? r.json() : []),
+        fetch("/api/service/reports/engineer-performance").then(r => r.ok ? r.json() : []),
       ]);
 
       const mappedWarranty = [
@@ -98,7 +99,7 @@ export default function ServiceReportsPage() {
           date: i.createdAt?.substring(0, 10)
         })),
         warranty: mappedWarranty,
-        engineer: []
+        engineer: engPerf
       });
     } catch (e) {
       console.error(e);
@@ -118,7 +119,37 @@ export default function ServiceReportsPage() {
   }, [reportParam]);
 
   const handleExport = () => {
-    alert(`Exporting ${reportType} report data to Excel/CSV format...`);
+    const rows = filteredData;
+    if (rows.length === 0) return;
+
+    const cols = getColumns();
+    const headers = cols.map((c: any) => c.header);
+
+    const csvLines: string[] = [headers.join(",")];
+
+    for (const row of rows) {
+      const values = cols.map((c: any) => {
+        const val = row[c.accessorKey as string];
+        const cellStr = val !== undefined && val !== null ? String(val) : "";
+        // Escape quotes and wrap in quotes if contains comma or quote
+        if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      });
+      csvLines.push(values.join(","));
+    }
+
+    const csv = csvLines.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `service-${reportType}-report-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const getColumns = (): ColumnDef<any>[] => {
@@ -172,7 +203,10 @@ export default function ServiceReportsPage() {
           { header: "Team", accessorKey: "team" },
           { header: "Assigned Tickets", accessorKey: "assigned" },
           { header: "Resolved Tickets", accessorKey: "resolved" },
-          { header: "SLA Met Rate", accessorKey: "slaMet" }
+          { header: "Completed Visits", accessorKey: "completedVisits" },
+          { header: "SLA Met Rate", accessorKey: "slaMet" },
+          { header: "Avg Rating", accessorKey: "avgRating" },
+          { header: "Total Reviews", accessorKey: "totalReviews" }
         ];
     }
   };

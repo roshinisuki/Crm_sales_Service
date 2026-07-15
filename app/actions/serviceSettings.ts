@@ -16,6 +16,7 @@ const ALLOWED_MODELS = [
   "serviceEngineer",
   "customerAsset",
   "escalationRule",
+  "sparePart",
 ];
 
 export async function getServiceSettingsAction(modelName: string, onlyActive = false) {

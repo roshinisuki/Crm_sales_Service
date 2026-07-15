@@ -82,9 +82,18 @@ interface WarrantyAMCContextCardProps {
   purchaseDate?: string | Date;
   warrantyExpiry?: string | Date;
   amcExpiry?: string | Date;
+  amcContract?: {
+    planTier?: string | null;
+    preventiveVisitsIncluded?: number;
+    preventiveVisitsUsed?: number;
+    breakdownCallsUnlimited?: boolean;
+    breakdownCallsIncluded?: number;
+    breakdownCallsUsed?: number;
+    sparesCoverage?: string | null;
+  } | null;
 }
 
-export function WarrantyAMCContextCard({ purchaseDate, warrantyExpiry, amcExpiry }: WarrantyAMCContextCardProps) {
+export function WarrantyAMCContextCard({ purchaseDate, warrantyExpiry, amcExpiry, amcContract }: WarrantyAMCContextCardProps) {
   const getStatus = (expiryDate?: string | Date) => {
     if (!expiryDate) return { label: "N/A", style: "text-gray-400" };
     const date = new Date(expiryDate);
@@ -97,6 +106,18 @@ export function WarrantyAMCContextCard({ purchaseDate, warrantyExpiry, amcExpiry
 
   const warranty = getStatus(warrantyExpiry);
   const amc = getStatus(amcExpiry);
+
+  // Entitlement usage warnings
+  const pvUsed = amcContract?.preventiveVisitsUsed ?? 0;
+  const pvIncluded = amcContract?.preventiveVisitsIncluded ?? 0;
+  const bdUsed = amcContract?.breakdownCallsUsed ?? 0;
+  const bdIncluded = amcContract?.breakdownCallsIncluded ?? 0;
+  const bdUnlimited = amcContract?.breakdownCallsUnlimited ?? false;
+
+  const pvExceeded = pvIncluded > 0 && pvUsed >= pvIncluded;
+  const bdExceeded = !bdUnlimited && bdIncluded > 0 && bdUsed >= bdIncluded;
+  const pvWarning = pvIncluded > 0 && pvUsed >= pvIncluded * 0.8 && !pvExceeded;
+  const bdWarning = !bdUnlimited && bdIncluded > 0 && bdUsed >= bdIncluded * 0.8 && !bdExceeded;
 
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3.5 backdrop-blur-md">
@@ -127,6 +148,58 @@ export function WarrantyAMCContextCard({ purchaseDate, warrantyExpiry, amcExpiry
           )}
         </div>
       </div>
+
+      {amcContract && (
+        <div className="border-t border-[var(--border)] pt-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">AMC Entitlements</span>
+            {amcContract.planTier && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                {amcContract.planTier}
+              </span>
+            )}
+            {amcContract.sparesCoverage && (
+              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-500/10 text-purple-500 border border-purple-500/20">
+                Spares: {amcContract.sparesCoverage}
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="space-y-0.5">
+              <span className="text-[var(--text-secondary)] block">Preventive Visits</span>
+              <span className={cn(
+                "font-bold",
+                pvExceeded ? "text-red-500" : pvWarning ? "text-amber-500" : "text-[var(--text-primary)]"
+              )}>
+                {pvUsed} / {pvIncluded}
+              </span>
+              {pvExceeded && (
+                <span className="text-[9px] text-red-500 block">⚠ Limit exceeded — billable</span>
+              )}
+              {pvWarning && (
+                <span className="text-[9px] text-amber-500 block">⚠ Approaching limit</span>
+              )}
+            </div>
+
+            <div className="space-y-0.5">
+              <span className="text-[var(--text-secondary)] block">Breakdown Calls</span>
+              <span className={cn(
+                "font-bold",
+                bdExceeded ? "text-red-500" : bdWarning ? "text-amber-500" : "text-[var(--text-primary)]"
+              )}>
+                {bdUnlimited ? "Unlimited" : `${bdUsed} / ${bdIncluded}`}
+              </span>
+              {bdExceeded && (
+                <span className="text-[9px] text-red-500 block">⚠ Limit exceeded — billable</span>
+              )}
+              {bdWarning && (
+                <span className="text-[9px] text-amber-500 block">⚠ Approaching limit</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
