@@ -58,7 +58,7 @@ export default function RolePermissionMatrix({ initialPermissions, modules }: Ma
     });
   };
 
-  const roles = ["Admin", "SalesManager", "SalesExecutive"];
+  const roles = ["Admin", "SalesManager", "SalesExecutive", "DemoAdmin"];
 
   return (
     <div className="overflow-x-auto">

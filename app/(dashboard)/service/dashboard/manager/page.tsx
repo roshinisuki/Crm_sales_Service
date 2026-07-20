@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { ServiceQueueCard } from "@/components/shared/ServiceComponents";
 import { ServiceKPICard, ServiceKPIGrid } from "@/components/shared/ServiceKPICard";
+import { ServiceAnalyticsCharts } from "@/components/shared/ServiceAnalyticsCharts";
 import { DataTable, type ColumnDef } from "@/components/shared/DataTable";
 import { 
   Users, BarChart2, CheckCircle2, ShieldAlert, 
-  HelpCircle, Sparkles, AlertTriangle, Hammer, Inbox 
+  HelpCircle, Sparkles, AlertTriangle, Hammer, Inbox, Clock
 } from "lucide-react";
 import { cn } from "@/lib/ui-utils";
 
@@ -17,19 +18,25 @@ export default function ManagerServiceDashboardPage() {
   const [installations, setInstallations] = useState<any[]>([]);
   const [visits, setVisits] = useState<any[]>([]);
   const [engineerWorkloads, setEngineerWorkloads] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Sorting state for the Engineer Performance Table
+  const [sortKey, setSortKey] = useState<string>("resolved");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [reqsRes, compRes, defRes, instRes, visRes, engRes] = await Promise.all([
+        const [reqsRes, compRes, defRes, instRes, visRes, engRes, analyticsRes] = await Promise.all([
           fetch("/api/service/requests"),
           fetch("/api/service/complaints"),
           fetch("/api/service/defects"),
           fetch("/api/service/installations"),
           fetch("/api/service/visits"),
           fetch("/api/service/reports/engineer-performance"),
+          fetch("/api/service/analytics")
         ]);
         if (reqsRes.ok) setRequests(await reqsRes.json());
         if (compRes.ok) setComplaints(await compRes.json());
@@ -42,10 +49,15 @@ export default function ManagerServiceDashboardPage() {
             id: e.id,
             name: e.name,
             team: e.team,
+            assigned: e.assigned,
+            resolved: e.resolved,
+            avgResolutionTimeHrs: e.avgResolutionTimeHrs,
+            avgRating: e.avgRating,
             openCount: e.assigned - e.resolved,
             status: (e.assigned - e.resolved) >= 3 ? "High Load" : "Available",
           })));
         }
+        if (analyticsRes.ok) setAnalytics(await analyticsRes.json());
       } catch (err) {
         console.error("Dashboard fetch error:", err);
       } finally {
@@ -87,6 +99,27 @@ export default function ManagerServiceDashboardPage() {
     }
   ];
 
+  const performanceColumns: ColumnDef<any>[] = [
+    { header: "Engineer", accessorKey: "name", sortable: true },
+    { header: "Resolved Tickets", accessorKey: "resolved", sortable: true, align: "center" },
+    { header: "Avg Resolution Time", accessorKey: "avgResolutionTimeHrs", sortable: true, align: "center", cell: (row) => row.avgResolutionTimeHrs !== "-" ? `${row.avgResolutionTimeHrs} hrs` : "-" },
+    { header: "Customer Satisfaction", accessorKey: "avgRating", sortable: true, align: "center", cell: (row) => row.avgRating !== "-" ? `${row.avgRating} / 5` : "-" }
+  ];
+
+  const sortedPerformanceData = [...engineerWorkloads].sort((a, b) => {
+    let aVal = a[sortKey];
+    let bVal = b[sortKey];
+
+    if (sortKey === "avgResolutionTimeHrs" || sortKey === "avgRating" || sortKey === "resolved") {
+       aVal = parseFloat(aVal) || 0;
+       bVal = parseFloat(bVal) || 0;
+    }
+
+    if (aVal < bVal) return sortDir === "asc" ? -1 : 1;
+    if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+
   return (
     <div className="space-y-6">
       {/* Title */}
@@ -94,8 +127,51 @@ export default function ManagerServiceDashboardPage() {
         <h1 className="text-xl font-black text-[var(--text-primary)]">Service Operations Manager Dashboard</h1>
         <p className="text-xs text-[var(--text-muted)]">Oversee team workloads, service contracts, and SLA compliance metrics.</p>
       </div>
+      {/* Analytics KPIs (New) */}
+      {!loading && analytics && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-secondary)]">Analytics Overview</h3>
+          <ServiceKPIGrid>
+            <ServiceKPICard label="Total Requests" value={analytics.totalRequests} icon={<Inbox size={20} className="text-blue-500" />} color="bg-blue-500/10" onClick={() => {}} active={false} />
+            <ServiceKPICard label="Resolved Tickets" value={analytics.resolvedCount} icon={<CheckCircle2 size={20} className="text-green-500" />} color="bg-green-500/10" onClick={() => {}} active={false} />
+            <ServiceKPICard label="Avg Resolution Time" value={analytics.avgResolutionTimeHrs !== "-" ? `${analytics.avgResolutionTimeHrs} hrs` : "-"} icon={<Clock size={20} className="text-purple-500" />} color="bg-purple-500/10" onClick={() => {}} active={false} />
+            <ServiceKPICard 
+              label="SLA Compliance (Resolved)" 
+              value={analytics.resolvedCount > 0 ? `${Math.round(((analytics.slaStatus?.met || 0) / analytics.resolvedCount) * 100)}%` : "0%"} 
+              icon={<Sparkles size={20} className="text-amber-500" />} 
+              color="bg-amber-500/10" 
+              onClick={() => {}} 
+              active={false} 
+            />
+          </ServiceKPIGrid>
+          
+          <div className="pt-2">
+            <ServiceAnalyticsCharts data={analytics} />
+          </div>
 
-      {/* KPI summaries */}
+          {/* Engineer Performance Table */}
+          {engineerWorkloads.length > 0 && (
+            <div className="pt-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-primary)] border-b border-[var(--border)] pb-2 mb-3">
+                Engineer Performance Metrics
+              </h3>
+              <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-2)]">
+                <DataTable 
+                  data={sortedPerformanceData} 
+                  columns={performanceColumns} 
+                  onSort={(key, dir) => { setSortKey(key); setSortDir(dir); }}
+                  defaultSortKey="resolved"
+                  onRowClick={(row) => {
+                    alert(`Routing to engineer ${row.name}'s detailed view is flagged as a follow-up (Reviews & Feedback drill-down).`);
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Operational KPI summaries */}
       {loading ? (
         <div className="p-4 text-center text-sm text-[var(--text-muted)] animate-pulse">Loading KPIs...</div>
       ) : (

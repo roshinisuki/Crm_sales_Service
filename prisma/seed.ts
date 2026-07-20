@@ -25,11 +25,230 @@ const prisma = new PrismaClient();
 function daysAgo(n: number): Date { const d = new Date(); d.setDate(d.getDate() - n); return d; }
 function daysFromNow(n: number): Date { const d = new Date(); d.setDate(d.getDate() + n); return d; }
 
+/**
+ * Seeds the same shape of CRM + catalog sample data (customers, contacts, leads, deals,
+ * follow-ups, tasks, communication logs, notes, notifications, product categories,
+ * products, material rates, labor rates, BOM items, routing operations) for a single
+ * variant demo company. `tag` keeps customerCode/email/leadCode/taskCode unique across
+ * companies (Customer.customerCode, Customer.email, Lead.leadCode, Lead.email are
+ * globally @unique in schema.prisma). Product.productCode is @@unique([companyId, productCode])
+ * so it does not need tagging. Assigns everything to the company's single adminUser since
+ * variant companies only have one seeded user.
+ */
+async function seedVariantCompanyData(prisma: PrismaClient, company: any, adminUser: any, tag: string, now: Date) {
+  console.log(`Seeding sample data for ${company.name}...`);
+
+  const customersData = [
+    { customerCode: `CUST-${tag}-001`, name: "Tata Motors Ltd.", email: `procurement@tatamotors-${tag.toLowerCase()}.demo.com`, phone: "+91-9876501001", city: "Pune", status: "Active", industryType: "Automotive" },
+    { customerCode: `CUST-${tag}-002`, name: "Ashok Leyland Industries", email: `supply@ashleyland-${tag.toLowerCase()}.demo.com`, phone: "+91-9845501002", city: "Chennai", status: "Active", industryType: "Automotive" },
+    { customerCode: `CUST-${tag}-003`, name: "Bharat Forge Ltd.", email: `purchase@bharatforge-${tag.toLowerCase()}.demo.com`, phone: "+91-9822501003", city: "Pune", status: "Active", industryType: "Forging" },
+    { customerCode: `CUST-${tag}-004`, name: "JSW Steel Ltd.", email: `procurement@jsw-${tag.toLowerCase()}.demo.com`, phone: "+91-9819001004", city: "Mumbai", status: "Active", industryType: "Steel" },
+    { customerCode: `CUST-${tag}-005`, name: "Bosch India Ltd.", email: `supply@bosch-${tag.toLowerCase()}.demo.com`, phone: "+91-9845501005", city: "Bangalore", status: "Active", industryType: "Auto Components" },
+  ];
+  const createdCustomers: any[] = [];
+  for (const c of customersData) {
+    createdCustomers.push(await prisma.customer.create({ data: { ...c, companyId: company.id } }));
+  }
+
+  const contactsData = [
+    { name: "Rajesh Sharma", email: `rajesh.sharma@tatamotors-${tag.toLowerCase()}.demo.com`, phone: "+91-9876502001", title: "VP Procurement", customerId: createdCustomers[0].id, ownerId: adminUser.id },
+    { name: "Anita Desai", email: `anita.desai@ashleyland-${tag.toLowerCase()}.demo.com`, phone: "+91-9845502002", title: "Supply Chain Head", customerId: createdCustomers[1].id, ownerId: adminUser.id },
+    { name: "Suresh Iyer", email: `suresh.iyer@bharatforge-${tag.toLowerCase()}.demo.com`, phone: "+91-9822502003", title: "Plant Manager", customerId: createdCustomers[2].id, ownerId: adminUser.id },
+    { name: "Vikas Patil", email: `vikas.patil@jsw-${tag.toLowerCase()}.demo.com`, phone: "+91-9819002004", title: "Procurement Lead", customerId: createdCustomers[3].id, ownerId: adminUser.id },
+    { name: "Meera Krishnan", email: `meera.k@bosch-${tag.toLowerCase()}.demo.com`, phone: "+91-9845502005", title: "Quality Director", customerId: createdCustomers[4].id, ownerId: adminUser.id },
+  ];
+  const createdContacts: any[] = [];
+  for (const c of contactsData) {
+    createdContacts.push(await prisma.contact.create({ data: { ...c, status: "Active", companyId: company.id } }));
+  }
+
+  const leadsData = [
+    { leadCode: `LEAD-${tag}-001`, name: "Ravi Kumar", companyName: "Tata Motors Ltd.", email: `ravi.kumar@tatamotors-${tag.toLowerCase()}.demo.com`, phone: "+91-9876543210", city: "Pune", leadSource: "Exhibition", industryType: "Automotive", estimatedValue: 7500000, budgetAsked: "₹50-75L", timelineAsked: "Q3 2026", notes: "Interested in hydraulic press maintenance contract." },
+    { leadCode: `LEAD-${tag}-002`, name: "Suresh Reddy", companyName: "Ashok Leyland Industries", email: `suresh.reddy@ashleyland-${tag.toLowerCase()}.demo.com`, phone: "+91-9845123456", city: "Chennai", leadSource: "Referral", industryType: "Automotive", estimatedValue: 3000000, budgetAsked: "₹20-30L", timelineAsked: "2 months", notes: "Enquiry for CNC machine parts supply." },
+    { leadCode: `LEAD-${tag}-003`, name: "Amit Patel", companyName: "JSW Steel Ltd.", email: `amit.patel@jsw-${tag.toLowerCase()}.demo.com`, phone: "+91-9819009999", city: "Mumbai", leadSource: "Website", industryType: "Steel", estimatedValue: 5000000, budgetAsked: "₹30-50L", timelineAsked: "Q4 2026", notes: "Steel fabrication Q3 order inquiry." },
+    { leadCode: `LEAD-${tag}-004`, name: "Sneha Gupta", companyName: "Bosch India Ltd.", email: `sneha.g@bosch-${tag.toLowerCase()}.demo.com`, phone: "+91-9845508888", city: "Bangalore", leadSource: "Cold Call", industryType: "Auto Components", estimatedValue: 2000000, budgetAsked: "₹10-20L", timelineAsked: "1 month", notes: "QC system upgrade inquiry." },
+    { leadCode: `LEAD-${tag}-005`, name: "Karthik Nair", companyName: "Bharat Forge Ltd.", email: `karthik.n@bharatforge-${tag.toLowerCase()}.demo.com`, phone: "+91-9822507777", city: "Pune", leadSource: "Referral", industryType: "Forging", estimatedValue: 4000000, budgetAsked: "₹25-40L", timelineAsked: "3 months", notes: "Forging equipment upgrade evaluation." },
+  ];
+  const createdLeads: any[] = [];
+  for (const ld of leadsData) {
+    const leadId = uuidv4();
+    await prisma.lead.create({ data: { id: leadId, ...ld, assignedUserId: adminUser.id, status: "New", companyId: company.id } });
+    createdLeads.push({ id: leadId, ...ld });
+  }
+
+  const dealNames = [
+    "CNC Machine Parts Supply — Tata Motors", "Hydraulic Press Maintenance Contract", "Precision Components Annual AMC",
+    "Steel Fabrication Q3 Order — JSW", "Industrial Automation Pilot — Bosch",
+  ];
+  for (let i = 0; i < dealNames.length; i++) {
+    await prisma.deal.create({
+      data: {
+        id: uuidv4(), dealName: dealNames[i], customerId: createdCustomers[i].id,
+        assignedUserId: adminUser.id, status: ["Qualified", "TechnicalDiscussion", "DemoConducted", "Won", "Lost"][i],
+        dealValue: [7500000, 3000000, 5000000, 2000000, 4000000][i], expectedCloseDate: daysFromNow(30 + i * 15),
+        companyId: company.id,
+      },
+    });
+  }
+
+  const fuData = [
+    { customerIdx: 0, days: 2, status: "Pending", remarks: "Call to confirm demo slot." },
+    { customerIdx: 1, days: -3, status: "Pending", remarks: "OVERDUE: CNC parts follow-up." },
+    { customerIdx: 2, days: 5, status: "Pending", remarks: "Send revised quotation." },
+    { customerIdx: 3, days: -1, status: "Completed", remarks: "DONE: Proposal accepted." },
+    { customerIdx: 4, days: 7, status: "Pending", remarks: "QC system demo scheduling." },
+  ];
+  for (const fu of fuData) {
+    const d = new Date(now); d.setDate(d.getDate() + fu.days);
+    await prisma.followUp.create({
+      data: { id: uuidv4(), customerId: createdCustomers[fu.customerIdx].id, assignedUserId: adminUser.id, nextMeetingDate: d, remarks: fu.remarks, status: fu.status, companyId: company.id, updatedAt: now },
+    });
+  }
+
+  const taskData = [
+    { title: "Prepare proposal for Tata Motors AMC", status: "Pending", priority: "High", days: 2 },
+    { title: "Client follow-up call — Ashok Leyland", status: "Pending", priority: "High", days: -1 },
+    { title: "Update CRM data for Q2 leads", status: "Completed", priority: "Medium", days: -3 },
+    { title: "Schedule demo for JSW Steel", status: "Pending", priority: "Medium", days: 5 },
+    { title: "Contract review — Bosch India", status: "Overdue", priority: "High", days: -2 },
+  ];
+  for (let i = 0; i < taskData.length; i++) {
+    const t = taskData[i];
+    const d = new Date(now); d.setDate(d.getDate() + t.days);
+    await prisma.task.create({
+      data: { id: uuidv4(), taskCode: `TSK-${tag}-${String(i + 1).padStart(4, "0")}`, title: t.title, description: t.title, status: t.status, priority: t.priority, dueDate: d, assignedTo: adminUser.id, companyId: company.id },
+    });
+  }
+
+  const commLogs = [
+    { channel: "Call", direction: "Outbound", status: "Completed", content: "Initial discussion with client about project requirements.", duration: 15, outcome: "Interested" },
+    { channel: "Meeting", direction: "Inbound", status: "Completed", content: "Technical evaluation meeting with procurement team.", duration: 45, outcome: "Positive" },
+    { channel: "Email", direction: "Outbound", status: "Delivered", content: "Proposal sent for precision components AMC.", duration: 0, outcome: "Awaiting response" },
+    { channel: "Note", direction: "Outbound", status: "Completed", content: "Client prefers email communication. Update preference.", duration: 0, outcome: "Noted" },
+    { channel: "Call", direction: "Inbound", status: "Missed", content: "Missed call from client regarding quotation status.", duration: 0, outcome: "Callback needed" },
+  ];
+  for (let i = 0; i < commLogs.length; i++) {
+    const c = commLogs[i];
+    await prisma.communicationLog.create({
+      data: { id: uuidv4(), customerId: createdCustomers[i % createdCustomers.length].id, sentByUserId: adminUser.id, channel: c.channel, direction: c.direction, status: c.status, content: c.content, duration: c.duration, outcome: c.outcome, companyId: company.id, sentAt: daysAgo(i) },
+    });
+  }
+
+  const notesData = [
+    { entityType: "LEAD", content: "Lead came through website enquiry. Budget approved." },
+    { entityType: "CONTACT", content: "Prefers morning calls before 10 AM." },
+    { entityType: "LEAD", content: "Met at Auto Expo 2026. Strong interest in automation." },
+  ];
+  for (let i = 0; i < notesData.length; i++) {
+    const note = notesData[i];
+    await prisma.note.create({
+      data: { id: uuidv4(), content: note.content, createdById: adminUser.id, entityType: note.entityType, entityId: note.entityType === "LEAD" ? createdLeads[i % createdLeads.length].id : createdContacts[i % createdContacts.length].id, companyId: company.id },
+    });
+  }
+
+  for (let i = 0; i < 3; i++) {
+    await prisma.notification.create({
+      data: { id: uuidv4(), userId: adminUser.id, title: ["Visit reminder", "Deal update", "Task overdue"][i], message: ["Customer visit scheduled for tomorrow.", "Deal moved to Technical Discussion stage.", "Task 'Prepare proposal' is overdue."][i], type: ["visit", "deal", "task"][i], isRead: i !== 0 },
+    });
+  }
+
+  const categoriesData = [
+    { name: "CNC Machined Components", description: "Precision-machined parts", defaultOverhead: 15, defaultMargin: 20 },
+    { name: "Forging Components", description: "Forged parts and assemblies", defaultOverhead: 18, defaultMargin: 22 },
+    { name: "Hydraulic Systems", description: "Hydraulic presses, cylinders, and parts", defaultOverhead: 12, defaultMargin: 18 },
+    { name: "Steel Fabrication", description: "Custom steel fabrication", defaultOverhead: 20, defaultMargin: 25 },
+    { name: "Industrial Automation", description: "Automation systems and control units", defaultOverhead: 10, defaultMargin: 15 },
+    { name: "Electrical Equipment", description: "Motors, windings, and electrical components", defaultOverhead: 13, defaultMargin: 19 },
+  ];
+  const createdCategories: Record<string, string> = {};
+  for (const cat of categoriesData) {
+    const created = await prisma.productCategory.create({
+      data: { name: cat.name, description: cat.description, isActive: true, defaultOverheadPercent: cat.defaultOverhead, defaultMarginPercent: cat.defaultMargin, companyId: company.id },
+    });
+    createdCategories[cat.name] = created.id;
+  }
+
+  const productsData = [
+    { code: "PRD-001", name: "CNC Bracket Assembly — Type A", category: "CNC Machined Components", unit: "pcs", basePrice: 450, hsn: "8473", type: "Finished" },
+    { code: "PRD-005", name: "Connecting Rod Forging — EN24", category: "Forging Components", unit: "pcs", basePrice: 850, hsn: "8431", type: "Finished" },
+    { code: "PRD-007", name: "Hydraulic Press Cylinder — 100 Ton", category: "Hydraulic Systems", unit: "set", basePrice: 85000, hsn: "8412", type: "Finished" },
+    { code: "PRD-009", name: "Hydraulic Press Maintenance Package", category: "Hydraulic Systems", unit: "job", basePrice: 25000, hsn: "9987", type: "Service" },
+    { code: "PRD-010", name: "Steel Fabrication Frame — Custom", category: "Steel Fabrication", unit: "pcs", basePrice: 15000, hsn: "7308", type: "Finished" },
+    { code: "PRD-012", name: "PLC Control Panel — Siemens S7-1500", category: "Industrial Automation", unit: "set", basePrice: 125000, hsn: "8537", type: "Finished" },
+    { code: "PRD-016", name: "Fuel Injector Inspection Gauge", category: "Industrial Automation", unit: "pcs", basePrice: 8500, hsn: "9031", type: "Finished" },
+    { code: "PRD-018", name: "Motor Winding — 3-Phase 50HP", category: "Electrical Equipment", unit: "pcs", basePrice: 18500, hsn: "8501", type: "Finished" },
+  ];
+  for (const p of productsData) {
+    await prisma.product.create({
+      data: { productCode: p.code, name: p.name, categoryId: createdCategories[p.category] || null, unit: p.unit, basePrice: p.basePrice, hsnCode: p.hsn, productType: p.type, isActive: true, companyId: company.id },
+    });
+  }
+
+  const materialRates = [
+    { code: "MAT-001", name: "EN8 Steel Round Bar", unitRate: 85, unit: "kg" },
+    { code: "MAT-003", name: "SS316 Stainless Steel", unitRate: 350, unit: "kg" },
+    { code: "MAT-005", name: "Carbon Steel Plate IS2062", unitRate: 65, unit: "kg" },
+    { code: "MAT-007", name: "Copper Wire", unitRate: 450, unit: "kg" },
+  ];
+  for (const mr of materialRates) {
+    await prisma.materialRate.create({
+      data: { materialCode: mr.code, materialName: mr.name, unitRate: mr.unitRate, unit: mr.unit, currency: "INR", validFrom: new Date("2024-01-01"), companyId: company.id },
+    });
+  }
+
+  const laborRates = [
+    { workCenter: "CNC-Machining", hourlyRate: 450, setupRate: 200 },
+    { workCenter: "Forging-Press", hourlyRate: 380, setupRate: 150 },
+    { workCenter: "Welding-Fabrication", hourlyRate: 350, setupRate: 120 },
+    { workCenter: "Quality-Inspection", hourlyRate: 280, setupRate: 80 },
+  ];
+  for (const lr of laborRates) {
+    await prisma.laborRate.create({
+      data: { workCenter: lr.workCenter, hourlyRate: lr.hourlyRate, setupRate: lr.setupRate, currency: "INR", validFrom: new Date("2024-01-01"), companyId: company.id },
+    });
+  }
+
+  const bomItems = [
+    { productCode: "PRD-001", materialCode: "MAT-001", quantity: 2.5, scrap: 5 },
+    { productCode: "PRD-005", materialCode: "MAT-001", quantity: 4.5, scrap: 8 },
+    { productCode: "PRD-007", materialCode: "MAT-003", quantity: 8.5, scrap: 4 },
+    { productCode: "PRD-010", materialCode: "MAT-005", quantity: 12.0, scrap: 6 },
+  ];
+  for (const bom of bomItems) {
+    const product = await prisma.product.findFirst({ where: { productCode: bom.productCode, companyId: company.id } });
+    if (product) {
+      await prisma.bOMItem.create({ data: { productId: product.id, materialCode: bom.materialCode, quantity: bom.quantity, scrapPercent: bom.scrap, companyId: company.id } });
+    }
+  }
+
+  const routingOps = [
+    { productCode: "PRD-001", sequence: 1, operation: "CNC Roughing", workCenter: "CNC-Machining", cycleTime: 15, setup: 5 },
+    { productCode: "PRD-001", sequence: 2, operation: "CNC Finishing", workCenter: "CNC-Machining", cycleTime: 20, setup: 8 },
+    { productCode: "PRD-005", sequence: 1, operation: "Heating", workCenter: "Forging-Press", cycleTime: 8, setup: 15 },
+    { productCode: "PRD-005", sequence: 2, operation: "Forging", workCenter: "Forging-Press", cycleTime: 12, setup: 20 },
+    { productCode: "PRD-007", sequence: 1, operation: "Tube Cutting", workCenter: "Welding-Fabrication", cycleTime: 20, setup: 12 },
+    { productCode: "PRD-007", sequence: 2, operation: "Welding", workCenter: "Welding-Fabrication", cycleTime: 35, setup: 18 },
+  ];
+  for (const route of routingOps) {
+    const product = await prisma.product.findFirst({ where: { productCode: route.productCode, companyId: company.id } });
+    if (product) {
+      await prisma.routingOperation.create({ data: { productId: product.id, sequence: route.sequence, operationName: route.operation, workCenter: route.workCenter, cycleTimeMin: route.cycleTime, setupTimeMin: route.setup, companyId: company.id } });
+    }
+  }
+
+  console.log(`  ${company.name}: sample data seeded (5 customers, 5 contacts, 5 leads, 5 deals, 5 follow-ups, 5 tasks, 5 comm logs, 3 notes, 3 notifications, 6 categories, 8 products, 4 material rates, 4 labor rates, 4 BOM items, 6 routing ops).`);
+}
+
 async function main() {
   const now = new Date();
 
   console.log("Cleaning up existing database records...");
   // Service operational tables (children first)
+  // ServiceReview must be deleted before its parents (ServiceVisit, ServiceRequest, Complaint,
+  // Defect, Installation) — it holds unique nullable FKs to each with onDelete: SetNull, and
+  // SQL Server permits only one NULL per unique constraint, so cascading SET NULL across
+  // multiple existing rows at once violates it unless ServiceReview is cleared first.
+  await prisma.serviceReview.deleteMany({});
   await prisma.serviceVisit.deleteMany({});
   await prisma.warrantyClaim.deleteMany({});
   await prisma.aMCContract.deleteMany({});
@@ -52,6 +271,15 @@ async function main() {
   await prisma.note.deleteMany({});
   await prisma.task.deleteMany({});
   await prisma.purchaseOrder.deleteMany({});
+  // These tables hold NoAction FKs to Quotation/Negotiation and must be cleared first.
+  await prisma.competitorInvolvement.deleteMany({});
+  await prisma.quotationApproval.deleteMany({});
+  await prisma.quotationRevisionSnapshot.deleteMany({});
+  await prisma.quotationStatusHistory.deleteMany({});
+  // Quotation.negotiationId <-> Negotiation.quotationId is a circular nullable FK pair
+  // (both onDelete: NoAction); null out both sides before deleting either table.
+  await prisma.quotation.updateMany({ data: { negotiationId: null, parentQuotationId: null } });
+  await prisma.negotiation.updateMany({ data: { quotationId: null } });
   await prisma.negotiation.deleteMany({});
   await prisma.quotation.deleteMany({});
   await prisma.sampleRequest.deleteMany({});
@@ -69,6 +297,7 @@ async function main() {
   await prisma.purchaseOrderItem.deleteMany({});
   await prisma.deal.deleteMany({});
   await prisma.leadOwnerHistory.deleteMany({});
+  await prisma.leadStatusHistory.deleteMany({});
   await prisma.lead.deleteMany({});
   await prisma.customerVisit.deleteMany({});
   await prisma.marketingVisit.deleteMany({});
@@ -115,27 +344,40 @@ async function main() {
 
   // ---- Company ----
   console.log("Seeding default company...");
-  const defaultCompany = await prisma.company.create({
-    data: { id: uuidv4(), name: "Suki Software Solutions Pvt. Ltd." },
-  });
+  const findOrCreateCompany = async (data: { name: string; variant?: number; domain?: string }) => {
+    const existing = await prisma.company.findFirst({ where: { name: data.name } });
+    if (existing) return existing;
+    return prisma.company.create({ data: { id: uuidv4(), ...data } });
+  };
+  const defaultCompany = await findOrCreateCompany({ name: "Suki Software Solutions Pvt. Ltd." });
 
-  // ---- Users (6) ----
+  // ---- Variant demo companies (3) ----
+  console.log("Seeding variant demo companies...");
+  const demoVariant1Company = await findOrCreateCompany({ name: "Demo Variant 1 Company", variant: 1, domain: "demo-variant1.sukisoftware.com" });
+  const demoVariant2Company = await findOrCreateCompany({ name: "Demo Variant 2 Company", variant: 2, domain: "demo-variant2.sukisoftware.com" });
+  const demoVariant3Company = await findOrCreateCompany({ name: "Demo Variant 3 Company", variant: 3, domain: "demo-variant3.sukisoftware.com" });
+
+  // ---- Users (6 + 4 demo) ----
   console.log("Seeding users...");
   const passwordHash = await bcrypt.hash("Password@123", 10);
   const usersData = [
-    { email: "admin@sukisoftware.com", name: "System Admin", role: "Admin" },
-    { email: "lead@sukisoftware.com", name: "Vikram Iyer", role: "SalesManager" },
-    { email: "exec1@sukisoftware.com", name: "Arjun Mehta", role: "SalesExecutive" },
-    { email: "exec2@sukisoftware.com", name: "Priya Nair", role: "SalesExecutive" },
-    { email: "exec3@sukisoftware.com", name: "Karthik Reddy", role: "SalesExecutive" },
-    { email: "exec4@sukisoftware.com", name: "Deepa Krishnan", role: "SalesExecutive" },
+    { email: "admin@sukisoftware.com", name: "System Admin", role: "Admin", companyId: defaultCompany.id },
+    { email: "lead@sukisoftware.com", name: "Vikram Iyer", role: "SalesManager", companyId: defaultCompany.id },
+    { email: "exec1@sukisoftware.com", name: "Arjun Mehta", role: "SalesExecutive", companyId: defaultCompany.id },
+    { email: "exec2@sukisoftware.com", name: "Priya Nair", role: "SalesExecutive", companyId: defaultCompany.id },
+    { email: "exec3@sukisoftware.com", name: "Karthik Reddy", role: "SalesExecutive", companyId: defaultCompany.id },
+    { email: "exec4@sukisoftware.com", name: "Deepa Krishnan", role: "SalesExecutive", companyId: defaultCompany.id },
+    { email: "demo1admin@sukisoftware.com", name: "Demo Admin", role: "DemoAdmin", companyId: defaultCompany.id },
+    { email: "variant1@sukisoftware.com", name: "Variant 1 Demo User", role: "Admin", companyId: demoVariant1Company.id },
+    { email: "variant2@sukisoftware.com", name: "Variant 2 Demo User", role: "Admin", companyId: demoVariant2Company.id },
+    { email: "variant3@sukisoftware.com", name: "Variant 3 Demo User", role: "Admin", companyId: demoVariant3Company.id },
   ];
   const createdUsers: Record<string, any> = {};
   for (const u of usersData) {
     let userRecord = await prisma.user.findFirst({ where: { email: u.email } });
     if (!userRecord) {
       userRecord = await prisma.user.create({
-        data: { email: u.email, name: u.name, passwordHash, role: u.role, isActive: true, isFirstLogin: false, companyId: defaultCompany.id },
+        data: { email: u.email, name: u.name, passwordHash, role: u.role, isActive: true, isFirstLogin: false, companyId: u.companyId },
       });
     }
     createdUsers[u.email] = userRecord;
@@ -146,7 +388,15 @@ async function main() {
     createdUsers["exec3@sukisoftware.com"],
     createdUsers["exec4@sukisoftware.com"],
   ];
-  console.log("6 users created.");
+  console.log("10 users created.");
+
+  // ---- DemoAdmin role permission ----
+  console.log("Seeding DemoAdmin role permission...");
+  await prisma.rolePermission.upsert({
+    where: { role_module: { role: "DemoAdmin", module: "User Management" } },
+    update: {},
+    create: { role: "DemoAdmin", module: "User Management", visible: false, canDelete: false },
+  });
 
   // ---- Customers (5) ----
   console.log("Seeding customers...");
@@ -306,12 +556,12 @@ async function main() {
     { stageName: 'Rejected', displayName: 'Rejected', displayOrder: 0, probabilityPercent: 0, isClosedStage: true },
     { stageName: 'Lost', displayName: 'Lost', displayOrder: 0, probabilityPercent: 0, isClosedStage: true },
   ];
-  for (const company of await prisma.company.findMany()) {
-    for (const stage of defaultStages) {
-      await prisma.pipelineStageMaster.create({
-        data: { stageName: stage.stageName, displayName: stage.displayName, displayOrder: stage.displayOrder, probabilityPercent: stage.probabilityPercent, isClosedStage: stage.isClosedStage, isActive: true, companyId: company.id },
-      });
-    }
+  // NOTE: stageName is globally @unique (not scoped per company), so these can only be
+  // seeded once regardless of how many Company rows exist — kept on defaultCompany only.
+  for (const stage of defaultStages) {
+    await prisma.pipelineStageMaster.create({
+      data: { stageName: stage.stageName, displayName: stage.displayName, displayOrder: stage.displayOrder, probabilityPercent: stage.probabilityPercent, isClosedStage: stage.isClosedStage, isActive: true, companyId: defaultCompany.id },
+    });
   }
   console.log("Pipeline stages seeded.");
 
@@ -417,7 +667,15 @@ async function main() {
   }
   console.log("6 routing operations created.");
 
+  // ---- Variant demo company sample data (Customers, Contacts, Leads, Deals, Follow-ups,
+  //      Tasks, Comm Logs, Notes, Notifications, Product Catalog) ----
+  await seedVariantCompanyData(prisma, demoVariant1Company, createdUsers["variant1@sukisoftware.com"], "V1", now);
+  await seedVariantCompanyData(prisma, demoVariant2Company, createdUsers["variant2@sukisoftware.com"], "V2", now);
+  await seedVariantCompanyData(prisma, demoVariant3Company, createdUsers["variant3@sukisoftware.com"], "V3", now);
+
   // ---- Service Workspace (config + teams + engineers + assets) ----
+  // NOTE: ServiceRequest/CustomerAsset/ServiceTeam etc. have no companyId field in the schema —
+  // this module is not company-scoped and only ever seeds against defaultCompany's customers.
   await seedServiceWorkspace(prisma);
 
   // ---- Service Operational Data ----

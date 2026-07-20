@@ -65,24 +65,39 @@ export async function GET(request: Request) {
       // SLA met: closed within slaLimitHours
       let slaMet = 0;
       let slaTotal = 0;
+      let totalResolutionHours = 0;
+      let resolvedTicketsWithTime = 0;
+
       for (const t of allTickets) {
         const sName = statusMap.get(t.statusId);
         if (sName === "Closed" || sName === "Resolved" || sName === "Completed") {
           slaTotal++;
-          const slaHours = t.priority?.slaLimitHours || 24;
-          const created = new Date(t.createdAt).getTime();
-          const closed = new Date(t.closedAt || t.createdAt).getTime();
-          if ((closed - created) / (1000 * 60 * 60) <= slaHours) {
-            slaMet++;
+          
+          if (t.closedAt) {
+            const created = new Date(t.createdAt).getTime();
+            const closed = new Date(t.closedAt).getTime();
+            const slaHours = t.priority?.slaLimitHours || 24;
+            const durationHrs = Math.abs(closed - created) / (1000 * 60 * 60);
+            
+            totalResolutionHours += durationHrs;
+            resolvedTicketsWithTime++;
+            
+            if (durationHrs <= slaHours) {
+              slaMet++;
+            }
           }
         }
       }
+      
       const slaMetRate = slaTotal > 0 ? `${Math.round((slaMet / slaTotal) * 100)}%` : "-";
-
       const completedVisits = engVisits.filter(v => v.status?.name === "Completed" || v.status?.name === "Closed").length;
 
       const avgRating = engReviews.length > 0
         ? (engReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / engReviews.length).toFixed(1)
+        : "-";
+
+      const avgResolutionTimeHrs = resolvedTicketsWithTime > 0 
+        ? (totalResolutionHours / resolvedTicketsWithTime).toFixed(1) 
         : "-";
 
       return {
@@ -95,6 +110,7 @@ export async function GET(request: Request) {
         completedVisits,
         avgRating,
         totalReviews: engReviews.length,
+        avgResolutionTimeHrs,
       };
     });
 

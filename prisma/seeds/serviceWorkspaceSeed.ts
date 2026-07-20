@@ -5,7 +5,10 @@ export async function seedServiceWorkspace(prisma: PrismaClient) {
   console.log("Starting Service Workspace seeding...");
 
   // 1. Fetch dependencies
-  const defaultCompany = await prisma.company.findFirst();
+  // Filter explicitly by name: with multiple Company rows now seeded, an unfiltered
+  // findFirst() has no guaranteed order and may return a variant demo company instead
+  // of the one that actually owns the seeded users/customers.
+  const defaultCompany = await prisma.company.findFirst({ where: { name: "Suki Software Solutions Pvt. Ltd." } });
   if (!defaultCompany) {
     console.log("No company found, skipping Service Workspace seed.");
     return;
