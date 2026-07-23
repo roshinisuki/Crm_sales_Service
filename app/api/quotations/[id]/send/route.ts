@@ -4,6 +4,8 @@ import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
 import { logEvent, logEventAsync } from "@/lib/activity-event";
+import { hasModule } from "@/lib/modules";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 export async function POST(
   request: NextRequest,
@@ -140,7 +142,11 @@ export async function POST(
     (a: any) => a.status === "Approved"
   );
 
-  if (reasons.length > 0 && !hasApprovedApproval && user.role !== "Admin") {
+  // Only enforce the approval gate if the company has the approval_center module.
+  // Without the module, triggers are informational only — send proceeds (per module-gating-plan.md: "Add-ons enrich, never block").
+  const companyHasApprovalCenter = hasModule(user, MODULE_KEYS.APPROVAL_CENTER);
+
+  if (companyHasApprovalCenter && reasons.length > 0 && !hasApprovedApproval && user.role !== "Admin") {
     return NextResponse.json(
       {
         success: false,

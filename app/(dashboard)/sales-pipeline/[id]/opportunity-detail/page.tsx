@@ -29,12 +29,15 @@ import { generateStageSummary } from "@/components/pipeline/StageSummaryLine";
 import { PIPELINE_STAGE_ORDER, PIPELINE_STAGE_VALUES } from "@/lib/module-status-config";
 import { getUsersAction } from "@/app/actions/users";
 import { validateEmail, validatePhone, validateNumeric } from "@/lib/formValidation";
+import { useHasModule, ModuleGate, LockedSection } from "@/components/ModuleGate";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 const STAGE_DISPLAY_LABELS: Record<string, string> = {
   Qualified:            "Qualified",
   RequirementGathering: "Requirement gathering",
   TechnicalDiscussion:  "Technical discussion",
   MeetingScheduled:     "Meeting scheduled",
+  DemoConducted:        "Demo conducted",
   DemoAccepted:        "Demo accepted",
   Rejected:             "Rejected",
   Lost:                 "Lost",
@@ -210,6 +213,7 @@ function ProposalQuotationGuide({
 }) {
   const router = useRouter();
   const toast = useToast();
+  const hasMod = useHasModule();
   const [sending, setSending] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [negotiating, setNegotiating] = useState(false);
@@ -404,6 +408,7 @@ function ProposalQuotationGuide({
             >
               {accepting ? "Accepting..." : "Mark as Accepted ✓"}
             </button>
+            {hasMod(MODULE_KEYS.NEGOTIATION) && (
             <button
               onClick={() => handleNegotiate(q.id)}
               disabled={negotiating}
@@ -411,14 +416,15 @@ function ProposalQuotationGuide({
             >
               {negotiating ? "Opening..." : "Negotiate Changes"}
             </button>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
-  // State E — Under negotiation (UnderReview)
-  if (hasUnderReviewQuote) {
+  // State E — Under negotiation (UnderReview) — only for variants with NEGOTIATION module
+  if (hasUnderReviewQuote && hasMod(MODULE_KEYS.NEGOTIATION)) {
     const q = linkedQuotations.find((q: any) => q.status === "UnderReview") || latestQuote;
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -517,7 +523,7 @@ function ProposalQuotationGuide({
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
             {[
-              { step: "1", label: "Create RFQ (optional)", done: false },
+              ...(hasMod(MODULE_KEYS.RFQ) ? [{ step: "1", label: "Create RFQ (optional)", done: false }] : []),
               { step: "1", label: "Direct Quotation", done: false },
               { step: "2", label: "Send to Customer", done: false },
               { step: "3", label: "Customer Accepts", done: false },
@@ -535,12 +541,14 @@ function ProposalQuotationGuide({
             ))}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {hasMod(MODULE_KEYS.RFQ) && (
             <button
               onClick={() => router.push(`/rfq/new?opportunityId=${opportunityId}`)}
               className="px-4 py-2 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 transition-colors"
             >
               + Create RFQ
             </button>
+            )}
             <button
               onClick={() => router.push(`/quotations/new?opportunityId=${opportunityId}`)}
               className="px-4 py-2 rounded-lg text-xs font-semibold text-amber-700 bg-white border border-amber-300 hover:bg-amber-100 transition-colors"
@@ -560,6 +568,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
   const toast = useToast();
+  const hasMod = useHasModule();
 
   const [deal, setDeal] = useState<any>(null);
   const [oppSearch, setOppSearch] = useState("");
@@ -852,7 +861,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     fetchCompetitors();
     fetchLinkedQuotations();
     fetchLinkedSample();
-    fetchProducts();
+    if (hasMod(MODULE_KEYS.PRODUCT_CATALOGUE)) fetchProducts();
     fetchUsers();
   }, [fetchDeal, fetchContacts, fetchLossReasons, fetchCompetitors, fetchLinkedQuotations, fetchLinkedSample, fetchProducts, fetchUsers]);
 
@@ -898,8 +907,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     if (!toStage) return;
     setStageMoving(true);
     try {
-      // V2: Sample Management branch — if Qualified and requiresSamples=yes, save sampleStatus and hold
-      if (deal.status === "Qualified" && rgForm.requiresSamples === "yes" && toStage === "RequirementGathering") {
+      // V2: Sample Management branch — only hold if company has sample_management module
+      if (deal.status === "Qualified" && rgForm.requiresSamples === "yes" && hasMod(MODULE_KEYS.SAMPLE_MANAGEMENT) && toStage === "RequirementGathering") {
         // Save details with sampleStatus pending
         const saveRes = await fetch(`/api/opportunities/${id}/details`, {
           method: "PUT",
@@ -1332,8 +1341,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
         {effectiveStage === "Qualified" && (
           <div className="space-y-4">
-            {/* V2: Inline Sample Management Panel */}
-            {rgForm.requiresSamples === "yes" && (
+            {/* V2: Inline Sample Management Panel — only for companies with sample_management module */}
+            {rgForm.requiresSamples === "yes" && hasMod(MODULE_KEYS.SAMPLE_MANAGEMENT) && (
               <div className="border-2 border-[var(--primary)]/20 dark:border-[var(--primary)]/30 rounded-xl overflow-hidden bg-[var(--primary)]/[0.03] dark:bg-[var(--primary)]/[0.05]">
                 <div className="px-4 py-3 bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 border-b border-[var(--primary)]/20 dark:border-[var(--primary)]/30">
                   <h4 className="text-sm font-bold text-[var(--primary)] flex items-center gap-2">
@@ -1592,6 +1601,15 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
             )}
+            {rgForm.requiresSamples === "yes" && !hasMod(MODULE_KEYS.SAMPLE_MANAGEMENT) && (
+              <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/20 p-4 flex items-center gap-3">
+                <span className="text-lg">📦</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-400">Sample request noted</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-500">This customer requires samples. Enable the Sample Management module to track sample lifecycle and approvals.</p>
+                </div>
+              </div>
+            )}
             <p className="text-sm text-slate-600">
               Opportunity is qualified. Review or update the qualification details below.
             </p>
@@ -1747,6 +1765,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                     onDeleteItem={handleDeleteRequirementItem}
                     readOnly={isReviewingCompleted || !canEditOpportunity(user, deal)}
                     products={products}
+                    hasCatalogue={hasMod(MODULE_KEYS.PRODUCT_CATALOGUE)}
                   />
                 </div>
               )}
@@ -1775,7 +1794,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   <FormField label="Commercial Risks"><Textarea rows={2} value={rgForm.commercialRisks || ""} onChange={(e) => setRgForm({ ...rgForm, commercialRisks: e.target.value })} /></FormField>
                   <FormField label="Discount Requested"><Input type="number" value={rgForm.discountRequested || ""} onChange={(e) => setRgForm({ ...rgForm, discountRequested: e.target.value })} /></FormField>
                   <FormField label="Proposal Value"><Input type="number" value={rgForm.proposalValue || ""} onChange={(e) => setRgForm({ ...rgForm, proposalValue: e.target.value })} /></FormField>
+                  {hasMod(MODULE_KEYS.NEGOTIATION) && (
                   <FormField label="Negotiation Notes"><Textarea rows={2} value={rgForm.negotiationNotes || ""} onChange={(e) => setRgForm({ ...rgForm, negotiationNotes: e.target.value })} /></FormField>
+                  )}
                   <FormField label="Decision Maker" required error={rgAttempted && !rgForm.decisionMaker ? "This field is required" : ""}><Input value={rgForm.decisionMaker || ""} onChange={(e) => setRgForm({ ...rgForm, decisionMaker: e.target.value })} className={cn(rgAttempted && !rgForm.decisionMaker && "border-rose-500")} /></FormField>
                   <FormField label="Influencer"><Input value={rgForm.influencer || ""} onChange={(e) => setRgForm({ ...rgForm, influencer: e.target.value })} /></FormField>
                   <FormField label="Budget Owner"><Input value={rgForm.budgetOwner || ""} onChange={(e) => setRgForm({ ...rgForm, budgetOwner: e.target.value })} /></FormField>
@@ -2114,7 +2135,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               {/* Outcome: Accepted — show RFQ/Quotation links */}
               {outcome === "Accepted" && (
                 <div className="space-y-4">
-                  <RFQSummaryCard
+                  {hasMod(MODULE_KEYS.RFQ) && (
+                    <>
+                    <RFQSummaryCard
                     items={(requirementItems || []).map((item) => {
                       const tdRow = tdRows.find((r) => r.requirementItemId === item.id);
                       return {
@@ -2150,6 +2173,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                       }
                     }}
                   />
+                    </>
+                  )}
                   <div className="flex justify-end mt-2">
                     <button
                       onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
@@ -2398,7 +2423,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                                 toast.error("Please set a Demo Follow-up Date first");
                                 return;
                               }
-                              handleSaveAndMove("TechnicalDiscussion", {
+                              handleSaveAndMove("DemoConducted", {
                                 demoOutcome: "Follow-up needed",
                                 demoFollowUpDate: rgForm.demoFollowUpDate,
                                 extraFields: { meetingOutcome: rgForm.meetingOutcome },
@@ -2529,26 +2554,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             </div>
             
             {effectiveStage === "DemoAccepted" && (
-              <div className="mt-6 flex items-center justify-end gap-3">
-                <button
-                  onClick={() => {
-                    const existingRfqId = deal.rfqs?.[0]?.id;
-                    if (existingRfqId) {
-                      router.push(`/rfq/${existingRfqId}`);
-                    } else {
-                      router.push(`/rfq/new?opportunityId=${deal.id}`);
-                    }
-                  }}
-                  className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm"
-                >
-                  {deal.rfqs?.[0]?.id ? "View RFQ →" : "Create RFQ →"}
-                </button>
-                <button
-                  onClick={() => router.push(`/quotations/new?opportunityId=${deal.id}`)}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-white text-[var(--primary)] border border-[var(--primary)]/20 hover:bg-blue-50 transition-colors shadow-sm"
-                >
-                  Direct Quotation
-                </button>
+              <div className="mt-6">
+                <ProposalQuotationGuide
+                  opportunityId={deal.id}
+                  linkedQuotations={linkedQuotations}
+                  loading={linkedQuotationsLoading}
+                  formatCurrency={formatCurrency}
+                  onRefresh={fetchLinkedQuotations}
+                />
+                {linkedQuotationsLoading && (
+                  <div className="flex items-center justify-end gap-3">
+                    <p className="text-xs text-slate-400">Loading quotations…</p>
+                  </div>
+                )}
               </div>
             )}
             
@@ -2646,7 +2664,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               let notFeasibleNames: string[] = [];
 
               if (deal.status === "Qualified") {
-                if (rgForm.requiresSamples === "yes" && rgForm.sampleStatus !== "approved") {
+                if (rgForm.requiresSamples === "yes" && rgForm.sampleStatus !== "approved" && hasMod(MODULE_KEYS.SAMPLE_MANAGEMENT)) {
                   blockingReasons.push("Sample must be approved by the customer to advance to Requirement Gathering.");
                 }
               } else if (deal.status === "RequirementGathering") {
@@ -2857,7 +2875,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
               <ReadOnlyField label="Commercial Risks" value={rgForm.commercialRisks} />
               <ReadOnlyField label="Discount Requested" value={rgForm.discountRequested} />
               <ReadOnlyField label="Proposal Value" value={rgForm.proposalValue} />
+              {hasMod(MODULE_KEYS.NEGOTIATION) && (
               <ReadOnlyField label="Negotiation Notes" value={rgForm.negotiationNotes} />
+              )}
               <ReadOnlyField label="Decision Maker" value={rgForm.decisionMaker} />
               <ReadOnlyField label="Influencer" value={rgForm.influencer} />
               <ReadOnlyField label="Budget Owner" value={rgForm.budgetOwner} />
@@ -3083,7 +3103,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
                   <Calendar size={15} /> Add Follow-Up
                 </button>
               )}
-              {user?.role !== "Customer" && deal.status === "DemoAccepted" && (
+              {user?.role !== "Customer" && deal.status === "DemoAccepted" && hasMod(MODULE_KEYS.RFQ) && (
                 <button
                   onClick={() => router.push(`/rfq/new?opportunityId=${deal.id}`)}
                   className="h-9 flex items-center justify-center px-4 bg-card text-text-secondary border border-border text-xs font-bold rounded-lg hover:bg-card-hover transition-colors gap-1.5"
@@ -3144,6 +3164,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           </div>
 
       {/* ─── Competitor Intelligence ─── */}
+      {hasMod(MODULE_KEYS.COMPETITORS) ? (
       <CollapsibleSection
         title="Competitor Intelligence"
         subtitle="Track competitors and win/loss insights"
@@ -3153,8 +3174,19 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       >
         <CompetitorIntelligenceTab entity={{ dealId: deal.id, customerId: deal.customerId, currentStage: deal.status }} />
       </CollapsibleSection>
+      ) : (
+      <LockedSection
+        title="Competitor Intelligence"
+        subtitle="Track competitors and win/loss insights"
+        icon={<Swords size={15} />}
+        moduleKey={MODULE_KEYS.COMPETITORS}
+      >
+        <CompetitorIntelligenceTab entity={{ dealId: deal.id, customerId: deal.customerId, currentStage: deal.status }} />
+      </LockedSection>
+      )}
 
       {/* ─── Documents ─── */}
+      {hasMod(MODULE_KEYS.DOCUMENTS) ? (
       <CollapsibleSection
         title="Documents"
         subtitle="Upload and manage deal-related files"
@@ -3164,6 +3196,16 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       >
         <EntityDocumentTab entityType="Deal" entityId={deal.id} />
       </CollapsibleSection>
+      ) : (
+      <LockedSection
+        title="Documents"
+        subtitle="Upload and manage deal-related files"
+        icon={<FolderOpen size={15} />}
+        moduleKey={MODULE_KEYS.DOCUMENTS}
+      >
+        <EntityDocumentTab entityType="Deal" entityId={deal.id} />
+      </LockedSection>
+      )}
 
       {/* ─── Stage History Timeline ─── */}
       {deal.stageHistories && deal.stageHistories.length > 0 && (

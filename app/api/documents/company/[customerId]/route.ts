@@ -41,12 +41,17 @@ async function resolveEntityName(entityType: string, entityId: string): Promise<
   }
 }
 
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ customerId: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.DOCUMENTS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/documents/company/[customerId]");
+  if (guard) return guard;
 
   const { customerId } = await params;
   const { searchParams } = new URL(request.url);

@@ -15,6 +15,9 @@ import { verifyAuth } from "@/lib/auth";
  * Read-only: no DB writes. No report versioning or storage.
  * Empty-state: returns a valid payload with empty arrays when no opportunity is linked.
  */
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

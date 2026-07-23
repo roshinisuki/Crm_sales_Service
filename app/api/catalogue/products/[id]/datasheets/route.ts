@@ -4,6 +4,9 @@ import { verifyAuth } from "@/lib/auth";
 import { nanoid } from "nanoid";
 
 // GET /api/catalogue/products/[id]/datasheets
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -38,6 +41,7 @@ export async function GET(
 }
 
 // POST /api/catalogue/products/[id]/datasheets
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { nanoid } from "nanoid";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 // GET /api/catalogue/products
 export async function GET(request: Request) {
@@ -10,6 +12,8 @@ export async function GET(request: Request) {
     if (!user || user.role === "Customer") {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
+    const guard = enforceModuleGuard(user, MODULE_KEYS.PRODUCT_CATALOGUE, "GET /api/catalogue/products");
+    if (guard) return guard;
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search") || "";
@@ -109,6 +113,8 @@ export async function POST(request: Request) {
     if (!user || user.role === "Customer") {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
+    const guard = enforceModuleGuard(user, MODULE_KEYS.PRODUCT_CATALOGUE, "POST /api/catalogue/products");
+    if (guard) return guard;
 
     const body = await request.json();
 

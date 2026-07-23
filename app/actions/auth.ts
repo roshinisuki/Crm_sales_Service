@@ -20,6 +20,7 @@ import { z } from "zod";
 import { verifyAuth, isInternalEmail, requiresInternalEmail, getRoleRedirect } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { DB_DEFAULT_THEME } from "@/lib/theme";
+import { getModulesForVariant } from "@/lib/config/moduleVariantMap";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret";
 const ALLOWED_DOMAINS = (process.env.ALLOWED_DOMAIN || "sukisoftware.com,sukisoft.com,apexindustries.com,bharatmetalworks.com").split(",").map((d) => d.trim());
@@ -35,13 +36,13 @@ const passwordSchema = z
   .regex(/[!@#$%^&*]/, "Must contain a special character (!@#$%^&*)");
 
 // ─── JWT Cookie Setter ────────────────────────────────────────────────────────
-async function issueAuthCookie(user: { id: string; email: string; role: string; companyId?: string | null; variant?: number | null }, rememberMe = false) {
+async function issueAuthCookie(user: { id: string; email: string; role: string; companyId?: string | null; variant?: number | null; enabledModules?: string | null }, rememberMe = false) {
   // rememberMe=true → 7 days; default → 8 hours
   const expiresIn = rememberMe ? "7d" : "8h";
   const maxAge = rememberMe ? 7 * 24 * 60 * 60 : 8 * 60 * 60;
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, companyId: user.companyId, variant: user.variant || 1 },
+    { id: user.id, email: user.email, role: user.role, companyId: user.companyId, variant: user.variant || 1, enabledModules: user.enabledModules ?? undefined },
     JWT_SECRET,
     { expiresIn }
   );
@@ -136,17 +137,21 @@ export async function loginWithPassword(email: string, password: string, remembe
       data: { lastLoginAt: new Date(), rememberMe },
     });
 
-    // Fetch company variant for the auth cookie
+    // Fetch company variant + enabledModules for the auth cookie
     let variant = 1;
+    let enabledModules: string | undefined;
     if (user.companyId) {
       const company = await prisma.company.findUnique({
         where: { id: user.companyId },
-        select: { variant: true },
+        select: { variant: true, enabledModules: true },
       });
-      if (company) variant = company.variant || 1;
+      if (company) {
+        variant = company.variant || 1;
+        enabledModules = company.enabledModules;
+      }
     }
 
-    await issueAuthCookie({ ...user, variant }, rememberMe);
+    await issueAuthCookie({ ...user, variant, enabledModules }, rememberMe);
     await logAudit(user.id, "AUTH", "LOGIN", `Successful login for ${user.email}`);
 
     const redirectUrl = getRoleRedirect(user.role);
@@ -458,17 +463,21 @@ export async function completeCustomerActivation(token: string, password: string
       },
     });
 
-    // Fetch company variant for the auth cookie
+    // Fetch company variant + enabledModules for the auth cookie
     let variant = 1;
+    let enabledModules: string | undefined;
     if (user.companyId) {
       const company = await prisma.company.findUnique({
         where: { id: user.companyId },
-        select: { variant: true },
+        select: { variant: true, enabledModules: true },
       });
-      if (company) variant = company.variant || 1;
+      if (company) {
+        variant = company.variant || 1;
+        enabledModules = company.enabledModules;
+      }
     }
 
-    await issueAuthCookie({ ...user, variant }, false);
+    await issueAuthCookie({ ...user, variant, enabledModules }, false);
     await logAudit(user.id, "AUTH", "CUSTOMER_ACTIVATION_COMPLETE", `Customer portal activated for ${user.email}`);
 
     revalidatePath("/customer/portal");
@@ -521,6 +530,7 @@ export async function getMeAction() {
             id: true,
             name: true,
             variant: true,
+            enabledModules: true,
           },
         },
       },
@@ -537,7 +547,7 @@ export async function getMeAction() {
       });
     }
 
-    return { success: true, data: { ...user, lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null, variant: user.company?.variant || 1, permissions } };
+    return { success: true, data: { ...user, lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null, variant: user.company?.variant || 1, enabledModules: user.company?.enabledModules || "[]", permissions } };
   } catch (error) {
     console.error("getMeAction error:", error);
     return { success: false, message: "Internal server error" };
@@ -609,15 +619,16 @@ export async function updateCompanyVariantAction(variant: number) {
     }
 
     const validVariant = Math.max(1, Math.min(4, Number(variant) || 1));
+    const recomputedModules = JSON.stringify(getModulesForVariant(validVariant));
 
     await prisma.company.update({
       where: { id: userPayload.companyId },
-      data: { variant: validVariant },
+      data: { variant: validVariant, enabledModules: recomputedModules },
     });
 
-    // Re-issue JWT cookie with the new variant so verifyAuth() sees it on reload
+    // Re-issue JWT cookie with the new variant + modules so verifyAuth() sees it on reload
     await issueAuthCookie(
-      { id: userPayload.id, email: userPayload.email, role: userPayload.role, companyId: userPayload.companyId, variant: validVariant },
+      { id: userPayload.id, email: userPayload.email, role: userPayload.role, companyId: userPayload.companyId, variant: validVariant, enabledModules: recomputedModules },
       true
     );
 
@@ -625,6 +636,44 @@ export async function updateCompanyVariantAction(variant: number) {
   } catch (error) {
     console.error("updateCompanyVariantAction error:", error);
     return { success: false, message: "Failed to update company variant" };
+  }
+}
+
+/**
+ * Phase 8: Toggle individual add-on modules on/off for the current company.
+ * Admin/SuperAdmin only.  Updates `enabledModules` on the Company record
+ * and re-issues the JWT cookie so the change is immediately visible.
+ */
+export async function updateCompanyModulesAction(moduleKeys: string[]) {
+  try {
+    const userPayload = await verifyAuth();
+    if (!userPayload || (userPayload.role !== "SuperAdmin" && userPayload.role !== "Admin")) {
+      return { success: false, message: "Unauthorized: Admin only" };
+    }
+
+    if (!userPayload.companyId) {
+      return { success: false, message: "No company associated" };
+    }
+
+    const enabledModules = JSON.stringify(moduleKeys);
+
+    await prisma.company.update({
+      where: { id: userPayload.companyId },
+      data: { enabledModules },
+    });
+
+    // Re-issue JWT cookie with updated modules
+    await issueAuthCookie(
+      { id: userPayload.id, email: userPayload.email, role: userPayload.role, companyId: userPayload.companyId, variant: userPayload.variant ?? 1, enabledModules },
+      true
+    );
+
+    await logAudit(userPayload.id, "company-modules", "update", `Modules updated: ${moduleKeys.join(", ")}`);
+
+    return { success: true, message: "Modules updated successfully" };
+  } catch (error) {
+    console.error("updateCompanyModulesAction error:", error);
+    return { success: false, message: "Failed to update modules" };
   }
 }
 

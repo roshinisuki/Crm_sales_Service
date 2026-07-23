@@ -9,12 +9,17 @@ import { logEventAsync } from "@/lib/activity-event";
 
 const VALID_STATUSES = ["New", "UnderValidation", "OnHold", "Approved", "Rejected", "Closed"];
 
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.PURCHASE_ORDERS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/purchase-orders/[id]");
+  if (guard) return guard;
 
   const { id } = await params;
 
@@ -36,12 +41,15 @@ export async function GET(
   return NextResponse.json({ success: true, data: purchaseOrder });
 }
 
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.PURCHASE_ORDERS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/purchase-orders/[id]");
+  if (guard) return guard;
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
   const { id } = await params;
@@ -243,12 +251,15 @@ export async function PUT(
   return NextResponse.json({ success: true, data: purchaseOrder });
 }
 
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.PURCHASE_ORDERS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/purchase-orders/[id]");
+  if (guard) return guard;
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
   const { id } = await params;

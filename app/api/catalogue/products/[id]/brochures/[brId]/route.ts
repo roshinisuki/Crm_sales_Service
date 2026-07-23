@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 
 // DELETE /api/catalogue/products/[id]/brochures/[brId]
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string; brId: string }> }

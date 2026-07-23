@@ -9,7 +9,8 @@ import { PageShell } from "@/components/ui/PageShell";
 import { getSystemConfigsAction, updateSystemConfigsAction } from "@/app/actions/systemConfigs";
 import { getCurrencySettingsAction, updatePreferredCurrencyAction, updateBaseCurrencyAction, refreshRatesAction, getExchangeRatesAction } from "@/app/actions/currency";
 import { getUsersAction } from "@/app/actions/users";
-import { updateCompanyVariantAction } from "@/app/actions/auth";
+import { updateCompanyVariantAction, updateCompanyModulesAction } from "@/app/actions/auth";
+import { MODULE_KEYS, getModulesForVariant, type ModuleKey } from "@/lib/config/moduleVariantMap";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -91,6 +92,16 @@ export default function SettingsPage() {
 
   const [companyVariant, setCompanyVariant] = useState<number>(user?.company?.variant || user?.variant || 1);
   const [updatingVariant, setUpdatingVariant] = useState(false);
+
+  // Module management state
+  const [enabledModuleKeys, setEnabledModuleKeys] = useState<string[]>(() => {
+    try {
+      const raw = user?.enabledModules ?? user?.company?.enabledModules;
+      if (raw) return Array.isArray(raw) ? raw : JSON.parse(raw);
+    } catch { /* fall through */ }
+    return getModulesForVariant(user?.company?.variant || user?.variant || 1);
+  });
+  const [savingModules, setSavingModules] = useState(false);
 
   // Lead Ingestion configurations states
   const [users, setUsers] = useState<any[]>([]);
@@ -388,6 +399,8 @@ export default function SettingsPage() {
       if (res.success) {
         toast.success(res.message);
         setCompanyVariant(variant);
+        // Sync module toggles to the new variant preset
+        setEnabledModuleKeys(getModulesForVariant(variant));
         // Reload the page to apply new variant to sidebar
         window.location.reload();
       } else {
@@ -397,6 +410,49 @@ export default function SettingsPage() {
       toast.error("An error occurred while switching variant");
     } finally {
       setUpdatingVariant(false);
+    }
+  };
+
+  const allModuleKeys = Object.values(MODULE_KEYS) as string[];
+  const moduleLabels: Record<string, string> = {
+    [MODULE_KEYS.MANAGER_DASHBOARD]: "Manager Dashboard",
+    [MODULE_KEYS.CUSTOMER_VISITS]: "Customer Visits",
+    [MODULE_KEYS.PRODUCT_CATALOGUE]: "Product Catalogue",
+    [MODULE_KEYS.RFQ]: "RFQ Management",
+    [MODULE_KEYS.SAMPLE_MANAGEMENT]: "Sample Management",
+    [MODULE_KEYS.NEGOTIATION]: "Negotiation Management",
+    [MODULE_KEYS.DOCUMENTS]: "Document Management",
+    [MODULE_KEYS.APPROVAL_CENTER]: "Approval Center",
+    [MODULE_KEYS.COMPETITORS]: "Competitors",
+    [MODULE_KEYS.DEALS]: "Deals",
+    [MODULE_KEYS.PURCHASE_ORDERS]: "Purchase Orders",
+    [MODULE_KEYS.CUSTOMER_ASSETS]: "Customer Assets",
+    [MODULE_KEYS.KEY_ACCOUNTS]: "Key Accounts",
+    [MODULE_KEYS.TERRITORIES]: "Territories",
+    [MODULE_KEYS.TARGETS]: "Targets",
+    [MODULE_KEYS.FORECAST]: "Forecast",
+  };
+
+  const toggleModule = (key: string) => {
+    setEnabledModuleKeys(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+  };
+
+  const handleSaveModules = async () => {
+    setSavingModules(true);
+    try {
+      const res = await updateCompanyModulesAction(enabledModuleKeys);
+      if (res.success) {
+        toast.success(res.message);
+        window.location.reload();
+      } else {
+        toast.error(res.message || "Failed to update modules");
+      }
+    } catch (err) {
+      toast.error("An error occurred while updating modules");
+    } finally {
+      setSavingModules(false);
     }
   };
 
@@ -490,6 +546,30 @@ export default function SettingsPage() {
               className="w-full py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
             >
               {saving ? "Saving..." : "Save Preferences"}
+            </button>
+          </div>
+        </Card>
+
+        {/* Module Management */}
+        <Card title="Module Management" icon={icons.shield}>
+          <div className="space-y-1">
+            <p className="text-xs text-slate-500 mb-3">
+              Toggle individual add-on modules on or off. The variant preset above sets the default selection — use this to customize beyond the preset.
+            </p>
+            {allModuleKeys.map((key) => (
+              <Toggle
+                key={key}
+                label={moduleLabels[key] ?? key}
+                checked={enabledModuleKeys.includes(key)}
+                onChange={() => toggleModule(key)}
+              />
+            ))}
+            <button
+              onClick={handleSaveModules}
+              disabled={savingModules}
+              className="w-full mt-4 py-2.5 rounded-xl text-sm font-medium text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)] transition-colors shadow-sm disabled:opacity-70 cursor-pointer"
+            >
+              {savingModules ? "Saving..." : "Save Modules"}
             </button>
           </div>
         </Card>

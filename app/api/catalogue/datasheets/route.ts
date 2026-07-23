@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 
 // GET /api/catalogue/datasheets — list all product datasheets (CRMDocument with tags="datasheet")
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(request: Request) {
   try {
     const user = await verifyAuth();
@@ -56,6 +59,7 @@ export async function GET(request: Request) {
 }
 
 // POST /api/catalogue/datasheets — create a new datasheet
+
 export async function POST(request: Request) {
   try {
     const user = await verifyAuth();

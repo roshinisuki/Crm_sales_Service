@@ -3,10 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 export async function GET(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.CUSTOMER_VISITS, "GET /api/visits");
+  if (guard) return guard;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
@@ -59,6 +63,8 @@ export async function POST(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.CUSTOMER_VISITS, "POST /api/visits");
+  if (guard) return guard;
 
   const body = await request.json();
   const {

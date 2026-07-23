@@ -18,6 +18,8 @@ import { FieldGrid } from "@/components/shared/FieldGrid";
 import { CompactUserAvatar } from "@/components/shared/UserAvatar";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { ArrowLeft, Briefcase, User, CalendarClock, DollarSign, History, AlertCircle, Percent, Check, X, HardDrive, ExternalLink } from "lucide-react";
+import { useHasModule } from "@/components/ModuleGate";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 export default function DealDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -26,6 +28,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   const toast = useToast();
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
+  const hasMod = useHasModule();
 
   const [deal, setDeal] = useState<any>(null);
   useSyncUrlParam(deal?.status, "status");
@@ -138,7 +141,6 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
   }));
 
   const canApprove = ["Admin", "SalesManager", "SuperAdmin"].includes(user?.role || "");
-  const isVariant2 = (user?.variant || user?.company?.variant || 1) >= 2;
 
   return (
     <div className="page-shell max-w-5xl mx-auto space-y-5">
@@ -178,8 +180,8 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </div>
 
-        {/* Discount Banner Alert */}
-        {deal.discountStatus === "Pending" && (
+        {/* Discount Banner Alert — only with approval_center module */}
+        {hasMod(MODULE_KEYS.APPROVAL_CENTER) && deal.discountStatus === "Pending" && (
           <div className="mt-5 p-4 rounded-xl border border-amber-200 bg-amber-50 flex items-start justify-between gap-4 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex gap-3">
               <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={20} />
@@ -206,7 +208,7 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
           <div className="crm-card p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-slate-700">Deal Information</h3>
-              {isVariant2 && deal.status === "Negotiation" && !deal.isLocked && (
+              {hasMod(MODULE_KEYS.APPROVAL_CENTER) && deal.status === "Negotiation" && !deal.isLocked && (
                 <button 
                   onClick={() => setIsDiscountModalOpen(true)}
                   className="text-xs font-bold px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-1.5"
@@ -254,8 +256,8 @@ export default function DealDetailPage({ params }: { params: Promise<{ id: strin
             <NotePanel entityType="DEAL" entityId={deal.id} />
           </div>
 
-          {/* Resulting Assets */}
-          {deal.status === "Won" && resultingAssets.length > 0 && (
+          {/* Resulting Assets — only with customer_assets module */}
+          {hasMod(MODULE_KEYS.CUSTOMER_ASSETS) && deal.status === "Won" && resultingAssets.length > 0 && (
             <div className="crm-card p-5">
               <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-4">
                 <HardDrive size={16} className="text-slate-400" />

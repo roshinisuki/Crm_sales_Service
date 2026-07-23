@@ -18,9 +18,14 @@ function getWeekLabel(weekKey: string): string {
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(_request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.KEY_ACCOUNTS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/key-accounts/visits");
+  if (guard) return guard;
 
   const keyAccounts = await prisma.keyAccount.findMany({
     where: { companyId: user.companyId },

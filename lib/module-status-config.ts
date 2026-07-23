@@ -74,7 +74,7 @@ export const PIPELINE_STAGE_PROBABILITY: Record<string, number> = {
   TechnicalDiscussion:    50,
   MeetingScheduled:       75,
   DemoConducted:          85,
-  DemoAccepted:           100,
+  DemoAccepted:           90,
   Won:                   100,
   OnHold:                 0,
   Rejected:                0,

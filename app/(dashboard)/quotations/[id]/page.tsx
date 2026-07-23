@@ -14,6 +14,8 @@ import EntityDocumentTab from "@/components/documents/EntityDocumentTab";
 import { EntityTimeline } from "@/components/entity-timeline";
 import QuotationDetailPageV2 from "@/components/quotations/QuotationDetailPageV2";
 import { cn } from "@/lib/ui-utils";
+import { useHasModule } from "@/components/ModuleGate";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 import { StatusStepper } from "@/components/ui/StatusStepper";
 import {
   ChevronRight, ChevronLeft, CheckCircle, Edit, AlertTriangle, Send, Copy, Download, X, XCircle, Check, Plus, FileText, MoreVertical
@@ -60,6 +62,7 @@ export default function QuotationDetailPage() {
   const { user } = useAuth();
   const { formatCurrency, preferredCurrency } = useCurrency();
   const currencySymbol = CURRENCY_SYMBOLS[preferredCurrency as keyof typeof CURRENCY_SYMBOLS] || "Rs.";
+  const hasMod = useHasModule();
 
   const [quotation, setQuotation] = useState<any>(null);
   useSyncUrlParam(quotation?.status, "status");
@@ -534,7 +537,7 @@ export default function QuotationDetailPage() {
   const canDelete = canEdit;
 
   const primaryAction: "send" | "accept" | "createPo" | null =
-    quotation.status === "Draft" && !needsApproval ? "send"
+    quotation.status === "Draft" && (!needsApproval || !hasMod(MODULE_KEYS.APPROVAL_CENTER)) ? "send"
     : quotation.status === "Approved" ? "send"
     : ["Sent", "UnderReview"].includes(quotation.status) ? "accept"
     : quotation.status === "Accepted" ? "createPo"
@@ -585,7 +588,7 @@ export default function QuotationDetailPage() {
     <PageContainer className="space-y-4 p-0">
       {/* Breadcrumbs — full lineage: RFQ → Quotation → Negotiation */}
       <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/40 w-max">
-        {quotation.rfq ? (
+        {quotation.rfq && hasMod(MODULE_KEYS.RFQ) ? (
           <>
             <button
               onClick={() => router.push(`/rfq/${quotation.rfq.id}`)}
@@ -595,13 +598,13 @@ export default function QuotationDetailPage() {
             </button>
             <ChevronRight size={12} className="text-slate-450" />
           </>
-        ) : (
+        ) : hasMod(MODULE_KEYS.RFQ) ? (
           <span className="text-slate-400">No RFQ</span>
-        )}
+        ) : null}
         <span className="px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)] font-bold flex items-center gap-1">
           💼 {quotation.quotationCode} {quotation.revisionNumber > 1 ? `(R${quotation.revisionNumber})` : ""}
         </span>
-        {quotation.negotiation ? (
+        {hasMod(MODULE_KEYS.NEGOTIATION) && (quotation.negotiation ? (
           <>
             <ChevronRight size={12} className="text-slate-450" />
             <button
@@ -616,7 +619,7 @@ export default function QuotationDetailPage() {
             <ChevronRight size={12} className="text-slate-400 opacity-40" />
             <span className="text-slate-450 italic">No Negotiation</span>
           </>
-        )}
+        ))}
       </div>
 
       {/* Header */}
@@ -627,7 +630,7 @@ export default function QuotationDetailPage() {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{quotation.quotationCode}</h1>
               <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold">R{quotation.revisionNumber || 1}</span>
-              {quotation.negotiationId && (
+              {hasMod(MODULE_KEYS.NEGOTIATION) && quotation.negotiationId && (
                 <a href={`/negotiations/${quotation.negotiationId}`} className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-xs font-bold hover:underline" title="Linked negotiation">
                   Negotiation
                 </a>
@@ -647,12 +650,16 @@ export default function QuotationDetailPage() {
             <>
               {/* Edit Line Items — only in Draft */}
               <button onClick={startEdit} disabled={quotation.status !== "Draft"} title={quotation.status !== "Draft" ? "Only Draft quotations can be edited" : "Edit line items, prices, and discounts"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" ? "text-[var(--text-secondary)] bg-[var(--surface-2)] hover:bg-[var(--border)]" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><Edit size={15} /> Edit</button>
-              {/* Request Approval — only in Draft when approval needed */}
+              {/* Request Approval — only in Draft when approval needed, and only with approval_center module */}
+              {hasMod(MODULE_KEYS.APPROVAL_CENTER) && (
               <button onClick={handleRequestApproval} disabled={quotation.status !== "Draft" || !needsApproval} title={quotation.status !== "Draft" ? "Quotation must be in Draft" : !needsApproval ? "No approval triggers — discount/margin within limits" : "Request manager approval for discount/margin override"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${quotation.status === "Draft" && needsApproval ? "text-white bg-[var(--status-warning)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><AlertTriangle size={15} /> Request Approval</button>
+              )}
               {/* Send — available in Draft and Approved */}
               <button onClick={handleSend} disabled={!["Draft", "Approved"].includes(quotation.status)} title={!["Draft", "Approved"].includes(quotation.status) ? "Quotation must be Draft or Approved to send" : "Send quotation to customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Draft", "Approved"].includes(quotation.status) ? "text-white bg-[var(--primary)] hover:bg-[var(--primary-hover)]" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><Send size={15} /> Send</button>
-              {/* Negotiate — available in Sent and UnderReview */}
+              {/* Negotiate — available in Sent and UnderReview, only with negotiation module */}
+              {hasMod(MODULE_KEYS.NEGOTIATION) && (
               <button onClick={() => setShowNegotiateModal(true)} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent to customer first" : "Move quotation to negotiation"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-[var(--status-warning)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><AlertTriangle size={15} /> Negotiate</button>
+              )}
               {/* Mark Accepted — available in Sent and UnderReview */}
               <button onClick={handleAccept} disabled={!["Sent", "UnderReview"].includes(quotation.status)} title={!["Sent", "UnderReview"].includes(quotation.status) ? "Quotation must be Sent or Under Review" : "Mark quotation as accepted by customer"} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${["Sent", "UnderReview"].includes(quotation.status) ? "text-white bg-[var(--status-success)] hover:opacity-90" : "text-[var(--text-muted)] bg-[var(--surface-2)]"}`}><Check size={15} /> Accept</button>
               {/* Mark Rejected — available in Sent and UnderReview */}
@@ -668,9 +675,9 @@ export default function QuotationDetailPage() {
       <div className="crm-card p-4">
         <StatusStepper
           steps={[
-            { label: "RFQ", key: "rfq", reached: !!quotation.rfq, active: false, onClick: () => quotation.rfq?.id && router.push(`/rfq/${quotation.rfq.id}`), clickable: !!quotation.rfq?.id },
+            ...(hasMod(MODULE_KEYS.RFQ) ? [{ label: "RFQ", key: "rfq", reached: !!quotation.rfq, active: false, onClick: () => quotation.rfq?.id && router.push(`/rfq/${quotation.rfq.id}`), clickable: !!quotation.rfq?.id }] : []),
             { label: "Quotation", key: "quotation", reached: true, active: !quotation.negotiation && !["Accepted", "Rejected"].includes(quotation.status) },
-            { label: "Negotiation", key: "negotiation", reached: !!quotation.negotiation, active: !!quotation.negotiation && !["Accepted", "Rejected"].includes(quotation.status), onClick: () => quotation.negotiation?.id && router.push(`/negotiations/${quotation.negotiation.id}`), clickable: !!quotation.negotiation?.id },
+            ...(hasMod(MODULE_KEYS.NEGOTIATION) ? [{ label: "Negotiation", key: "negotiation", reached: !!quotation.negotiation, active: !!quotation.negotiation && !["Accepted", "Rejected"].includes(quotation.status), onClick: () => quotation.negotiation?.id && router.push(`/negotiations/${quotation.negotiation.id}`), clickable: !!quotation.negotiation?.id }] : []),
             { label: quotation.status === "Accepted" && quotation.deal?.status === "Won" ? "Won" : quotation.status === "Rejected" ? "Lost" : "Won/Lost", key: "outcome", reached: quotation.status === "Accepted" && quotation.deal?.status === "Won", active: quotation.status === "Accepted" && quotation.deal?.status !== "Won", terminal: quotation.status === "Rejected" ? "danger" : quotation.status === "Accepted" && quotation.deal?.status === "Won" ? "success" : undefined },
           ]}
         />
@@ -681,11 +688,11 @@ export default function QuotationDetailPage() {
         <div>
           <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Next Step</p>
           <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-            {quotation.status === "Draft" && (needsApproval ? "Manager approval required before sending to customer" : "Review line items and send to customer") }
+            {quotation.status === "Draft" && (needsApproval && hasMod(MODULE_KEYS.APPROVAL_CENTER) ? "Manager approval required before sending to customer" : "Review line items and send to customer") }
             {quotation.status === "PendingApproval" && "Awaiting approval from manager — check Approval Center"}
             {quotation.status === "Approved" && "Quotation approved — ready to send to customer"}
-            {quotation.status === "Sent" && "Customer reviewing — start negotiation if they request changes"}
-            {quotation.status === "UnderReview" && "In negotiation — propose revisions or mark accepted/rejected"}
+            {quotation.status === "Sent" && (hasMod(MODULE_KEYS.NEGOTIATION) ? "Customer reviewing — start negotiation if they request changes" : "Customer reviewing — mark as Accepted or Rejected")}
+            {quotation.status === "UnderReview" && (hasMod(MODULE_KEYS.NEGOTIATION) ? "In negotiation — propose revisions or mark accepted/rejected" : "Under review — mark as Accepted or Rejected")}
             {quotation.status === "Accepted" && (quotation.deal?.status === "Won" ? "Deal Won — PO approved, order complete" : "Customer accepted — Purchase Order auto-created, pending approval in Approval Center")}
             {quotation.status === "Rejected" && "Quotation rejected — clone & revise to create a new version"}
             {quotation.status === "Expired" && "Quotation expired — clone & revise with updated validity"}
@@ -693,8 +700,8 @@ export default function QuotationDetailPage() {
         </div>
       </div>
 
-      {/* Approval Banner */}
-      {quotation.status === "Draft" && needsApproval && (
+      {/* Approval Banner — only with approval_center module */}
+      {hasMod(MODULE_KEYS.APPROVAL_CENTER) && quotation.status === "Draft" && needsApproval && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <Ico d={icons.alert} size={20} className="text-amber-600 mt-0.5 flex-shrink-0" />
@@ -719,7 +726,7 @@ export default function QuotationDetailPage() {
         </div>
       )}
 
-      {latestApproval && latestApproval.status === "Pending" && (
+      {hasMod(MODULE_KEYS.APPROVAL_CENTER) && latestApproval && latestApproval.status === "Pending" && (
         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <Ico d={icons.clock} size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
@@ -813,8 +820,8 @@ export default function QuotationDetailPage() {
           { key: "items", label: "Line Items" },
           { key: "history", label: "Status History" },
           { key: "revisions", label: "Revisions" },
-          { key: "approvals", label: "Approvals" },
-          { key: "documents", label: "Documents" },
+          ...(hasMod(MODULE_KEYS.APPROVAL_CENTER) ? [{ key: "approvals", label: "Approvals" }] : []),
+          ...(hasMod(MODULE_KEYS.DOCUMENTS) ? [{ key: "documents", label: "Documents" }] : []),
           { key: "timeline", label: "Timeline" },
         ].map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className={`px-4 py-2 text-sm font-medium border-b-2 cursor-pointer transition-colors ${activeTab === tab.key ? "border-[var(--primary)] text-[var(--primary)] font-semibold" : "border-transparent text-slate-500 hover:text-slate-700"}`}>{tab.label}</button>
@@ -1253,7 +1260,7 @@ export default function QuotationDetailPage() {
         <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 text-xs">
           <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide mb-4">Linked Records</h2>
           <div className="flex gap-3 flex-wrap">
-            {quotation.rfq && <button onClick={() => router.push(`/rfq/${quotation.rfq.id}`)} className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 border border-slate-200/40 cursor-pointer">RFQ: {quotation.rfq.rfqCode}</button>}
+            {quotation.rfq && hasMod(MODULE_KEYS.RFQ) && <button onClick={() => router.push(`/rfq/${quotation.rfq.id}`)} className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 border border-slate-200/40 cursor-pointer">RFQ: {quotation.rfq.rfqCode}</button>}
             {quotation.deal && <button onClick={() => router.push(`/deals/${quotation.deal.id}`)} className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-xs font-semibold text-slate-700 border border-slate-200/40 cursor-pointer">Deal: {quotation.deal.dealName}</button>}
           </div>
         </div>

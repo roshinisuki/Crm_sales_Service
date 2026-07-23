@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 export async function GET(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.TERRITORIES, "GET /api/territories");
+  if (guard) return guard;
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q");
@@ -33,6 +37,8 @@ export async function POST(request: NextRequest) {
   if (!["Admin", "SalesManager"].includes(user.role ?? "")) {
     return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
   }
+  const guard = enforceModuleGuard(user, MODULE_KEYS.TERRITORIES, "POST /api/territories");
+  if (guard) return guard;
 
   const body = await request.json();
   if (!body.name) return NextResponse.json({ success: false, message: "Name is required" }, { status: 400 });

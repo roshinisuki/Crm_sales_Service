@@ -11,12 +11,17 @@ import { logEventAsync } from "@/lib/activity-event";
  * Sets `amountReconciled` and `quotationFinalAmount` fields.
  * Returns the reconciliation result.
  */
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.PURCHASE_ORDERS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/purchase-orders/[id]/reconcile");
+  if (guard) return guard;
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
   const { id } = await params;

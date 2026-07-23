@@ -6,6 +6,9 @@ import { dispatchNotification } from "@/lib/notifications";
 
 // POST /api/visits/[id]/reschedule
 // Body: { new_planned_date, new_planned_time, reason }
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,6 +16,8 @@ export async function POST(
   try {
     const user = await verifyAuth();
     if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.CUSTOMER_VISITS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/visits/[id]/reschedule");
+  if (guard) return guard;
     if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
     const { id } = await params;

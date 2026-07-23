@@ -16,6 +16,7 @@ export interface TokenPayload {
   role: string;
   companyId?: string | null;
   variant?: number;
+  enabledModules?: string;
   supportMode?: boolean;
   iat: number;
   exp: number;

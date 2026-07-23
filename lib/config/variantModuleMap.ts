@@ -57,7 +57,7 @@ const V2_EXTRAS: ModuleSearchItem[] = [
 // ─── V3 extras ────────────────────────────────────────────────────────────────
 const V3_EXTRAS: ModuleSearchItem[] = [
   { key: 'samples',          label: 'Sample Management', href: '/samples',        icon: '🧪', keywords: ['sample', 'test sample', 'sample request'],   type: 'module' },
-  { key: 'negotiation-mgmt', label: 'Negotiation Mgmt', href: '/negotiations',   icon: '🤝', keywords: ['negotiation', 'negotiate', 'deal terms'],     type: 'module' },
+  { key: 'negotiation-mgmt', label: 'Negotiation Management', href: '/negotiations',   icon: '🤝', keywords: ['negotiation', 'negotiate', 'deal terms'],     type: 'module' },
   { key: 'purchase-orders',  label: 'Purchase Orders',  href: '/purchase-orders', icon: '📋', keywords: ['po', 'purchase order', 'order'],              type: 'module' },
   { key: 'approvals',        label: 'Approval Center',  href: '/approvals',      icon: '✔️', keywords: ['approval', 'approve', 'pending approval'],    type: 'module' },
   // V3 settings

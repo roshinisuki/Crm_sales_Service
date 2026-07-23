@@ -14,6 +14,8 @@ import { useToast } from "@/components/ToastProvider";
 import { FieldGrid } from "@/components/shared/FieldGrid";
 import { CompactUserAvatar } from "@/components/shared/UserAvatar";
 import { StatusPill } from "@/components/shared/StatusPill";
+import { useHasModule } from "@/components/ModuleGate";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 const icons = {
   back: "M10 19l-7-7m0 0l7-7m-7 7h18",
@@ -62,6 +64,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
   const router = useRouter();
   const toast = useToast();
   const { user: currentUser } = useAuth();
+  const hasMod = useHasModule();
   const [customer, setCustomer] = useState<any>(null);
   useSyncUrlParam(customer?.status, "status");
   const [loading, setLoading] = useState(true);
@@ -487,7 +490,7 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
               }`}>
                 {customer.status}
               </span>
-              {customer.isKeyAccountV2 && (
+              {hasMod(MODULE_KEYS.KEY_ACCOUNTS) && customer.isKeyAccountV2 && (
                 <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border-amber-200">
                   <span>⭐</span> Key Account
                 </span>
@@ -538,10 +541,10 @@ export default function Customer360Page({ params: paramsPromise }: { params: Pro
           { id: "contacts", label: `Contacts (${customer.contacts?.length || 0})` },
           { id: "opportunities", label: `Opportunities (${customer.deals?.filter((d: any) => d.status !== "Won" && d.status !== "Lost").length || 0})` },
           { id: "quotations", label: `Quotations (${customer.quotations?.length || 0})` },
-          { id: "rfqs", label: `RFQs (${customer.rfqs?.length || 0})` },
-          { id: "visits", label: `Visits (${(customer.customerVisits?.length || 0)})` },
-          { id: "assets", label: `Customer Assets (${customerAssets.length})` },
-          { id: "documents", label: "Documents" },
+          ...(hasMod(MODULE_KEYS.RFQ) ? [{ id: "rfqs", label: `RFQs (${customer.rfqs?.length || 0})` }] : []),
+          ...(hasMod(MODULE_KEYS.CUSTOMER_VISITS) ? [{ id: "visits", label: `Visits (${(customer.customerVisits?.length || 0)})` }] : []),
+          ...(hasMod(MODULE_KEYS.CUSTOMER_ASSETS) ? [{ id: "assets", label: `Customer Assets (${customerAssets.length})` }] : []),
+          ...(hasMod(MODULE_KEYS.DOCUMENTS) ? [{ id: "documents", label: "Documents" }] : []),
           { id: "timeline", label: "Activity Timeline" },
         ].map((tab) => (
           <button

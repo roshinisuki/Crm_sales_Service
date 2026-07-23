@@ -7,9 +7,14 @@ import { dispatchNotification } from "@/lib/notifications";
 // POST /api/rfq/customer-submit
 // Customer-facing endpoint: allows customers to submit RFQs directly
 // Restricted fields — customer can only set requirement details, line items, and due date
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function POST(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.RFQ, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/rfq/customer-submit");
+  if (guard) return guard;
 
   // Only Customer role can use this endpoint
   if (user.role !== "Customer") {

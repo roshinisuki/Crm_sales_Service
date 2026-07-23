@@ -64,6 +64,8 @@ export async function POST(
     });
 
     // 2. Perform status transition via central state machine
+    //    transitionDealStatus already syncs customer status to ActiveCustomer
+    //    and writes AccountStatusHistory — no need to duplicate here
     await transitionDealStatus(
       id,
       "Won",
@@ -73,12 +75,6 @@ export async function POST(
       },
       tx
     );
-
-    // 3. Sync Customer status to ActiveCustomer
-    await tx.customer.update({
-      where: { id: deal.customerId },
-      data: { status: "ActiveCustomer" },
-    });
 
     return updated;
   });

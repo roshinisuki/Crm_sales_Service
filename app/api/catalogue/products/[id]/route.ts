@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 
 // GET /api/catalogue/products/[id]
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -41,6 +44,7 @@ export async function GET(
 }
 
 // PUT /api/catalogue/products/[id]
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -88,6 +92,7 @@ export async function PUT(
 }
 
 // DELETE /api/catalogue/products/[id]
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

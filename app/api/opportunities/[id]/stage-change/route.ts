@@ -68,9 +68,9 @@ export async function POST(
   const currentStage = deal.status;
   const targetStage = normalizedStage;
 
-  // No-op if same stage — UNLESS setting demoOutcome on DemoAccepted
+  // No-op if same stage — UNLESS setting demoOutcome on DemoAccepted or DemoConducted
   if (currentStage === targetStage) {
-    if (demoOutcome && targetStage === "DemoAccepted") {
+    if (demoOutcome && (targetStage === "DemoAccepted" || targetStage === "DemoConducted")) {
       const updated = await prisma.deal.update({
         where: { id },
         data: {
@@ -79,8 +79,38 @@ export async function POST(
           ...(demoOutcome === "Rejected" && rejectedReason ? { rejectedReason } : {}),
         },
       });
-      // Auto-create RFQ with line items when demoOutcome is Accepted
-      if (demoOutcome === "Accepted") {
+      // For DemoConducted: update meeting log and create follow-up if needed
+      if (targetStage === "DemoConducted") {
+        const activeLog = await prisma.meetingLog.findFirst({
+          where: { dealId: id },
+          orderBy: { attemptNumber: "desc" },
+        });
+        if (activeLog) {
+          await prisma.meetingLog.update({
+            where: { id: activeLog.id },
+            data: {
+              outcome: demoOutcome,
+              notes: notes || undefined,
+              rejectionReason: rejectedReason || undefined,
+            },
+          });
+          if (demoOutcome === "Follow-up needed") {
+            await prisma.meetingLog.create({
+              data: {
+                dealId: id,
+                attemptNumber: activeLog.attemptNumber + 1,
+                meetingDate: demoFollowUpDate ? new Date(demoFollowUpDate) : null,
+                meetingType: activeLog.meetingType,
+                meetingMode: activeLog.meetingMode,
+                participants: activeLog.participants,
+                agenda: `Follow-up discussion. Previous notes: ${notes || ""}`.trim(),
+              },
+            });
+          }
+        }
+      }
+      // Auto-create RFQ with line items when demoOutcome is Accepted (DemoAccepted only)
+      if (demoOutcome === "Accepted" && targetStage === "DemoAccepted") {
         await prisma.$transaction(async (tx) => {
           const latestDeal = await tx.deal.findUnique({
             where: { id },
@@ -114,7 +144,9 @@ export async function POST(
   const isTerminalExit = targetStage === "Rejected" || targetStage === "Lost";
 
   // Backward stage change requires Manager/Admin
-  if (targetOrder < currentOrder && !isTerminalExit && !force) {
+  // Exception: DemoConducted → MeetingScheduled is a legitimate reschedule, allowed for all sales roles
+  const isReschedule = currentStage === "DemoConducted" && targetStage === "MeetingScheduled";
+  if (targetOrder < currentOrder && !isTerminalExit && !force && !isReschedule) {
     if (!["SalesManager", "Admin"].includes(user.role)) {
       return NextResponse.json({ success: false, message: "Stage rollback requires Manager approval" }, { status: 403 });
     }
@@ -213,7 +245,8 @@ export async function POST(
   }
 
   // ─── Validate demoOutcome (When leaving DemoConducted) ──────────────────────
-  if (currentStage === "DemoConducted") {
+  // Exception: reschedule back to MeetingScheduled doesn't require an outcome
+  if (currentStage === "DemoConducted" && targetStage !== "MeetingScheduled") {
     if (!demoOutcome) {
       return NextResponse.json(
         { success: false, message: "demoOutcome (Accepted/Rejected/Follow-up needed) is required to complete Demo Conducted" },

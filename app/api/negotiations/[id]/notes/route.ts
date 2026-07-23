@@ -4,12 +4,17 @@ import { verifyAuth } from "@/lib/auth";
 
 // GET /api/negotiations/[id]/notes
 // Returns the discussion notes array for a negotiation.
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.NEGOTIATION, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/negotiations/[id]/notes");
+  if (guard) return guard;
 
   const { id } = await params;
 
@@ -35,12 +40,15 @@ export async function GET(
 // POST /api/negotiations/[id]/notes
 // Appends a new discussion note to the negotiation's discussionNotes JSON array.
 // Body: { note: string }
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.NEGOTIATION, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/negotiations/[id]/notes");
+  if (guard) return guard;
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
   const { id } = await params;

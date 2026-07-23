@@ -7,6 +7,9 @@ import { existsSync } from "fs";
 import path from "path";
 
 // POST /api/visits/[id]/attachments — multipart upload
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -86,6 +89,7 @@ export async function POST(
 }
 
 // GET /api/visits/[id]/attachments
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -118,6 +122,7 @@ export async function GET(
 }
 
 // DELETE /api/visits/[id]/attachments?docId=xxx
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

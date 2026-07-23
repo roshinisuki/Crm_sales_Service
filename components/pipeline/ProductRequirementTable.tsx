@@ -40,6 +40,7 @@ interface ProductRequirementTableProps {
   readOnly?: boolean;
   saving?: boolean;
   products?: { id: string; name: string; productCode?: string; category?: string | { id: string; name: string } }[];
+  hasCatalogue?: boolean;
 }
 
 export function ProductRequirementTable({
@@ -50,6 +51,7 @@ export function ProductRequirementTable({
   readOnly = false,
   saving = false,
   products = [],
+  hasCatalogue = true,
 }: ProductRequirementTableProps) {
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
@@ -198,19 +200,21 @@ export function ProductRequirementTable({
       <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 bg-white dark:bg-slate-900 shadow-sm min-h-[300px] pb-24">
         <table className="w-full text-sm border-collapse min-w-[1000px] overflow-visible">
           <colgroup>
-            <col style={{ width: "22%" }} /> {/* Description */}
-            <col style={{ width: "18%" }} /> {/* Product Linked */}
-            <col style={{ width: "10%" }} /> {/* Quantity */}
-            <col style={{ width: "15%" }} /> {/* Target Price */}
-            <col style={{ width: "13%" }} /> {/* Material Spec */}
-            <col style={{ width: "12%" }} /> {/* Delivery Date */}
-            <col style={{ width: "12%" }} /> {/* Attachment */}
-            <col style={{ width: "8%" }} />  {/* Actions */}
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "8%" }} />
           </colgroup>
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200">
               <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Description</th>
+              {hasCatalogue && (
               <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Product Linked</th>
+              )}
               <th className="px-4 py-3 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Quantity</th>
               <th className="px-4 py-3 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Target Price (Min - Max)</th>
               <th className="px-4 py-3 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">Material Specification</th>
@@ -245,8 +249,8 @@ export function ProductRequirementTable({
                     />
                   )}
                 </td>
-                {/* Product Linked — Searchable autocomplete dropdown */}
-                {/* Product Linked — Searchable autocomplete dropdown */}
+                {/* Product Linked — Searchable autocomplete dropdown (hidden without catalogue module) */}
+                {hasCatalogue && (
                 <td className="px-4 py-3 text-left relative overflow-visible">
                   {readOnly ? (
                     <span className="text-slate-650 dark:text-slate-355">{products.find(p => p.name === item.productName)?.productCode || "Custom / Unlinked"}</span>
@@ -299,6 +303,7 @@ export function ProductRequirementTable({
                     </div>
                   )}
                 </td>
+                )}
                 {/* Quantity */}
                 <td className="px-4 py-3 text-right">
                   {readOnly ? (
@@ -498,21 +503,27 @@ export function ProductRequirementTable({
                       value={item.productName}
                       onChange={(e) => {
                         handleFieldChange(idx, "productName", e.target.value);
-                        setProductSearch({ ...productSearch, [idx]: e.target.value });
-                        setShowDropdown({ ...showDropdown, [idx]: true });
+                        if (hasCatalogue) {
+                          setProductSearch({ ...productSearch, [idx]: e.target.value });
+                          setShowDropdown({ ...showDropdown, [idx]: true });
+                        }
                       }}
                       onFocus={() => {
-                        setProductSearch({ ...productSearch, [idx]: item.productName });
-                        setShowDropdown({ ...showDropdown, [idx]: true });
+                        if (hasCatalogue) {
+                          setProductSearch({ ...productSearch, [idx]: item.productName });
+                          setShowDropdown({ ...showDropdown, [idx]: true });
+                        }
                       }}
                       onBlur={() => {
-                        setTimeout(() => setShowDropdown({ ...showDropdown, [idx]: false }), 200);
+                        if (hasCatalogue) {
+                          setTimeout(() => setShowDropdown({ ...showDropdown, [idx]: false }), 200);
+                        }
                         handleBlur(idx);
                       }}
                       placeholder="Product name"
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--primary)] focus:outline-none bg-white dark:bg-slate-850 text-sm font-semibold shadow-sm"
                     />
-                    {showDropdown[idx] && (
+                    {hasCatalogue && showDropdown[idx] && (
                       <div className="absolute z-20 left-0 top-full mt-1 w-full max-h-40 overflow-y-auto rounded-lg border border-slate-200 bg-white dark:bg-slate-800 shadow-xl">
                         {filteredProducts(productSearch[idx] ?? item.productName).length === 0 ? (
                           <div className="px-3 py-2 text-xs text-slate-400">

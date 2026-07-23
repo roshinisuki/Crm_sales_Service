@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 import { logAudit, extractAuditContext } from "@/lib/audit";
 import { dispatchNotification } from "@/lib/notifications";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 const VALID_STATUSES = ["New", "UnderReview", "CostingPending", "CostingCompleted", "QuotationCreated", "Closed"];
 const RFQ_STATUS_ORDER = ["New", "UnderReview", "CostingPending", "CostingCompleted", "QuotationCreated", "Closed"];
@@ -13,6 +15,8 @@ export async function GET(
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.RFQ, "GET /api/rfq/[id]");
+  if (guard) return guard;
 
   const { id } = await params;
 
@@ -50,6 +54,8 @@ export async function PUT(
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.RFQ, "PUT /api/rfq/[id]");
+  if (guard) return guard;
 
   const { id } = await params;
   const body = await request.json();
@@ -203,6 +209,8 @@ export async function DELETE(
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.RFQ, "DELETE /api/rfq/[id]");
+  if (guard) return guard;
 
   const { id } = await params;
 

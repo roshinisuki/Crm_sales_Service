@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
 
 // PUT /api/catalogue/brochures/[id] — update a brochure
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -47,6 +50,7 @@ export async function PUT(
 }
 
 // DELETE /api/catalogue/brochures/[id] — soft delete a brochure
+
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }

@@ -1218,7 +1218,15 @@ export async function convertLeadToDealAction(
         data: { status: "Converted" }
       });
 
-      // 3. Create the Deal (starts at Qualified stage)
+      // 3. Generate opportunity code: OPP-YYYY-NNNNN
+      const year = new Date().getFullYear();
+      const oppPrefix = `OPP-${year}-`;
+      const oppCount = await tx.deal.count({
+        where: { companyId: userPayload.companyId, opportunityCode: { startsWith: oppPrefix } },
+      });
+      const opportunityCode = `${oppPrefix}${String(oppCount + 1).padStart(5, "0")}`;
+
+      // 4. Create the Deal (starts at Qualified stage)
       const deal = await tx.deal.create({
         data: {
           dealName,
@@ -1229,6 +1237,8 @@ export async function convertLeadToDealAction(
           status: "Qualified",
           stageEnteredAt: new Date(),
           companyId: userPayload.companyId,
+          opportunityCode,
+          probabilityPercent: 20,
         }
       });
 

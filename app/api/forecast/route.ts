@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 const VALID_TYPES = ["Revenue", "Opportunity", "Sales"];
 
@@ -8,6 +10,8 @@ export async function GET(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.FORECAST, "GET /api/forecast");
+  if (guard) return guard;
 
   const { searchParams } = new URL(request.url);
   const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
@@ -31,6 +35,8 @@ export async function POST(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.FORECAST, "POST /api/forecast");
+  if (guard) return guard;
 
   const body = await request.json();
 

@@ -10,6 +10,8 @@ import PageContainer from "@/components/PageContainer";
 import { CRMSpinner } from "@/components/CRMSpinner";
 import { StatusFilterBar, useStatusFromUrl } from "@/components/shared/StatusFilterBar";
 import { QUOTES_STATUS } from "@/lib/module-status-config";
+import { useHasModule } from "@/components/ModuleGate";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -48,6 +50,11 @@ function QuotationListContent() {
   const [confirmState, setConfirmState] = useState<{ isOpen: boolean; title: string; message: string; action: () => void }>({ isOpen: false, title: "", message: "", action: () => {} });
 
   const statusFilter = useStatusFromUrl("status");
+  const hasMod = useHasModule();
+
+  const quoteStatuses = QUOTES_STATUS.filter((s) =>
+    s.value === "UnderReview" ? hasMod(MODULE_KEYS.NEGOTIATION) : true
+  );
 
   const [error, setError] = useState("");
 
@@ -127,7 +134,7 @@ function QuotationListContent() {
       </div>
 
       <StatusFilterBar
-        statuses={QUOTES_STATUS}
+        statuses={quoteStatuses}
         paramKey="status"
         basePath="/quotations"
       />

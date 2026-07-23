@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
@@ -16,6 +18,8 @@ export async function POST(
     if (!user || user.role === "Customer") {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
+    const guard = enforceModuleGuard(user, MODULE_KEYS.DOCUMENTS, "/api/accounts/[id]/documents");
+    if (guard) return guard;
 
     const { id } = await context.params;
 
@@ -90,6 +94,8 @@ export async function GET(
     if (!user || user.role === "Customer") {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
+    const guard = enforceModuleGuard(user, MODULE_KEYS.DOCUMENTS, "/api/accounts/[id]/documents");
+    if (guard) return guard;
 
     const { id } = await context.params;
 

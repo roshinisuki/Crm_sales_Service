@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 const VALID_STATUSES = ["New", "UnderReview", "SentToCustomer", "Approved", "Rejected", "Revision"];
 
@@ -10,6 +12,8 @@ export async function GET(
 ) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.SAMPLE_MANAGEMENT, "GET /api/samples/[id]");
+  if (guard) return guard;
 
   const { id } = await params;
 
@@ -38,6 +42,8 @@ export async function PUT(
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.SAMPLE_MANAGEMENT, "PUT /api/samples/[id]");
+  if (guard) return guard;
 
   const { id } = await params;
   const body = await request.json();
@@ -224,6 +230,8 @@ export async function DELETE(
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.SAMPLE_MANAGEMENT, "DELETE /api/samples/[id]");
+  if (guard) return guard;
 
   const { id } = await params;
 

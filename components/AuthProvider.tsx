@@ -13,11 +13,13 @@ export interface UserProfile {
   theme?: string;
   themeMode?: string;
   variant?: number;
+  enabledModules?: string | string[];
   permissions?: any[] | 'ALL';
   company?: {
     id: string;
     name: string;
     variant?: number;
+    enabledModules?: string | string[];
   } | null;
 }
 

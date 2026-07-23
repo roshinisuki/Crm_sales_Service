@@ -4,6 +4,8 @@ import { verifyAuth } from "@/lib/auth";
 import { writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 async function resolveCustomerId(entityType: string, entityId: string): Promise<string | null> {
   try {
@@ -84,6 +86,8 @@ async function resolveEntityName(entityType: string, entityId: string): Promise<
 export async function GET(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.DOCUMENTS, "GET /api/documents");
+  if (guard) return guard;
 
   const { searchParams } = new URL(request.url);
   const documentType = searchParams.get("documentType") || searchParams.get("type");
@@ -142,6 +146,8 @@ export async function POST(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
   if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.DOCUMENTS, "POST /api/documents");
+  if (guard) return guard;
 
   const contentType = request.headers.get("content-type") || "";
 

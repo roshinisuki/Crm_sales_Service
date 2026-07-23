@@ -24,9 +24,14 @@ function getPeriodDateRange(targetType: string, period: string): { start: Date; 
   }
 }
 
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function GET(request: NextRequest) {
   const user = await verifyAuth();
   if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.TARGETS, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/targets/achievement");
+  if (guard) return guard;
 
   const { searchParams } = new URL(request.url);
   const targetType = searchParams.get("targetType");

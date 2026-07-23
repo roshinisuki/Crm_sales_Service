@@ -4,6 +4,9 @@ import { verifyAuth } from "@/lib/auth";
 import { nanoid } from "nanoid";
 
 // POST /api/catalogue/products/bulk-import
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function POST(request: Request) {
   try {
     const user = await verifyAuth();

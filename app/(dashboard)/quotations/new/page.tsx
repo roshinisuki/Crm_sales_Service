@@ -11,6 +11,8 @@ import { FormSection, FormGrid, FormActions, FormButton, CompactFormContainer } 
 import { getCustomersAction } from "@/app/actions/customers";
 import { validatePositiveNumeric, validateCurrency, validatePercentage, validateAlphanumeric } from "@/lib/formValidation";
 import { cn } from "@/lib/ui-utils";
+import { useHasModule } from "@/components/ModuleGate";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 
 const Ico = ({ d, size = 16, className }: { d: string; size?: number; className?: string }) => (
   <svg width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -30,6 +32,7 @@ export default function NewQuotationPage() {
   const toast = useToast();
   const { user } = useAuth();
   const { formatCurrency } = useCurrency();
+  const hasMod = useHasModule();
 
   const [customers, setCustomers] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -68,7 +71,9 @@ export default function NewQuotationPage() {
       if (res.success && res.data) setCustomers(res.data as any[]);
       else console.error("Failed to load customers:", res.message);
     }).catch(err => console.error("Error loading customers:", err));
-    fetch("/api/catalogue/products").then(res => res.json()).then(data => { if (data.success) setProducts(data.data || []); else console.error("Failed to load products:", data.message); }).catch(err => console.error("Error loading products:", err));
+    if (hasMod(MODULE_KEYS.PRODUCT_CATALOGUE)) {
+      fetch("/api/catalogue/products").then(res => res.json()).then(data => { if (data.success) setProducts(data.data || []); else console.error("Failed to load products:", data.message); }).catch(err => console.error("Error loading products:", err));
+    }
     fetch("/api/rfq").then(res => res.json()).then(data => { if (data.success) setRfqs(data.data || []); else console.error("Failed to load RFQs:", data.message); }).catch(err => console.error("Error loading RFQs:", err));
     fetch("/api/deals").then(res => res.json()).then(data => { if (data.success) setDeals(data.data || []); else console.error("Failed to load deals:", data.message); }).catch(err => console.error("Error loading deals:", err));
     fetch("/api/users").then(res => res.json()).then(data => { if (data.success) setUsers(data.data || []); else console.error("Failed to load users:", data.message); }).catch(err => console.error("Error loading users:", err));
@@ -346,10 +351,14 @@ export default function NewQuotationPage() {
                 <div className="grid grid-cols-12 gap-2 items-start">
                   <div className="col-span-3">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">Product</label>
-                    <Select value={item.productId} onChange={(e) => selectProduct(idx, e.target.value)} className="text-xs py-1.5">
-                      <option value="">-- Product --</option>
-                      {products.map((p: any) => <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>)}
-                    </Select>
+                    {hasMod(MODULE_KEYS.PRODUCT_CATALOGUE) ? (
+                      <Select value={item.productId} onChange={(e) => selectProduct(idx, e.target.value)} className="text-xs py-1.5">
+                        <option value="">-- Product --</option>
+                        {products.map((p: any) => <option key={p.id} value={p.id}>{p.productCode} - {p.name}</option>)}
+                      </Select>
+                    ) : (
+                      <p className="text-[11px] text-[var(--text-tertiary)] py-1.5">Enter in Description →</p>
+                    )}
                   </div>
                   <div className="col-span-3">
                     <label className="block text-[10px] font-semibold text-[var(--text-tertiary)] mb-0.5">Description</label>

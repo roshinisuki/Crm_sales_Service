@@ -5,10 +5,15 @@ import * as fs from "fs/promises";
 import { PDFParse } from "pdf-parse";
 import ExcelJS from "exceljs";
 
+import { enforceModuleGuard } from "@/lib/moduleGuard";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
+
 export async function POST(request: NextRequest) {
   try {
     const user = await verifyAuth();
     if (!user) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+  const guard = enforceModuleGuard(user, MODULE_KEYS.RFQ, "C:/Users/Sandhiya/Desktop/SUKI_CRM2/Crm_sales_Service//api/rfq/parse-template");
+  if (guard) return guard;
     if (user.role === "Customer") return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 403 });
 
     const formData = await request.formData();

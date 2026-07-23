@@ -12,6 +12,8 @@ import Logo from "@/components/Logo";
 import { useLogoTheme } from "@/lib/use-logo-theme";
 import { cn } from "@/lib/ui-utils";
 import { getSettingsForVariant } from "@/lib/config/variantSettingsMap";
+import { hasModule, ModuleCheckSubject } from "@/lib/modules";
+import { MODULE_KEYS } from "@/lib/config/moduleVariantMap";
 import {
   LayoutDashboard, Users, CalendarClock, Briefcase, BookUser,
   CheckSquare, Settings, LogOut, Menu, X, TrendingUp, Building,
@@ -832,6 +834,14 @@ function SidebarContent({
   const activeVariant: number = user?.variant || user?.company?.variant || 1;
   const isServiceWorkspace = pathname.startsWith("/service");
 
+  // Phase 7: module-based gating subject (client-safe, fail-open to variant)
+  const moduleSubject: ModuleCheckSubject = {
+    companyId: user?.companyId ?? user?.company?.id ?? null,
+    variant: activeVariant,
+    enabledModules: user?.enabledModules ?? user?.company?.enabledModules ?? null,
+  };
+  const hasMod = (key: string) => hasModule(moduleSubject, key as any);
+
   const hasPerm = (moduleName: string) => {
     if (user?.permissions === 'ALL') return true;
     if (!user?.permissions) return true;
@@ -917,47 +927,66 @@ function SidebarContent({
   const makeToggle = (label: string) => () => setOpenSection(prev => prev === label ? null : label);
   const openSectionLabel = (label: string) => () => setOpenSection(label);
 
-  const leadSubItems = isVariant2 ? [
-    { href: "/leads", label: "Overview" },
+  const leadSubItems = isVariant3 ? [
+    { href: "/leads", label: "All Leads" },
     { href: "/leads?status=New", label: "New Leads" },
     { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
-    { href: "/leads?status=TodaysFollowUp", label: "Today's Follow-up" },
-    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-up" },
+    { href: "/leads?status=SQL", label: "SQL" },
+    { href: "/leads?status=Overdue", label: "Overdue Leads" },
+    { href: "/leads?status=Lost", label: "Lost Leads" },
+    { href: "/leads?status=Duplicate", label: "Duplicate Leads" },
+  ] : isVariant2 ? [
+    { href: "/leads", label: "All Leads" },
+    { href: "/leads?status=New", label: "New Leads" },
+    { href: "/leads?status=TodaysFollowUp", label: "Today's follow up" },
     { href: "/leads?status=SQL", label: "SQL" },
     { href: "/leads?status=Overdue", label: "Overdue Leads" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
     { href: "/leads?status=Duplicate", label: "Duplicate Leads" },
   ] : [
-    { href: "/leads", label: "Overview" },
+    { href: "/leads", label: "All Leads" },
     { href: "/leads?status=New", label: "New Leads" },
-    { href: "/leads?status=TodayFollowUp", label: "Follow-Up Due" },
     { href: "/leads?status=TodaysFollowUp", label: "Today's Follow-up" },
-    { href: "/leads?status=UpcomingFollowUp", label: "Upcoming Follow-up" },
     { href: "/leads?status=Lost", label: "Lost Leads" },
   ];
 
-  const accountsSubItems = isVariant2 ? [
-    { href: "/customer-master", label: "Overview" },
+  const accountsSubItems = isVariant3 ? [
+    { href: "/customer-master", label: "All Accounts" },
+    { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
+    { href: "/customer-master?status=Prospect", label: "Prospect Accounts" },
+    { href: "/customer-master?status=Inactive", label: "Inactive Accounts" },
+  ] : isVariant2 ? [
+    { href: "/customer-master", label: "All Accounts" },
     { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
     { href: "/customer-master?status=Prospect", label: "Prospect Accounts" },
     { href: "/customer-master?status=Inactive", label: "Inactive Accounts" },
   ] : [
-    { href: "/customer-master", label: "Overview" },
+    { href: "/customer-master", label: "All Accounts" },
     { href: "/customer-master?status=ActiveCustomer", label: "Active Accounts" },
   ];
 
-  const contactsSubItems = isVariant2 ? [
-    { href: "/contacts", label: "Overview" },
+  const contactsSubItems = isVariant3 ? [
+    { href: "/contacts", label: "All Contacts" },
     { href: "/contacts?type=Technical", label: "Technical Contacts" },
     { href: "/contacts?type=Purchase", label: "Purchase Contacts" },
     { href: "/contacts?type=Finance", label: "Finance Contacts" },
     { href: "/contacts?type=Management", label: "Management Contacts" },
+  ] : isVariant2 ? [
+    { href: "/contacts", label: "All Contacts" },
+    { href: "/contacts?type=Technical", label: "Technical Contacts" },
+    { href: "/contacts?type=Purchase", label: "Purchase Contacts" },
   ] : [
-    { href: "/contacts", label: "Overview" },
+    { href: "/contacts", label: "All Contacts" },
   ];
 
-  const activitySubItems = isVariant2 ? [
-    { href: "/activities", label: "Overview" },
+  const activitySubItems = isVariant3 ? [
+    { href: "/activities?type=Call", label: "Calls" },
+    { href: "/activities?type=Meeting", label: "Meetings" },
+    { href: "/activities?type=Email", label: "Emails" },
+    { href: "/activities?type=WhatsApp", label: "WhatsApp" },
+    { href: "/activities?type=Note", label: "Notes" },
+    { href: "/timeline", label: "Timeline" },
+  ] : isVariant2 ? [
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
     { href: "/activities?type=Email", label: "Emails" },
@@ -965,52 +994,78 @@ function SidebarContent({
     { href: "/activities?type=Note", label: "Notes" },
     { href: "/timeline", label: "Timeline" },
   ] : [
-    { href: "/activities", label: "Overview" },
     { href: "/activities?type=Call", label: "Calls" },
     { href: "/activities?type=Meeting", label: "Meetings" },
     { href: "/activities?type=Email", label: "Emails" },
     { href: "/activities?type=Note", label: "Notes" },
   ];
 
-  const taskSubItems = isVariant2 ? [
-    { href: "/tasks", label: "Overview" },
+  const taskSubItems = isVariant3 ? [
+    { href: "/tasks?status=Pending", label: "Pending" },
+    { href: "/tasks?status=Completed", label: "Completed" },
+    { href: "/tasks?status=Overdue", label: "Overdue" },
+    { href: "/tasks?status=Cancelled", label: "Cancelled" },
+  ] : isVariant2 ? [
     { href: "/tasks?status=Pending", label: "Pending" },
     { href: "/tasks?status=Completed", label: "Completed" },
     { href: "/tasks?status=Overdue", label: "Overdue" },
     { href: "/tasks?status=Cancelled", label: "Cancelled" },
   ] : [
-    { href: "/tasks", label: "Overview" },
     { href: "/tasks?status=Pending", label: "Pending" },
     { href: "/tasks?status=Completed", label: "Completed" },
     { href: "/tasks?status=Overdue", label: "Overdue" },
   ];
 
-  const followUpSubItems = isVariant2 ? [
-    { href: "/follow-up", label: "Overview" },
+  const followUpSubItems = isVariant3 ? [
+    { href: "/follow-up?status=Pending", label: "Pending" },
+    { href: "/follow-up?status=Completed", label: "Completed" },
+    { href: "/follow-up?status=Overdue", label: "Overdue" },
+    { href: "/follow-up?status=Cancelled", label: "Cancelled" },
+  ] : isVariant2 ? [
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
     { href: "/follow-up?status=Cancelled", label: "Cancelled" },
   ] : [
-    { href: "/follow-up", label: "Overview" },
+    { href: "/follow-up", label: "All follow ups" },
     { href: "/follow-up?status=Pending", label: "Pending" },
     { href: "/follow-up?status=Completed", label: "Completed" },
     { href: "/follow-up?status=Overdue", label: "Overdue" },
   ];
 
-  const salesPipelineSubItems = [
-    { href: "/sales-pipeline/pipeline-list", label: "Overview" },
+  const salesPipelineSubItems = isVariant3 ? [
+    { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
     { href: "/sales-pipeline/pipeline-list?stage=Qualified", label: "Qualified" },
     { href: "/sales-pipeline/pipeline-list?stage=RequirementGathering", label: "Requirement Gathering" },
     { href: "/sales-pipeline/pipeline-list?stage=TechnicalDiscussion", label: "Technical Discussion" },
     { href: "/sales-pipeline/pipeline-list?stage=MeetingScheduled", label: "Meeting Scheduled" },
     { href: "/sales-pipeline/pipeline-list?stage=DemoConducted", label: "Demo Conducted" },
-    { divider: true },
+    { href: "/sales-pipeline/pipeline-list?stage=overdue", label: "Overdue" },
+    { href: "/sales-pipeline/pipeline-list?stage=Rejected", label: "Rejected" },
+  ] : isVariant2 ? [
+    { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
+    { href: "/sales-pipeline/pipeline-list?stage=Qualified", label: "Qualified" },
+    { href: "/sales-pipeline/pipeline-list?stage=RequirementGathering", label: "Requirement Gathering" },
+    { href: "/sales-pipeline/pipeline-list?stage=TechnicalDiscussion", label: "Technical Discussion" },
+    { href: "/sales-pipeline/pipeline-list?stage=MeetingScheduled", label: "Meeting Scheduled" },
+    { href: "/sales-pipeline/pipeline-list?stage=DemoConducted", label: "Demo Conducted" },
+    { href: "/sales-pipeline/pipeline-list?stage=overdue", label: "Overdue" },
+    { href: "/sales-pipeline/pipeline-list?stage=Rejected", label: "Rejected" },
+  ] : [
+    { href: "/sales-pipeline/pipeline-list", label: "All Opportunities" },
+    { href: "/sales-pipeline/pipeline-list?stage=Qualified", label: "Qualified" },
+    { href: "/sales-pipeline/pipeline-list?stage=RequirementGathering", label: "Requirement Gathering" },
+    { href: "/sales-pipeline/pipeline-list?stage=MeetingScheduled", label: "Meeting Scheduled" },
     { href: "/sales-pipeline/pipeline-list?stage=overdue", label: "Overdue" },
     { href: "/sales-pipeline/pipeline-list?stage=Rejected", label: "Rejected" },
   ];
 
-  const dealSubItems = isVariant2 ? [
+  const dealSubItems = isVariant3 ? [
+    { href: "/deals?status=Active", label: "Active Deals" },
+    { href: "/deals?status=OnHold", label: "On Hold Deals" },
+    { href: "/deals?status=Won", label: "Won Deals" },
+    { href: "/deals?status=Lost", label: "Lost Deals" },
+  ] : isVariant2 ? [
     { href: "/deals", label: "Overview" },
     { href: "/deals?status=Active", label: "Active Deals" },
     { href: "/deals?status=OnHold", label: "On Hold Deals" },
@@ -1027,28 +1082,21 @@ function SidebarContent({
     { href: "/customer-assets", label: "Overview" },
   ];
 
-  const reportsSubItemsV3 = isVariant3 ? [
-    { href: "/reports/samples", label: "Sample Report" },
-    { href: "/reports/negotiations", label: "Negotiation Report" },
-    { href: "/reports/purchase-orders", label: "Purchase Order Report" },
-    { href: "/reports/po-conversion", label: "PO Conversion Report" },
-    ...(isVariant4 ? [
-      { href: "/reports/competitor-analysis", label: "Competitor Analysis" },
-      { href: "/reports/target-achievement", label: "Target Achievement Report" },
-    ] : []),
-  ] : [];
-
-  const reportsSubItems = isVariant2 ? [
-    { href: "/reports", label: "All Reports" },
+  const reportsSubItems = isVariant3 ? [
     { href: "/reports/leads", label: "Lead Report" },
     { href: "/reports/followups", label: "Follow-Up Report" },
     { href: "/reports/opportunities", label: "Opportunity Report" },
     { href: "/reports/rfq", label: "RFQ Report" },
     { href: "/reports/quotations", label: "Quotation Report" },
-    { href: "/reports/sales-performance", label: "Sales Performance Report" },
+    { href: "/reports/negotiations", label: "Negotiation Report" },
     { href: "/reports/visits", label: "Visit Report" },
-    { href: "/reports/forecast", label: "Forecast Report" },
-    ...(isVariant3 ? reportsSubItemsV3 : []),
+  ] : isVariant2 ? [
+    { href: "/reports/leads", label: "Lead Report" },
+    { href: "/reports/followups", label: "Follow-Up Report" },
+    { href: "/reports/opportunities", label: "Opportunity Report" },
+    { href: "/reports/rfq", label: "RFQ Report" },
+    { href: "/reports/quotations", label: "Quotation Report" },
+    { href: "/reports/visits", label: "Visit Report" },
   ] : [
     { href: "/reports/leads", label: "Lead Report" },
     { href: "/reports/followups", label: "Follow-Up Report" },
@@ -1064,16 +1112,19 @@ function SidebarContent({
   const settingsSubItems = getSettingsForVariant(activeVariant);
 
   // Variant 2 navigation items
-  const customerVisitsSubItems = [
-    { href: "/visits", label: "Overview" },
+  const customerVisitsSubItems = isVariant3 ? [
     { href: "/visits?status=PLANNED", label: "Planned Visits" },
     { href: "/visits?status=COMPLETED", label: "Completed Visits" },
     { href: "/visits?status=MISSED", label: "Missed Visits" },
     { href: "/visits/reports", label: "Visit Reports" },
+  ] : [
+    { href: "/visits?status=PLANNED", label: "Planned Visits" },
+    { href: "/visits?status=COMPLETED", label: "Completed Visits" },
+    { href: "/visits?status=MISSED", label: "Missed Visits" },
+    { href: "/visits/reports", label: "Visit Log" },
   ];
 
   const productCatalogueSubItems = [
-    { href: "/catalogue", label: "Overview" },
     { href: "/catalogue/categories", label: "Categories" },
     { href: "/catalogue/products", label: "Products" },
     { href: "/catalogue/specifications", label: "Specifications" },
@@ -1082,7 +1133,6 @@ function SidebarContent({
   ];
 
   const rfqSubItems = [
-    { href: "/rfq", label: "Overview" },
     { href: "/rfq?status=New", label: "New RFQ" },
     { href: "/rfq?status=UnderReview", label: "Under Review" },
     { href: "/rfq?status=CostingPending", label: "Costing Pending" },
@@ -1091,15 +1141,19 @@ function SidebarContent({
   ];
 
   const quotationSubItems = isVariant3 ? [
-    { href: "/quotations", label: "Overview" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=UnderReview", label: "Under Review" },
     { href: "/quotations?status=Accepted", label: "Accepted" },
     { href: "/quotations?status=Rejected", label: "Rejected" },
     { href: "/quotations?status=Expired", label: "Expired" },
+  ] : isVariant2 ? [
+    { href: "/quotations?status=Draft", label: "Draft" },
+    { href: "/quotations?status=Sent", label: "Sent" },
+    { href: "/quotations?status=Accepted", label: "Accepted" },
+    { href: "/quotations?status=Rejected", label: "Rejected" },
+    { href: "/quotations?status=Expired", label: "Expired" },
   ] : [
-    { href: "/quotations", label: "Overview" },
     { href: "/quotations?status=Draft", label: "Draft" },
     { href: "/quotations?status=Sent", label: "Sent" },
     { href: "/quotations?status=Accepted", label: "Accepted" },
@@ -1116,7 +1170,6 @@ function SidebarContent({
 
   // ─── Variant 3 navigation items ───
   const sampleMgmtSubItems = [
-    { href: "/samples", label: "Overview" },
     { href: "/samples?status=New", label: "New Sample Request" },
     { href: "/samples?status=UnderReview", label: "Under Review" },
     { href: "/samples?status=SentToCustomer", label: "Sent To Customer" },
@@ -1126,7 +1179,6 @@ function SidebarContent({
   ];
 
   const negotiationMgmtSubItems = [
-    { href: "/negotiations", label: "Overview" },
     { href: "/negotiations?status=Active", label: "Active Negotiation" },
     { href: "/negotiations?status=PendingApproval", label: "Pending Approval" },
     { href: "/negotiations?status=PriceRevision", label: "Price Revision" },
@@ -1145,22 +1197,18 @@ function SidebarContent({
   ];
 
   const documentMgmtSubItems = [
-    { href: "/documents", label: "Overview" },
     { href: "/documents?type=Drawing", label: "Drawings" },
     { href: "/documents?type=TechnicalSpec", label: "Technical Specifications" },
     { href: "/documents?type=NDA", label: "NDA" },
     { href: "/documents?type=Quotation", label: "Quotations" },
-    { href: "/documents?type=PurchaseOrder", label: "Purchase Orders" },
     { href: "/documents?type=Agreement", label: "Agreements" },
     { href: "/documents?type=Brochure", label: "Brochures" },
   ];
 
   const approvalCenterSubItems = [
-    { href: "/approvals", label: "Overview" },
     { href: "/approvals?type=Quotation", label: "Quotation Approvals" },
     { href: "/approvals?type=Discount", label: "Discount Approvals" },
     { href: "/approvals?type=Negotiation", label: "Negotiation Approvals" },
-    { href: "/approvals?type=PO", label: "PO Approvals" },
   ];
 
   // ─── Variant 4 navigation items ───
@@ -1305,8 +1353,8 @@ function SidebarContent({
               label="Dashboards"
               icon={<LayoutDashboard size={17} />}
               subItems={[
-                { href: "/dashboard", label: "Overview" },
-                ...(isVariant2 && !loading && (user?.role === "Admin" || user?.role === "SalesManager") ? [{ href: "/dashboard/manager", label: "Sales Manager" }] : []),
+                { href: "/dashboard", label: "My Dashboard" },
+                ...(hasMod(MODULE_KEYS.MANAGER_DASHBOARD) && !loading && (user?.role === "Admin" || user?.role === "SalesManager") ? [{ href: "/dashboard/manager", label: "Sales Manager Dashboard" }] : []),
               ]}
               pathname={pathname}
               onNavClick={onNavClick}
@@ -1324,64 +1372,64 @@ function SidebarContent({
                 {hasPerm("Contacts") && <ExpandableNavSection label="Contacts" icon={<ContactRound size={17} />} subItems={contactsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Contacts"} onToggle={makeToggle("Contacts")} onOpen={openSectionLabel("Contacts")} />}
                 {hasPerm("Activities") && <ExpandableNavSection label="Activities" icon={<Activity size={17} />} subItems={activitySubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Activities"} onToggle={makeToggle("Activities")} onOpen={openSectionLabel("Activities")} />}
 
-                {isVariant2 && hasPerm("Customer Visits") && (
+                {hasMod(MODULE_KEYS.CUSTOMER_VISITS) && hasPerm("Customer Visits") && (
                   <ExpandableNavSection label="Customer Visits" icon={<MapPin size={17} />} subItems={customerVisitsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Visits"} onToggle={makeToggle("Customer Visits")} onOpen={openSectionLabel("Customer Visits")} />
                 )}
 
-                {isVariant2 && hasPerm("Product Catalogue") && (
+                {hasMod(MODULE_KEYS.PRODUCT_CATALOGUE) && hasPerm("Product Catalogue") && (
                   <ExpandableNavSection label="Product Catalogue" icon={<Package size={17} />} subItems={productCatalogueSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Product Catalogue"} onToggle={makeToggle("Product Catalogue")} onOpen={openSectionLabel("Product Catalogue")} />
                 )}
 
-                {isVariant3 && hasPerm("Samples") && (
-                  <ExpandableNavSection label="Samples" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Samples"} onToggle={makeToggle("Samples")} onOpen={openSectionLabel("Samples")} />
+                {hasMod(MODULE_KEYS.SAMPLE_MANAGEMENT) && hasPerm("Samples") && (
+                  <ExpandableNavSection label="Sample Management" icon={<Package size={17} />} subItems={sampleMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sample Management"} onToggle={makeToggle("Sample Management")} onOpen={openSectionLabel("Sample Management")} />
                 )}
 
                 {hasPerm("Sales Pipeline") && <ExpandableNavSection label="Sales Pipeline" icon={<TrendingUp size={17} />} subItems={salesPipelineSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Sales Pipeline"} onToggle={makeToggle("Sales Pipeline")} onOpen={openSectionLabel("Sales Pipeline")} />}
 
-                {isVariant2 && hasPerm("RFQ") && (
-                  <ExpandableNavSection label="RFQ" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ"} onToggle={makeToggle("RFQ")} onOpen={openSectionLabel("RFQ")} />
+                {hasMod(MODULE_KEYS.RFQ) && hasPerm("RFQ") && (
+                  <ExpandableNavSection label="RFQ Management" icon={<FileText size={17} />} subItems={rfqSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "RFQ Management"} onToggle={makeToggle("RFQ Management")} onOpen={openSectionLabel("RFQ Management")} />
                 )}
 
-                {isVariant4 && hasPerm("Competitors") && (
+                {hasMod(MODULE_KEYS.COMPETITORS) && hasPerm("Competitors") && (
                   <ExpandableNavSection label="Competitors" icon={<Swords size={17} />} subItems={competitorMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Competitors"} onToggle={makeToggle("Competitors")} onOpen={openSectionLabel("Competitors")} />
                 )}
-                {hasPerm("Quotations") && <ExpandableNavSection label="Quotations" icon={<IndianRupee size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotations"} onToggle={makeToggle("Quotations")} onOpen={openSectionLabel("Quotations")} />}
-                {isVariant3 && hasPerm("Negotiations") && (
-                  <ExpandableNavSection label="Negotiations" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiations"} onToggle={makeToggle("Negotiations")} onOpen={openSectionLabel("Negotiations")} />
+                {hasPerm("Quotations") && <ExpandableNavSection label="Quotation Management" icon={<IndianRupee size={17} />} subItems={quotationSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Quotation Management"} onToggle={makeToggle("Quotation Management")} onOpen={openSectionLabel("Quotation Management")} />}
+                {hasMod(MODULE_KEYS.NEGOTIATION) && hasPerm("Negotiations") && (
+                  <ExpandableNavSection label="Negotiation Management" icon={<MessageSquare size={17} />} subItems={negotiationMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Negotiation Management"} onToggle={makeToggle("Negotiation Management")} onOpen={openSectionLabel("Negotiation Management")} />
                 )}
-                {isVariant3 && hasPerm("Purchase Orders") && (
+                {hasMod(MODULE_KEYS.PURCHASE_ORDERS) && hasPerm("Purchase Orders") && (
                   <ExpandableNavSection label="Purchase Orders" icon={<FileText size={17} />} subItems={purchaseOrderMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Purchase Orders"} onToggle={makeToggle("Purchase Orders")} onOpen={openSectionLabel("Purchase Orders")} />
                 )}
 
-                {isVariant2 && hasPerm("Deals") && (
+                {hasMod(MODULE_KEYS.DEALS) && hasPerm("Deals") && (
                   <ExpandableNavSection label="Deals" icon={<Briefcase size={17} />} subItems={dealSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Deals"} onToggle={makeToggle("Deals")} onOpen={openSectionLabel("Deals")} />
                 )}
-                {isVariant2 && (
+                {hasMod(MODULE_KEYS.CUSTOMER_ASSETS) && (
                   <ExpandableNavSection label="Customer Assets" icon={<HardDrive size={17} />} subItems={customerAssetSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Customer Assets"} onToggle={makeToggle("Customer Assets")} onOpen={openSectionLabel("Customer Assets")} />
                 )}
                 {hasPerm("Tasks") && <ExpandableNavSection label="Tasks" icon={<ListTodo size={17} />} subItems={taskSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Tasks"} onToggle={makeToggle("Tasks")} onOpen={openSectionLabel("Tasks")} />}
                 {hasPerm("Follow Ups") && <ExpandableNavSection label="Follow Ups" icon={<CalendarClock size={17} />} subItems={followUpSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Follow Ups"} onToggle={makeToggle("Follow Ups")} onOpen={openSectionLabel("Follow Ups")} />}
 
-                {isVariant3 && hasPerm("Documents") && (
-                  <ExpandableNavSection label="Documents" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Documents"} onToggle={makeToggle("Documents")} onOpen={openSectionLabel("Documents")} />
+                {hasMod(MODULE_KEYS.DOCUMENTS) && hasPerm("Documents") && (
+                  <ExpandableNavSection label="Document Management" icon={<FileText size={17} />} subItems={documentMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Document Management"} onToggle={makeToggle("Document Management")} onOpen={openSectionLabel("Document Management")} />
                 )}
-                {isVariant4 && hasPerm("Key Accounts") && (
+                {hasMod(MODULE_KEYS.KEY_ACCOUNTS) && hasPerm("Key Accounts") && (
                   <ExpandableNavSection label="Key Accounts" icon={<Crown size={17} />} subItems={keyAccountMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Key Accounts"} onToggle={makeToggle("Key Accounts")} onOpen={openSectionLabel("Key Accounts")} />
                 )}
-                {isVariant4 && hasPerm("Territories") && (
+                {hasMod(MODULE_KEYS.TERRITORIES) && hasPerm("Territories") && (
                   <ExpandableNavSection label="Territories" icon={<Globe size={17} />} subItems={territoryMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Territories"} onToggle={makeToggle("Territories")} onOpen={openSectionLabel("Territories")} />
                 )}
-                {isVariant4 && hasPerm("Targets") && (
+                {hasMod(MODULE_KEYS.TARGETS) && hasPerm("Targets") && (
                   <ExpandableNavSection label="Targets" icon={<Trophy size={17} />} subItems={targetMgmtSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Targets"} onToggle={makeToggle("Targets")} onOpen={openSectionLabel("Targets")} />
                 )}
 
-                {isVariant2 && hasPerm("Forecast") && (
+                {hasMod(MODULE_KEYS.FORECAST) && hasPerm("Forecast") && (
                   <ExpandableNavSection label="Forecast" icon={<Target size={17} />} subItems={forecastSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Forecast"} onToggle={makeToggle("Forecast")} onOpen={openSectionLabel("Forecast")} />
                 )}
 
                 {hasPerm("Reports") && <ExpandableNavSection label="Reports" icon={<PieChart size={17} />} subItems={reportsSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Reports"} onToggle={makeToggle("Reports")} onOpen={openSectionLabel("Reports")} />}
 
-                {isVariant3 && hasPerm("Approval Center") && (
+                {hasMod(MODULE_KEYS.APPROVAL_CENTER) && hasPerm("Approval Center") && (
                   <ExpandableNavSection label="Approval Center" icon={<ShieldCheck size={17} />} subItems={approvalCenterSubItems} pathname={pathname} onNavClick={onNavClick} collapsed={collapsed} isOpen={openSection === "Approval Center"} onToggle={makeToggle("Approval Center")} onOpen={openSectionLabel("Approval Center")} />
                 )}
               </>
